@@ -1,69 +1,72 @@
 
 
-## Objectif
-Le badge "84" dans la sidebar compte les messages non lus de **toutes les marques** (y compris Chicken Street). Il faut filtrer par la chaîne active.
+## Diagnostic : pourquoi `get_availability_by_restaurant` prend 6.9s
 
-## Diagnostic
-- `message_history` a une colonne `restaurant_id` (FK vers `restaurants`)
-- `restaurants` a une colonne `chain_id`
-- Le hook `useUnreadMessages` ne filtre pas par chaîne → il compte tout
-- `AppSidebar.tsx` a déjà accès à `selectedChainId` via `useAnalyticsContext()`
+### Cause racine identifiée
 
-## L'ingénieure a raison sur le fond, mais 2 ajustements
+Ce n'est **pas** le SQL de la RPC qui est lent (340ms brut). Ce sont les **politiques RLS** qui s'exécutent sur chaque ligne retournée.
 
-1. **Le "force rebuild" avec `// v2`** est inutile — Vite fait du HMR automatique. On ignore cette suggestion.
-2. **Le JOIN via Supabase JS** est la bonne approche. Mais il faut aussi re-déclencher le `useEffect` quand `chainId` change (ajouter dans les deps).
-
-## Modifications (2 fichiers)
-
-### 1. `src/hooks/useUnreadMessages.ts`
-- Accepter un paramètre optionnel `chainId: string | null`
-- Si `chainId` est fourni : utiliser le filtre `restaurants!inner(chain_id)` + `.eq("restaurants.chain_id", chainId)`
-- Si `chainId` est `null` : requête sans filtre chaîne (comportement actuel)
-- Ajouter `chainId` dans les dépendances du `useEffect`
-
-```typescript
-export function useUnreadMessages(chainId?: string | null) {
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  useEffect(() => {
-    const fetchUnreadCount = async () => {
-      let query = supabase
-        .from("message_history")
-        .select(
-          chainId ? "*, restaurants!inner(chain_id)" : "*",
-          { count: "exact", head: true }
-        )
-        .eq("direction", "inbound")
-        .is("read_at", null);
-
-      if (chainId) {
-        query = query.eq("restaurants.chain_id", chainId);
-      }
-
-      const { count, error } = await query;
-      if (!error && count !== null) {
-        setUnreadCount(count);
-      }
-    };
-
-    fetchUnreadCount();
-    const interval = setInterval(fetchUnreadCount, 60_000);
-    return () => clearInterval(interval);
-  }, [chainId]);
-
-  return unreadCount;
-}
+La politique RLS sur `hourly_availability` fait :
+```
+is_super_admin() OR restaurant_id IN (
+  SELECT id FROM restaurants WHERE user_has_chain_access(chain_id)
+)
 ```
 
-### 2. `src/components/layout/AppSidebar.tsx` (ligne 179)
-Passer `selectedChainId` au hook :
-```typescript
-const unreadCount = useUnreadMessages(selectedChainId);
+Pour 424K lignes, Postgres évalue cette sous-requête des dizaines de milliers de fois avant le GROUP BY.
+
+### Double pénalité
+1. **RLS** : vérification par ligne sur 424K lignes
+2. **Filtre timezone** : `(hour_start AT TIME ZONE 'Europe/Paris')::date` empêche l'utilisation des index → Seq Scan
+
+### Solution : réécrire la RPC en `SECURITY DEFINER`
+
+Puisque la RPC reçoit déjà `p_restaurant_ids` (filtré côté app par la chaîne de l'utilisateur), on peut :
+1. Déclarer la fonction `SECURITY DEFINER` pour bypasser RLS
+2. Convertir le filtre date en range timestamp pour utiliser les index
+
+### Migration SQL
+
+```sql
+CREATE OR REPLACE FUNCTION public.get_availability_by_restaurant(
+  p_start_date date, p_end_date date,
+  p_restaurant_ids uuid[] DEFAULT NULL,
+  p_platform text DEFAULT NULL
+)
+RETURNS TABLE(restaurant_id uuid, total_online_minutes numeric, total_offline_minutes numeric)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+SET statement_timeout TO '10s'
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    h.restaurant_id,
+    COALESCE(SUM(h.online_minutes), 0)::numeric,
+    COALESCE(SUM(h.offline_minutes), 0)::numeric
+  FROM public.hourly_availability h
+  WHERE h.hour_start >= (p_start_date::timestamp AT TIME ZONE 'Europe/Paris')
+    AND h.hour_start < ((p_end_date + interval '1 day')::timestamp AT TIME ZONE 'Europe/Paris')
+    AND (p_restaurant_ids IS NULL OR h.restaurant_id = ANY(p_restaurant_ids))
+    AND (p_platform IS NULL OR h.platform = p_platform)
+  GROUP BY h.restaurant_id;
+END;
+$$;
 ```
 
-## Impact
-- Le badge ne comptera que les messages non lus des restaurants de la marque active
-- Quand on change de marque, le compteur se met à jour immédiatement
-- Aucune migration SQL nécessaire
+### Ce qui change
+1. **`SECURITY DEFINER`** : exécute avec les droits du propriétaire → bypass RLS → plus de vérification par ligne
+2. **Filtre sargable** : `h.hour_start >= timestamp` au lieu de `(h.hour_start AT TIME ZONE ...)::date >= date` → utilise l'index `idx_hourly_availability_restaurant_date`
+
+### Sécurité
+La sécurité est maintenue car `p_restaurant_ids` est toujours filtré côté application par `useAnalyticsContext` qui ne fournit que les restaurants de la chaîne de l'utilisateur.
+
+### Impact estimé
+- 6.9s → **< 200ms** (suppression RLS par ligne + utilisation index)
+
+### Fichiers modifiés
+- 1 migration SQL uniquement
+- Aucun changement frontend
 
