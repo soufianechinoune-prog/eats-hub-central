@@ -64,6 +64,7 @@ interface UseNetworkStatsParams {
   endDate: Date;
   profitabilityBase?: "gross" | "net";
   includeN1Comparison?: boolean;
+  reviewsData?: any[] | null;
 }
 
 const RETRY_CONFIG = {
