@@ -218,23 +218,40 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
             const endDatePlusOne = new Date(endDate);
             endDatePlusOne.setDate(endDatePlusOne.getDate() + 1);
 
-            // Fetch orders for this specific offer and aggregate
-            const { data, error } = await supabase
-              .from("orders")
-              .select(`
-                sales_incl_vat,
-                uber_fee_after_promo_incl_vat,
-                item_promo_incl_vat,
-                refund_incl_vat,
-                net_payout,
-                meal_voucher_amount
-              `)
-              .in("restaurant_id", offer.restaurant_ids)
-              .gte("order_datetime", offer.start_date)
-              .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0]);
+            // Fetch orders for this specific offer with pagination
+            const PAGE_SIZE = 1000;
+            const allOrders: any[] = [];
+            let from = 0;
+            let hasMore = true;
+            let fetchError = false;
 
-            if (error) {
-              console.error(`Error fetching financials for offer ${offer.id}:`, error);
+            while (hasMore) {
+              const { data, error } = await supabase
+                .from("orders")
+                .select(`
+                  sales_incl_vat,
+                  uber_fee_after_promo_incl_vat,
+                  item_promo_incl_vat,
+                  refund_incl_vat,
+                  net_payout,
+                  meal_voucher_amount
+                `)
+                .in("restaurant_id", offer.restaurant_ids)
+                .gte("order_datetime", offer.start_date)
+                .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0])
+                .range(from, from + PAGE_SIZE - 1);
+
+              if (error) {
+                console.error(`Error fetching financials for offer ${offer.id}:`, error);
+                fetchError = true;
+                break;
+              }
+              allOrders.push(...(data || []));
+              hasMore = (data?.length ?? 0) === PAGE_SIZE;
+              from += PAGE_SIZE;
+            }
+
+            if (fetchError) {
               return {
                 offerId: offer.id,
                 orderCount: 0,
@@ -248,7 +265,7 @@ export const useOfferProfitability = (offers: OffersCampaign[]) => {
             }
 
             // Aggregate the results
-            const orders = data || [];
+            const orders = allOrders;
             return {
               offerId: offer.id,
               orderCount: orders.length,

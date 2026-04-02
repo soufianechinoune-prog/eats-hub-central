@@ -188,21 +188,32 @@ export function useItemSalesAnalytics(
       // Empty array = no restaurants in scope → return empty
       if (restaurantIds && restaurantIds.length === 0) return [];
 
-      // Get orders with their dates
-      let ordersQuery = supabase
-        .from("orders")
-        .select("id, order_datetime")
-        .gte("order_datetime", startStr)
-        .lte("order_datetime", endStr + "T23:59:59");
+      // Get orders with their dates (paginated)
+      const PAGE_SIZE = 1000;
+      const orders: any[] = [];
+      let from = 0;
+      let hasMore = true;
 
-      if (restaurantIds && restaurantIds.length > 0) {
-        ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
+      while (hasMore) {
+        let ordersQuery = supabase
+          .from("orders")
+          .select("id, order_datetime")
+          .gte("order_datetime", startStr)
+          .lte("order_datetime", endStr + "T23:59:59")
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (restaurantIds && restaurantIds.length > 0) {
+          ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
+        }
+
+        const { data, error: ordersError } = await ordersQuery;
+        if (ordersError) throw ordersError;
+        orders.push(...(data || []));
+        hasMore = (data?.length ?? 0) === PAGE_SIZE;
+        from += PAGE_SIZE;
       }
 
-      const { data: orders, error: ordersError } = await ordersQuery;
-      if (ordersError) throw ordersError;
-      
-      if (!orders || orders.length === 0) return [];
+      if (orders.length === 0) return [];
 
       const orderIds = orders.map(o => o.id);
       const orderDateMap = new Map(orders.map(o => [o.id, o.order_datetime]));
