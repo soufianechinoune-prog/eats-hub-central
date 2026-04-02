@@ -109,6 +109,7 @@ export function useOffersAnalytics(
 
   const { data: prevData } = useQuery({
     queryKey: ["offers-analytics-prev", restaurantIds, prevStart, prevEnd],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_offers_analytics", {
         p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null,
