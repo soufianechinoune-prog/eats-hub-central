@@ -190,7 +190,7 @@ export function AppSidebar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chains")
-        .select("id, name")
+        .select("id, name, logo_url")
         .order("name");
       if (error) {
         console.error("Error fetching chains:", error);
