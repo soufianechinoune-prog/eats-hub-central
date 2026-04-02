@@ -201,9 +201,10 @@ export function AppSidebar() {
     },
   });
 
-  const activeChainName = selectedChainId
-    ? chains?.find((chain) => chain.id === selectedChainId)?.name ?? "Marque sélectionnée"
-    : "Toutes les marques";
+  const activeChain = selectedChainId
+    ? chains?.find((chain) => chain.id === selectedChainId)
+    : null;
+  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Toutes les marques");
 
   const handleChainChange = (value: string) => {
     if (value === "__new__") {
