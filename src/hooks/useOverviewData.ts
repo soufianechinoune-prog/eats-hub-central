@@ -395,21 +395,14 @@ export function useOverviewData(
   const payouts = useOverviewPayouts(restaurantIds, startDateStr, endDateStr, hasIds);
   const deliverooSales = useOverviewDeliverooSales(restaurantIds, startDateStr, endDateStr, hasIds);
 
-  // Wave 2: Reviews + Accuracy + Errors (after sales)
-  const wave1Done = hasIds && !!sales.data;
-  const reviews = useOverviewReviews(restaurantIds, startDateStr, endDateStr, wave1Done);
-  const accuracy = useOverviewAccuracy(restaurantIds, startDateStr, endDateStr, wave1Done);
-  const errors = useOverviewErrors(restaurantIds, startDate, endDate, wave1Done);
-
-  // Wave 3: Prep times RPC + Availability RPC (after reviews)
-  const wave2Done = wave1Done && !!reviews.data;
-  const prepTimes = useOverviewPrepTimes(restaurantIds, startDate, endDate, wave2Done);
-  const availability = useOverviewAvailability(restaurantIds, startDate, endDate, wave2Done);
-
-  // Wave 4: Products + Conversion (after prep times)
-  const wave3Done = wave2Done && !!prepTimes.data;
-  const products = useOverviewProducts(restaurantIds, startDate, endDate, startDateStr, endDateStr, wave3Done);
-  const conversion = useOverviewConversion(restaurantIds, startDateStr, endDateStr, wave3Done);
+  // All remaining queries in parallel (no wave dependencies needed)
+  const reviews = useOverviewReviews(restaurantIds, startDateStr, endDateStr, hasIds);
+  const accuracy = useOverviewAccuracy(restaurantIds, startDateStr, endDateStr, hasIds);
+  const errors = useOverviewErrors(restaurantIds, startDate, endDate, hasIds);
+  const prepTimes = useOverviewPrepTimes(restaurantIds, startDate, endDate, hasIds);
+  const availability = useOverviewAvailability(restaurantIds, startDate, endDate, hasIds);
+  const products = useOverviewProducts(restaurantIds, startDate, endDate, startDateStr, endDateStr, hasIds);
+  const conversion = useOverviewConversion(restaurantIds, startDateStr, endDateStr, hasIds);
 
   // Compute aggregated data
   const computedData = (): OverviewData | null => {
