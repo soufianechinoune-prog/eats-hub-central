@@ -300,11 +300,25 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
             {collapsed ? (
-              <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
+              activeChain?.logo_url ? (
+                <img src={activeChain.logo_url} alt={activeChain.name} className="h-8 w-8 rounded-md object-cover mx-auto" />
+              ) : (
+                <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
+              )
             ) : (
               <div className="flex items-center gap-2">
-                <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
-                <span>CS Delivery Performance</span>
+                {activeChain?.logo_url ? (
+                  <img src={activeChain.logo_url} alt={activeChain.name} className="h-6 w-6 rounded-md object-cover" />
+                ) : activeChain ? (
+                  <Avatar className="h-6 w-6 text-[10px]">
+                    <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+                      {activeChain.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
+                )}
+                <span>{activeChain?.name || "CS Delivery Performance"}</span>
               </div>
             )}
           </SidebarGroupLabel>
