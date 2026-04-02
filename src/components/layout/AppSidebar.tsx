@@ -176,7 +176,7 @@ export function AppSidebar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const collapsed = state === "collapsed";
-  const unreadCount = useUnreadMessages();
+  const unreadCount = useUnreadMessages(selectedChainId);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [newChainDialogOpen, setNewChainDialogOpen] = useState(false);
   const [newChainName, setNewChainName] = useState("");

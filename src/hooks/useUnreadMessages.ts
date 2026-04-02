@@ -1,17 +1,25 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-export function useUnreadMessages() {
+export function useUnreadMessages(chainId?: string | null) {
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
-      const { count, error } = await supabase
+      let query = supabase
         .from("message_history")
-        .select("*", { count: "exact", head: true })
+        .select(
+          chainId ? "*, restaurants!inner(chain_id)" : "*",
+          { count: "exact", head: true }
+        )
         .eq("direction", "inbound")
         .is("read_at", null);
 
+      if (chainId) {
+        query = query.eq("restaurants.chain_id", chainId);
+      }
+
+      const { count, error } = await query;
       if (!error && count !== null) {
         setUnreadCount(count);
       }
@@ -25,7 +33,7 @@ export function useUnreadMessages() {
     return () => {
       clearInterval(interval);
     };
-  }, []);
+  }, [chainId]);
 
   return unreadCount;
 }
