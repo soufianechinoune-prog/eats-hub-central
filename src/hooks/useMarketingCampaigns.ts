@@ -72,6 +72,7 @@ export const useMarketingCampaigns = (restaurantIds?: string[]) => {
 
   return useQuery({
     queryKey: ["marketing-campaigns", restaurantIds, selectedChainId],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       let scopedRestaurantIds = restaurantIds;
 
