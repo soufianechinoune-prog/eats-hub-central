@@ -1,44 +1,84 @@
 
 
 ## Objectif
-Ajuster le `staleTime` global à 5 minutes et ajouter `staleTime: 5 * 60 * 1000` sur les hooks qui n'en ont pas encore.
+Ajouter une pagination `PAGE_SIZE = 1000` sur les requêtes directes à la table `orders` dans 2 hooks (les 2 autres n'en ont pas besoin).
 
-## État actuel
-- **App.tsx** : `staleTime: 2 * 60 * 1000`, `gcTime: 30 * 60 * 1000`, `retry: 3`, `refetchOnWindowFocus: false` — manque `refetchOnReconnect: false`, retry à changer à 2, staleTime à 5 min
-- **useOfferProfitability.ts** : déjà `staleTime: 5 * 60 * 1000` ✅
-- **useOfferMatchedOrders.ts** : déjà `staleTime: 5 * 60 * 1000` ✅
-- **useNetworkStats.ts** : 8 useQuery, aucun staleTime ❌
-- **useItemSalesAnalytics.ts** : 2 useQuery, aucun staleTime ❌
-- **useOffersAnalytics.ts** : 3 useQuery, aucun staleTime ❌
-- **useMarketingCampaigns.ts** : 1 useQuery, aucun staleTime ❌
-- **useUberOneStats.ts** : 1 useQuery, aucun staleTime ❌
+## Analyse
 
-## Modifications
+| Hook | Requête directe sur orders? | Pagination nécessaire? |
+|---|---|---|
+| useNetworkStats.ts | Non — utilise des RPCs agrégées | ❌ |
+| useOfferProfitability.ts | Oui (ligne 222, `.from("orders").select(...)`) | ✅ |
+| useItemSalesAnalytics.ts | Oui (2 requêtes `.from("orders").select("id")`) | ✅ |
+| useOfferMatchedOrders.ts | Oui mais `.limit(150)` intentionnel | ❌ |
 
-### 1. `src/App.tsx` (lignes 62-72)
+## Modifications (2 fichiers)
+
+### 1. `src/hooks/useOfferProfitability.ts` (lignes 222-234)
+
+Remplacer la requête simple par une boucle paginée :
+
 ```typescript
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 5 * 60 * 1000,
-      gcTime: 30 * 60 * 1000,
-      retry: 2,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  },
-});
+const PAGE_SIZE = 1000;
+let allOrders: any[] = [];
+let from = 0;
+let hasMore = true;
+
+while (hasMore) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select(`
+      sales_incl_vat,
+      uber_fee_after_promo_incl_vat,
+      item_promo_incl_vat,
+      refund_incl_vat,
+      net_payout,
+      meal_voucher_amount
+    `)
+    .in("restaurant_id", offer.restaurant_ids)
+    .gte("order_datetime", offer.start_date)
+    .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0])
+    .range(from, from + PAGE_SIZE - 1);
+
+  if (error) { /* error handling existant */ }
+  allOrders.push(...(data || []));
+  hasMore = (data?.length ?? 0) === PAGE_SIZE;
+  from += PAGE_SIZE;
+}
+// Remplacer `const orders = data || []` par `const orders = allOrders`
 ```
 
-### 2. Hooks — ajouter `staleTime: 5 * 60 * 1000` sur chaque useQuery
-- **useNetworkStats.ts** : 8 useQuery (lignes ~107, 128, 150, 177, 194, 213, 243, 265)
-- **useItemSalesAnalytics.ts** : 2 useQuery (lignes ~45, 172)
-- **useOffersAnalytics.ts** : 3 useQuery (lignes ~81, 109, 124)
-- **useMarketingCampaigns.ts** : 1 useQuery (ligne ~73)
-- **useUberOneStats.ts** : 1 useQuery (ligne ~110)
-- **useOfferProfitability.ts** : déjà fait, aucun changement
-- **useOfferMatchedOrders.ts** : déjà fait, aucun changement
+### 2. `src/hooks/useItemSalesAnalytics.ts` — 2 requêtes orders
 
-### Fichiers modifiés : 6
-Aucune migration SQL.
+**Requête 1** (ligne ~55, fetch order IDs) : Remplacer par boucle paginée sur `.from("orders").select("id")`.
+
+**Requête 2** (ligne ~155, fetch order IDs + dates pour évolution) : Remplacer par boucle paginée sur `.from("orders").select("id, order_datetime")`.
+
+Pattern identique pour les deux :
+```typescript
+const PAGE_SIZE = 1000;
+let allOrders: any[] = [];
+let from = 0;
+let hasMore = true;
+
+while (hasMore) {
+  const { data, error } = await supabase
+    .from("orders")
+    .select("id")  // ou "id, order_datetime"
+    .gte("order_datetime", startStr)
+    .lte("order_datetime", endStr + "T23:59:59")
+    .range(from, from + PAGE_SIZE - 1);
+
+  if (error) throw error;
+  allOrders.push(...(data || []));
+  hasMore = (data?.length ?? 0) === PAGE_SIZE;
+  from += PAGE_SIZE;
+}
+```
+
+## Hooks exclus (justification)
+- **useNetworkStats.ts** : Aucune requête directe sur orders — uniquement des RPCs qui retournent des agrégats (1 ligne par restaurant)
+- **useOfferMatchedOrders.ts** : `.limit(150)` intentionnel pour l'affichage détail d'une offre
+
+## Aucune migration SQL nécessaire
 
