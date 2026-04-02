@@ -525,7 +525,6 @@ export function useNetworkStats({
 
   const isLoading =
     deliverooLoading ||
-    reviewsLoading ||
     ordersPayoutLoading ||
     historyLoading ||
     accuracyLoading ||
