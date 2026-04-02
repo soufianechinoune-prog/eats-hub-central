@@ -88,6 +88,7 @@ export function useNetworkStats({
   endDate,
   profitabilityBase = "gross",
   includeN1Comparison = false,
+  reviewsData: externalReviewsData = null,
 }: UseNetworkStatsParams) {
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
