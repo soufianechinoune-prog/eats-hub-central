@@ -1,70 +1,36 @@
 
 
 ## Objectif
-Optimiser les 3 RPCs lentes de la Vue d'ensemble et dédupliquer les appels customer_reviews.
+Résoudre les 2 problèmes restants : dédupliquer `customer_reviews` (4 appels → 1) et vérifier pourquoi `get_network_prep_time_summary` reste lent malgré les index existants.
 
-## Modifications
+## Diagnostic
 
-### 1. SQL — Ajouter `statement_timeout` sur 2 RPCs (migration)
+### customer_reviews appelé 4 fois
+Le problème : `useNetworkStats` et `useOverviewData` utilisent la même `queryKey` (`"overview-reviews"`) mais des `queryFn` différentes (paginated vs non-paginated, colonnes différentes). React Query ne peut pas dédupliquer quand les fonctions diffèrent.
 
-**`get_availability_by_restaurant`** : Ajouter `SET statement_timeout TO '10s'` dans la déclaration de fonction.
+**Solution** : Supprimer complètement la requête `customer_reviews` de `useNetworkStats` et passer les données reviews en prop depuis `Overview.tsx` (qui les a déjà via `useOverviewData`).
 
-**`get_product_sales_for_period`** : Ajouter `SET statement_timeout TO '10s'` + ajouter `LIMIT 100` (on n'affiche que le top produits, pas besoin de tous les renvoyer).
+### get_network_prep_time_summary à 4s
+L'index `idx_order_history_restaurant_date` sur `(restaurant_id, order_datetime)` existe déjà. La RPC a déjà un `statement_timeout` de 10s. Les 4s sont le temps réel de l'agrégation sur un gros volume — pas d'optimisation SQL supplémentaire évidente sans table pré-agrégée. Le timeout protège contre les cas extrêmes.
 
-**`get_network_prep_time_summary`** : Réduire le timeout existant de `30s` à `10s`.
+## Modifications (2 fichiers)
 
-### 2. SQL — Optimiser `get_product_sales_for_period`
+### 1. `src/hooks/useNetworkStats.ts`
+- Ajouter `reviewsData` optionnel dans `UseNetworkStatsParams`
+- Supprimer le `useQuery` pour `customer_reviews` (lignes 178-193)
+- Supprimer `reviewsLoading` de `isLoading`
+- Utiliser `reviewsData` passé en prop au lieu de données fetchées
 
-Actuellement la RPC fait un `JOIN orders + order_items` sans filtre de date de fin. Ajouter un paramètre `p_end_date` et un `LIMIT 50` pour ne renvoyer que le top 50 :
+### 2. `src/pages/Overview.tsx`
+- Extraire `reviews.data` depuis `useOverviewData` (déjà disponible dans le retour)
+- Passer `reviewsData` à `useNetworkStats`
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_product_sales_for_period(
-  p_start_date timestamptz DEFAULT NULL,
-  p_end_date timestamptz DEFAULT NULL,
-  p_restaurant_ids uuid[] DEFAULT NULL
-)
-RETURNS TABLE(item_title text, total_quantity bigint)
-LANGUAGE plpgsql STABLE
-SET search_path TO 'public'
-SET statement_timeout TO '10s'
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT oi.item_title, SUM(oi.quantity)::BIGINT as total_quantity
-  FROM public.order_items oi
-  JOIN public.orders o ON oi.order_id = o.id
-  WHERE (p_start_date IS NULL OR o.order_datetime >= p_start_date)
-    AND (p_end_date IS NULL OR o.order_datetime <= p_end_date)
-    AND (p_restaurant_ids IS NULL OR o.restaurant_id = ANY(p_restaurant_ids))
-  GROUP BY oi.item_title
-  ORDER BY total_quantity DESC
-  LIMIT 50;
-END;
-$$;
-```
+### Vérification nécessaire
+Il faut d'abord vérifier si `useOverviewData` expose les reviews dans son retour, ou s'il faut l'ajouter.
 
-### 3. SQL — Ajouter timeout sur `get_availability_by_restaurant`
+## Impact
+- `customer_reviews` : 4 appels → 1 seul (via `useOverviewData`)
+- `get_network_prep_time_summary` : déjà optimisé avec index + timeout 10s, pas de changement SQL
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_availability_by_restaurant(...)
--- Même corps, ajouter SET statement_timeout TO '10s'
-```
-
-### 4. `src/hooks/useOverviewData.ts` — Passer `p_end_date` à la RPC
-
-Ligne 237-243, ajouter `p_end_date: endDate.toISOString()` dans l'appel RPC `get_product_sales_for_period`.
-
-### 5. `src/hooks/useOverviewData.ts` — Dédupliquer customer_reviews
-
-Extraire la queryKey reviews pour qu'elle soit identique entre `useOverviewData` et `useNetworkStats`. Comme les deux hooks sélectionnent des colonnes différentes (`overall_rating, review_date, platform` vs `overall_rating` seul), la solution simple : dans `useNetworkStats`, réutiliser la même queryKey `["overview-reviews", ...]` pour que React Query serve le cache au lieu de refaire la requête.
-
-### Résumé des fichiers modifiés
-- 1 migration SQL (3 RPCs modifiées)
-- `src/hooks/useOverviewData.ts` (ajout `p_end_date`)
-- `src/hooks/useNetworkStats.ts` (réutiliser queryKey reviews)
-
-### Impact estimé
-- `get_product_sales_for_period` : 8s → ~1-2s (LIMIT 50 + filtre date fin)
-- `get_availability_by_restaurant` : protégé par timeout 10s
-- customer_reviews : 1 appel au lieu de 2
+## Aucune migration SQL nécessaire
 
