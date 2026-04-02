@@ -652,6 +652,7 @@ export function useOverviewData(
   return {
     data,
     restaurants: restaurants.data,
+    reviewsData: reviews.data || [],
     isLoading: wave1Loading,
     isFullyLoaded,
     wave1Loading,

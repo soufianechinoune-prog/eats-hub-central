@@ -392,6 +392,7 @@ const Overview = () => {
     wave4Loading,
     criticalError: overviewError,
     queryKeys: overviewQueryKeys,
+    reviewsData: overviewReviewsData,
   } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds, analyticsCtx.selectedChainId);
 
   const error = overviewError;
@@ -402,6 +403,7 @@ const Overview = () => {
     endDate,
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
+    reviewsData: overviewReviewsData,
   });
 
   const MONTHS_FULL = [
