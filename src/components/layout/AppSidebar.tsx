@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -190,7 +191,7 @@ export function AppSidebar() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chains")
-        .select("id, name")
+        .select("id, name, logo_url")
         .order("name");
       if (error) {
         console.error("Error fetching chains:", error);
@@ -200,9 +201,10 @@ export function AppSidebar() {
     },
   });
 
-  const activeChainName = selectedChainId
-    ? chains?.find((chain) => chain.id === selectedChainId)?.name ?? "Marque sélectionnée"
-    : "Toutes les marques";
+  const activeChain = selectedChainId
+    ? chains?.find((chain) => chain.id === selectedChainId)
+    : null;
+  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Toutes les marques");
 
   const handleChainChange = (value: string) => {
     if (value === "__new__") {
@@ -298,11 +300,25 @@ export function AppSidebar() {
         <SidebarGroup>
           <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
             {collapsed ? (
-              <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
+              activeChain?.logo_url ? (
+                <img src={activeChain.logo_url} alt={activeChain.name} className="h-8 w-8 rounded-md object-cover mx-auto" />
+              ) : (
+                <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
+              )
             ) : (
               <div className="flex items-center gap-2">
-                <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
-                <span>CS Delivery Performance</span>
+                {activeChain?.logo_url ? (
+                  <img src={activeChain.logo_url} alt={activeChain.name} className="h-6 w-6 rounded-md object-cover" />
+                ) : activeChain ? (
+                  <Avatar className="h-6 w-6 text-[10px]">
+                    <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
+                      {activeChain.name.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
+                )}
+                <span>{activeChain?.name || "CS Delivery Performance"}</span>
               </div>
             )}
           </SidebarGroupLabel>
@@ -315,7 +331,11 @@ export function AppSidebar() {
               >
                 <SelectTrigger className="h-11 border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground [&>svg]:text-sidebar-foreground">
                   <div className="flex min-w-0 items-center gap-2">
-                    <Building2 className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+                    {activeChain?.logo_url ? (
+                      <img src={activeChain.logo_url} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+                    ) : (
+                      <Building2 className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+                    )}
                     <span className="truncate text-sm font-medium text-sidebar-foreground">
                       {activeChainName}
                     </span>
@@ -325,7 +345,14 @@ export function AppSidebar() {
                   <SelectItem value="all">Toutes les marques</SelectItem>
                   {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
-                      {chain.name}
+                      <div className="flex items-center gap-2">
+                        {chain.logo_url ? (
+                          <img src={chain.logo_url} alt="" className="h-4 w-4 rounded object-cover" />
+                        ) : (
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                        )}
+                        {chain.name}
+                      </div>
                     </SelectItem>
                   ))}
                   <div className="border-t my-1" />
