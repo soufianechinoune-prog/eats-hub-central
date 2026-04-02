@@ -1,84 +1,41 @@
 
 
 ## Objectif
-Ajouter une pagination `PAGE_SIZE = 1000` sur les requêtes directes à la table `orders` dans 2 hooks (les 2 autres n'en ont pas besoin).
+Supprimer les vagues séquentielles inutiles dans `useOverviewData.ts` pour que toutes les requêtes partent en parallèle dès que les `restaurantIds` sont disponibles.
 
-## Analyse
+## Diagnostic réel
+Le code actuel impose 4 vagues séquentielles via `enabled` :
+- Wave 1 : sales, payouts, deliveroo → `enabled: hasIds` ✅
+- Wave 2 : reviews, accuracy, errors → `enabled: hasIds && !!sales.data` ❌ inutile
+- Wave 3 : prepTimes, availability → `enabled: wave1Done && !!reviews.data` ❌ inutile  
+- Wave 4 : products, conversion → `enabled: wave2Done && !!prepTimes.data` ❌ inutile
 
-| Hook | Requête directe sur orders? | Pagination nécessaire? |
-|---|---|---|
-| useNetworkStats.ts | Non — utilise des RPCs agrégées | ❌ |
-| useOfferProfitability.ts | Oui (ligne 222, `.from("orders").select(...)`) | ✅ |
-| useItemSalesAnalytics.ts | Oui (2 requêtes `.from("orders").select("id")`) | ✅ |
-| useOfferMatchedOrders.ts | Oui mais `.limit(150)` intentionnel | ❌ |
+Aucune de ces requêtes ne dépend du **résultat** d'une autre — elles dépendent toutes uniquement des `restaurantIds`.
 
-## Modifications (2 fichiers)
+## Modification unique : `src/hooks/useOverviewData.ts`
 
-### 1. `src/hooks/useOfferProfitability.ts` (lignes 222-234)
-
-Remplacer la requête simple par une boucle paginée :
+**Lignes 393-412** — Remplacer les conditions `enabled` des waves 2, 3 et 4 par simplement `hasIds` :
 
 ```typescript
-const PAGE_SIZE = 1000;
-let allOrders: any[] = [];
-let from = 0;
-let hasMore = true;
-
-while (hasMore) {
-  const { data, error } = await supabase
-    .from("orders")
-    .select(`
-      sales_incl_vat,
-      uber_fee_after_promo_incl_vat,
-      item_promo_incl_vat,
-      refund_incl_vat,
-      net_payout,
-      meal_voucher_amount
-    `)
-    .in("restaurant_id", offer.restaurant_ids)
-    .gte("order_datetime", offer.start_date)
-    .lt("order_datetime", endDatePlusOne.toISOString().split('T')[0])
-    .range(from, from + PAGE_SIZE - 1);
-
-  if (error) { /* error handling existant */ }
-  allOrders.push(...(data || []));
-  hasMore = (data?.length ?? 0) === PAGE_SIZE;
-  from += PAGE_SIZE;
-}
-// Remplacer `const orders = data || []` par `const orders = allOrders`
+// Toutes les requêtes partent en parallèle dès que les IDs sont disponibles
+const sales = useOverviewSales(restaurantIds, startDateStr, endDateStr, hasIds);
+const payouts = useOverviewPayouts(restaurantIds, startDateStr, endDateStr, hasIds);
+const deliverooSales = useOverviewDeliverooSales(restaurantIds, startDateStr, endDateStr, hasIds);
+const reviews = useOverviewReviews(restaurantIds, startDateStr, endDateStr, hasIds);
+const accuracy = useOverviewAccuracy(restaurantIds, startDateStr, endDateStr, hasIds);
+const errors = useOverviewErrors(restaurantIds, startDate, endDate, hasIds);
+const prepTimes = useOverviewPrepTimes(restaurantIds, startDate, endDate, hasIds);
+const availability = useOverviewAvailability(restaurantIds, startDate, endDate, hasIds);
+const products = useOverviewProducts(restaurantIds, startDate, endDate, startDateStr, endDateStr, hasIds);
+const conversion = useOverviewConversion(restaurantIds, startDateStr, endDateStr, hasIds);
 ```
 
-### 2. `src/hooks/useItemSalesAnalytics.ts` — 2 requêtes orders
+Suppression des variables `wave1Done`, `wave2Done`, `wave3Done`.
 
-**Requête 1** (ligne ~55, fetch order IDs) : Remplacer par boucle paginée sur `.from("orders").select("id")`.
-
-**Requête 2** (ligne ~155, fetch order IDs + dates pour évolution) : Remplacer par boucle paginée sur `.from("orders").select("id, order_datetime")`.
-
-Pattern identique pour les deux :
-```typescript
-const PAGE_SIZE = 1000;
-let allOrders: any[] = [];
-let from = 0;
-let hasMore = true;
-
-while (hasMore) {
-  const { data, error } = await supabase
-    .from("orders")
-    .select("id")  // ou "id, order_datetime"
-    .gte("order_datetime", startStr)
-    .lte("order_datetime", endStr + "T23:59:59")
-    .range(from, from + PAGE_SIZE - 1);
-
-  if (error) throw error;
-  allOrders.push(...(data || []));
-  hasMore = (data?.length ?? 0) === PAGE_SIZE;
-  from += PAGE_SIZE;
-}
-```
-
-## Hooks exclus (justification)
-- **useNetworkStats.ts** : Aucune requête directe sur orders — uniquement des RPCs qui retournent des agrégats (1 ligne par restaurant)
-- **useOfferMatchedOrders.ts** : `.limit(150)` intentionnel pour l'affichage détail d'une offre
+## Impact estimé
+- Avant : 4 vagues séquentielles (~4× la latence d'une requête)
+- Après : toutes en parallèle (~1× la latence de la requête la plus lente)
+- Gain estimé : **~60-70% de réduction du temps de chargement**
 
 ## Aucune migration SQL nécessaire
 
