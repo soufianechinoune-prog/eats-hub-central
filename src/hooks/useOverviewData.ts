@@ -238,6 +238,7 @@ function useOverviewProducts(
         "get_product_sales_for_period",
         {
           p_start_date: startDate.toISOString(),
+          p_end_date: endDate.toISOString(),
           p_restaurant_ids: restaurantIds,
         },
       );

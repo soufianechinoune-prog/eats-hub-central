@@ -176,7 +176,7 @@ export function useNetworkStats({
   // ═══════════════════════════════════════════════
 
   const { data: reviewsData, isLoading: reviewsLoading } = useQuery({
-    queryKey: ["network-stats-reviews", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-reviews", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase
