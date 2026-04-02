@@ -15,16 +15,16 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   const { selectedChainId } = useAnalyticsContext();
 
   // Fetch active chain name
-  const { data: chainName } = useQuery({
+  const { data: chainData } = useQuery({
     queryKey: ["chain-name-header", selectedChainId],
     queryFn: async () => {
       if (!selectedChainId) return null;
       const { data } = await supabase
         .from("chains")
-        .select("name")
+        .select("name, logo_url")
         .eq("id", selectedChainId)
         .single();
-      return data?.name || null;
+      return data || null;
     },
     enabled: !!selectedChainId,
   });
