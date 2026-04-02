@@ -1,26 +1,50 @@
 
 
-## Analyse de la proposition
-
-### Index 1 : `idx_orders_restaurant_datetime_rpc`
-**Inutile** — cet index existe déjà : `idx_orders_restaurant_datetime ON public.orders(restaurant_id, order_datetime)` (migration du 14 mars). Ajouter un doublon avec `WHERE order_datetime IS NOT NULL` n'apporte quasi rien car `order_datetime` est rarement NULL. PostgreSQL utilise déjà cet index.
-
-### Index 2 : `idx_order_items_order_covering`
-**Pertinent** — un index couvrant sur `order_items(order_id, item_title, quantity)` permet un Index-Only Scan sur le JOIN, évitant les accès au heap pour chaque ligne. C'est le vrai gain ici.
-
-### Mon avis
-L'ingénieure a raison sur le fond (le JOIN est le goulot), mais le premier index est un doublon. Je propose de créer uniquement le covering index sur `order_items`.
+## Objectif
+Appliquer `SECURITY DEFINER` sur `get_network_orders_summary` et `get_network_deliveroo_summary` pour éliminer le RLS par ligne qui cause les timeouts 500.
 
 ## Migration SQL
 
+Les 2 fonctions gardent leur corps SQL identique. Seuls les attributs changent :
+- Ajout `SECURITY DEFINER`
+- Ajout `SET search_path TO 'public'` (sécurité obligatoire avec SECURITY DEFINER)
+- `statement_timeout` réduit de `30s` à `10s`
+
+### `get_network_orders_summary`
 ```sql
-CREATE INDEX IF NOT EXISTS idx_order_items_order_covering
-ON public.order_items(order_id, item_title, quantity);
+CREATE OR REPLACE FUNCTION public.get_network_orders_summary(
+  p_restaurant_ids uuid[], p_start_date date, p_end_date date
+)
+RETURNS TABLE(restaurant_id uuid, total_sales_incl_vat numeric, total_net_payout numeric, 
+              total_item_promo_incl_vat numeric, total_meal_voucher numeric, order_count bigint)
+LANGUAGE plpgsql STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+SET statement_timeout TO '10s'
+AS $$ -- même corps SQL exact $$
 ```
 
-## Impact estimé
-- Le JOIN `order_items → orders` passera de Seq Scan à Index-Only Scan
-- `get_product_sales_for_period` : 3.7s → **< 1s**
+### `get_network_deliveroo_summary`
+```sql
+CREATE OR REPLACE FUNCTION public.get_network_deliveroo_summary(
+  p_restaurant_ids uuid[], p_start_date date, p_end_date date
+)
+RETURNS TABLE(restaurant_id uuid, total_revenue numeric, total_payable numeric, order_count bigint)
+LANGUAGE plpgsql STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+SET statement_timeout TO '10s'
+AS $$ -- même corps SQL exact $$
+```
 
-## Aucun changement frontend
+## Sécurité
+Identique au pattern validé sur les 3 RPCs précédentes : `p_restaurant_ids` est toujours filtré côté app par `useAnalyticsContext`.
+
+## Impact estimé
+- `get_network_orders_summary` : timeout 500 → **< 500ms**
+- `get_network_deliveroo_summary` : timeout 500 → **< 500ms**
+
+## Fichiers modifiés
+- 1 migration SQL uniquement
+- Aucun changement frontend
 
