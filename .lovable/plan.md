@@ -1,83 +1,43 @@
 
 
 ## Objectif
-Appliquer `SECURITY DEFINER` sur `get_product_sales_for_period` et `get_network_prep_time_summary` pour bypasser le RLS par ligne (même fix que `get_availability_by_restaurant` : 6.9s → 0.48s).
+Ajouter un système de logos par marque : stockage, affichage dynamique dans la sidebar/header, et upload depuis la page Compte.
 
-## Cause racine
-Les 2 RPCs n'ont pas `SECURITY DEFINER`. RLS évalue `is_super_admin() OR restaurant_id IN (SELECT...)` sur chaque ligne scannée avant le GROUP BY. Sur des tables avec des centaines de milliers de lignes, c'est la cause du 10.4s.
+## Modifications
 
-## Migration SQL (1 fichier)
+### 1. Migration SQL
+- `ALTER TABLE public.chains ADD COLUMN IF NOT EXISTS logo_url TEXT;`
+- Créer le bucket `chain-logos` (public)
+- RLS sur `storage.objects` : lecture publique, écriture pour utilisateurs authentifiés
 
-### `get_product_sales_for_period`
-- Ajouter `SECURITY DEFINER`
-- Garder `LIMIT 50`, `p_end_date`, `statement_timeout TO '10s'`
+### 2. `src/components/layout/AppSidebar.tsx`
+- Modifier la query `chains-list` pour inclure `logo_url` : `.select("id, name, logo_url")`
+- **Header sidebar (lignes 298-308)** : remplacer le logo CS fixe par un composant dynamique :
+  - Si `selectedChainId` et chain a un `logo_url` → afficher le logo de la chaîne (32×32, rounded-md)
+  - Si `selectedChainId` sans logo → afficher les initiales de la chaîne dans un avatar
+  - Si pas de chaîne → garder le logo CS actuel + "CS Delivery Performance"
+- **Select chain (lignes 316-323)** : ajouter le mini logo de chaque chaîne dans les options du Select
 
-### `get_network_prep_time_summary`
-- Ajouter `SECURITY DEFINER`
-- Garder `statement_timeout TO '10s'`
+### 3. `src/components/layout/AppLayout.tsx`
+- Modifier la query `chain-name-header` pour inclure `logo_url` : `.select("name, logo_url")`
+- **Header (lignes 41-45)** : afficher le logo de la chaîne (36×36, rounded-md) s'il existe, sinon garder le logo CS par défaut
 
-```sql
-CREATE OR REPLACE FUNCTION public.get_product_sales_for_period(
-  p_start_date timestamptz DEFAULT NULL,
-  p_end_date timestamptz DEFAULT NULL,
-  p_restaurant_ids uuid[] DEFAULT NULL
-)
-RETURNS TABLE(item_title text, total_quantity bigint)
-LANGUAGE plpgsql STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-SET statement_timeout TO '10s'
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT oi.item_title, SUM(oi.quantity)::BIGINT as total_quantity
-  FROM public.order_items oi
-  JOIN public.orders o ON oi.order_id = o.id
-  WHERE (p_start_date IS NULL OR o.order_datetime >= p_start_date)
-    AND (p_end_date IS NULL OR o.order_datetime <= p_end_date)
-    AND (p_restaurant_ids IS NULL OR o.restaurant_id = ANY(p_restaurant_ids))
-  GROUP BY oi.item_title
-  ORDER BY total_quantity DESC
-  LIMIT 50;
-END;
-$$;
+### 4. `src/pages/Account.tsx`
+- Ajouter les imports nécessaires (useIsSuperAdmin, useAnalyticsContext, Upload icon)
+- Charger les données de la chaîne active (ou la seule chaîne du client)
+- Ajouter une Card "Logo de ma marque" visible pour :
+  - `super_admin` (toujours, utilise `selectedChainId`)
+  - `client` avec exactement 1 chaîne
+- Fonctionnalités :
+  - Affiche le logo actuel ou un placeholder
+  - Bouton "Changer le logo" → input file (PNG, JPG, WebP, max 2MB)
+  - Upload vers bucket `chain-logos/{chainId}.{ext}`
+  - Met à jour `chains.logo_url` avec l'URL publique
+  - Invalide les queries `chains-list` et `chain-name-header`
 
-CREATE OR REPLACE FUNCTION public.get_network_prep_time_summary(
-  p_restaurant_ids uuid[],
-  p_start_date timestamptz,
-  p_end_date timestamptz
-)
-RETURNS TABLE(restaurant_id uuid, avg_prep_time numeric, avg_total_delivery_time numeric, avg_avoidable_wait_time numeric, prep_count bigint, delivery_count bigint, avoidable_wait_count bigint)
-LANGUAGE plpgsql STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-SET statement_timeout TO '10s'
-AS $$
-BEGIN
-  RETURN QUERY
-  SELECT
-    oh.restaurant_id,
-    ROUND(AVG(oh.initial_prep_time_minutes) FILTER (WHERE oh.initial_prep_time_minutes IS NOT NULL), 2),
-    ROUND(AVG(oh.total_prep_delivery_time_minutes) FILTER (WHERE oh.total_prep_delivery_time_minutes IS NOT NULL), 2),
-    ROUND(AVG(oh.avoidable_wait_time_minutes) FILTER (WHERE oh.avoidable_wait_time_minutes IS NOT NULL), 2),
-    COUNT(*) FILTER (WHERE oh.initial_prep_time_minutes IS NOT NULL)::bigint,
-    COUNT(*) FILTER (WHERE oh.total_prep_delivery_time_minutes IS NOT NULL)::bigint,
-    COUNT(*) FILTER (WHERE oh.avoidable_wait_time_minutes IS NOT NULL)::bigint
-  FROM public.order_history oh
-  WHERE oh.restaurant_id = ANY(p_restaurant_ids)
-    AND oh.order_datetime >= p_start_date
-    AND oh.order_datetime <= p_end_date
-  GROUP BY oh.restaurant_id;
-END;
-$$;
-```
-
-## Sécurité
-Identique au pattern validé sur `get_availability_by_restaurant` : les `p_restaurant_ids` sont toujours filtrés côté app par `useAnalyticsContext` (chaîne de l'utilisateur uniquement).
-
-## Impact estimé
-- `get_product_sales_for_period` : 10.4s → **< 500ms**
-- `get_network_prep_time_summary` : 4s → **< 1s**
-
-## Aucun changement frontend nécessaire
+### Fichiers modifiés
+- 1 migration SQL (alter table + bucket + RLS)
+- `src/components/layout/AppSidebar.tsx`
+- `src/components/layout/AppLayout.tsx`
+- `src/pages/Account.tsx`
 
