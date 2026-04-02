@@ -125,6 +125,7 @@ export function useOffersAnalytics(
   // Success scores - scoped to the provided restaurantIds
   const { data: scores } = useQuery({
     queryKey: ["success-scores-latest", restaurantIds],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       let query = supabase
         .from("success_scores")

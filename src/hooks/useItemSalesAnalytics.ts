@@ -172,6 +172,7 @@ export function useItemSalesAnalytics(
   // Monthly evolution for top products - filter by order_datetime
   const { data: monthlyEvolution, isLoading: loadingEvolution } = useQuery({
     queryKey: ["item_sales_evolution", restaurantIds, startStr, endStr],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       // Empty array = no restaurants in scope → return empty
       if (restaurantIds && restaurantIds.length === 0) return [];
