@@ -44,6 +44,7 @@ export function useItemSalesAnalytics(
   // Fetch aggregated item sales - filter by order_datetime from orders table
   const { data: itemSales, isLoading: loadingSales } = useQuery({
     queryKey: ["item_sales_analytics", restaurantIds, startStr, endStr],
+    staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       // Empty array = no restaurants in scope → return empty
       if (restaurantIds && restaurantIds.length === 0) return [];
