@@ -92,6 +92,22 @@ const ImportRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const SmartHome = () => {
+  const [session, setSession] = useState<null | "loading" | "authed" | "anon">("loading");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session ? "authed" : "anon");
+    });
+  }, []);
+
+  if (session === "loading") {
+    return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+  if (session === "authed") return <Navigate to="/overview" replace />;
+  return <Landing />;
+};
+
 const App = () => {
   return (
     <QueryClientProvider client={queryClient}>
@@ -105,6 +121,7 @@ const App = () => {
                 <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                   <Routes>
                     {/* Public routes */}
+                    <Route path="/" element={<SmartHome />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/auth" element={<Navigate to="/login" replace />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -113,7 +130,7 @@ const App = () => {
                     <Route path="/uber-callback" element={<UberCallback />} />
 
                     {/* Protected routes */}
-                    <Route path="/" element={<P><AppLayout><Overview /></AppLayout></P>} />
+                    <Route path="/overview" element={<P><AppLayout><Overview /></AppLayout></P>} />
                     <Route path="/classements" element={<P><AppLayout><Dashboard /></AppLayout></P>} />
                     <Route path="/restaurants" element={<P><AppLayout><Restaurants /></AppLayout></P>} />
                     <Route path="/messaging" element={<P><AppLayout><Messaging /></AppLayout></P>} />

@@ -62,7 +62,7 @@ const Login = () => {
         title: "Connexion réussie",
         description: "Bienvenue sur CS Performance",
       });
-      navigate("/");
+      navigate("/overview");
     } catch (error: any) {
       let message = error.message;
       if (message === "Invalid login credentials") {
