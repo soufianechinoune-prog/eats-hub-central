@@ -1,32 +1,53 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BarChart3, TrendingUp, Layers, ArrowRight, ChevronRight, Plug, Upload, LineChart, Shield, Clock, Star } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import csLogo from "@/assets/cs-logo.jpeg";
 
-function useInView(threshold = 0.2) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [inView, setInView] = useState(false);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setInView(true); obs.disconnect(); } }, { threshold });
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [threshold]);
-  return { ref, inView };
-}
-
 const Landing = () => {
-  const kpiSection = useInView(0.3);
-  const featuresSection = useInView(0.2);
-  const stepsSection = useInView(0.2);
+  const [kpisVisible, setKpisVisible] = useState(false);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          observer.unobserve(e.target);
+        }
+      }),
+      { threshold: 0.1 }
+    );
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+    // Separate observer for KPI animated numbers
+    const kpiObs = new IntersectionObserver(
+      ([e]) => { if (e.isIntersecting) { setKpisVisible(true); kpiObs.disconnect(); } },
+      { threshold: 0.3 }
+    );
+    const kpiEl = document.getElementById('kpi-section');
+    if (kpiEl) kpiObs.observe(kpiEl);
+
+    return () => { observer.disconnect(); kpiObs.disconnect(); };
+  }, []);
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+      {/* Reveal CSS */}
+      <style>{`
+        .reveal {
+          opacity: 0;
+          transform: translateY(30px);
+          transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+        }
+        .reveal.visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      `}</style>
+
       {/* ── Header ── */}
       <header className="fixed top-0 inset-x-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -49,11 +70,9 @@ const Landing = () => {
 
       {/* ── Hero ── */}
       <section className="relative pt-32 pb-20 md:pt-44 md:pb-32">
-        {/* Background effects */}
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[600px] rounded-full bg-primary/8 blur-[120px]" />
           <div className="absolute bottom-0 right-1/4 w-[400px] h-[400px] rounded-full bg-accent/6 blur-[100px]" />
-          {/* Dot grid */}
           <div className="absolute inset-0" style={{
             backgroundImage: "radial-gradient(hsl(var(--muted-foreground) / 0.12) 1px, transparent 1px)",
             backgroundSize: "32px 32px",
@@ -61,7 +80,6 @@ const Landing = () => {
         </div>
 
         <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Badges */}
           <div className="flex items-center justify-center gap-3 mb-8 animate-fade-in">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-border bg-card/80 text-xs font-medium text-muted-foreground backdrop-blur-sm">
               <img src={uberEatsLogo} alt="Uber Eats" className="h-4 w-4 rounded-sm object-contain" />
@@ -105,20 +123,18 @@ const Landing = () => {
       {/* ── Trust Logos ── */}
       <section className="py-16 border-y border-border/50">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm font-medium text-muted-foreground uppercase tracking-widest mb-10">
+          <p className="reveal text-center text-sm font-medium text-muted-foreground uppercase tracking-widest mb-10">
             Ils nous font confiance
           </p>
           <div className="flex flex-wrap justify-center items-center gap-8 md:gap-16">
-            {/* Chicken Street */}
-            <div className="flex items-center gap-4 group">
+            <div className="reveal flex items-center gap-4 group" style={{ transitionDelay: "100ms" }}>
               <img src={csLogo} alt="Chicken Street" className="h-14 w-14 rounded-xl object-cover border border-border shadow-sm group-hover:shadow-md transition-shadow" />
               <div>
                 <p className="font-semibold text-foreground">Chicken Street</p>
                 <p className="text-sm text-muted-foreground">72 restaurants</p>
               </div>
             </div>
-            {/* Tasty Crousty */}
-            <div className="flex items-center gap-4 group">
+            <div className="reveal flex items-center gap-4 group" style={{ transitionDelay: "200ms" }}>
               <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center border border-border shadow-sm group-hover:shadow-md transition-shadow">
                 <span className="text-xl font-black text-white">TC</span>
               </div>
@@ -132,9 +148,9 @@ const Landing = () => {
       </section>
 
       {/* ── KPIs ── */}
-      <section ref={kpiSection.ref} className="py-20 md:py-28">
+      <section id="kpi-section" className="py-20 md:py-28">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className={`grid grid-cols-2 md:grid-cols-4 gap-6 transition-all duration-700 ${kpiSection.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {[
               { value: 147, suffix: "", label: "Restaurants suivis", icon: BarChart3 },
               { value: 2, suffix: "", label: "Plateformes intégrées", icon: Layers },
@@ -143,13 +159,13 @@ const Landing = () => {
             ].map((kpi, i) => (
               <div
                 key={kpi.label}
-                className="relative group rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-6 md:p-8 text-center hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
+                className="reveal relative group rounded-2xl border border-border/60 bg-card/50 backdrop-blur-sm p-6 md:p-8 text-center hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 transition-all duration-300"
                 style={{ transitionDelay: `${i * 100}ms` }}
               >
                 <kpi.icon className="h-6 w-6 text-primary mx-auto mb-4 opacity-60 group-hover:opacity-100 transition-opacity" />
                 <p className="text-3xl md:text-4xl font-bold text-foreground mb-1">
                   {kpi.prefix || ""}
-                  {kpiSection.inView ? <AnimatedNumber value={kpi.value} duration={800} /> : "0"}
+                  {kpisVisible ? <AnimatedNumber value={kpi.value} duration={800} /> : "0"}
                   {kpi.suffix}
                 </p>
                 <p className="text-sm text-muted-foreground">{kpi.label}</p>
@@ -160,18 +176,18 @@ const Landing = () => {
       </section>
 
       {/* ── Features ── */}
-      <section ref={featuresSection.ref} className="py-20 md:py-28 bg-muted/30">
+      <section className="py-20 md:py-28 bg-muted/30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            <h2 className="reveal text-3xl md:text-4xl font-bold text-foreground mb-4">
               Tout pour piloter votre réseau
             </h2>
-            <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
+            <p className="reveal text-muted-foreground text-lg max-w-2xl mx-auto" style={{ transitionDelay: "100ms" }}>
               Des outils puissants pour comprendre, comparer et optimiser chaque restaurant.
             </p>
           </div>
 
-          <div className={`grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 transition-all duration-700 ${featuresSection.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8">
             {[
               {
                 icon: LineChart,
@@ -206,8 +222,8 @@ const Landing = () => {
             ].map((feat, i) => (
               <div
                 key={feat.title}
-                className="group rounded-2xl border border-border/60 bg-card p-6 lg:p-8 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1"
-                style={{ transitionDelay: `${i * 80}ms` }}
+                className="reveal group rounded-2xl border border-border/60 bg-card p-6 lg:p-8 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/5 transition-all duration-300 hover:-translate-y-1"
+                style={{ transitionDelay: `${i * 100}ms` }}
               >
                 <div className="h-11 w-11 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:bg-primary/15 transition-colors">
                   <feat.icon className="h-5 w-5 text-primary" />
@@ -221,27 +237,25 @@ const Landing = () => {
       </section>
 
       {/* ── How it works ── */}
-      <section ref={stepsSection.ref} className="py-20 md:py-28">
+      <section className="py-20 md:py-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
+            <h2 className="reveal text-3xl md:text-4xl font-bold text-foreground mb-4">
               Démarrez en 3 étapes
             </h2>
-            <p className="text-muted-foreground text-lg">
+            <p className="reveal text-muted-foreground text-lg" style={{ transitionDelay: "100ms" }}>
               De la connexion à l'analyse, en quelques minutes.
             </p>
           </div>
 
-          <div className={`space-y-0 transition-all duration-700 ${stepsSection.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}>
+          <div className="space-y-0">
             {[
               { step: "01", icon: Plug, title: "Connectez vos comptes", desc: "Reliez vos comptes Uber Eats et Deliveroo en quelques clics. Vos données sont synchronisées automatiquement." },
               { step: "02", icon: Upload, title: "Importez vos rapports", desc: "Uploadez vos rapports CSV pour enrichir l'analyse : revenus, commissions, performance opérationnelle." },
               { step: "03", icon: LineChart, title: "Pilotez votre réseau", desc: "Accédez à des dashboards interactifs, comparez vos restaurants et prenez des décisions data-driven." },
             ].map((s, i) => (
-              <div key={s.step} className="relative flex gap-6 md:gap-8 pb-12 last:pb-0" style={{ transitionDelay: `${i * 150}ms` }}>
-                {/* Connector line */}
+              <div key={s.step} className="reveal relative flex gap-6 md:gap-8 pb-12 last:pb-0" style={{ transitionDelay: `${i * 100}ms` }}>
                 {i < 2 && <div className="absolute left-[27px] md:left-[31px] top-14 bottom-0 w-px bg-border" />}
-                {/* Step number */}
                 <div className="relative z-10 flex-shrink-0">
                   <div className="h-14 w-14 md:h-16 md:w-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                     <s.icon className="h-6 w-6 text-primary" />
@@ -261,8 +275,7 @@ const Landing = () => {
       {/* ── Final CTA ── */}
       <section className="py-20 md:py-28">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="relative rounded-3xl overflow-hidden">
-            {/* Background */}
+          <div className="reveal relative rounded-3xl overflow-hidden">
             <div className="absolute inset-0 bg-gradient-to-br from-primary via-primary to-accent opacity-95" />
             <div className="absolute inset-0" style={{
               backgroundImage: "radial-gradient(rgba(255,255,255,0.1) 1px, transparent 1px)",
