@@ -1,50 +1,40 @@
 
 
-## Objectif
-Appliquer `SECURITY DEFINER` sur `get_network_orders_summary` et `get_network_deliveroo_summary` pour éliminer le RLS par ligne qui cause les timeouts 500.
+## Plan : Landing page publique sur "/"
 
-## Migration SQL
+### Principe
+- Nouveau composant `src/pages/Landing.tsx` : page vitrine complète
+- Modification de `src/App.tsx` : la route "/" affiche un composant `SmartHome` qui check la session :
+  - Non connecte → `Landing`
+  - Connecte → redirige vers `/overview`
 
-Les 2 fonctions gardent leur corps SQL identique. Seuls les attributs changent :
-- Ajout `SECURITY DEFINER`
-- Ajout `SET search_path TO 'public'` (sécurité obligatoire avec SECURITY DEFINER)
-- `statement_timeout` réduit de `30s` à `10s`
+### Fichiers modifies
 
-### `get_network_orders_summary`
-```sql
-CREATE OR REPLACE FUNCTION public.get_network_orders_summary(
-  p_restaurant_ids uuid[], p_start_date date, p_end_date date
-)
-RETURNS TABLE(restaurant_id uuid, total_sales_incl_vat numeric, total_net_payout numeric, 
-              total_item_promo_incl_vat numeric, total_meal_voucher numeric, order_count bigint)
-LANGUAGE plpgsql STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-SET statement_timeout TO '10s'
-AS $$ -- même corps SQL exact $$
+**1. `src/pages/Landing.tsx`** (nouveau)
+
+Page statique responsive avec 5 sections :
+- **Header** : titre "Delivery Performance" + bouton "Se connecter" → `/login`
+- **Hero** : titre/sous-titre + 2 CTA (mailto demo + login)
+- **Chiffres cles** : 3 cartes (147 restos, 2 plateformes, temps reel)
+- **Fonctionnalites** : 3 colonnes avec icones Lucide
+- **Confiance** : Chicken Street + Tasty Crousty
+- **Footer** : copyright Opineo, lien privacy, contact
+
+Style : palette existante (primary violet, accent vert), composants Card/Button existants, gradient hero, responsive grid.
+
+**2. `src/App.tsx`**
+
+```text
+Avant :  <Route path="/" element={<P><AppLayout><Overview /></AppLayout></P>} />
+Apres :  <Route path="/" element={<SmartHome />} />
+         <Route path="/overview" element={<P><AppLayout><Overview /></AppLayout></P>} />
 ```
 
-### `get_network_deliveroo_summary`
-```sql
-CREATE OR REPLACE FUNCTION public.get_network_deliveroo_summary(
-  p_restaurant_ids uuid[], p_start_date date, p_end_date date
-)
-RETURNS TABLE(restaurant_id uuid, total_revenue numeric, total_payable numeric, order_count bigint)
-LANGUAGE plpgsql STABLE
-SECURITY DEFINER
-SET search_path TO 'public'
-SET statement_timeout TO '10s'
-AS $$ -- même corps SQL exact $$
-```
+`SmartHome` : petit composant inline qui utilise `supabase.auth.getSession()` pour rediriger vers `/overview` si connecte, sinon affiche `Landing`.
 
-## Sécurité
-Identique au pattern validé sur les 3 RPCs précédentes : `p_restaurant_ids` est toujours filtré côté app par `useAnalyticsContext`.
+**3. Sidebar + liens internes**
 
-## Impact estimé
-- `get_network_orders_summary` : timeout 500 → **< 500ms**
-- `get_network_deliveroo_summary` : timeout 500 → **< 500ms**
+Verifier que les liens internes (sidebar, redirections post-login) pointent vers `/overview` et non `/`.
 
-## Fichiers modifiés
-- 1 migration SQL uniquement
-- Aucun changement frontend
+### Aucune migration SQL, aucun changement backend.
 
