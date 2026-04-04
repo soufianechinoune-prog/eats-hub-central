@@ -1,40 +1,40 @@
 
 
-## Plan : Landing page publique sur "/"
+## Plan : Landing page premium
 
-### Principe
-- Nouveau composant `src/pages/Landing.tsx` : page vitrine complète
-- Modification de `src/App.tsx` : la route "/" affiche un composant `SmartHome` qui check la session :
-  - Non connecte → `Landing`
-  - Connecte → redirige vers `/overview`
+### Vision
+Refonte complète de `src/pages/Landing.tsx` avec un design inspiré des meilleures landing pages SaaS (Linear, Vercel, Stripe). Animations fluides, sections visuellement impactantes, gradient hero immersif.
 
-### Fichiers modifies
+### Structure de la page
 
-**1. `src/pages/Landing.tsx`** (nouveau)
+**1. Header** - Navbar sticky avec blur, logo "Delivery Performance", bouton CTA
 
-Page statique responsive avec 5 sections :
-- **Header** : titre "Delivery Performance" + bouton "Se connecter" → `/login`
-- **Hero** : titre/sous-titre + 2 CTA (mailto demo + login)
-- **Chiffres cles** : 3 cartes (147 restos, 2 plateformes, temps reel)
-- **Fonctionnalites** : 3 colonnes avec icones Lucide
-- **Confiance** : Chicken Street + Tasty Crousty
-- **Footer** : copyright Opineo, lien privacy, contact
+**2. Hero** - Grand titre avec gradient text animé, sous-titre, 2 CTA. Background avec grille de points subtile + gradient radial violet/vert. Badges "Uber Eats" et "Deliveroo" avec leurs vrais logos (assets existants).
 
-Style : palette existante (primary violet, accent vert), composants Card/Button existants, gradient hero, responsive grid.
+**3. Section logos partenaires** - Bandeau "Ils nous font confiance" avec :
+- Logo Chicken Street (utilise `cs-logo.jpeg` existant dans `/src/assets/`) + "72 restaurants"
+- Logo Tasty Crousty (texte stylisé, pas de logo dispo) + "75 restaurants"
+- Logos Uber Eats + Deliveroo (assets existants)
 
-**2. `src/App.tsx`**
+**4. Section chiffres clés** - 4 KPIs animés (compteur animé avec `useAnimatedCounter` existant) : 147 restaurants, 2 plateformes, +15% croissance moyenne, 24/7 temps réel. Cards avec effet glassmorphism.
 
-```text
-Avant :  <Route path="/" element={<P><AppLayout><Overview /></AppLayout></P>} />
-Apres :  <Route path="/" element={<SmartHome />} />
-         <Route path="/overview" element={<P><AppLayout><Overview /></AppLayout></P>} />
-```
+**5. Section fonctionnalités** - 3 colonnes avec icones, titre, description. Effet hover élégant avec border gradient.
 
-`SmartHome` : petit composant inline qui utilise `supabase.auth.getSession()` pour rediriger vers `/overview` si connecte, sinon affiche `Landing`.
+**6. Section "Comment ça marche"** - 3 étapes numérotées (Connectez vos comptes → Importez vos données → Pilotez votre réseau)
 
-**3. Sidebar + liens internes**
+**7. CTA final** - Section dark avec gradient, titre accrocheur, bouton "Demander une démo"
 
-Verifier que les liens internes (sidebar, redirections post-login) pointent vers `/overview` et non `/`.
+**8. Footer** - Copyright, liens, contact
 
-### Aucune migration SQL, aucun changement backend.
+### Fichier modifie
+- `src/pages/Landing.tsx` : refonte complète (un seul fichier)
+
+### Details techniques
+- Animations CSS via les keyframes existantes (`fade-in-up`, `scale-in`) + nouvelles animations d'entrée au scroll via `IntersectionObserver`
+- Compteurs animés avec le hook `useAnimatedCounter` existant
+- Logos plateformes via les imports existants (`uber-eats-logo.png`, `deliveroo-logo.png`, `cs-logo.jpeg`)
+- Composants UI existants (`Button`, `Card`)
+- Palette existante : primary violet, accent vert, glassmorphism
+- Responsive mobile-first
+- Aucune migration SQL, aucun changement backend
 
