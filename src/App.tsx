@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,10 +10,12 @@ import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Static imports (critical for startup)
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
