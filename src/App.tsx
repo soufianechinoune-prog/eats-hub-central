@@ -88,7 +88,7 @@ const ImportRoute = ({ children }: { children: React.ReactNode }) => {
   }, [isLoading, role]);
 
   if (isLoading) return null;
-  if (role !== "super_admin" && role !== "importer") return <Navigate to="/" replace />;
+  if (role !== "super_admin" && role !== "importer") return <Navigate to="/overview" replace />;
   return <>{children}</>;
 };
 
