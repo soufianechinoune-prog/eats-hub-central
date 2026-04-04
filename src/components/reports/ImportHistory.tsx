@@ -111,7 +111,7 @@ export default function ImportHistory() {
       // Filter by brand restaurant IDs if a chain is selected
       if (brandRestaurantIds !== null && brandRestaurantIds.length > 0) {
         filtered = filtered.filter(imp => {
-          if (!imp.restaurant_ids || imp.restaurant_ids.length === 0) return false;
+          if (!imp.restaurant_ids || imp.restaurant_ids.length === 0) return true;
           return imp.restaurant_ids.some((rid: string) => brandRestaurantIds.includes(rid));
         });
       }
