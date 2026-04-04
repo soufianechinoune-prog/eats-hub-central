@@ -255,14 +255,14 @@ export function AppSidebar() {
   };
 
   const isActive = (path: string) => {
-    if (path === "/") {
-      return location.pathname === "/";
+    if (path === "/overview") {
+      return location.pathname === "/overview";
     }
     return location.pathname.startsWith(path);
   };
 
   const isAnalyticsActive = () => {
-    return location.pathname === "/" || 
+    return location.pathname === "/overview" || 
            location.pathname.startsWith("/analytics") ||
            location.pathname === "/classements" ||
            location.pathname === "/item-sales" ||
@@ -270,8 +270,9 @@ export function AppSidebar() {
   };
   
   const getActiveAnalyticsSubItem = (url: string) => {
-    if (url === "/") {
-      return location.pathname === "/";
+    if (url === "/overview") {
+      return location.pathname === "/overview";
+    }
     }
     if (url === "/classements") {
       return location.pathname === "/classements";
