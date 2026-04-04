@@ -372,7 +372,7 @@ const PrepTimeComparison = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/")}
+              onClick={() => navigate("/overview")}
               className="rounded-full"
             >
               <ArrowLeft className="h-5 w-5" />

@@ -37,7 +37,7 @@ export default function Admin() {
   useEffect(() => {
     if (!checkingAdmin && isSuperAdmin === false) {
       toast({ title: "Accès non autorisé", variant: "destructive" });
-      navigate("/");
+      navigate("/overview");
     }
   }, [checkingAdmin, isSuperAdmin, navigate, toast]);
 
