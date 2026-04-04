@@ -273,7 +273,6 @@ export function AppSidebar() {
     if (url === "/overview") {
       return location.pathname === "/overview";
     }
-    }
     if (url === "/classements") {
       return location.pathname === "/classements";
     }
@@ -609,3 +608,4 @@ export function AppSidebar() {
     </Sidebar>
   );
 }
+
