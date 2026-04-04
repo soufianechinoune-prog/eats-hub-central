@@ -56,7 +56,7 @@ const ResetPassword = () => {
         title: "Mot de passe mis à jour",
         description: "Vous pouvez maintenant vous connecter avec votre nouveau mot de passe.",
       });
-      navigate("/");
+      navigate("/overview");
     } catch (error: any) {
       toast({
         title: "Erreur",

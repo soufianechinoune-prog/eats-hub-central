@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,10 +10,12 @@ import { AnalyticsProvider } from "./contexts/AnalyticsContext";
 import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 // Static imports (critical for startup)
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
+import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
@@ -86,8 +88,24 @@ const ImportRoute = ({ children }: { children: React.ReactNode }) => {
   }, [isLoading, role]);
 
   if (isLoading) return null;
-  if (role !== "super_admin" && role !== "importer") return <Navigate to="/" replace />;
+  if (role !== "super_admin" && role !== "importer") return <Navigate to="/overview" replace />;
   return <>{children}</>;
+};
+
+const SmartHome = () => {
+  const [session, setSession] = useState<null | "loading" | "authed" | "anon">("loading");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session ? "authed" : "anon");
+    });
+  }, []);
+
+  if (session === "loading") {
+    return <div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  }
+  if (session === "authed") return <Navigate to="/overview" replace />;
+  return <Landing />;
 };
 
 const App = () => {
@@ -103,6 +121,7 @@ const App = () => {
                 <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                   <Routes>
                     {/* Public routes */}
+                    <Route path="/" element={<SmartHome />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/auth" element={<Navigate to="/login" replace />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
@@ -111,7 +130,7 @@ const App = () => {
                     <Route path="/uber-callback" element={<UberCallback />} />
 
                     {/* Protected routes */}
-                    <Route path="/" element={<P><AppLayout><Overview /></AppLayout></P>} />
+                    <Route path="/overview" element={<P><AppLayout><Overview /></AppLayout></P>} />
                     <Route path="/classements" element={<P><AppLayout><Dashboard /></AppLayout></P>} />
                     <Route path="/restaurants" element={<P><AppLayout><Restaurants /></AppLayout></P>} />
                     <Route path="/messaging" element={<P><AppLayout><Messaging /></AppLayout></P>} />
