@@ -1983,6 +1983,10 @@ export default function ReportImport() {
                       selectedRestaurantId={selectedRestaurantId}
                       onMappingComplete={async () => {
                         await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+                        toast({
+                          title: "Mappings enregistrés",
+                          description: "Réanalyse du fichier en cours…",
+                        });
                         handleValidate();
                       }}
                     />
@@ -2290,10 +2294,15 @@ export default function ReportImport() {
                     selectedRestaurantId={selectedRestaurantId}
                     onMappingComplete={async () => {
                       await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
-                      toast({
-                        title: "Mapping effectué",
-                        description: "Vous pouvez maintenant ré-importer le fichier pour traiter les lignes ignorées.",
-                      });
+                      // Re-run validation with updated mappings instead of just showing a toast
+                      if (csvContent) {
+                        toast({
+                          title: "Mappings enregistrés",
+                          description: "Réanalyse du fichier en cours…",
+                        });
+                        setImportResult(null);
+                        await handleValidate();
+                      }
                     }}
                   />
                 )}

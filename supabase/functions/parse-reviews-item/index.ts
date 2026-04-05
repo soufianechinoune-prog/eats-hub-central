@@ -208,6 +208,22 @@ Deno.serve(async (req) => {
         .filter(r => r.uber_store_id)
         .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
     );
+
+    // Also fetch secondary UUIDs from restaurant_uber_ids
+    const { data: uberIdMappings } = await supabase
+      .from('restaurant_uber_ids')
+      .select('restaurant_id, uber_store_id')
+      .limit(500);
+
+    if (uberIdMappings && restaurants) {
+      const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
+      uberIdMappings.forEach(mapping => {
+        const restaurant = restaurantById.get(mapping.restaurant_id);
+        if (restaurant && mapping.uber_store_id) {
+          storeIdToRestaurant.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
     
     // Create normalized name lookup for fallback matching
     const normalizedNameToRestaurant = new Map(
