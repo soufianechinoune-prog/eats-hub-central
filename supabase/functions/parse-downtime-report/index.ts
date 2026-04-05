@@ -137,6 +137,22 @@ serve(async (req) => {
       restaurantByNormalizedName.set(normalizeRestaurantName(r.name), { id: r.id, name: r.name });
     }
 
+    // Fetch secondary UUIDs from restaurant_uber_ids
+    const { data: uberIdMappings } = await supabase
+      .from('restaurant_uber_ids')
+      .select('restaurant_id, uber_store_id')
+      .limit(500);
+
+    if (uberIdMappings && restaurants) {
+      const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
+      uberIdMappings.forEach(mapping => {
+        const restaurant = restaurantById.get(mapping.restaurant_id);
+        if (restaurant && mapping.uber_store_id) {
+          restaurantByStoreId.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
     // Fetch name aliases
     const { data: nameAliases } = await supabase
       .from('restaurant_name_aliases')
