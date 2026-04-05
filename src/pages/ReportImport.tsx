@@ -1998,6 +1998,7 @@ export default function ReportImport() {
                       selectedRestaurantId={selectedRestaurantId}
                       onMappingComplete={async () => {
                         await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+                        await queryClient.invalidateQueries({ queryKey: ["all-restaurants-for-mapping"] });
                         toast({
                           title: "Mappings enregistrés",
                           description: "Réanalyse du fichier en cours…",
