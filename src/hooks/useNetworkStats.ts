@@ -299,12 +299,10 @@ export function useNetworkStats({
       const prevRevenue = restoPrevSales?.total_sales_incl_vat || 0;
       const prevOrders = restoPrevSales?.order_count || 0;
 
-      const restoReviews = reviewsData?.filter((r) => r.restaurant_id === resto.id) || [];
-      const rating =
-        restoReviews.length > 0
-          ? restoReviews.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) /
-            restoReviews.length
-          : null;
+      const restoReviewAggs = reviewsData?.filter((r) => r.restaurant_id === resto.id) || [];
+      const restoRatingSum = restoReviewAggs.reduce((s, r: any) => s + (r.avg_rating || 0) * (r.review_count || 0), 0);
+      const restoReviewTotal = restoReviewAggs.reduce((s, r: any) => s + (r.review_count || 0), 0);
+      const rating = restoReviewTotal > 0 ? restoRatingSum / restoReviewTotal : null;
 
       // Profitability from orders payout RPC
       let profitability: number | null = null;

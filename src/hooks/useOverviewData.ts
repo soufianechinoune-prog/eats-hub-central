@@ -110,18 +110,19 @@ function useOverviewReviews(
   return useQuery({
     queryKey: ["overview-reviews", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      return fetchAllPages<any>((offset) =>
-        supabase
-          .from("customer_reviews")
-          .select("restaurant_id, overall_rating, review_date, platform")
-          .gte("review_date", startDateStr)
-          .lte("review_date", endDateStr)
-          .in("restaurant_id", restaurantIds)
-          .order("review_date", { ascending: true })
-          .order("restaurant_id", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1),
-      );
+      if (restaurantIds.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_network_ratings_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        avg_rating: Number(d.avg_rating),
+        review_count: Number(d.review_count),
+        platform: d.platform,
+      }));
     },
     enabled,
     ...RETRY_CONFIG,
@@ -426,9 +427,10 @@ export function useOverviewData(
     const totalRevenue = dailySalesData.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
     const totalOrders = dailySalesData.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
 
-    const avgRating = reviewsData.length > 0
-      ? reviewsData.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / reviewsData.length
-      : null;
+    // Avg rating from RPC aggregates (weighted by review_count)
+    const totalRatingSum = reviewsData.reduce((sum, r: any) => sum + r.avg_rating * r.review_count, 0);
+    const totalReviewCount = reviewsData.reduce((sum, r: any) => sum + r.review_count, 0);
+    const avgRating = totalReviewCount > 0 ? totalRatingSum / totalReviewCount : null;
 
     // Global avg prep time from RPC summary (weighted by prep_count)
     const totalPrepSum = prepTimesData.reduce((sum: number, d: any) => {
@@ -483,15 +485,15 @@ export function useOverviewData(
     const restaurantMetrics = restos.map((resto) => {
       // Revenue from aggregated RPC (one row per restaurant)
       const restoSales = dailySalesData.find((d) => d.restaurant_id === resto.id);
-      const restoReviews = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
+      const restoReviewAggs = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
       const restoErrors = errorsData.filter((e: any) => e.restaurant_id === resto.id);
       const restoPayouts = payoutsData.filter((p: any) => p.restaurant_id === resto.id);
 
       const revenue = restoSales?.revenue_ttc || 0;
       const orders = restoSales?.order_count || 0;
-      const rating = restoReviews.length > 0
-        ? restoReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / restoReviews.length
-        : null;
+      const restoReviewSum = restoReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+      const restoReviewTotal = restoReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+      const rating = restoReviewTotal > 0 ? restoReviewSum / restoReviewTotal : null;
 
       // Prep time from RPC summary
       const restoPrepSummary = prepTimesData.find((h: any) => h.restaurant_id === resto.id);
@@ -507,7 +509,7 @@ export function useOverviewData(
         name: resto.name,
         city: resto.city,
         rating: rating != null ? parseFloat(rating.toFixed(1)) : null,
-        reviewCount: restoReviews.length,
+        reviewCount: restoReviewTotal,
         prepTime: prepTime != null ? Math.round(prepTime) : null,
         errorRate: restoErrorRate != null ? parseFloat(restoErrorRate.toFixed(1)) : null,
         profitability,
@@ -548,19 +550,18 @@ export function useOverviewData(
 
     // Platform-specific: sales data is Uber-only (from get_network_orders_summary on orders table)
     const uberOrders = totalOrders; // orders table = Uber only
-    const uberReviews = reviewsData.filter((r: any) => r.platform === "uber_eats");
-
-    const uberRating = uberReviews.length > 0
-      ? uberReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / uberReviews.length
-      : null;
+    const uberReviewAggs = reviewsData.filter((r: any) => r.platform === "uber_eats");
+    const uberRatingSum = uberReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+    const uberReviewCount = uberReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+    const uberRating = uberReviewCount > 0 ? uberRatingSum / uberReviewCount : null;
     
     // Uber prep time = global prep time (order_history is Uber-only)
     const uberPrepTime = avgPrepTime;
 
-    const deliverooReviews = reviewsData.filter((r: any) => r.platform === "deliveroo");
-    const deliverooRating = deliverooReviews.length > 0
-      ? deliverooReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / deliverooReviews.length
-      : null;
+    const deliverooReviewAggs = reviewsData.filter((r: any) => r.platform === "deliveroo");
+    const deliverooRatingSum = deliverooReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+    const deliverooReviewCount = deliverooReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+    const deliverooRating = deliverooReviewCount > 0 ? deliverooRatingSum / deliverooReviewCount : null;
 
     // Top/flop products
     const topProducts = (() => {
