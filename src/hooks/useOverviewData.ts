@@ -427,9 +427,10 @@ export function useOverviewData(
     const totalRevenue = dailySalesData.reduce((sum, d) => sum + Number(d.revenue_ttc || 0), 0);
     const totalOrders = dailySalesData.reduce((sum, d) => sum + Number(d.order_count || 0), 0);
 
-    const avgRating = reviewsData.length > 0
-      ? reviewsData.reduce((sum, r) => sum + Number(r.overall_rating || 0), 0) / reviewsData.length
-      : null;
+    // Avg rating from RPC aggregates (weighted by review_count)
+    const totalRatingSum = reviewsData.reduce((sum, r: any) => sum + r.avg_rating * r.review_count, 0);
+    const totalReviewCount = reviewsData.reduce((sum, r: any) => sum + r.review_count, 0);
+    const avgRating = totalReviewCount > 0 ? totalRatingSum / totalReviewCount : null;
 
     // Global avg prep time from RPC summary (weighted by prep_count)
     const totalPrepSum = prepTimesData.reduce((sum: number, d: any) => {
