@@ -200,10 +200,12 @@ Deno.serve(async (req) => {
 
     console.log('Column mapping:', colMap);
 
-    // Fetch all restaurants
-    const { data: restaurants } = await supabase
-      .from('restaurants')
-      .select('id, name, uber_store_id');
+    // Fetch all restaurants + aliases + secondary UUIDs in parallel
+    const [{ data: restaurants }, { data: uberIdMappings }, { data: nameAliases }] = await Promise.all([
+      supabase.from('restaurants').select('id, name, uber_store_id'),
+      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id').limit(500),
+      supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
+    ]);
 
     // Map by uber_store_id
     const storeIdToRestaurant = new Map(
@@ -212,12 +214,7 @@ Deno.serve(async (req) => {
         .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
     );
 
-    // Also fetch secondary UUIDs from restaurant_uber_ids
-    const { data: uberIdMappings } = await supabase
-      .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id')
-      .limit(500);
-
+    // Add secondary UUIDs
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
       uberIdMappings.forEach(mapping => {
@@ -228,10 +225,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Build alias lookup map (normalized_name → restaurant)
+    const aliasToRestaurant = new Map<string, { id: string; name: string }>();
+    if (nameAliases && restaurants) {
+      const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
+      nameAliases.forEach(alias => {
+        const restaurant = restaurantById.get(alias.restaurant_id);
+        if (restaurant) {
+          aliasToRestaurant.set(alias.normalized_name, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
     // Map by normalized name for fallback matching
     const storeNameToRestaurant = new Map(
       (restaurants || []).map(r => [
-        normalizeName(r.name), 
+        normalizeForAlias(r.name), 
         { id: r.id, name: r.name }
       ])
     );
