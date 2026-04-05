@@ -115,6 +115,23 @@ export default function Reviews() {
     isLoading: isLoadingMenuItems,
   } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
+  const { exportReviews, isExporting: isExportingData } = useReviewsExportData();
+
+  const handleExportReviews = (fmt: "csv" | "xlsx") => {
+    const ids = restaurantIds || filteredRestaurants.map((r) => r.id);
+    if (!ids || ids.length === 0) return;
+    exportReviews(
+      {
+        restaurantIds: ids as string[],
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        platform: selectedPlatform,
+        restaurants: filteredRestaurants.map((r) => ({ id: r.id, name: r.name })),
+      },
+      fmt
+    );
+  };
+
   const isLoading = isLoadingCustomer || isLoadingMenuItems || isLoadingExtended;
 
   if (isLoading) {
