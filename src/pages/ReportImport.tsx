@@ -243,6 +243,7 @@ export default function ReportImport() {
   
   // Chunking progress for large files
   const [chunkProgress, setChunkProgress] = useState<ChunkProgress | null>(null);
+  const [isRevalidatingAfterMapping, setIsRevalidatingAfterMapping] = useState(false);
   
   // Delete existing data option
   const [deleteExisting, setDeleteExisting] = useState(false);
@@ -1357,6 +1358,38 @@ export default function ReportImport() {
     }
   };
 
+  const handleRevalidateAfterMapping = async () => {
+    if (!csvContent) {
+      toast({
+        title: "Erreur",
+        description: "Aucun fichier à réanalyser",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsRevalidatingAfterMapping(true);
+    setImportResult(null);
+    setValidationResult(null);
+    setStep("validation");
+
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] }),
+        queryClient.invalidateQueries({ queryKey: ["all-restaurants-for-mapping"] }),
+      ]);
+
+      toast({
+        title: "Mappings enregistrés",
+        description: "Réanalyse du fichier en cours…",
+      });
+
+      await handleValidate();
+    } finally {
+      setIsRevalidatingAfterMapping(false);
+    }
+  };
+
   const resetImport = () => {
     setFile(null);
     setCsvContent("");
@@ -1884,6 +1917,22 @@ export default function ReportImport() {
             </Card>
           )}
 
+          {step === "validation" && !validationResult && (isLoading || isRevalidatingAfterMapping) && (
+            <Card>
+              <CardContent className="py-12">
+                <div className="flex flex-col items-center justify-center gap-4">
+                  <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  <div className="text-center">
+                    <h3 className="text-lg font-medium">Réanalyse en cours...</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Les mappings enregistrés sont en train d'être repris dans ce fichier.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {step === "validation" && validationResult && (
             <div className="space-y-6">
               <Card>
@@ -1996,15 +2045,7 @@ export default function ReportImport() {
                       unknownStoreDetails={validationResult.validation.unknownStoreDetails}
                       restaurants={allRestaurants}
                       selectedRestaurantId={selectedRestaurantId}
-                      onMappingComplete={async () => {
-                        await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
-                        await queryClient.invalidateQueries({ queryKey: ["all-restaurants-for-mapping"] });
-                        toast({
-                          title: "Mappings enregistrés",
-                          description: "Réanalyse du fichier en cours…",
-                        });
-                        handleValidate();
-                      }}
+                      onMappingComplete={handleRevalidateAfterMapping}
                     />
                   )}
 
@@ -2308,19 +2349,7 @@ export default function ReportImport() {
                     unknownStoreDetails={importResult.validation.unknownStoreDetails}
                     restaurants={allRestaurants}
                     selectedRestaurantId={selectedRestaurantId}
-                    onMappingComplete={async () => {
-                      await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
-                      await queryClient.invalidateQueries({ queryKey: ["all-restaurants-for-mapping"] });
-                      // Re-run validation with updated mappings instead of just showing a toast
-                      if (csvContent) {
-                        toast({
-                          title: "Mappings enregistrés",
-                          description: "Réanalyse du fichier en cours…",
-                        });
-                        setImportResult(null);
-                        await handleValidate();
-                      }
-                    }}
+                    onMappingComplete={handleRevalidateAfterMapping}
                   />
                 )}
 
