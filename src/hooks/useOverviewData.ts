@@ -550,19 +550,18 @@ export function useOverviewData(
 
     // Platform-specific: sales data is Uber-only (from get_network_orders_summary on orders table)
     const uberOrders = totalOrders; // orders table = Uber only
-    const uberReviews = reviewsData.filter((r: any) => r.platform === "uber_eats");
-
-    const uberRating = uberReviews.length > 0
-      ? uberReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / uberReviews.length
-      : null;
+    const uberReviewAggs = reviewsData.filter((r: any) => r.platform === "uber_eats");
+    const uberRatingSum = uberReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+    const uberReviewCount = uberReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+    const uberRating = uberReviewCount > 0 ? uberRatingSum / uberReviewCount : null;
     
     // Uber prep time = global prep time (order_history is Uber-only)
     const uberPrepTime = avgPrepTime;
 
-    const deliverooReviews = reviewsData.filter((r: any) => r.platform === "deliveroo");
-    const deliverooRating = deliverooReviews.length > 0
-      ? deliverooReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / deliverooReviews.length
-      : null;
+    const deliverooReviewAggs = reviewsData.filter((r: any) => r.platform === "deliveroo");
+    const deliverooRatingSum = deliverooReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+    const deliverooReviewCount = deliverooReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+    const deliverooRating = deliverooReviewCount > 0 ? deliverooRatingSum / deliverooReviewCount : null;
 
     // Top/flop products
     const topProducts = (() => {
