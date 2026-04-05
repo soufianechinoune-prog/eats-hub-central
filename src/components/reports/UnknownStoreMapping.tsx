@@ -292,7 +292,7 @@ export default function UnknownStoreMapping({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                 <div className="flex items-center gap-2 shrink-0">
                   <Select
                     value={storeIdMappings[storeId] || ""}
                     onValueChange={(value) => handleMappingChange(storeId, value)}
@@ -300,13 +300,18 @@ export default function UnknownStoreMapping({
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="Choisir un restaurant" />
                     </SelectTrigger>
-                    <SelectContent>
+                     <SelectContent className="max-h-72" viewportClassName="h-auto max-h-72">
                       <SelectItem value="__create__">
                         <span className="flex items-center gap-2">
                           <Plus className="h-4 w-4" />
                           Créer nouveau restaurant
                         </span>
                       </SelectItem>
+                       {restaurants.length === 0 && (
+                         <SelectItem value="__empty__" disabled>
+                           Aucun restaurant disponible
+                         </SelectItem>
+                       )}
                       {restaurants.map((r) => (
                         <SelectItem key={r.id} value={r.id}>
                           {r.name}{r.city ? ` (${r.city})` : ""}
