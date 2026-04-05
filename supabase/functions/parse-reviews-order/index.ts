@@ -290,20 +290,24 @@ Deno.serve(async (req) => {
           restaurant = { id: selectedRestaurant.id, name: selectedRestaurant.name };
         }
       } else {
-        // Original logic: find by store_id, then by name
+        // Step 1: UUID matching
         restaurant = storeId ? storeIdToRestaurant.get(storeId) ?? null : null;
 
-        // Fallback: search by name
+        // Step 2: Alias matching via restaurant_name_aliases
         if (!restaurant && storeName) {
-          const normalizedStoreName = normalizeName(storeName);
-          
-          // Exact match
-          restaurant = storeNameToRestaurant.get(normalizedStoreName) ?? null;
+          const normalizedCsvName = normalizeForAlias(storeName);
+          restaurant = aliasToRestaurant.get(normalizedCsvName) ?? null;
+        }
+
+        // Step 3: Normalized name matching
+        if (!restaurant && storeName) {
+          const normalizedCsvName = normalizeForAlias(storeName);
+          restaurant = storeNameToRestaurant.get(normalizedCsvName) ?? null;
           
           // Partial match if exact fails
           if (!restaurant) {
             for (const [name, r] of storeNameToRestaurant.entries()) {
-              if (normalizedStoreName.includes(name) || name.includes(normalizedStoreName)) {
+              if (normalizedCsvName.includes(name) || name.includes(normalizedCsvName)) {
                 restaurant = r;
                 break;
               }
