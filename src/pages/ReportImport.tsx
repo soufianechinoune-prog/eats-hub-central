@@ -1994,7 +1994,7 @@ export default function ReportImport() {
                     <UnknownStoreMapping
                       unknownStoreIds={validationResult.validation.unknownStoreIds}
                       unknownStoreDetails={validationResult.validation.unknownStoreDetails}
-                      restaurants={restaurants}
+                      restaurants={allRestaurants}
                       selectedRestaurantId={selectedRestaurantId}
                       onMappingComplete={async () => {
                         await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
