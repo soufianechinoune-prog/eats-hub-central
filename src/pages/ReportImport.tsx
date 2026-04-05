@@ -218,6 +218,77 @@ const CHUNK_SIZE = 5000;
 const MAX_RETRIES = 2;
 const RETRY_DELAY_MS = 3000;
 
+interface RestaurantOption {
+  id: string;
+  name: string;
+  city?: string | null;
+  chain_id?: string | null;
+}
+
+async function fetchAccessibleRestaurants({
+  selectedChainId,
+  includeAllChains,
+}: {
+  selectedChainId: string | null;
+  includeAllChains: boolean;
+}): Promise<RestaurantOption[]> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const [{ data: role }, { data: accessRows, error: accessError }] = await Promise.all([
+    supabase.rpc("get_user_role"),
+    supabase
+      .from("user_chain_access")
+      .select("chain_id")
+      .eq("user_id", user.id)
+      .not("chain_id", "is", null),
+  ]);
+
+  if (accessError) {
+    console.error("[ReportImport] Failed to load user chain access", accessError);
+    throw accessError;
+  }
+
+  const isSuperAdmin = role === "super_admin";
+  const accessibleChainIds = Array.from(
+    new Set(
+      (accessRows ?? [])
+        .map((row) => row.chain_id)
+        .filter((chainId): chainId is string => Boolean(chainId))
+    )
+  );
+
+  let query = supabase
+    .from("restaurants")
+    .select("id, name, city, chain_id")
+    .eq("is_active", true);
+
+  if (includeAllChains) {
+    if (!isSuperAdmin) {
+      if (accessibleChainIds.length === 0) return [];
+      query = query.in("chain_id", accessibleChainIds);
+    }
+  } else if (selectedChainId) {
+    query = query.eq("chain_id", selectedChainId);
+  } else if (!isSuperAdmin) {
+    if (accessibleChainIds.length === 0) return [];
+    query = query.in("chain_id", accessibleChainIds);
+  }
+
+  const { data, error } = await query.order("name");
+
+  if (error) {
+    console.error("[ReportImport] Failed to load restaurants", {
+      includeAllChains,
+      selectedChainId,
+      error,
+    });
+    throw error;
+  }
+
+  return data ?? [];
+}
+
 export default function ReportImport() {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -255,37 +326,16 @@ export default function ReportImport() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
 
-  // Fetch restaurants for selector (filtered by chain)
+  // Fetch restaurants for selector (filtered by selected chain when relevant)
   const { data: restaurants = [] } = useQuery({
     queryKey: ["restaurants-for-import", selectedChainId],
-    queryFn: async () => {
-      let query = supabase
-        .from("restaurants")
-        .select("id, name, city")
-        .eq("is_active", true);
-      if (selectedChainId) {
-        query = query.eq("chain_id", selectedChainId);
-      }
-      query = query.order("name");
-      const { data, error } = await query;
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: () => fetchAccessibleRestaurants({ selectedChainId, includeAllChains: false }),
   });
 
-  // Fetch ALL restaurants for the mapping dropdown (no chain filter)
-  // so the user can map unknown stores to any restaurant in their base
+  // Fetch restaurants for mapping dropdown using the user's real accessible chains
   const { data: allRestaurants = [] } = useQuery({
-    queryKey: ["all-restaurants-for-mapping"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, city")
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ["all-restaurants-for-mapping", selectedChainId],
+    queryFn: () => fetchAccessibleRestaurants({ selectedChainId, includeAllChains: true }),
   });
 
   // Extract date range from conversion CSV content
