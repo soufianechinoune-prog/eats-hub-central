@@ -271,10 +271,16 @@ Deno.serve(async (req) => {
 
     console.log('Mapped columns:', Object.keys(columnIndices));
 
-    // Fetch restaurants for mapping - from both restaurants.uber_store_id and the new mapping table
-    const { data: restaurants, error: restaurantsError } = await supabase
-      .from('restaurants')
-      .select('id, uber_store_id, name');
+    // Fetch restaurants, secondary UUIDs, and name aliases in parallel
+    const [
+      { data: restaurants, error: restaurantsError },
+      { data: uberIdMappings },
+      { data: nameAliases },
+    ] = await Promise.all([
+      supabase.from('restaurants').select('id, uber_store_id, name'),
+      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id'),
+      supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
+    ]);
 
     if (restaurantsError) {
       console.error('Error fetching restaurants:', restaurantsError);
@@ -284,21 +290,16 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Also fetch from the multi-UUID mapping table
-    const { data: uberIdMappings } = await supabase
-      .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id');
-
     const restaurantMap = new Map<string, { id: string; name: string }>();
     
-    // First, add from restaurants.uber_store_id (legacy)
+    // Add from restaurants.uber_store_id
     restaurants?.forEach(r => {
       if (r.uber_store_id) {
         restaurantMap.set(r.uber_store_id, { id: r.id, name: r.name });
       }
     });
 
-    // Then, add from the multi-UUID mapping table (may have additional UUIDs)
+    // Add from the multi-UUID mapping table
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map(restaurants.map(r => [r.id, r]));
       uberIdMappings.forEach(mapping => {
@@ -308,6 +309,29 @@ Deno.serve(async (req) => {
         }
       });
     }
+
+    // Build alias lookup map (normalized_name → restaurant)
+    // Normalize function must match UnknownStoreMapping.tsx exactly
+    function normalizeForAlias(name: string): string {
+      return name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '').trim();
+    }
+
+    const aliasToRestaurant = new Map<string, { id: string; name: string }>();
+    if (nameAliases && restaurants) {
+      const restaurantById = new Map(restaurants.map(r => [r.id, r]));
+      nameAliases.forEach(alias => {
+        const restaurant = restaurantById.get(alias.restaurant_id);
+        if (restaurant) {
+          aliasToRestaurant.set(alias.normalized_name, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
+    // Build normalized name lookup for fallback
+    const normalizedNameToRestaurant = new Map<string, { id: string; name: string }>();
+    (restaurants || []).forEach(r => {
+      normalizedNameToRestaurant.set(normalizeForAlias(r.name), { id: r.id, name: r.name });
+    });
 
     console.log(`Loaded ${restaurantMap.size} restaurant UUID mappings`);
 
