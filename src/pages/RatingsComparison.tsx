@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, subWeeks, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Star, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
