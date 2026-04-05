@@ -110,18 +110,19 @@ function useOverviewReviews(
   return useQuery({
     queryKey: ["overview-reviews", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      return fetchAllPages<any>((offset) =>
-        supabase
-          .from("customer_reviews")
-          .select("restaurant_id, overall_rating, review_date, platform")
-          .gte("review_date", startDateStr)
-          .lte("review_date", endDateStr)
-          .in("restaurant_id", restaurantIds)
-          .order("review_date", { ascending: true })
-          .order("restaurant_id", { ascending: true })
-          .order("id", { ascending: true })
-          .range(offset, offset + PAGE_SIZE - 1),
-      );
+      if (restaurantIds.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_network_ratings_summary", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+      if (error) throw error;
+      return (data || []).map((d: any) => ({
+        restaurant_id: d.restaurant_id,
+        avg_rating: Number(d.avg_rating),
+        review_count: Number(d.review_count),
+        platform: d.platform,
+      }));
     },
     enabled,
     ...RETRY_CONFIG,
