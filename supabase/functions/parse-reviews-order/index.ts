@@ -111,14 +111,13 @@ function parseCSVContent(content: string): string[][] {
   return rows;
 }
 
-// Normalize restaurant name for matching - remove all punctuation and extra spaces
-function normalizeName(name: string): string {
+// Normalize restaurant name for alias matching - MUST match UnknownStoreMapping.tsx
+function normalizeForAlias(name: string): string {
   return name
     .toLowerCase()
-    .trim()
-    .replace(/[-–—]/g, ' ')  // Replace dashes with spaces
-    .replace(/[''`.,;:!?()[\]{}]/g, '')  // Remove punctuation
-    .replace(/\s+/g, ' ')  // Normalize spaces
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
     .trim();
 }
 
