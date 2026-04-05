@@ -254,7 +254,7 @@ export default function ReportImport() {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
   });
 
-  // Fetch restaurants for selector
+  // Fetch restaurants for selector (filtered by chain)
   const { data: restaurants = [] } = useQuery({
     queryKey: ["restaurants-for-import", selectedChainId],
     queryFn: async () => {
@@ -267,6 +267,21 @@ export default function ReportImport() {
       }
       query = query.order("name");
       const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch ALL restaurants for the mapping dropdown (no chain filter)
+  // so the user can map unknown stores to any restaurant in their base
+  const { data: allRestaurants = [] } = useQuery({
+    queryKey: ["all-restaurants-for-mapping"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city")
+        .eq("is_active", true)
+        .order("name");
       if (error) throw error;
       return data || [];
     },
