@@ -342,6 +342,7 @@ const RatingsComparison = () => {
 
   // PDF Export hook
   const { exportToPDF, isExporting } = useRatingsExport();
+  const { exportReviews, isExporting: isExportingData } = useReviewsExportData();
 
   // Prepare data for PDF export
   const handleExportPDF = () => {
@@ -360,7 +361,18 @@ const RatingsComparison = () => {
     });
   };
 
-  return (
+  const handleExportReviews = (fmt: "csv" | "xlsx") => {
+    const ids = selectedRestaurants?.map((r) => r.id) || [];
+    exportReviews(
+      {
+        restaurantIds: ids,
+        startDate: formatDateLocal(dateRange.start),
+        endDate: formatDateLocal(dateRange.end),
+        restaurants: selectedRestaurants?.map((r) => ({ id: r.id, name: r.name })) || [],
+      },
+      fmt
+    );
+  };
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
         {/* Header */}
