@@ -2310,6 +2310,7 @@ export default function ReportImport() {
                     selectedRestaurantId={selectedRestaurantId}
                     onMappingComplete={async () => {
                       await queryClient.invalidateQueries({ queryKey: ["restaurants-for-import"] });
+                      await queryClient.invalidateQueries({ queryKey: ["all-restaurants-for-mapping"] });
                       // Re-run validation with updated mappings instead of just showing a toast
                       if (csvContent) {
                         toast({
