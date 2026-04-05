@@ -485,15 +485,15 @@ export function useOverviewData(
     const restaurantMetrics = restos.map((resto) => {
       // Revenue from aggregated RPC (one row per restaurant)
       const restoSales = dailySalesData.find((d) => d.restaurant_id === resto.id);
-      const restoReviews = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
+      const restoReviewAggs = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
       const restoErrors = errorsData.filter((e: any) => e.restaurant_id === resto.id);
       const restoPayouts = payoutsData.filter((p: any) => p.restaurant_id === resto.id);
 
       const revenue = restoSales?.revenue_ttc || 0;
       const orders = restoSales?.order_count || 0;
-      const rating = restoReviews.length > 0
-        ? restoReviews.reduce((sum, r: any) => sum + Number(r.overall_rating || 0), 0) / restoReviews.length
-        : null;
+      const restoReviewSum = restoReviewAggs.reduce((s, r: any) => s + r.avg_rating * r.review_count, 0);
+      const restoReviewTotal = restoReviewAggs.reduce((s, r: any) => s + r.review_count, 0);
+      const rating = restoReviewTotal > 0 ? restoReviewSum / restoReviewTotal : null;
 
       // Prep time from RPC summary
       const restoPrepSummary = prepTimesData.find((h: any) => h.restaurant_id === resto.id);
