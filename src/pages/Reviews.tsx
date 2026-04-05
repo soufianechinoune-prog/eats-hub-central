@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
@@ -8,10 +8,13 @@ import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews, DateMode } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare } from "lucide-react";
+import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useReviewsExportData } from "@/hooks/useReviewsExportData";
 
 export default function Reviews() {
   const [dateMode, setDateMode] = useState<DateMode>("order");
