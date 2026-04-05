@@ -17,6 +17,8 @@ import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
+import { useReviewsExportData } from "@/hooks/useReviewsExportData";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 import type { DateRange } from "react-day-picker";
 
