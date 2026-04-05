@@ -398,6 +398,23 @@ const RatingsComparison = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExportingData}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExportingData ? "Export..." : "Exporter avis"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReviews("xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReviews("csv")}>
+                  CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <NetworkViewToggle
               isNetworkView={isNetworkView}
               onToggle={setIsNetworkView}
