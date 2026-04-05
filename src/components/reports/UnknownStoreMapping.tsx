@@ -3,7 +3,6 @@ import { AlertTriangle, Store, Plus, Check, Loader2, Tag, Hash } from "lucide-re
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
@@ -292,29 +291,31 @@ export default function UnknownStoreMapping({
                   )}
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <Select
-                    value={storeIdMappings[storeId] || ""}
-                    onValueChange={(value) => handleMappingChange(storeId, value)}
-                  >
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Choisir un restaurant" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__create__">
-                        <span className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          Créer nouveau restaurant
-                        </span>
-                      </SelectItem>
-                      {restaurants.map((r) => (
-                        <SelectItem key={r.id} value={r.id}>
-                          {r.name}{r.city ? ` (${r.city})` : ""}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                 <div className="flex items-center gap-2 shrink-0">
+                   <div className="relative w-[240px]">
+                     <select
+                       className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                       value={storeIdMappings[storeId] || ""}
+                       onChange={(event) => handleMappingChange(storeId, event.target.value)}
+                     >
+                       <option value="" disabled>
+                         Choisir un restaurant
+                       </option>
+                       <option value="__create__">+ Créer nouveau restaurant</option>
+                       {restaurants.length === 0 && (
+                         <option value="__empty__" disabled>
+                           Aucun restaurant disponible
+                         </option>
+                       )}
+                       {restaurants.map((r) => (
+                         <option key={r.id} value={r.id}>
+                           {r.name}{r.city ? ` (${r.city})` : ""}
+                         </option>
+                       ))}
+                     </select>
+                     <Plus className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground opacity-0" />
+                   </div>
+                 </div>
               </div>
             );
           })}
