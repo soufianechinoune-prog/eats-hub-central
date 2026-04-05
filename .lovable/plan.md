@@ -1,40 +1,63 @@
 
+Pourquoi ça arrive
 
-## Plan : Landing page premium
+- Le mapping que tu fais est bien sauvegardé dans la base via `UnknownStoreMapping.tsx` :
+  - noms CSV → `restaurant_name_aliases`
+  - UUID/store IDs → `restaurant_uber_ids`
+- Le vrai problème est ensuite dans `ReportImport.tsx` :
+  - l’écran affiche encore le résultat de l’analyse/import déjà calculé avant ton mapping
+  - à l’étape 4, le callback `onMappingComplete` ne fait qu’un toast, il ne recalcule pas le fichier
+- Donc les correspondances existent bien, mais elles ne sont pas reprises dans le résultat affiché tant qu’on ne relance pas réellement la validation/import. C’est pour ça que tu as l’impression de devoir recommencer.
 
-### Vision
-Refonte complète de `src/pages/Landing.tsx` avec un design inspiré des meilleures landing pages SaaS (Linear, Vercel, Stripe). Animations fluides, sections visuellement impactantes, gradient hero immersif.
+Plan de correction
 
-### Structure de la page
+1. Corriger le flux après mapping dans `src/pages/ReportImport.tsx`
+- Ajouter un état du type `mappingApplied` / `isRevalidatingAfterMapping`
+- Après clic sur “Appliquer et revalider” :
+  - invalider les queries utiles
+  - relancer automatiquement `handleValidate()` sur le fichier déjà chargé
+  - mettre à jour l’écran avec le nouveau `validationResult`
+- Sur l’étape 4, remplacer le simple toast par une vraie réanalyse du fichier, ou un bouton clair “Réanalyser ce fichier” qui exécute cette action
 
-**1. Header** - Navbar sticky avec blur, logo "Delivery Performance", bouton CTA
+2. Corriger le wording/UI de `src/components/reports/UnknownStoreMapping.tsx`
+- Le bouton dit aujourd’hui “Appliquer et revalider”, mais en étape 4 il ne revalide pas vraiment
+- Rendre le callback plus explicite et afficher un état visuel :
+  - “enregistrement des mappings…”
+  - “réanalyse en cours…”
+  - puis succès avec disparition ou mise à jour du bloc rouge
 
-**2. Hero** - Grand titre avec gradient text animé, sous-titre, 2 CTA. Background avec grille de points subtile + gradient radial violet/vert. Badges "Uber Eats" et "Deliveroo" avec leurs vrais logos (assets existants).
+3. Uniformiser la résolution des restaurants dans les parseurs
+- Vérifier et aligner :
+  - `supabase/functions/parse-payment-report/index.ts`
+  - `supabase/functions/parse-order-history/index.ts`
+  - `supabase/functions/parse-inaccurate-orders/index.ts`
+  - `supabase/functions/parse-downtime-report/index.ts`
+- Ordre de matching à standardiser :
+  1. restaurant forcé si sélectionné
+  2. `uber_store_id`
+  3. `restaurant_uber_ids`
+  4. `restaurant_name_aliases`
+  5. nom exact normalisé
+  6. fallback partiel/fuzzy
+- Point déjà vu dans le code : `parse-downtime-report` lit les alias de noms mais pas les UUID secondaires. Ce n’est pas forcément ton bug actuel, mais c’est une incohérence à corriger pour éviter d’autres cas “ça n’a pas pris mon mapping”.
 
-**3. Section logos partenaires** - Bandeau "Ils nous font confiance" avec :
-- Logo Chicken Street (utilise `cs-logo.jpeg` existant dans `/src/assets/`) + "72 restaurants"
-- Logo Tasty Crousty (texte stylisé, pas de logo dispo) + "75 restaurants"
-- Logos Uber Eats + Deliveroo (assets existants)
+Résultat attendu
 
-**4. Section chiffres clés** - 4 KPIs animés (compteur animé avec `useAnimatedCounter` existant) : 147 restaurants, 2 plateformes, +15% croissance moyenne, 24/7 temps réel. Cards avec effet glassmorphism.
+- Une fois le mapping fait, le même fichier est immédiatement recontrôlé
+- Les restaurants déjà mappés ne réapparaissent plus dans le bloc “non reconnus”
+- Le mapping reste réutilisé pour les imports suivants, sans refaire la manipulation
 
-**5. Section fonctionnalités** - 3 colonnes avec icones, titre, description. Effet hover élégant avec border gradient.
+Détails techniques
 
-**6. Section "Comment ça marche"** - 3 étapes numérotées (Connectez vos comptes → Importez vos données → Pilotez votre réseau)
+- Cause principale côté UI :
+  - étape 3 : `onMappingComplete` relance bien `handleValidate()`, mais sans UX claire
+  - étape 4 : `onMappingComplete` n’affiche qu’un toast et ne relance pas l’analyse
+- Cause secondaire potentielle côté backend :
+  - logique de matching pas totalement homogène entre les différentes fonctions d’import
 
-**7. CTA final** - Section dark avec gradient, titre accrocheur, bouton "Demander une démo"
+Vérifications après implémentation
 
-**8. Footer** - Copyright, liens, contact
-
-### Fichier modifie
-- `src/pages/Landing.tsx` : refonte complète (un seul fichier)
-
-### Details techniques
-- Animations CSS via les keyframes existantes (`fade-in-up`, `scale-in`) + nouvelles animations d'entrée au scroll via `IntersectionObserver`
-- Compteurs animés avec le hook `useAnimatedCounter` existant
-- Logos plateformes via les imports existants (`uber-eats-logo.png`, `deliveroo-logo.png`, `cs-logo.jpeg`)
-- Composants UI existants (`Button`, `Card`)
-- Palette existante : primary violet, accent vert, glassmorphism
-- Responsive mobile-first
-- Aucune migration SQL, aucun changement backend
-
+- Rejouer exactement le cas de ton screenshot sur `/report-import`
+- Mapper plusieurs restaurants, cliquer “Appliquer et revalider”, vérifier que la liste rouge se met à jour sans repartir de zéro
+- Réimporter le même fichier une seconde fois et vérifier qu’aucun remapping n’est demandé
+- Tester au moins `payment_order_level` et `inaccurate_orders`
