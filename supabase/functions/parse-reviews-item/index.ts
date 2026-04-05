@@ -289,18 +289,20 @@ Deno.serve(async (req) => {
       } 
       
       if (!restaurant && storeId) {
-        // Try storeId matching
         restaurant = storeIdToRestaurant.get(storeId) ?? null;
       }
       
+      // Step 2: Alias matching via restaurant_name_aliases
       if (!restaurant && storeName) {
-        // Fallback to normalized name matching
         const normalizedCsvName = normalizeRestaurantName(storeName);
-        
-        // Try exact normalized match first
+        restaurant = aliasToRestaurant.get(normalizedCsvName) ?? null;
+      }
+
+      // Step 3: Normalized name matching
+      if (!restaurant && storeName) {
+        const normalizedCsvName = normalizeRestaurantName(storeName);
         restaurant = normalizedNameToRestaurant.get(normalizedCsvName) ?? null;
         
-        // If no exact match, try partial matching
         if (!restaurant) {
           for (const [normalizedDbName, r] of normalizedNameToRestaurant.entries()) {
             if (normalizedDbName.includes(normalizedCsvName) || normalizedCsvName.includes(normalizedDbName)) {
