@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { startOfMonth, endOfMonth, startOfYear, endOfYear } from "date-fns";
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReviewsOverview } from "@/components/reviews/ReviewsOverview";
 import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
@@ -8,10 +8,13 @@ import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
 import { useCustomerReviews, useMenuItemReviews, DateMode } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare } from "lucide-react";
+import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useReviewsExportData } from "@/hooks/useReviewsExportData";
 
 export default function Reviews() {
   const [dateMode, setDateMode] = useState<DateMode>("order");
@@ -112,6 +115,23 @@ export default function Reviews() {
     isLoading: isLoadingMenuItems,
   } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
 
+  const { exportReviews, isExporting: isExportingData } = useReviewsExportData();
+
+  const handleExportReviews = (fmt: "csv" | "xlsx") => {
+    const ids = restaurantIds || filteredRestaurants.map((r) => r.id);
+    if (!ids || ids.length === 0) return;
+    exportReviews(
+      {
+        restaurantIds: ids as string[],
+        startDate: format(startDate, "yyyy-MM-dd"),
+        endDate: format(endDate, "yyyy-MM-dd"),
+        platform: selectedPlatform,
+        restaurants: filteredRestaurants.map((r) => ({ id: r.id, name: r.name })),
+      },
+      fmt
+    );
+  };
+
   const isLoading = isLoadingCustomer || isLoadingMenuItems || isLoadingExtended;
 
   if (isLoading) {
@@ -130,7 +150,8 @@ export default function Reviews() {
       <Tabs defaultValue="overview" className="w-full">
         {/* Tabs + Date Toggle sur la même ligne */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <TabsList className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/40">
+          <div className="flex items-center gap-3">
+            <TabsList className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/40">
             <TabsTrigger 
               value="overview" 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
@@ -172,6 +193,24 @@ export default function Reviews() {
               Météo
             </TabsTrigger>
           </TabsList>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExportingData}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExportingData ? "Export..." : "Exporter"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReviews("xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReviews("csv")}>
+                  CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
           {/* Toggle Date intégré */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

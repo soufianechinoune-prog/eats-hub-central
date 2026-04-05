@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, subWeeks, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Star } from "lucide-react";
+import { ArrowLeft, Star, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -17,6 +17,8 @@ import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
+import { useReviewsExportData } from "@/hooks/useReviewsExportData";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 import type { DateRange } from "react-day-picker";
 
@@ -340,6 +342,7 @@ const RatingsComparison = () => {
 
   // PDF Export hook
   const { exportToPDF, isExporting } = useRatingsExport();
+  const { exportReviews, isExporting: isExportingData } = useReviewsExportData();
 
   // Prepare data for PDF export
   const handleExportPDF = () => {
@@ -358,6 +361,18 @@ const RatingsComparison = () => {
     });
   };
 
+  const handleExportReviews = (fmt: "csv" | "xlsx") => {
+    const ids = selectedRestaurants?.map((r) => r.id) || [];
+    exportReviews(
+      {
+        restaurantIds: ids,
+        startDate: formatDateLocal(dateRange.start),
+        endDate: formatDateLocal(dateRange.end),
+        restaurants: selectedRestaurants?.map((r) => ({ id: r.id, name: r.name })) || [],
+      },
+      fmt
+    );
+  };
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <div className="container mx-auto px-4 py-6 space-y-6">
@@ -383,6 +398,23 @@ const RatingsComparison = () => {
           </div>
           
           <div className="flex items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExportingData}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExportingData ? "Export..." : "Exporter avis"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReviews("xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReviews("csv")}>
+                  CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <NetworkViewToggle
               isNetworkView={isNetworkView}
               onToggle={setIsNetworkView}
