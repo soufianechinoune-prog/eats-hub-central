@@ -509,7 +509,7 @@ export function useOverviewData(
         name: resto.name,
         city: resto.city,
         rating: rating != null ? parseFloat(rating.toFixed(1)) : null,
-        reviewCount: restoReviews.length,
+        reviewCount: restoReviewTotal,
         prepTime: prepTime != null ? Math.round(prepTime) : null,
         errorRate: restoErrorRate != null ? parseFloat(restoErrorRate.toFixed(1)) : null,
         profitability,
