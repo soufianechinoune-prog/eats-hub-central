@@ -221,7 +221,7 @@ const RETRY_DELAY_MS = 3000;
 interface RestaurantOption {
   id: string;
   name: string;
-  city?: string | null;
+  city: string | null;
   chain_id?: string | null;
 }
 
