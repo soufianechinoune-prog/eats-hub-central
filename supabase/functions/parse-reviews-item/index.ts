@@ -197,10 +197,12 @@ Deno.serve(async (req) => {
     }
     console.log('=== END DEBUG ===')
 
-    // Fetch all restaurants
-    const { data: restaurants } = await supabase
-      .from('restaurants')
-      .select('id, name, uber_store_id');
+    // Fetch all restaurants + aliases + secondary UUIDs in parallel
+    const [{ data: restaurants }, { data: uberIdMappings }, { data: nameAliases }] = await Promise.all([
+      supabase.from('restaurants').select('id, name, uber_store_id'),
+      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id').limit(500),
+      supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
+    ]);
 
     // Create lookup maps
     const storeIdToRestaurant = new Map(
@@ -209,18 +211,25 @@ Deno.serve(async (req) => {
         .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
     );
 
-    // Also fetch secondary UUIDs from restaurant_uber_ids
-    const { data: uberIdMappings } = await supabase
-      .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id')
-      .limit(500);
-
+    // Add secondary UUIDs
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
       uberIdMappings.forEach(mapping => {
         const restaurant = restaurantById.get(mapping.restaurant_id);
         if (restaurant && mapping.uber_store_id) {
           storeIdToRestaurant.set(mapping.uber_store_id, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
+    // Build alias lookup map
+    const aliasToRestaurant = new Map<string, { id: string; name: string }>();
+    if (nameAliases && restaurants) {
+      const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
+      nameAliases.forEach(alias => {
+        const restaurant = restaurantById.get(alias.restaurant_id);
+        if (restaurant) {
+          aliasToRestaurant.set(alias.normalized_name, { id: restaurant.id, name: restaurant.name });
         }
       });
     }
@@ -280,18 +289,20 @@ Deno.serve(async (req) => {
       } 
       
       if (!restaurant && storeId) {
-        // Try storeId matching
         restaurant = storeIdToRestaurant.get(storeId) ?? null;
       }
       
+      // Step 2: Alias matching via restaurant_name_aliases
       if (!restaurant && storeName) {
-        // Fallback to normalized name matching
         const normalizedCsvName = normalizeRestaurantName(storeName);
-        
-        // Try exact normalized match first
+        restaurant = aliasToRestaurant.get(normalizedCsvName) ?? null;
+      }
+
+      // Step 3: Normalized name matching
+      if (!restaurant && storeName) {
+        const normalizedCsvName = normalizeRestaurantName(storeName);
         restaurant = normalizedNameToRestaurant.get(normalizedCsvName) ?? null;
         
-        // If no exact match, try partial matching
         if (!restaurant) {
           for (const [normalizedDbName, r] of normalizedNameToRestaurant.entries()) {
             if (normalizedDbName.includes(normalizedCsvName) || normalizedCsvName.includes(normalizedDbName)) {

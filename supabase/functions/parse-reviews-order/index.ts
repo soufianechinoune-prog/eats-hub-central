@@ -111,14 +111,13 @@ function parseCSVContent(content: string): string[][] {
   return rows;
 }
 
-// Normalize restaurant name for matching - remove all punctuation and extra spaces
-function normalizeName(name: string): string {
+// Normalize restaurant name for alias matching - MUST match UnknownStoreMapping.tsx
+function normalizeForAlias(name: string): string {
   return name
     .toLowerCase()
-    .trim()
-    .replace(/[-–—]/g, ' ')  // Replace dashes with spaces
-    .replace(/[''`.,;:!?()[\]{}]/g, '')  // Remove punctuation
-    .replace(/\s+/g, ' ')  // Normalize spaces
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
     .trim();
 }
 
@@ -201,10 +200,12 @@ Deno.serve(async (req) => {
 
     console.log('Column mapping:', colMap);
 
-    // Fetch all restaurants
-    const { data: restaurants } = await supabase
-      .from('restaurants')
-      .select('id, name, uber_store_id');
+    // Fetch all restaurants + aliases + secondary UUIDs in parallel
+    const [{ data: restaurants }, { data: uberIdMappings }, { data: nameAliases }] = await Promise.all([
+      supabase.from('restaurants').select('id, name, uber_store_id'),
+      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id').limit(500),
+      supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
+    ]);
 
     // Map by uber_store_id
     const storeIdToRestaurant = new Map(
@@ -213,12 +214,7 @@ Deno.serve(async (req) => {
         .map(r => [r.uber_store_id, { id: r.id, name: r.name }])
     );
 
-    // Also fetch secondary UUIDs from restaurant_uber_ids
-    const { data: uberIdMappings } = await supabase
-      .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id')
-      .limit(500);
-
+    // Add secondary UUIDs
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
       uberIdMappings.forEach(mapping => {
@@ -229,10 +225,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Build alias lookup map (normalized_name → restaurant)
+    const aliasToRestaurant = new Map<string, { id: string; name: string }>();
+    if (nameAliases && restaurants) {
+      const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
+      nameAliases.forEach(alias => {
+        const restaurant = restaurantById.get(alias.restaurant_id);
+        if (restaurant) {
+          aliasToRestaurant.set(alias.normalized_name, { id: restaurant.id, name: restaurant.name });
+        }
+      });
+    }
+
     // Map by normalized name for fallback matching
     const storeNameToRestaurant = new Map(
       (restaurants || []).map(r => [
-        normalizeName(r.name), 
+        normalizeForAlias(r.name), 
         { id: r.id, name: r.name }
       ])
     );
@@ -282,20 +290,24 @@ Deno.serve(async (req) => {
           restaurant = { id: selectedRestaurant.id, name: selectedRestaurant.name };
         }
       } else {
-        // Original logic: find by store_id, then by name
+        // Step 1: UUID matching
         restaurant = storeId ? storeIdToRestaurant.get(storeId) ?? null : null;
 
-        // Fallback: search by name
+        // Step 2: Alias matching via restaurant_name_aliases
         if (!restaurant && storeName) {
-          const normalizedStoreName = normalizeName(storeName);
-          
-          // Exact match
-          restaurant = storeNameToRestaurant.get(normalizedStoreName) ?? null;
+          const normalizedCsvName = normalizeForAlias(storeName);
+          restaurant = aliasToRestaurant.get(normalizedCsvName) ?? null;
+        }
+
+        // Step 3: Normalized name matching
+        if (!restaurant && storeName) {
+          const normalizedCsvName = normalizeForAlias(storeName);
+          restaurant = storeNameToRestaurant.get(normalizedCsvName) ?? null;
           
           // Partial match if exact fails
           if (!restaurant) {
             for (const [name, r] of storeNameToRestaurant.entries()) {
-              if (normalizedStoreName.includes(name) || name.includes(normalizedStoreName)) {
+              if (normalizedCsvName.includes(name) || name.includes(normalizedCsvName)) {
                 restaurant = r;
                 break;
               }
