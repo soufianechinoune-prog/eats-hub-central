@@ -194,6 +194,24 @@ export default function Reviews() {
             </TabsTrigger>
           </TabsList>
 
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExportingData}>
+                  <Download className="h-4 w-4 mr-2" />
+                  {isExportingData ? "Export..." : "Exporter"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExportReviews("xlsx")}>
+                  Excel (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExportReviews("csv")}>
+                  CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           {/* Toggle Date intégré */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <span className="text-xs">Par :</span>
