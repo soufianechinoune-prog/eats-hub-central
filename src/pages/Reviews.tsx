@@ -150,7 +150,8 @@ export default function Reviews() {
       <Tabs defaultValue="overview" className="w-full">
         {/* Tabs + Date Toggle sur la même ligne */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
-          <TabsList className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/40">
+          <div className="flex items-center gap-3">
+            <TabsList className="inline-flex h-9 items-center gap-1 rounded-lg bg-muted/60 p-1 border border-border/40">
             <TabsTrigger 
               value="overview" 
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md transition-all
