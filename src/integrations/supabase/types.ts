@@ -3695,6 +3695,19 @@ export type Database = {
           restaurant_id: string
         }[]
       }
+      get_network_ratings_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_rating: number
+          platform: string
+          restaurant_id: string
+          review_count: number
+        }[]
+      }
       get_offers_analytics: {
         Args: {
           p_end_date?: string
