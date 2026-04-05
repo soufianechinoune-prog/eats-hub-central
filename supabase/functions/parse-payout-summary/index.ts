@@ -377,14 +377,26 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        const restaurant = restaurantMap.get(uberStoreId);
+        // Step 1: UUID matching
+        let restaurant = restaurantMap.get(uberStoreId) ?? null;
+        
+        // Step 2: Alias matching by restaurant name from CSV
+        const restaurantName = getValue('restaurant_name');
+        if (!restaurant && restaurantName) {
+          const normalizedCsvName = normalizeForAlias(restaurantName);
+          restaurant = aliasToRestaurant.get(normalizedCsvName) ?? null;
+          
+          // Step 3: Normalized name matching
+          if (!restaurant) {
+            restaurant = normalizedNameToRestaurant.get(normalizedCsvName) ?? null;
+          }
+        }
+
         if (!restaurant) {
           results.skipped++;
-          unknownStoreIds.add(uberStoreId);
-          // Store the restaurant name from CSV for UI display
-          const restaurantName = getValue('restaurant_name');
-          if (restaurantName && !unknownStoreDetails[uberStoreId]) {
-            unknownStoreDetails[uberStoreId] = { name: restaurantName };
+          unknownStoreIds.add(uberStoreId || restaurantName || 'unknown');
+          if (restaurantName && !unknownStoreDetails[uberStoreId || restaurantName]) {
+            unknownStoreDetails[uberStoreId || restaurantName] = { name: restaurantName };
           }
           skippedDetails.push({
             rowIndex: rowNumber,
