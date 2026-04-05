@@ -1,63 +1,55 @@
 
-Pourquoi ça arrive
 
-- Le mapping que tu fais est bien sauvegardé dans la base via `UnknownStoreMapping.tsx` :
-  - noms CSV → `restaurant_name_aliases`
-  - UUID/store IDs → `restaurant_uber_ids`
-- Le vrai problème est ensuite dans `ReportImport.tsx` :
-  - l’écran affiche encore le résultat de l’analyse/import déjà calculé avant ton mapping
-  - à l’étape 4, le callback `onMappingComplete` ne fait qu’un toast, il ne recalcule pas le fichier
-- Donc les correspondances existent bien, mais elles ne sont pas reprises dans le résultat affiché tant qu’on ne relance pas réellement la validation/import. C’est pour ça que tu as l’impression de devoir recommencer.
+## Plan : Uniformiser la résolution des restaurants dans tous les parseurs
 
-Plan de correction
+### Problème confirmé
+Les parseurs `parse-reviews-order`, `parse-reviews-item`, `parse-payout-summary` et `parse-sales-over-time` ne consultent pas `restaurant_name_aliases`. La fonction de normalisation diffère aussi entre `UnknownStoreMapping.tsx` et ces parseurs.
 
-1. Corriger le flux après mapping dans `src/pages/ReportImport.tsx`
-- Ajouter un état du type `mappingApplied` / `isRevalidatingAfterMapping`
-- Après clic sur “Appliquer et revalider” :
-  - invalider les queries utiles
-  - relancer automatiquement `handleValidate()` sur le fichier déjà chargé
-  - mettre à jour l’écran avec le nouveau `validationResult`
-- Sur l’étape 4, remplacer le simple toast par une vraie réanalyse du fichier, ou un bouton clair “Réanalyser ce fichier” qui exécute cette action
+### Correction
 
-2. Corriger le wording/UI de `src/components/reports/UnknownStoreMapping.tsx`
-- Le bouton dit aujourd’hui “Appliquer et revalider”, mais en étape 4 il ne revalide pas vraiment
-- Rendre le callback plus explicite et afficher un état visuel :
-  - “enregistrement des mappings…”
-  - “réanalyse en cours…”
-  - puis succès avec disparition ou mise à jour du bloc rouge
+**Fichiers à modifier (4 parseurs backend) :**
 
-3. Uniformiser la résolution des restaurants dans les parseurs
-- Vérifier et aligner :
-  - `supabase/functions/parse-payment-report/index.ts`
-  - `supabase/functions/parse-order-history/index.ts`
-  - `supabase/functions/parse-inaccurate-orders/index.ts`
-  - `supabase/functions/parse-downtime-report/index.ts`
-- Ordre de matching à standardiser :
-  1. restaurant forcé si sélectionné
-  2. `uber_store_id`
-  3. `restaurant_uber_ids`
-  4. `restaurant_name_aliases`
-  5. nom exact normalisé
-  6. fallback partiel/fuzzy
-- Point déjà vu dans le code : `parse-downtime-report` lit les alias de noms mais pas les UUID secondaires. Ce n’est pas forcément ton bug actuel, mais c’est une incohérence à corriger pour éviter d’autres cas “ça n’a pas pris mon mapping”.
+1. `supabase/functions/parse-reviews-order/index.ts`
+2. `supabase/functions/parse-reviews-item/index.ts`
+3. `supabase/functions/parse-payout-summary/index.ts`
+4. `supabase/functions/parse-sales-over-time/index.ts`
 
-Résultat attendu
+**Dans chacun, ajouter :**
 
-- Une fois le mapping fait, le même fichier est immédiatement recontrôlé
-- Les restaurants déjà mappés ne réapparaissent plus dans le bloc “non reconnus”
-- Le mapping reste réutilisé pour les imports suivants, sans refaire la manipulation
+A. La fonction de normalisation identique à celle de `UnknownStoreMapping.tsx` :
+```typescript
+function normalizeForAlias(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+```
 
-Détails techniques
+B. Le fetch de la table `restaurant_name_aliases` :
+```typescript
+const { data: nameAliases } = await supabase
+  .from('restaurant_name_aliases')
+  .select('normalized_name, restaurant_id');
+```
 
-- Cause principale côté UI :
-  - étape 3 : `onMappingComplete` relance bien `handleValidate()`, mais sans UX claire
-  - étape 4 : `onMappingComplete` n’affiche qu’un toast et ne relance pas l’analyse
-- Cause secondaire potentielle côté backend :
-  - logique de matching pas totalement homogène entre les différentes fonctions d’import
+C. La logique de matching en 4 étapes (dans cet ordre) :
+1. UUID / store_id exact
+2. UUID secondaire via `restaurant_uber_ids`
+3. Alias via `restaurant_name_aliases` (avec `normalizeForAlias`)
+4. Nom normalisé exact + fallback fuzzy
 
-Vérifications après implémentation
+D. La remontée des `unknownStoreIds` et `unknownStoreDetails` dans la réponse de validation pour alimenter l'interface de mapping.
 
-- Rejouer exactement le cas de ton screenshot sur `/report-import`
-- Mapper plusieurs restaurants, cliquer “Appliquer et revalider”, vérifier que la liste rouge se met à jour sans repartir de zéro
-- Réimporter le même fichier une seconde fois et vérifier qu’aucun remapping n’est demandé
-- Tester au moins `payment_order_level` et `inaccurate_orders`
+**Fichier UI (aucun changement nécessaire)** : `ReportImport.tsx` relance déjà automatiquement `handleValidate()` après mapping — une fois les parseurs corrigés, la boucle fonctionnera.
+
+### Résultat attendu
+- Quel que soit le type de rapport importé, les alias déjà enregistrés sont reconnus immédiatement
+- Plus besoin de remapper les mêmes restaurants
+- La normalisation est identique partout
+
+### Aucune migration SQL nécessaire
+La table `restaurant_name_aliases` existe déjà avec la bonne structure.
+
