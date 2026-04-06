@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
       skipped: 0,
       errors: 0,
       invalidRatings: 0,
+      duplicatesRemoved: 0,
     };
 
     const skippedDetails: { rowIndex: number; reason: string; details: string }[] = [];
