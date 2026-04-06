@@ -206,6 +206,9 @@ export interface ReviewsOverviewStats {
   rating_distribution: Record<string, number> | null;
   day_stats: Array<{ day_index: number; avg_rating: number; count: number }> | null;
   tag_counts: Array<{ tag: string; count: number }> | null;
+  monthly_evolution: Array<{ year: number; month: number; avg_rating: number; count: number }> | null;
+  daily_evolution: Array<{ date: string; avg_rating: number; count: number }> | null;
+  previous_period: { avg_rating: number | null; total_count: number } | null;
 }
 
 export function useReviewsOverviewStats(

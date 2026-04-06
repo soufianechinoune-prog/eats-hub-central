@@ -109,7 +109,7 @@ export default function Reviews() {
 
   // Overview tab also needs individual reviews for evolution chart + rolling average
   // Use a SINGLE call on extended period, filter in memory for normal period
-  const needsReviews = activeTab === "overview" || activeTab === "customers" || activeTab === "weather";
+  const needsReviews = activeTab === "customers" || activeTab === "weather";
   const {
     data: extendedReviews,
     isLoading: isLoadingExtended,
