@@ -34,8 +34,7 @@ export function ReviewsOverview({ reviews = [], allReviewsForRolling, dateMode =
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange, selectedChainId } = useAnalyticsContext();
 
-  // Determine if we should show daily granularity
-  const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
+  // (showDailyData computed below after overviewStats useMemos)
 
   // Handle adding action from chart context menu
   const handleAddAction = (date: Date) => {
