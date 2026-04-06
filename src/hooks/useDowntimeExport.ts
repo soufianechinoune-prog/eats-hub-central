@@ -343,7 +343,7 @@ export const useDowntimeExport = () => {
         pageHeight - 5,
       );
       doc.text(
-        "CS Delivery Performance",
+        chainName,
         pageWidth - margin,
         pageHeight - 5,
         { align: "right" }
