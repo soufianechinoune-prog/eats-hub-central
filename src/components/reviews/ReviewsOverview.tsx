@@ -25,7 +25,7 @@ interface ReviewsOverviewProps {
 // Quick period modes that should display daily data
 const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
 
-export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "order" }: ReviewsOverviewProps) {
+export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "order", overviewStats }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
