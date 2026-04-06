@@ -415,7 +415,7 @@ Deno.serve(async (req) => {
     };
 
     if (dryRun) {
-      stats.inserted = reviewsToInsert.length;
+      stats.inserted = deduplicatedReviews.length;
       console.log('Dry run complete:', stats);
       
       return new Response(JSON.stringify({
