@@ -774,7 +774,8 @@ export default function MenuItems() {
     // --- Header ---
     pdf.setFillColor(16, 185, 129);
     pdf.rect(0, 0, pageWidth, 28, "F");
-    try { pdf.addImage(csLogoBase64, "JPEG", margin, 4, 20, 20); } catch (e) { /* ignore */ }
+    const menuLogoBase64 = await loadChainLogoBase64(null);
+    try { pdf.addImage(menuLogoBase64, "JPEG", margin, 4, 20, 20); } catch (e) { /* ignore */ }
     pdf.setTextColor(255, 255, 255);
     pdf.setFontSize(18);
     pdf.setFont("helvetica", "bold");
