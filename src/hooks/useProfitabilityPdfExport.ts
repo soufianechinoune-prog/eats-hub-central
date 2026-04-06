@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import jsPDF from "jspdf";
-import csLogoBase64 from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 import { ProductProfitability } from "@/hooks/useRestaurantProfitability";
 
 interface Restaurant {

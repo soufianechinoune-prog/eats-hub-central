@@ -4,47 +4,7 @@ import * as XLSX from "xlsx-js-style";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { extractCityName } from "@/lib/restaurantUtils";
-import csLogoUrl from "@/assets/cs-logo.jpeg";
-
-interface RestaurantStat {
-  id: string;
-  name: string;
-  totalOfflineMinutes: number;
-  availabilityRate: number;
-  hourlyData?: Record<number, number>;
-  weekdayData?: Record<number, number>;
-  dailyData?: Record<string, number>;
-  dailyAvailability?: Record<string, { online: number; offline: number; rate: number }>;
-  hourlyByDay?: Record<string, Record<number, { online: number; offline: number; rate: number }>>;
-}
-
-interface ExportData {
-  title: string;
-  period: string;
-  dateRange: { start: Date; end: Date };
-  stats: RestaurantStat[];
-  sortDirection?: "asc" | "desc";
-  insights: {
-    bestPerformer: { name: string; downtime: number };
-    worstPerformer: { name: string; downtime: number };
-    totalDowntime: number;
-    avgAvailability: number;
-    perfectCount: number;
-  };
-}
-
-const loadLogoBase64 = async (): Promise<string | null> => {
-  try {
-    const resp = await fetch(csLogoUrl);
-    const blob = await resp.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch { return null; }
-};
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";

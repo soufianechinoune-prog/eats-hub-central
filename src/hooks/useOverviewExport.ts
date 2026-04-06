@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx-js-style";
-import csLogoBase64 from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
 interface RestaurantMetric {
   id: string;

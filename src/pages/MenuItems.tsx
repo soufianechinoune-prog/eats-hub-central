@@ -80,7 +80,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { OfferSimulator } from "@/components/menu/OfferSimulator";
 import jsPDF from "jspdf";
 import * as XLSX from "xlsx-js-style";
-import csLogoBase64 from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 import { FileSpreadsheet, FileText, CheckCircle2, AlertTriangle } from "lucide-react";
 import { RestaurantPriceComparison } from "@/components/menu/RestaurantPriceComparison";
 import { ProfitabilityComparison } from "@/components/menu/ProfitabilityComparison";

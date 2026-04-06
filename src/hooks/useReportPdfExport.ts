@@ -5,7 +5,7 @@ import { fr } from "date-fns/locale";
 import { getMetricStatus } from "@/lib/performanceThresholds";
 import { supabase } from "@/integrations/supabase/client";
 import { extractCityName } from "@/lib/restaurantUtils";
-import csLogoUrl from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
 interface ReportKPIs {
   restaurant_name: string;
