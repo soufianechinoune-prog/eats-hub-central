@@ -124,7 +124,7 @@ export function useProfitabilityPdfExport() {
         
         pdf.setFontSize(8);
         pdf.setTextColor(gray.r, gray.g, gray.b);
-        pdf.text("CS Delivery Performance - Analyse Rentabilité", margin, pageHeight - 5);
+        pdf.text(`${chainName} - Analyse Rentabilité`, margin, pageHeight - 5);
         pdf.text(`Page ${pageNum}/${totalPages}`, pageWidth - margin - 20, pageHeight - 5);
       };
 

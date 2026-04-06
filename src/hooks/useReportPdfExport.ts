@@ -588,7 +588,7 @@ export function useReportPdfExport() {
     doc.setTextColor(156, 163, 175);
     const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     doc.text(`Genere le ${now}`, margin, ph - 5);
-    doc.text("CS Delivery Performance", pw - margin - doc.getTextWidth("CS Delivery Performance"), ph - 5);
+    doc.text(chainName, pw - margin - doc.getTextWidth(chainName), ph - 5);
 
     return doc.output("blob");
   }, []);
