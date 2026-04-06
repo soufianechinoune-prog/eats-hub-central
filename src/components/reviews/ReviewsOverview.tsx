@@ -1,5 +1,4 @@
 import { CustomerReview, ReviewsOverviewStats } from "@/hooks/useReviews";
-import { useReviewsStats, DateMode } from "@/hooks/useReviewsStats";
 import { ReviewsKPICards } from "./ReviewsKPICards";
 import { RatingEvolutionChart } from "./RatingEvolutionChart";
 
@@ -11,12 +10,14 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { format, getDaysInMonth, eachDayOfInterval, isSameDay } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ActionFormDialog } from "@/components/actions/ActionFormDialog";
 
+export type DateMode = "review" | "order";
+
 interface ReviewsOverviewProps {
-  reviews: CustomerReview[];
+  reviews?: CustomerReview[];
   allReviewsForRolling?: CustomerReview[];
   dateMode?: DateMode;
   overviewStats?: ReviewsOverviewStats;
@@ -25,33 +26,13 @@ interface ReviewsOverviewProps {
 // Quick period modes that should display daily data
 const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
 
-export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "order", overviewStats }: ReviewsOverviewProps) {
+export function ReviewsOverview({ reviews = [], allReviewsForRolling, dateMode = "order", overviewStats }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange, selectedChainId } = useAnalyticsContext();
-  
-  // Helper function to get the appropriate date from a review
-  const getReviewDate = (review: CustomerReview): string => {
-    if (dateMode === "order" && review.order_date) {
-      return review.order_date;
-    }
-    return review.review_date;
-  };
-  
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(
-    reviews, 
-    {
-      periodMode,
-      selectedMonth,
-      selectedYear,
-      dateMode,
-      dateRange
-    },
-    allReviewsForRolling
-  );
 
   // Determine if we should show daily granularity
   const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
