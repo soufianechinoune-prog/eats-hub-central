@@ -1,56 +1,38 @@
 
 
-## Plan : Optimiser le chargement de la note moyenne via RPC SQL
+## Plan révisé : Optimiser la page Avis (synthèse des deux diagnostics)
 
-### Problème confirmé
-`useOverviewReviews` (ligne 104-129 de `useOverviewData.ts`) charge **toutes les lignes** de `customer_reviews` via `fetchAllPages` (74 000+ lignes paginées par 1000), puis calcule la moyenne en JavaScript (ligne 429-431). C'est exactement ce que ton ingénieur a identifié.
+### Problème
+La page Avis charge 74K+ lignes via `select("*")` avec 2 appels `useCustomerReviews` = ~150 requêtes paginées au chargement.
 
-### Correction
+### Corrections
 
-**1. Migration SQL** - Créer la RPC `get_network_ratings_summary` :
-```sql
-CREATE OR REPLACE FUNCTION get_network_ratings_summary(
-  p_restaurant_ids UUID[],
-  p_start_date DATE,
-  p_end_date DATE
-)
-RETURNS TABLE (
-  restaurant_id UUID,
-  avg_rating NUMERIC,
-  review_count BIGINT,
-  platform TEXT
-)
-LANGUAGE sql
-SECURITY DEFINER
-STABLE
-SET search_path = 'public'
-SET statement_timeout = '10s'
-AS $$
-  SELECT
-    restaurant_id,
-    ROUND(AVG(overall_rating)::numeric, 2),
-    COUNT(*),
-    platform
-  FROM customer_reviews
-  WHERE restaurant_id = ANY(p_restaurant_ids)
-    AND review_date >= p_start_date
-    AND review_date <= p_end_date
-    AND overall_rating IS NOT NULL
-  GROUP BY restaurant_id, platform;
-$$;
-```
+**1. Migration SQL — RPC `get_reviews_overview_stats`**
+Agrège directement en SQL : note moyenne, distribution des notes, total, distribution thumbs, top tags. L'onglet Aperçu n'a plus besoin de lignes individuelles.
 
-**2. Modifier `src/hooks/useOverviewData.ts`** :
-- Remplacer `useOverviewReviews` (fetchAllPages sur 74K lignes) par un appel RPC qui retourne ~50 lignes agrégées
-- Adapter le calcul `avgRating` (lignes 429-431) pour utiliser la moyenne pondérée depuis les agrégats au lieu de la moyenne brute
-- Adapter aussi le calcul par restaurant dans la suite du fichier (ratings par resto pour le comparatif)
+**2. `src/hooks/useReviews.ts` — Select ciblé**
+Remplacer `select("*")` par les colonnes réellement utilisées dans chaque fonction (`fetchAllCustomerReviews` et `fetchAllMenuItemReviews`).
 
-**3. Conserver `useOverviewReviews` pour les vues détaillées** :
-- La page `/compare/ratings` et les graphiques d'évolution ont besoin des lignes individuelles — ils ne sont pas impactés
-- Seule la Vue d'ensemble (`/overview`) bénéficie du changement
+**3. `src/pages/Reviews.tsx` — Chargement conditionnel + fusion des appels**
+- Ajouter un state `activeTab` et passer `enabled` conditionnel à chaque hook
+- Fusionner les 2 appels `useCustomerReviews` en un seul sur la période étendue (90j), puis filtrer en mémoire pour la période normale
+- Onglet "Aperçu" : utilise la RPC uniquement (0 lignes)
+- Onglet "Clients" : charge les reviews individuelles seulement si actif
+- Onglet "Plats" : charge menu_item_reviews seulement si actif
+- Onglet "Météo" : charge les reviews étendues seulement si actif
+
+**4. `src/components/reviews/ReviewsOverview.tsx`**
+Adapter pour consommer les stats de la RPC au lieu des tableaux de lignes brutes.
+
+### Fichiers modifiés
+- Migration SQL (nouvelle RPC)
+- `src/hooks/useReviews.ts`
+- `src/pages/Reviews.tsx`
+- `src/components/reviews/ReviewsOverview.tsx`
 
 ### Résultat attendu
-- Note moyenne affichée en < 1 seconde (1 requête SQL au lieu de 74+ requêtes paginées)
-- Aucun impact sur les autres vues qui utilisent les avis individuels
-- Pattern identique aux autres RPCs déjà en place (`get_network_prep_time_summary`, etc.)
+- Onglet Aperçu : 1 requête SQL agrégée, affichage < 1s
+- Onglets secondaires : chargement à la demande uniquement
+- Payload réduit (colonnes ciblées)
+- Plus de double appel inutile
 
