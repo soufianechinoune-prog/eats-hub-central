@@ -1,48 +1,26 @@
 
 
-## Plan : Enrichir la liste des avis clients avec plus de données
+## Plan : Corriger l'auto-détection du type de fichier SKU
 
-### Contexte
-Actuellement, chaque ligne d'avis dans l'onglet "Clients" affiche uniquement : note, date, panier, tags, icône commentaire (tooltip), plateforme. Les données des deux CSV importés (order + SKU) contiennent bien plus d'infos : date de commande, date de note, nom des plats commandés, prix, catégorie, commentaire client.
+### Problème
+Le fichier `restaurant_rating_sku_local` contient à la fois les headers de `reviews_order` ("Valeur de la note", "UUID de la commande") et ceux de `reviews_item` ("Titre de l'article"). La détection `reviews_order` (ligne 573) est testée **avant** `reviews_item` (ligne 578), donc le fichier SKU est toujours mal classé comme `reviews_order`.
 
-### Problème technique
-Les plats commandés (CSV SKU `restaurant_rating_sku_local`) sont stockés dans `menu_item_reviews` mais **sans `uber_order_id`**, ce qui empêche de les relier aux avis clients (`customer_reviews`). Il faut d'abord créer ce lien.
+Résultat : les 15 726 lignes SKU sont envoyées à `parse-reviews-order` → insérées dans `customer_reviews` au lieu de `menu_item_reviews`. D'où les 0 données dans l'onglet "Plats".
 
-### Corrections
+### Correction
 
-**Etape 1 — Migration SQL : ajouter `uber_order_id` à `menu_item_reviews`**
-- Ajouter la colonne `uber_order_id` (text, nullable) à `menu_item_reviews`
-- Ajouter aussi `item_price` (numeric, nullable) et `menu_category` (text, nullable) qui sont dans le CSV mais pas stockés actuellement
-- Créer un index sur `uber_order_id` pour les jointures
+**1. `src/pages/ReportImport.tsx` — `detectReportType()`**
+- Déplacer le test `reviews_item` **avant** `reviews_order` (lignes 577-581 avant 572-576)
+- Le fichier SKU contient "Titre de l'article" qui est spécifique aux items → sera détecté correctement en premier
+- Le fichier order-level ne contient PAS "Titre de l'article" → tombera toujours sur `reviews_order`
 
-**Etape 2 — Modifier `parse-reviews-item/index.ts`**
-- Mapper les colonnes CSV `Prix du plat` et `Catégorie du menu`
-- Stocker `orderUuid` dans le champ `uber_order_id`, `item_price`, et `menu_category` lors de l'insertion
+**2. `src/components/reports/BulkImportTab.tsx` — même correction**
+- Appliquer le même réordonnancement dans la fonction de détection du bulk import
 
-**Etape 3 — Modifier `useReviews.ts`**
-- Enrichir `CustomerReview` avec `order_date` (déjà présent dans le select mais pas affiché)
-- Créer un nouveau hook `useReviewItems(uberOrderIds)` qui charge les plats associés à un lot d'avis visibles (chargement à la demande, pas 74K lignes)
-
-**Etape 4 — Refondre `CompactReviewRow` en design expandable**
-- Vue compacte (ligne) : Note | Date commande | Date avis | Panier | Tags | Plateforme
-- Afficher les 2 dates (commande + avis) au lieu d'une seule
-- Au clic sur la ligne, expansion avec :
-  - Commentaire client affiché en entier (texte intégral, pas tooltip)
-  - Liste des plats commandés : nom, prix, catégorie (chargés via le hook)
-- Design propre avec un fond légèrement différent pour la zone expandée
-
-**Etape 5 — Adapter `ReviewsCustomerList`**
-- Mettre à jour le header de la table avec les nouvelles colonnes
-- Gérer l'état d'expansion (un seul avis ouvert à la fois)
-- Charger les items associés uniquement pour l'avis ouvert (performance)
+### Après la correction
+L'utilisateur devra ré-importer le fichier SKU. Cette fois il sera correctement détecté comme `reviews_item` et les données iront dans `menu_item_reviews`.
 
 ### Fichiers modifiés
-- Migration SQL (nouvelle colonne + index)
-- `supabase/functions/parse-reviews-item/index.ts` (stocker uber_order_id, prix, catégorie)
-- `src/hooks/useReviews.ts` (nouveau hook items)
-- `src/components/reviews/CompactReviewRow.tsx` (design expandable)
-- `src/components/reviews/ReviewsCustomerList.tsx` (header + expansion)
-
-### Remarque importante
-Après ce changement, il faudra **ré-importer le fichier SKU** (`restaurant_rating_sku_local`) pour que les plats soient liés aux avis via `uber_order_id`.
+- `src/pages/ReportImport.tsx` (réordonnancer les tests de détection)
+- `src/components/reports/BulkImportTab.tsx` (idem)
 
