@@ -751,7 +751,7 @@ export default function MenuItems() {
   };
 
   // Export to PDF - Mercuriale Food Cost complète
-  const exportToPdf = () => {
+  const exportToPdf = async () => {
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
