@@ -143,7 +143,8 @@ export const useDowntimeExport = () => {
       const contentW = pageWidth - margin * 2;
       let yPos = margin;
       const periodDays = differenceInDays(data.dateRange.end, data.dateRange.start) + 1;
-      const logoBase64 = await loadLogoBase64();
+      const logoBase64 = await loadChainLogoBase64(data.chainId ?? null);
+      const chainName = await getChainName(data.chainId ?? null);
       const exportDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: fr });
 
       // Build restaurant page mapping (page 2 = first restaurant, etc.)
