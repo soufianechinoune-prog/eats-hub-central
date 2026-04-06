@@ -47,7 +47,7 @@ export interface MenuItemReview {
 const CUSTOMER_REVIEW_COLUMNS = "id, restaurant_id, overall_rating, food_rating, delivery_rating, review_date, order_date, customer_name, customer_type, customer_comment, order_total, response_status, response_text, tags, platform";
 
 // Columns needed for menu item reviews
-const MENU_ITEM_REVIEW_COLUMNS = "id, restaurant_id, item_id, item_title, rating, thumb_up, thumb_down, comment, review_date, tags, platform";
+const MENU_ITEM_REVIEW_COLUMNS = "id, restaurant_id, item_id, item_title, rating, thumb_up, thumb_down, comment, review_date, tags, platform, uber_order_id, item_price, menu_category";
 
 const PAGE_SIZE = 1000;
 

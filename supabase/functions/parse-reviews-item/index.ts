@@ -371,6 +371,9 @@ Deno.serve(async (req) => {
       // Use external ID, then UUID, then row index as fallback for item_id
       const itemId = itemExternalId || itemUuid || `row_${i}`;
 
+      // Parse item price
+      const itemPrice = itemPriceStr ? parseFloat(itemPriceStr.replace(',', '.')) : null;
+
       reviewsToInsert.push({
         restaurant_id: restaurant.id,
         item_id: itemId,
@@ -381,6 +384,9 @@ Deno.serve(async (req) => {
         tags: tags,
         review_date: orderDate,
         platform: 'uber_eats',
+        uber_order_id: orderUuid || null,
+        item_price: isNaN(itemPrice as number) ? null : itemPrice,
+        menu_category: menuCategoryStr || null,
       });
     }
 
