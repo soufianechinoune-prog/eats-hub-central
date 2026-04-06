@@ -461,13 +461,17 @@ export function useOverviewExport() {
       const darkGray = { r: 55, g: 65, b: 81 };
       const lightGray = { r: 243, g: 244, b: 246 };
 
+      // Load dynamic logo & chain name
+      const logoBase64Comp = await loadChainLogoBase64(data.chainId ?? null);
+      const chainNameComp = await getChainName(data.chainId ?? null);
+
       // Draw header with logo
       const drawHeader = (pageNum: number, subtitle: string) => {
         pdf.setFillColor(emerald.r, emerald.g, emerald.b);
         pdf.rect(0, 0, pageWidth, 28, "F");
 
         try {
-          pdf.addImage(csLogoBase64, "JPEG", margin, 4, 20, 20);
+          pdf.addImage(logoBase64Comp, "JPEG", margin, 4, 20, 20);
         } catch (e) {
           console.log("Could not add logo");
         }
@@ -475,7 +479,7 @@ export function useOverviewExport() {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(20);
         pdf.setFont("helvetica", "bold");
-        pdf.text("CHICKEN STREET", margin + 25, 12);
+        pdf.text(chainNameComp.toUpperCase(), margin + 25, 12);
 
         pdf.setFontSize(11);
         pdf.setFont("helvetica", "normal");
