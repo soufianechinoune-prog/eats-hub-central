@@ -198,7 +198,10 @@ export function detectsAsItemLevel(headerLine: string): boolean {
     lower.includes("titre de l'article") ||
     lower.includes("item title") ||
     lower.includes("nom de l'article") ||
-    lower.includes("nom du plat/de l'article")
+    lower.includes("nom du plat/de l'article") ||
+    lower.includes("prix du plat") ||
+    lower.includes("catégorie du menu") ||
+    lower.includes("id. externe de l'article")
   );
 }
 
