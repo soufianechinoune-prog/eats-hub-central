@@ -4,7 +4,7 @@ import * as XLSX from "xlsx-js-style";
 import { format, parseISO, differenceInDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { extractCityName } from "@/lib/restaurantUtils";
-import csLogoUrl from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
 interface RestaurantStat {
   id: string;
@@ -24,6 +24,7 @@ interface ExportData {
   dateRange: { start: Date; end: Date };
   stats: RestaurantStat[];
   sortDirection?: "asc" | "desc";
+  chainId?: string | null;
   insights: {
     bestPerformer: { name: string; downtime: number };
     worstPerformer: { name: string; downtime: number };
@@ -32,19 +33,6 @@ interface ExportData {
     perfectCount: number;
   };
 }
-
-const loadLogoBase64 = async (): Promise<string | null> => {
-  try {
-    const resp = await fetch(csLogoUrl);
-    const blob = await resp.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
-    });
-  } catch { return null; }
-};
 
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";
@@ -155,7 +143,8 @@ export const useDowntimeExport = () => {
       const contentW = pageWidth - margin * 2;
       let yPos = margin;
       const periodDays = differenceInDays(data.dateRange.end, data.dateRange.start) + 1;
-      const logoBase64 = await loadLogoBase64();
+      const logoBase64 = await loadChainLogoBase64(data.chainId ?? null);
+      const chainName = await getChainName(data.chainId ?? null);
       const exportDate = format(new Date(), "dd/MM/yyyy HH:mm", { locale: fr });
 
       // Build restaurant page mapping (page 2 = first restaurant, etc.)
@@ -354,7 +343,7 @@ export const useDowntimeExport = () => {
         pageHeight - 5,
       );
       doc.text(
-        "CS Delivery Performance",
+        chainName,
         pageWidth - margin,
         pageHeight - 5,
         { align: "right" }
@@ -489,7 +478,7 @@ export const useDowntimeExport = () => {
           pageHeight - 5,
         );
         doc.text(
-          "CS Delivery Performance",
+          chainName,
           pageWidth - margin,
           pageHeight - 5,
           { align: "right" }

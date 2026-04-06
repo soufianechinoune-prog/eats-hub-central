@@ -5,7 +5,7 @@ import { fr } from "date-fns/locale";
 import { getMetricStatus } from "@/lib/performanceThresholds";
 import { supabase } from "@/integrations/supabase/client";
 import { extractCityName } from "@/lib/restaurantUtils";
-import csLogoUrl from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
 interface ReportKPIs {
   restaurant_name: string;
@@ -174,23 +174,7 @@ async function fetchHourlyAvailability(restaurantId: string, startDate: string, 
 
 export function useReportPdfExport() {
 
-  // Load logo as base64 once
-  const loadLogoBase64 = async (): Promise<string | null> => {
-    try {
-      const response = await fetch(csLogoUrl);
-      const blob = await response.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      return null;
-    }
-  };
-
-  const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions): Promise<Blob> => {
+  const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions & { chainId?: string | null }): Promise<Blob> => {
     const reportType = options.reportType || "ai_global";
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pw = doc.internal.pageSize.getWidth();
@@ -201,7 +185,8 @@ export function useReportPdfExport() {
 
     // ========== HEADER (white + logo + emerald line) ==========
     const cityName = extractCityName(kpi.restaurant_name);
-    const logoBase64 = await loadLogoBase64();
+    const logoBase64 = await loadChainLogoBase64(options.chainId ?? null);
+    const chainName = await getChainName(options.chainId ?? null);
 
     // Logo
     const logoSize = 14;
@@ -215,7 +200,7 @@ export function useReportPdfExport() {
     doc.setTextColor(31, 41, 55);
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`Rapport CS ${cityName}`, textStartX, 15);
+    doc.text(`Rapport ${chainName} ${cityName}`, textStartX, 15);
 
     // Subtitle (report type)
     doc.setTextColor(107, 114, 128);
@@ -469,7 +454,7 @@ export function useReportPdfExport() {
       doc.setTextColor(156, 163, 175);
       const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
       doc.text(`Genere le ${now}`, margin, ph - 5);
-      doc.text("CS Delivery Performance", pw - margin - doc.getTextWidth("CS Delivery Performance"), ph - 5);
+      doc.text(chainName, pw - margin - doc.getTextWidth(chainName), ph - 5);
 
       return doc.output("blob");
     }
@@ -603,7 +588,7 @@ export function useReportPdfExport() {
     doc.setTextColor(156, 163, 175);
     const now = new Date().toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
     doc.text(`Genere le ${now}`, margin, ph - 5);
-    doc.text("CS Delivery Performance", pw - margin - doc.getTextWidth("CS Delivery Performance"), ph - 5);
+    doc.text(chainName, pw - margin - doc.getTextWidth(chainName), ph - 5);
 
     return doc.output("blob");
   }, []);

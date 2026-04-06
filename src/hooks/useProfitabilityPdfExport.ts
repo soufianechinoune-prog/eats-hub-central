@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import jsPDF from "jspdf";
-import csLogoBase64 from "@/assets/cs-logo.jpeg";
+import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 import { ProductProfitability } from "@/hooks/useRestaurantProfitability";
 
 interface Restaurant {
@@ -15,6 +15,7 @@ interface ProfitabilityExportData {
   viewMode: "foodCost" | "margin";
   marginType: "brut" | "net";
   commissionRate: number;
+  chainId?: string | null;
   stats: {
     avgMargin: number | null;
     avgFoodCostPercent: number | null;
@@ -76,13 +77,17 @@ export function useProfitabilityPdfExport() {
       const darkGray = { r: 55, g: 65, b: 81 };
       const lightGray = { r: 243, g: 244, b: 246 };
 
+      // Load dynamic logo & chain name
+      const logoBase64 = await loadChainLogoBase64(data.chainId ?? null);
+      const chainName = await getChainName(data.chainId ?? null);
+
       // Draw header with logo
       const drawHeader = (pageNum: number, subtitle: string) => {
         pdf.setFillColor(emerald.r, emerald.g, emerald.b);
         pdf.rect(0, 0, pageWidth, 28, "F");
 
         try {
-          pdf.addImage(csLogoBase64, "JPEG", margin, 4, 20, 20);
+          pdf.addImage(logoBase64, "JPEG", margin, 4, 20, 20);
         } catch (e) {
           console.log("Could not add logo");
         }
@@ -90,7 +95,7 @@ export function useProfitabilityPdfExport() {
         pdf.setTextColor(255, 255, 255);
         pdf.setFontSize(20);
         pdf.setFont("helvetica", "bold");
-        pdf.text("CHICKEN STREET", margin + 25, 12);
+        pdf.text(chainName.toUpperCase(), margin + 25, 12);
 
         pdf.setFontSize(11);
         pdf.setFont("helvetica", "normal");
@@ -119,7 +124,7 @@ export function useProfitabilityPdfExport() {
         
         pdf.setFontSize(8);
         pdf.setTextColor(gray.r, gray.g, gray.b);
-        pdf.text("CS Delivery Performance - Analyse Rentabilité", margin, pageHeight - 5);
+        pdf.text(`${chainName} - Analyse Rentabilité`, margin, pageHeight - 5);
         pdf.text(`Page ${pageNum}/${totalPages}`, pageWidth - margin - 20, pageHeight - 5);
       };
 
