@@ -1,38 +1,25 @@
 
 
-## Plan révisé : Optimiser la page Avis (synthèse des deux diagnostics)
+## Plan : Corriger l'import reviews_order (doublons dans le batch)
 
 ### Problème
-La page Avis charge 74K+ lignes via `select("*")` avec 2 appels `useCustomerReviews` = ~150 requêtes paginées au chargement.
+Les logs de la fonction montrent : `"ON CONFLICT DO UPDATE command cannot affect row a second time"` sur tous les batches. Le CSV contient des lignes dupliquées (même `uber_order_id`), et PostgreSQL interdit de faire un UPSERT sur la même clé deux fois dans la même commande INSERT.
 
-### Corrections
+Résultat : 24 077 lignes en erreur, 0 insérées.
 
-**1. Migration SQL — RPC `get_reviews_overview_stats`**
-Agrège directement en SQL : note moyenne, distribution des notes, total, distribution thumbs, top tags. L'onglet Aperçu n'a plus besoin de lignes individuelles.
+### Correction
 
-**2. `src/hooks/useReviews.ts` — Select ciblé**
-Remplacer `select("*")` par les colonnes réellement utilisées dans chaque fonction (`fetchAllCustomerReviews` et `fetchAllMenuItemReviews`).
+**Fichier : `supabase/functions/parse-reviews-order/index.ts`**
 
-**3. `src/pages/Reviews.tsx` — Chargement conditionnel + fusion des appels**
-- Ajouter un state `activeTab` et passer `enabled` conditionnel à chaque hook
-- Fusionner les 2 appels `useCustomerReviews` en un seul sur la période étendue (90j), puis filtrer en mémoire pour la période normale
-- Onglet "Aperçu" : utilise la RPC uniquement (0 lignes)
-- Onglet "Clients" : charge les reviews individuelles seulement si actif
-- Onglet "Plats" : charge menu_item_reviews seulement si actif
-- Onglet "Météo" : charge les reviews étendues seulement si actif
+Avant de découper en batches et d'insérer, dédupliquer les reviews par `uber_order_id` :
+- Utiliser une `Map<string, review>` pour ne garder que la dernière occurrence de chaque `uber_order_id`
+- Les lignes sans `uber_order_id` sont conservées telles quelles
+- Ajouter un compteur `duplicatesRemoved` dans les stats pour traçabilité
 
-**4. `src/components/reviews/ReviewsOverview.tsx`**
-Adapter pour consommer les stats de la RPC au lieu des tableaux de lignes brutes.
-
-### Fichiers modifiés
-- Migration SQL (nouvelle RPC)
-- `src/hooks/useReviews.ts`
-- `src/pages/Reviews.tsx`
-- `src/components/reviews/ReviewsOverview.tsx`
+Le code de déduplication sera placé juste après la boucle de parsing (ligne ~375), avant le bloc d'insertion par batch.
 
 ### Résultat attendu
-- Onglet Aperçu : 1 requête SQL agrégée, affichage < 1s
-- Onglets secondaires : chargement à la demande uniquement
-- Payload réduit (colonnes ciblées)
-- Plus de double appel inutile
+- Les doublons intra-fichier sont éliminés avant l'insert
+- L'upsert fonctionne normalement (1 seule ligne par `uber_order_id` par batch)
+- Les 24 077 lignes seront réduites aux lignes uniques et insérées correctement
 
