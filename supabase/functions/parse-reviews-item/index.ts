@@ -283,6 +283,8 @@ Deno.serve(async (req) => {
       const ratingStr = colMap.rating >= 0 ? values[colMap.rating]?.trim() : '';
       const tagsStr = colMap.tags >= 0 ? values[colMap.tags]?.trim() : '';
       const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate]?.trim() : '';
+      const itemPriceStr = colMap.itemPrice >= 0 ? values[colMap.itemPrice]?.trim() : '';
+      const menuCategoryStr = colMap.menuCategory >= 0 ? values[colMap.menuCategory]?.trim() : '';
 
       // Find restaurant - priority order:
       // 1. restaurantId override (manual selection)
