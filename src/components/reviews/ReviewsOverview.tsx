@@ -423,15 +423,15 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         <CardContent>
           <RatingDistributionChart
             distribution={distribution}
-            totalReviews={stats.totalReviews}
+            totalReviews={kpiStats.totalReviews}
           />
         </CardContent>
       </Card>
 
       {/* Heatmap et Tags */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ReviewsHeatmap data={dayStats} />
-        <TagsAnalysisChart positive={tagStats.positive} negative={tagStats.negative} />
+        <ReviewsHeatmap data={effectiveDayStats} />
+        <TagsAnalysisChart positive={effectiveTagStats.positive} negative={effectiveTagStats.negative} />
       </div>
     </div>
   );
