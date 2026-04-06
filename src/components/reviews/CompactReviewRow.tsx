@@ -120,12 +120,8 @@ export function CompactReviewRow({
           )}
         </div>
 
-        {/* Right: platform + expand */}
-        <div className="flex items-start gap-2 flex-shrink-0 pt-0.5">
-          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-            {platform === "uber_eats" ? "UE" : "DL"}
-          </Badge>
-
+        {/* Right: expand */}
+        <div className="flex items-start flex-shrink-0 pt-0.5">
           {hasExpandableContent && (
             <button
               onClick={onToggleExpand}

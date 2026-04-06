@@ -166,7 +166,6 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
           <span className="w-[60px]">Date</span>
           <span className="w-[40px] text-right">Panier</span>
           <span className="flex-1">Commentaire / Tags</span>
-          <span className="w-[28px]">Plat.</span>
           <span className="w-[14px]"></span>
         </div>
 
