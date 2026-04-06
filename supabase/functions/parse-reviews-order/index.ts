@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
       skipped: 0,
       errors: 0,
       invalidRatings: 0,
+      duplicatesRemoved: 0,
     };
 
     const skippedDetails: { rowIndex: number; reason: string; details: string }[] = [];
@@ -374,6 +375,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Deduplicate by uber_order_id before inserting
+    const deduplicatedReviews: any[] = [];
+    const seenOrderIds = new Map<string, number>();
+    
+    for (const review of reviewsToInsert) {
+      const key = review.uber_order_id;
+      if (key) {
+        if (seenOrderIds.has(key)) {
+          stats.duplicatesRemoved++;
+          // Overwrite with latest occurrence
+          deduplicatedReviews[seenOrderIds.get(key)!] = review;
+        } else {
+          seenOrderIds.set(key, deduplicatedReviews.length);
+          deduplicatedReviews.push(review);
+        }
+      } else {
+        deduplicatedReviews.push(review);
+      }
+    }
+
+    console.log(`Deduplication: ${reviewsToInsert.length} → ${deduplicatedReviews.length} (${stats.duplicatesRemoved} duplicates removed)`);
+
     // Validation data
     const validation = {
       dateRange: {
@@ -388,10 +411,11 @@ Deno.serve(async (req) => {
       unknownStoreIds: Array.from(unknownStoreIds),
       skippedDetails,
       invalidRatingsCount: stats.invalidRatings,
+      duplicatesRemoved: stats.duplicatesRemoved,
     };
 
     if (dryRun) {
-      stats.inserted = reviewsToInsert.length;
+      stats.inserted = deduplicatedReviews.length;
       console.log('Dry run complete:', stats);
       
       return new Response(JSON.stringify({
@@ -407,8 +431,8 @@ Deno.serve(async (req) => {
 
     // Insert reviews in batches of 500 for performance
     const batchSize = 500;
-    for (let i = 0; i < reviewsToInsert.length; i += batchSize) {
-      const batch = reviewsToInsert.slice(i, i + batchSize);
+    for (let i = 0; i < deduplicatedReviews.length; i += batchSize) {
+      const batch = deduplicatedReviews.slice(i, i + batchSize);
       const { error } = await supabase
         .from('customer_reviews')
         .upsert(batch, {
