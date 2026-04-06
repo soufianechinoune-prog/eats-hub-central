@@ -223,7 +223,7 @@ export function useReviewsOverviewStats(
     queryKey: ["reviews_overview_stats", restaurantIds, platform, startDate, endDate, dateMode],
     queryFn: async (): Promise<ReviewsOverviewStats> => {
       if (!restaurantIds || restaurantIds.length === 0) {
-        return { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+        return { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null, monthly_evolution: null, daily_evolution: null, previous_period: null };
       }
       const { data, error } = await supabase.rpc("get_reviews_overview_stats", {
         p_restaurant_ids: restaurantIds,
