@@ -221,15 +221,15 @@ const detectReportTypeFromContent = (headerLine: string): string | null => {
       (lowerHeader.includes("ventes") || lowerHeader.includes("sales"))) {
     return "sales_over_time";
   }
+  // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
+  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article")) && 
+      (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article"))) {
+    return "reviews_item";
+  }
   // Reviews Order Level
   if ((lowerHeader.includes("note du restaurant") || lowerHeader.includes("restaurant rating")) && 
       (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid"))) {
     return "reviews_order";
-  }
-  // Reviews Item Level
-  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article")) && 
-      (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article"))) {
-    return "reviews_item";
   }
   // Downtime Report
   if ((lowerHeader.includes("ouverture du restaurant") || lowerHeader.includes("restaurant open")) && 
