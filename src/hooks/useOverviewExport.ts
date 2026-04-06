@@ -48,6 +48,7 @@ export interface ComprehensiveExportData {
   title: string;
   period: string;
   totalRestaurants: number;
+  chainId?: string | null;
   globalMetrics: PlatformMetrics;
   uberMetrics: PlatformMetrics;
   deliverooMetrics: PlatformMetrics;
