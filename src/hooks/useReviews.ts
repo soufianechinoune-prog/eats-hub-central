@@ -27,6 +27,7 @@ export interface CustomerReview {
   response_text: string | null;
   tags: string[] | null;
   platform: string;
+  uber_order_id: string | null;
 }
 
 export interface MenuItemReview {
