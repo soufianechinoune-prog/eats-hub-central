@@ -1,5 +1,4 @@
 import { CustomerReview, ReviewsOverviewStats } from "@/hooks/useReviews";
-import { useReviewsStats, DateMode } from "@/hooks/useReviewsStats";
 import { ReviewsKPICards } from "./ReviewsKPICards";
 import { RatingEvolutionChart } from "./RatingEvolutionChart";
 
@@ -11,12 +10,14 @@ import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { format, getDaysInMonth, eachDayOfInterval, isSameDay } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ActionFormDialog } from "@/components/actions/ActionFormDialog";
 
+export type DateMode = "review" | "order";
+
 interface ReviewsOverviewProps {
-  reviews: CustomerReview[];
+  reviews?: CustomerReview[];
   allReviewsForRolling?: CustomerReview[];
   dateMode?: DateMode;
   overviewStats?: ReviewsOverviewStats;
@@ -25,36 +26,15 @@ interface ReviewsOverviewProps {
 // Quick period modes that should display daily data
 const DAILY_PERIOD_MODES = ["7d", "previous_week", "30d", "current_month", "range", "month"];
 
-export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "order", overviewStats }: ReviewsOverviewProps) {
+export function ReviewsOverview({ reviews = [], allReviewsForRolling, dateMode = "order", overviewStats }: ReviewsOverviewProps) {
   const [showActions, setShowActions] = useState(true);
   const [chartType, setChartType] = useState<"line" | "bar">("line");
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const [actionDialogDate, setActionDialogDate] = useState<Date | undefined>(undefined);
   const queryClient = useQueryClient();
   const { selectedRestaurants, periodMode, setPeriodMode, selectedMonth, setSelectedMonth, selectedYear, setSelectedYear, dateRange, selectedChainId } = useAnalyticsContext();
-  
-  // Helper function to get the appropriate date from a review
-  const getReviewDate = (review: CustomerReview): string => {
-    if (dateMode === "order" && review.order_date) {
-      return review.order_date;
-    }
-    return review.review_date;
-  };
-  
-  const { stats, monthlyRatings, ratingDistribution, dayStats, tagStats, globalAverageRating, rollingAverageByDate } = useReviewsStats(
-    reviews, 
-    {
-      periodMode,
-      selectedMonth,
-      selectedYear,
-      dateMode,
-      dateRange
-    },
-    allReviewsForRolling
-  );
 
-  // Determine if we should show daily granularity
-  const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
+  // (showDailyData computed below after overviewStats useMemos)
 
   // Handle adding action from chart context menu
   const handleAddAction = (date: Date) => {
@@ -123,24 +103,33 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
     },
   });
 
-  // Use RPC stats for KPIs if available (instant), fall back to client-side stats
+  // Use RPC stats for KPIs — now fully from RPC including variations
   const kpiStats = useMemo(() => {
     if (overviewStats && overviewStats.total_count > 0) {
+      const prevPeriod = overviewStats.previous_period;
+      const hasPrev = !!(prevPeriod && prevPeriod.total_count > 0);
+      const prevAvg = prevPeriod?.avg_rating || 0;
+      const prevCount = prevPeriod?.total_count || 0;
+      const currentAvg = overviewStats.avg_rating || 0;
+      const currentCount = overviewStats.total_count;
+
       return {
-        averageRating: overviewStats.avg_rating || 0,
-        totalReviews: overviewStats.total_count,
+        averageRating: currentAvg,
+        totalReviews: currentCount,
         tagRate: overviewStats.tag_rate || 0,
         commentRate: overviewStats.comment_rate || 0,
-        // Variations still come from client-side stats (need previous period)
-        ratingVariation: stats.ratingVariation,
-        volumeVariation: stats.volumeVariation,
-        hasPreviousPeriodData: stats.hasPreviousPeriodData,
+        ratingVariation: hasPrev ? currentAvg - prevAvg : 0,
+        volumeVariation: hasPrev && prevCount > 0 ? ((currentCount - prevCount) / prevCount) * 100 : 0,
+        hasPreviousPeriodData: hasPrev,
       };
     }
-    return stats;
-  }, [overviewStats, stats]);
+    return {
+      averageRating: 0, totalReviews: 0, tagRate: 0, commentRate: 0,
+      ratingVariation: 0, volumeVariation: 0, hasPreviousPeriodData: false,
+    };
+  }, [overviewStats]);
 
-  // Distribution: use RPC if available, else client-side
+  // Distribution: use RPC
   const distribution = useMemo(() => {
     if (overviewStats?.rating_distribution) {
       const dist: { [key: number]: number } = {};
@@ -149,13 +138,10 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
       });
       return dist;
     }
-    return ratingDistribution.reduce((acc, item) => {
-      acc[item.rating] = item.count;
-      return acc;
-    }, {} as { [key: number]: number });
-  }, [overviewStats, ratingDistribution]);
+    return {};
+  }, [overviewStats]);
 
-  // Day stats: use RPC if available
+  // Day stats: use RPC
   const effectiveDayStats = useMemo(() => {
     if (overviewStats?.day_stats) {
       const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -170,10 +156,10 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         };
       });
     }
-    return dayStats;
-  }, [overviewStats, dayStats]);
+    return [];
+  }, [overviewStats]);
 
-  // Tag stats: use RPC if available
+  // Tag stats: use RPC
   const effectiveTagStats = useMemo(() => {
     if (overviewStats?.tag_counts) {
       const POSITIVE_TAGS = [
@@ -205,8 +191,8 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
       })).filter(t => t.count > 0).sort((a, b) => b.count - a.count);
       return { positive, negative };
     }
-    return tagStats;
-  }, [overviewStats, tagStats]);
+    return { positive: [], negative: [] };
+  }, [overviewStats]);
 
   // Drill-down handlers
   const handleDrillDown = (month: number, year: number) => {
@@ -240,139 +226,32 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
     }
   };
 
-  // Daily ratings data for drill-down (when periodMode === "month" or quick period modes)
-  const dailyRatings = useMemo(() => {
-    // For month mode, use month-based logic
-    if (periodMode === "month" && selectedMonth && selectedYear) {
-      const daysInMonth = getDaysInMonth(new Date(selectedYear, selectedMonth - 1));
-      const dayMap = new Map<number, { total: number; count: number; dateKey: string }>();
+  // Build chart data from RPC aggregates
+  const showDailyData = DAILY_PERIOD_MODES.includes(periodMode);
 
-      for (let i = 1; i <= daysInMonth; i++) {
-        const dateKey = `${selectedYear}-${String(selectedMonth).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        dayMap.set(i, { total: 0, count: 0, dateKey });
-      }
-
-      reviews.forEach(review => {
-        const date = new Date(getReviewDate(review));
-        if (date.getMonth() + 1 === selectedMonth && date.getFullYear() === selectedYear) {
-          const day = date.getDate();
-          const existing = dayMap.get(day);
-          if (existing) {
-            dayMap.set(day, {
-              ...existing,
-              total: existing.total + (review.overall_rating || 0),
-              count: existing.count + 1
-            });
-          }
-        }
-      });
-
-      return Array.from(dayMap.entries())
-        .map(([day, data]) => ({
-          month: `${day}`,
-          rating: data.count > 0 ? data.total / data.count : null,
-          count: data.count,
-          monthIndex: selectedMonth - 1,
-          year: selectedYear,
-          dateKey: data.dateKey
-        }))
-        .filter(d => d.count > 0)
-        .sort((a, b) => parseInt(a.month) - parseInt(b.month));
-    }
-
-    // For quick period modes (7d, previous_week, 30d, current_month, range)
-    if (DAILY_PERIOD_MODES.includes(periodMode) && dateRange?.from && dateRange?.to) {
-      const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
-      const dayMap = new Map<string, { date: Date; total: number; count: number }>();
-
-      // Initialize all days in the range
-      days.forEach(day => {
-        const key = format(day, "yyyy-MM-dd");
-        dayMap.set(key, { date: day, total: 0, count: 0 });
-      });
-
-      // Aggregate reviews by day
-      reviews.forEach(review => {
-        const reviewDateValue = new Date(getReviewDate(review));
-        const key = format(reviewDateValue, "yyyy-MM-dd");
-        const existing = dayMap.get(key);
-        if (existing) {
-          dayMap.set(key, {
-            date: existing.date,
-            total: existing.total + (review.overall_rating || 0),
-            count: existing.count + 1
-          });
-        }
-      });
-
-      return Array.from(dayMap.entries())
-        .map(([key, data]) => ({
-          month: format(data.date, "d MMM", { locale: fr }),
-          rating: data.count > 0 ? data.total / data.count : null,
-          count: data.count,
-          monthIndex: data.date.getMonth(),
-          year: data.date.getFullYear(),
-          dateKey: key
-        }))
-        .filter(d => d.count > 0)
-        .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
-    }
-
-    return [];
-  }, [reviews, periodMode, selectedMonth, selectedYear, dateRange, dateMode]);
-
-  // Enrich chart data with 90-day rolling average
   const enrichedChartData = useMemo(() => {
-    const baseData = showDailyData ? dailyRatings : monthlyRatings;
-    
-    if (!baseData.length || !rollingAverageByDate.size) return baseData;
-    
-    // Get all dates from rollingAverageByDate sorted
-    const sortedDates = Array.from(rollingAverageByDate.keys()).sort();
-    
-    // For daily data, we can directly use the dateKey
-    if (showDailyData) {
-      return baseData.map(point => {
-        const dateKey = (point as any).dateKey;
-        if (!dateKey) return point;
-        
-        // Find the rolling average for this date or the closest previous date
-        let cumulativeAvg: number | undefined;
-        for (let i = sortedDates.length - 1; i >= 0; i--) {
-          if (sortedDates[i] <= dateKey) {
-            cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
-            break;
-          }
-        }
-        
-        return { ...point, cumulativeAvg };
-      });
+    if (showDailyData && overviewStats?.daily_evolution) {
+      return overviewStats.daily_evolution.map(d => ({
+        month: format(new Date(d.date), "d MMM", { locale: fr }),
+        rating: d.avg_rating,
+        count: d.count,
+        monthIndex: new Date(d.date).getMonth(),
+        year: new Date(d.date).getFullYear(),
+        dateKey: d.date,
+      }));
     }
-    
-    // For monthly data, calculate the rolling average at end of each month
-    return baseData.map(point => {
-      // Find the last day of this month in the rolling data
-      const year = point.year;
-      const monthIndex = point.monthIndex;
-      const monthEndPrefix = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-      
-      // Find the latest date in this month
-      let cumulativeAvg: number | undefined;
-      for (let i = sortedDates.length - 1; i >= 0; i--) {
-        if (sortedDates[i].startsWith(monthEndPrefix)) {
-          cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
-          break;
-        }
-        // If we've passed this month, use the last available value before it
-        if (sortedDates[i] < monthEndPrefix) {
-          cumulativeAvg = rollingAverageByDate.get(sortedDates[i]);
-          break;
-        }
-      }
-      
-      return { ...point, cumulativeAvg };
-    });
-  }, [showDailyData, dailyRatings, monthlyRatings, rollingAverageByDate]);
+    if (!showDailyData && overviewStats?.monthly_evolution) {
+      const MONTH_NAMES = ["jan.", "fév.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+      return overviewStats.monthly_evolution.map(m => ({
+        month: `${MONTH_NAMES[m.month - 1]} ${m.year}`,
+        rating: m.avg_rating,
+        count: m.count,
+        monthIndex: m.month - 1,
+        year: m.year,
+      }));
+    }
+    return [];
+  }, [showDailyData, overviewStats]);
 
   return (
     <div className="space-y-6">
@@ -403,7 +282,7 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
         chartType={chartType}
         onChartTypeChange={setChartType}
         onAddAction={handleAddAction}
-        previousPeriodAverage={stats.hasPreviousPeriodData ? stats.previousAverageRating : null}
+        previousPeriodAverage={kpiStats.hasPreviousPeriodData && overviewStats?.previous_period?.avg_rating ? overviewStats.previous_period.avg_rating : null}
       />
 
       {/* Action Form Dialog */}

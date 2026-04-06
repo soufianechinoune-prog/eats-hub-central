@@ -206,6 +206,9 @@ export interface ReviewsOverviewStats {
   rating_distribution: Record<string, number> | null;
   day_stats: Array<{ day_index: number; avg_rating: number; count: number }> | null;
   tag_counts: Array<{ tag: string; count: number }> | null;
+  monthly_evolution: Array<{ year: number; month: number; avg_rating: number; count: number }> | null;
+  daily_evolution: Array<{ date: string; avg_rating: number; count: number }> | null;
+  previous_period: { avg_rating: number | null; total_count: number } | null;
 }
 
 export function useReviewsOverviewStats(
@@ -220,7 +223,7 @@ export function useReviewsOverviewStats(
     queryKey: ["reviews_overview_stats", restaurantIds, platform, startDate, endDate, dateMode],
     queryFn: async (): Promise<ReviewsOverviewStats> => {
       if (!restaurantIds || restaurantIds.length === 0) {
-        return { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+        return { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null, monthly_evolution: null, daily_evolution: null, previous_period: null };
       }
       const { data, error } = await supabase.rpc("get_reviews_overview_stats", {
         p_restaurant_ids: restaurantIds,
@@ -230,7 +233,7 @@ export function useReviewsOverviewStats(
         p_date_mode: dateMode,
       });
       if (error) throw error;
-      return (data as unknown as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+      return (data as unknown as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null, monthly_evolution: null, daily_evolution: null, previous_period: null };
     },
     enabled,
   });
