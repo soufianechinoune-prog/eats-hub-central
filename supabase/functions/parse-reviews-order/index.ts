@@ -375,6 +375,28 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Deduplicate by uber_order_id before inserting
+    const deduplicatedReviews: any[] = [];
+    const seenOrderIds = new Map<string, number>();
+    
+    for (const review of reviewsToInsert) {
+      const key = review.uber_order_id;
+      if (key) {
+        if (seenOrderIds.has(key)) {
+          stats.duplicatesRemoved++;
+          // Overwrite with latest occurrence
+          deduplicatedReviews[seenOrderIds.get(key)!] = review;
+        } else {
+          seenOrderIds.set(key, deduplicatedReviews.length);
+          deduplicatedReviews.push(review);
+        }
+      } else {
+        deduplicatedReviews.push(review);
+      }
+    }
+
+    console.log(`Deduplication: ${reviewsToInsert.length} → ${deduplicatedReviews.length} (${stats.duplicatesRemoved} duplicates removed)`);
+
     // Validation data
     const validation = {
       dateRange: {
@@ -389,6 +411,7 @@ Deno.serve(async (req) => {
       unknownStoreIds: Array.from(unknownStoreIds),
       skippedDetails,
       invalidRatingsCount: stats.invalidRatings,
+      duplicatesRemoved: stats.duplicatesRemoved,
     };
 
     if (dryRun) {
