@@ -41,6 +41,9 @@ export interface MenuItemReview {
   review_date: string;
   tags: string[] | null;
   platform: string;
+  uber_order_id: string | null;
+  item_price: number | null;
+  menu_category: string | null;
 }
 
 // Columns needed for customer reviews (avoids select("*"))
