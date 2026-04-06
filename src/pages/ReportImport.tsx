@@ -570,13 +570,20 @@ export default function ReportImport() {
       return "sales_over_time";
     }
     // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
-    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
-        (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
+    // SKU files have: "Nom du plat", "Prix du plat", "Catégorie du menu" + "UUID de la commande" + "Valeur de la note"
+    const hasSkuItemColumns = headerLine.includes("Nom du plat") || headerLine.includes("Prix du plat") || 
+                              headerLine.includes("Catégorie du menu") || headerLine.includes("Id. externe de l'article");
+    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating") || 
+         headerLine.includes("Titre de l'article") || headerLine.includes("Item title") ||
+         hasSkuItemColumns) && 
+        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID") ||
+         headerLine.includes("Note de l'article") || headerLine.includes("Titre de l'article"))) {
       return "reviews_item";
     }
-    // Reviews Order Level - MUST be checked BEFORE order_history because reviews files also contain "Id. de la commande"
+    // Reviews Order Level - MUST be checked AFTER reviews_item
     if ((headerLine.includes("Note du restaurant") || headerLine.includes("Valeur de la note") || headerLine.includes("restaurant rating") || headerLine.includes("rating value")) && 
-        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
+        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID")) &&
+        !hasSkuItemColumns) {
       return "reviews_order";
     }
     // Downtime Report
@@ -697,9 +704,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
-      // Check for reviews item-level headers
-      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating")) && 
-          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title"))) {
+      // Check for reviews item-level headers (includes SKU variants: "Nom du plat", "Prix du plat", "Catégorie du menu")
+      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating") ||
+           lines[i].includes("Nom du plat") || lines[i].includes("Prix du plat") || 
+           lines[i].includes("Catégorie du menu") || lines[i].includes("Id. externe de l'article")) && 
+          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title") ||
+           lines[i].includes("UUID de la commande") || lines[i].includes("Nom du plat"))) {
         headerRowIndex = i;
         break;
       }

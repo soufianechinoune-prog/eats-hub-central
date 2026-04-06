@@ -86,15 +86,16 @@ export const REPORT_TYPE_CONFIG: Record<string, ReportTypeConfig> = {
     targetTables: ["customer_reviews"],
     // Accept both "Note du restaurant" AND "Valeur de la note" header variants
     requiredColumns: ["UUID de la commande"],
+    excludedColumns: ["Nom du plat", "Prix du plat", "Catégorie du menu", "Id. externe de l'article"],
   },
   
   reviews_item: {
     label: "Avis (articles)",
-    description: "Notes et tags par article",
+    description: "Notes et tags par article (SKU)",
     requiresRestaurant: false,
     edgeFunctionName: "parse-reviews-item",
     targetTables: ["menu_item_reviews"],
-    requiredColumns: ["Note de l'article", "Titre de l'article"],
+    requiredColumns: ["UUID de la commande"],
   },
   
   downtime_report: {
@@ -197,7 +198,10 @@ export function detectsAsItemLevel(headerLine: string): boolean {
     lower.includes("titre de l'article") ||
     lower.includes("item title") ||
     lower.includes("nom de l'article") ||
-    lower.includes("nom du plat/de l'article")
+    lower.includes("nom du plat/de l'article") ||
+    lower.includes("prix du plat") ||
+    lower.includes("catégorie du menu") ||
+    lower.includes("id. externe de l'article")
   );
 }
 
