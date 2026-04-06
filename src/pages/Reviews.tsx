@@ -158,7 +158,7 @@ export default function Reviews() {
 
   // Loading state depends on active tab
   const isLoading = 
-    (activeTab === "overview" && (isLoadingOverviewStats || isLoadingExtended)) ||
+    (activeTab === "overview" && isLoadingOverviewStats) ||
     (activeTab === "customers" && isLoadingExtended) ||
     (activeTab === "menu" && isLoadingMenuItems) ||
     (activeTab === "weather" && isLoadingExtended);
