@@ -378,13 +378,13 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
     <div className="space-y-6">
       {/* KPI Cards Premium */}
       <ReviewsKPICards
-        averageRating={stats.averageRating}
-        totalReviews={stats.totalReviews}
-        tagRate={stats.tagRate}
-        commentRate={stats.commentRate}
-        ratingVariation={stats.ratingVariation}
-        volumeVariation={stats.volumeVariation}
-        hasPreviousPeriodData={stats.hasPreviousPeriodData}
+        averageRating={kpiStats.averageRating}
+        totalReviews={kpiStats.totalReviews}
+        tagRate={kpiStats.tagRate}
+        commentRate={kpiStats.commentRate}
+        ratingVariation={kpiStats.ratingVariation}
+        volumeVariation={kpiStats.volumeVariation}
+        hasPreviousPeriodData={kpiStats.hasPreviousPeriodData}
       />
 
       {/* Évolution de la Note */}
