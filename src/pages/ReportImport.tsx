@@ -569,15 +569,15 @@ export default function ReportImport() {
     if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
       return "sales_over_time";
     }
+    // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
+    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
+        (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
+      return "reviews_item";
+    }
     // Reviews Order Level - MUST be checked BEFORE order_history because reviews files also contain "Id. de la commande"
     if ((headerLine.includes("Note du restaurant") || headerLine.includes("Valeur de la note") || headerLine.includes("restaurant rating") || headerLine.includes("rating value")) && 
         (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID"))) {
       return "reviews_order";
-    }
-    // Reviews Item Level
-    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating")) && 
-        (headerLine.includes("Titre de l'article") || headerLine.includes("Item title"))) {
-      return "reviews_item";
     }
     // Downtime Report
     if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
