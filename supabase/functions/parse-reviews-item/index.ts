@@ -180,6 +180,16 @@ Deno.serve(async (req) => {
         h.includes('order date') || 
         h.includes('date_de_la_commande')
       ),
+      itemPrice: headers.findIndex(h => 
+        h.includes('prix du plat') || 
+        h.includes('item price') || 
+        h.includes('prix de l\'article')
+      ),
+      menuCategory: headers.findIndex(h => 
+        h.includes('catégorie du menu') || 
+        h.includes('categorie du menu') || 
+        h.includes('menu category')
+      ),
     };
 
     console.log('Column mapping:', JSON.stringify(colMap));
@@ -273,6 +283,8 @@ Deno.serve(async (req) => {
       const ratingStr = colMap.rating >= 0 ? values[colMap.rating]?.trim() : '';
       const tagsStr = colMap.tags >= 0 ? values[colMap.tags]?.trim() : '';
       const orderDateStr = colMap.orderDate >= 0 ? values[colMap.orderDate]?.trim() : '';
+      const itemPriceStr = colMap.itemPrice >= 0 ? values[colMap.itemPrice]?.trim() : '';
+      const menuCategoryStr = colMap.menuCategory >= 0 ? values[colMap.menuCategory]?.trim() : '';
 
       // Find restaurant - priority order:
       // 1. restaurantId override (manual selection)
@@ -361,6 +373,9 @@ Deno.serve(async (req) => {
       // Use external ID, then UUID, then row index as fallback for item_id
       const itemId = itemExternalId || itemUuid || `row_${i}`;
 
+      // Parse item price
+      const itemPrice = itemPriceStr ? parseFloat(itemPriceStr.replace(',', '.')) : null;
+
       reviewsToInsert.push({
         restaurant_id: restaurant.id,
         item_id: itemId,
@@ -371,6 +386,9 @@ Deno.serve(async (req) => {
         tags: tags,
         review_date: orderDate,
         platform: 'uber_eats',
+        uber_order_id: orderUuid || null,
+        item_price: isNaN(itemPrice as number) ? null : itemPrice,
+        menu_category: menuCategoryStr || null,
       });
     }
 

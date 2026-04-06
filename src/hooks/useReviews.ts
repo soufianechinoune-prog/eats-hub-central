@@ -27,6 +27,7 @@ export interface CustomerReview {
   response_text: string | null;
   tags: string[] | null;
   platform: string;
+  uber_order_id: string | null;
 }
 
 export interface MenuItemReview {
@@ -41,13 +42,16 @@ export interface MenuItemReview {
   review_date: string;
   tags: string[] | null;
   platform: string;
+  uber_order_id: string | null;
+  item_price: number | null;
+  menu_category: string | null;
 }
 
 // Columns needed for customer reviews (avoids select("*"))
-const CUSTOMER_REVIEW_COLUMNS = "id, restaurant_id, overall_rating, food_rating, delivery_rating, review_date, order_date, customer_name, customer_type, customer_comment, order_total, response_status, response_text, tags, platform";
+const CUSTOMER_REVIEW_COLUMNS = "id, restaurant_id, overall_rating, food_rating, delivery_rating, review_date, order_date, customer_name, customer_type, customer_comment, order_total, response_status, response_text, tags, platform, uber_order_id";
 
 // Columns needed for menu item reviews
-const MENU_ITEM_REVIEW_COLUMNS = "id, restaurant_id, item_id, item_title, rating, thumb_up, thumb_down, comment, review_date, tags, platform";
+const MENU_ITEM_REVIEW_COLUMNS = "id, restaurant_id, item_id, item_title, rating, thumb_up, thumb_down, comment, review_date, tags, platform, uber_order_id, item_price, menu_category";
 
 const PAGE_SIZE = 1000;
 
@@ -236,5 +240,22 @@ export function useReviewsOverviewStats(
       return (data as unknown as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null, monthly_evolution: null, daily_evolution: null, previous_period: null };
     },
     enabled,
+  });
+}
+
+// Hook to fetch menu item reviews for a specific uber_order_id (on-demand for expanded row)
+export function useReviewItemsByOrderId(uberOrderId: string | null) {
+  return useQuery({
+    queryKey: ["review_items_by_order", uberOrderId],
+    queryFn: async (): Promise<MenuItemReview[]> => {
+      if (!uberOrderId) return [];
+      const { data, error } = await supabase
+        .from("menu_item_reviews")
+        .select("id, item_id, item_title, rating, thumb_up, thumb_down, tags, review_date, platform, uber_order_id, item_price, menu_category, restaurant_id, comment")
+        .eq("uber_order_id", uberOrderId);
+      if (error) throw error;
+      return (data as MenuItemReview[]) || [];
+    },
+    enabled: !!uberOrderId,
   });
 }
