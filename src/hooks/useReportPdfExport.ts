@@ -200,7 +200,7 @@ export function useReportPdfExport() {
     doc.setTextColor(31, 41, 55);
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text(`Rapport CS ${cityName}`, textStartX, 15);
+    doc.text(`Rapport ${chainName} ${cityName}`, textStartX, 15);
 
     // Subtitle (report type)
     doc.setTextColor(107, 114, 128);
