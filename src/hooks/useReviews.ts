@@ -241,3 +241,20 @@ export function useReviewsOverviewStats(
     enabled,
   });
 }
+
+// Hook to fetch menu item reviews for a specific uber_order_id (on-demand for expanded row)
+export function useReviewItemsByOrderId(uberOrderId: string | null) {
+  return useQuery({
+    queryKey: ["review_items_by_order", uberOrderId],
+    queryFn: async (): Promise<MenuItemReview[]> => {
+      if (!uberOrderId) return [];
+      const { data, error } = await supabase
+        .from("menu_item_reviews")
+        .select("id, item_id, item_title, rating, thumb_up, thumb_down, tags, review_date, platform, uber_order_id, item_price, menu_category, restaurant_id, comment")
+        .eq("uber_order_id", uberOrderId);
+      if (error) throw error;
+      return (data as MenuItemReview[]) || [];
+    },
+    enabled: !!uberOrderId,
+  });
+}
