@@ -282,7 +282,7 @@ export function ReviewsOverview({ reviews = [], allReviewsForRolling, dateMode =
         chartType={chartType}
         onChartTypeChange={setChartType}
         onAddAction={handleAddAction}
-        previousPeriodAverage={stats.hasPreviousPeriodData ? stats.previousAverageRating : null}
+        previousPeriodAverage={kpiStats.hasPreviousPeriodData && overviewStats?.previous_period?.avg_rating ? overviewStats.previous_period.avg_rating : null}
       />
 
       {/* Action Form Dialog */}
