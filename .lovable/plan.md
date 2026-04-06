@@ -1,45 +1,48 @@
 
 
-## Plan : Supprimer le chargement des reviews brutes pour l'onglet Aperçu
+## Plan : Enrichir la liste des avis clients avec plus de données
 
-### Diagnostic
+### Contexte
+Actuellement, chaque ligne d'avis dans l'onglet "Clients" affiche uniquement : note, date, panier, tags, icône commentaire (tooltip), plateforme. Les données des deux CSV importés (order + SKU) contiennent bien plus d'infos : date de commande, date de note, nom des plats commandés, prix, catégorie, commentaire client.
 
-Ton ingénieur a raison sur le principe : `needsReviews` inclut `"overview"`, ce qui déclenche le chargement de 74K+ lignes même pour l'onglet Aperçu.
+### Problème technique
+Les plats commandés (CSV SKU `restaurant_rating_sku_local`) sont stockés dans `menu_item_reviews` mais **sans `uber_order_id`**, ce qui empêche de les relier aux avis clients (`customer_reviews`). Il faut d'abord créer ce lien.
 
-Cependant, **on ne peut pas simplement retirer `"overview"` de `needsReviews`** sans casser les graphiques. Actuellement, `ReviewsOverview` utilise encore les reviews brutes pour :
+### Corrections
 
-1. **Le graphique d'évolution** (daily/monthly ratings) — calculé ligne par ligne dans `dailyRatings` (lignes 244-322)
-2. **La moyenne glissante 90 jours** — calculée via `useReviewsStats` avec `allReviewsForRolling`
-3. **Les variations N-1** (`ratingVariation`, `volumeVariation`) — calculées côté client avec la période précédente
+**Etape 1 — Migration SQL : ajouter `uber_order_id` à `menu_item_reviews`**
+- Ajouter la colonne `uber_order_id` (text, nullable) à `menu_item_reviews`
+- Ajouter aussi `item_price` (numeric, nullable) et `menu_category` (text, nullable) qui sont dans le CSV mais pas stockés actuellement
+- Créer un index sur `uber_order_id` pour les jointures
 
-### Correction en 2 étapes
+**Etape 2 — Modifier `parse-reviews-item/index.ts`**
+- Mapper les colonnes CSV `Prix du plat` et `Catégorie du menu`
+- Stocker `orderUuid` dans le champ `uber_order_id`, `item_price`, et `menu_category` lors de l'insertion
 
-**Étape 1 — Enrichir la RPC `get_reviews_overview_stats`**
+**Etape 3 — Modifier `useReviews.ts`**
+- Enrichir `CustomerReview` avec `order_date` (déjà présent dans le select mais pas affiché)
+- Créer un nouveau hook `useReviewItems(uberOrderIds)` qui charge les plats associés à un lot d'avis visibles (chargement à la demande, pas 74K lignes)
 
-Ajouter au retour SQL :
-- `monthly_evolution` : tableau `[{month, year, avg_rating, count}]` agrégé par mois
-- `daily_evolution` : tableau `[{date, avg_rating, count}]` agrégé par jour (pour les périodes courtes)
-- `previous_period` : `{avg_rating, total_count}` pour la période N-1 (même durée, décalée)
+**Etape 4 — Refondre `CompactReviewRow` en design expandable**
+- Vue compacte (ligne) : Note | Date commande | Date avis | Panier | Tags | Plateforme
+- Afficher les 2 dates (commande + avis) au lieu d'une seule
+- Au clic sur la ligne, expansion avec :
+  - Commentaire client affiché en entier (texte intégral, pas tooltip)
+  - Liste des plats commandés : nom, prix, catégorie (chargés via le hook)
+- Design propre avec un fond légèrement différent pour la zone expandée
 
-Fichier : nouvelle migration SQL modifiant `get_reviews_overview_stats`.
-
-**Étape 2 — Adapter le frontend**
-
-- `src/pages/Reviews.tsx` : retirer `"overview"` de `needsReviews` (ligne 112)
-- `src/pages/Reviews.tsx` : retirer `isLoadingExtended` du loading de l'onglet overview (ligne 161)
-- `src/components/reviews/ReviewsOverview.tsx` : utiliser `overviewStats.monthly_evolution` et `overviewStats.daily_evolution` au lieu de calculer `dailyRatings` à partir des reviews brutes
-- `src/components/reviews/ReviewsOverview.tsx` : utiliser `overviewStats.previous_period` pour les variations au lieu de `stats.ratingVariation`
-- `src/hooks/useReviews.ts` : mettre à jour l'interface `ReviewsOverviewStats` avec les nouveaux champs
-
-### Résultat attendu
-- Onglet Aperçu : **0 lignes individuelles chargées**, uniquement 1 appel RPC
-- Graphiques d'évolution alimentés par les agrégats SQL
-- Variations N-1 calculées en SQL
-- La moyenne glissante 90j ne sera plus affichée sur l'onglet Aperçu (elle reste disponible sur l'onglet Météo qui charge les reviews étendues)
+**Etape 5 — Adapter `ReviewsCustomerList`**
+- Mettre à jour le header de la table avec les nouvelles colonnes
+- Gérer l'état d'expansion (un seul avis ouvert à la fois)
+- Charger les items associés uniquement pour l'avis ouvert (performance)
 
 ### Fichiers modifiés
-- Migration SQL (enrichir `get_reviews_overview_stats`)
-- `src/hooks/useReviews.ts` (interface)
-- `src/pages/Reviews.tsx` (retirer "overview" de needsReviews + loading)
-- `src/components/reviews/ReviewsOverview.tsx` (utiliser les données RPC pour les graphiques)
+- Migration SQL (nouvelle colonne + index)
+- `supabase/functions/parse-reviews-item/index.ts` (stocker uber_order_id, prix, catégorie)
+- `src/hooks/useReviews.ts` (nouveau hook items)
+- `src/components/reviews/CompactReviewRow.tsx` (design expandable)
+- `src/components/reviews/ReviewsCustomerList.tsx` (header + expansion)
+
+### Remarque importante
+Après ce changement, il faudra **ré-importer le fichier SKU** (`restaurant_rating_sku_local`) pour que les plats soient liés aux avis via `uber_order_id`.
 
