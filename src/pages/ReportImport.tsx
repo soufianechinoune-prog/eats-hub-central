@@ -924,7 +924,7 @@ export default function ReportImport() {
       let totalLinesCount = 0;
       let isLargeFile = false;
       
-      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
+      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
