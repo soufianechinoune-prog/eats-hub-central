@@ -1,26 +1,47 @@
 
+Diagnostic court : non, pas sur la version précédente. Après vérification, le problème n’est pas “l’affichage des plats”, c’est que ton fichier SKU est encore importé comme `Avis (commandes)` au lieu de `Avis (articles)`.
 
-## Plan : Corriger l'auto-détection du type de fichier SKU
+Ce que j’ai confirmé :
+- Le dernier import de `restaurant_rating_sku_local...csv` a bien été enregistré dans `csv_imports` avec `report_type = reviews_order`, pas `reviews_item`.
+- `parse-reviews-item` n’a pas de logs récents.
+- `parse-reviews-order` a bien traité ce fichier à 07:30 avec `15 726 inserted`.
+- `menu_item_reviews` n’a toujours aucune donnée après `2026-02-01` (`0` ligne à partir de mars 2026).
 
-### Problème
-Le fichier `restaurant_rating_sku_local` contient à la fois les headers de `reviews_order` ("Valeur de la note", "UUID de la commande") et ceux de `reviews_item` ("Titre de l'article"). La détection `reviews_order` (ligne 573) est testée **avant** `reviews_item` (ligne 578), donc le fichier SKU est toujours mal classé comme `reviews_order`.
+Pourquoi mon correctif précédent n’était pas suffisant :
+- Ton vrai header SKU est de ce type :
+  `UUID de la commande`, `Date de la commande`, `Nom du plat`, `Prix du plat`, `Catégorie du menu`, `Valeur de la note`, `Commentaire`
+- Or le code actuel détecte `reviews_item` seulement avec des libellés trop stricts :
+  `Note de l'article` + `Titre de l'article`
+- Résultat : comme ton fichier contient aussi `Valeur de la note` + `UUID de la commande`, il retombe encore dans `reviews_order`.
 
-Résultat : les 15 726 lignes SKU sont envoyées à `parse-reviews-order` → insérées dans `customer_reviews` au lieu de `menu_item_reviews`. D'où les 0 données dans l'onglet "Plats".
+Plan corrigé
 
-### Correction
+1. Corriger la signature de détection `reviews_item`
+- Utiliser les vraies variantes Uber du CSV SKU :
+  - titre article : `Nom du plat` / `Titre de l'article` / `Nom de l'article` / `Item title`
+  - note article : `Valeur de la note` / `Note de l'article` / `Item rating`
+  - identifiant commande : `UUID de la commande`
+  - colonnes renforçantes : `Prix du plat`, `Catégorie du menu`, `Id. externe de l'article`
 
-**1. `src/pages/ReportImport.tsx` — `detectReportType()`**
-- Déplacer le test `reviews_item` **avant** `reviews_order` (lignes 577-581 avant 572-576)
-- Le fichier SKU contient "Titre de l'article" qui est spécifique aux items → sera détecté correctement en premier
-- Le fichier order-level ne contient PAS "Titre de l'article" → tombera toujours sur `reviews_order`
+2. Appliquer la correction partout où le type est décidé
+- `src/pages/ReportImport.tsx`
+- `src/components/reports/BulkImportTab.tsx`
+- `src/lib/reportImportConfig.ts`
+Ainsi, preview + validation + import final utiliseront exactement la même logique.
 
-**2. `src/components/reports/BulkImportTab.tsx` — même correction**
-- Appliquer le même réordonnancement dans la fonction de détection du bulk import
+3. Ajouter une garde anti-erreur dans l’UI d’import
+- Afficher clairement : `Type détecté : Avis (articles)`
+- Ajouter un warning si un fichier contient `Nom du plat` mais est encore réglé sur `Avis (commandes)`
 
-### Après la correction
-L'utilisateur devra ré-importer le fichier SKU. Cette fois il sera correctement détecté comme `reviews_item` et les données iront dans `menu_item_reviews`.
+4. Réimporter ensuite le fichier SKU
+- Une fois le routage corrigé, le fichier ira enfin vers `parse-reviews-item`
+- Les lignes seront insérées dans `menu_item_reviews`
+- L’onglet `Plats` se remplira alors normalement
 
-### Fichiers modifiés
-- `src/pages/ReportImport.tsx` (réordonnancer les tests de détection)
-- `src/components/reports/BulkImportTab.tsx` (idem)
+Détail technique important
+- Je ne propose pas pour l’instant de supprimer automatiquement les imports SKU déjà partis dans `customer_reviews`, car on n’a pas de marqueur fiable pour distinguer sans risque les lignes mal routées des vraies lignes order-level. Le plus sûr est : corriger le routage d’abord, puis réimporter correctement.
 
+Fichiers à corriger
+- `src/pages/ReportImport.tsx`
+- `src/components/reports/BulkImportTab.tsx`
+- `src/lib/reportImportConfig.ts`
