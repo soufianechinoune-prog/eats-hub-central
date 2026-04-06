@@ -924,7 +924,7 @@ export default function ReportImport() {
       let totalLinesCount = 0;
       let isLargeFile = false;
       
-      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
+      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
@@ -1158,7 +1158,7 @@ export default function ReportImport() {
       // Check if file needs chunking (for order_history with large files)
       const { records: allRecords, headerIndex } = parseCSVRecords(csvContent);
       const dataLinesCount = allRecords.length - 1 - headerIndex; // Exclude header and metadata lines
-      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level"];
+      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
       const needsChunking = LARGE_FILE_REPORT_TYPES.includes(reportType) && dataLinesCount > CHUNK_SIZE;
       
       let importData: ImportResult;
