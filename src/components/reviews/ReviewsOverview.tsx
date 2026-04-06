@@ -123,13 +123,90 @@ export function ReviewsOverview({ reviews, allReviewsForRolling, dateMode = "ord
     },
   });
 
-  // Distribution filtrée par période
+  // Use RPC stats for KPIs if available (instant), fall back to client-side stats
+  const kpiStats = useMemo(() => {
+    if (overviewStats && overviewStats.total_count > 0) {
+      return {
+        averageRating: overviewStats.avg_rating || 0,
+        totalReviews: overviewStats.total_count,
+        tagRate: overviewStats.tag_rate || 0,
+        commentRate: overviewStats.comment_rate || 0,
+        // Variations still come from client-side stats (need previous period)
+        ratingVariation: stats.ratingVariation,
+        volumeVariation: stats.volumeVariation,
+        hasPreviousPeriodData: stats.hasPreviousPeriodData,
+      };
+    }
+    return stats;
+  }, [overviewStats, stats]);
+
+  // Distribution: use RPC if available, else client-side
   const distribution = useMemo(() => {
+    if (overviewStats?.rating_distribution) {
+      const dist: { [key: number]: number } = {};
+      Object.entries(overviewStats.rating_distribution).forEach(([key, val]) => {
+        dist[Number(key)] = val;
+      });
+      return dist;
+    }
     return ratingDistribution.reduce((acc, item) => {
       acc[item.rating] = item.count;
       return acc;
     }, {} as { [key: number]: number });
-  }, [ratingDistribution]);
+  }, [overviewStats, ratingDistribution]);
+
+  // Day stats: use RPC if available
+  const effectiveDayStats = useMemo(() => {
+    if (overviewStats?.day_stats) {
+      const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+      const orderedDays = [1, 2, 3, 4, 5, 6, 0];
+      return orderedDays.map(dayIndex => {
+        const found = overviewStats.day_stats!.find(d => d.day_index === dayIndex);
+        return {
+          day: dayNames[dayIndex],
+          dayIndex,
+          avgRating: found?.avg_rating || 0,
+          count: found?.count || 0,
+        };
+      });
+    }
+    return dayStats;
+  }, [overviewStats, dayStats]);
+
+  // Tag stats: use RPC if available
+  const effectiveTagStats = useMemo(() => {
+    if (overviewStats?.tag_counts) {
+      const POSITIVE_TAGS = [
+        "restaurant_delicious_options", "restaurant_sustainable_packaging", "restaurant_nicely_presented",
+        "restaurant_high-quality_ingredients", "restaurant_perfectly_cooked", "restaurant_fast_casual",
+        "restaurant_fresh_ingredients", "restaurant_locally_owned", "restaurant_authentic_dishes", "restaurant_unique_flavors"
+      ];
+      const NEGATIVE_TAGS = [
+        "restaurant_not_tasty", "restaurant_too_slow", "restaurant_poor_packaging",
+        "restaurant_unsustainable_packaging", "restaurant_missed_request"
+      ];
+      const TAG_LABELS: Record<string, string> = {
+        "restaurant_delicious_options": "Options délicieuses", "restaurant_sustainable_packaging": "Emballage durable",
+        "restaurant_nicely_presented": "Bien présenté", "restaurant_high-quality_ingredients": "Ingrédients de qualité",
+        "restaurant_perfectly_cooked": "Parfaitement cuisiné", "restaurant_fast_casual": "Rapide et pratique",
+        "restaurant_fresh_ingredients": "Ingrédients frais", "restaurant_locally_owned": "Restaurant local",
+        "restaurant_authentic_dishes": "Plats authentiques", "restaurant_unique_flavors": "Saveurs uniques",
+        "restaurant_not_tasty": "Pas savoureux", "restaurant_too_slow": "Trop lent",
+        "restaurant_poor_packaging": "Mauvais emballage", "restaurant_unsustainable_packaging": "Emballage non écologique",
+        "restaurant_missed_request": "Demande non respectée"
+      };
+      const tagMap = new Map<string, number>();
+      overviewStats.tag_counts.forEach(t => tagMap.set(t.tag, t.count));
+      const positive = POSITIVE_TAGS.map(tag => ({
+        tag: TAG_LABELS[tag] || tag, count: tagMap.get(tag) || 0, isPositive: true
+      })).filter(t => t.count > 0).sort((a, b) => b.count - a.count);
+      const negative = NEGATIVE_TAGS.map(tag => ({
+        tag: TAG_LABELS[tag] || tag, count: tagMap.get(tag) || 0, isPositive: false
+      })).filter(t => t.count > 0).sort((a, b) => b.count - a.count);
+      return { positive, negative };
+    }
+    return tagStats;
+  }, [overviewStats, tagStats]);
 
   // Drill-down handlers
   const handleDrillDown = (month: number, year: number) => {
