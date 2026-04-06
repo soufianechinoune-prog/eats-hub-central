@@ -180,6 +180,16 @@ Deno.serve(async (req) => {
         h.includes('order date') || 
         h.includes('date_de_la_commande')
       ),
+      itemPrice: headers.findIndex(h => 
+        h.includes('prix du plat') || 
+        h.includes('item price') || 
+        h.includes('prix de l\'article')
+      ),
+      menuCategory: headers.findIndex(h => 
+        h.includes('catégorie du menu') || 
+        h.includes('categorie du menu') || 
+        h.includes('menu category')
+      ),
     };
 
     console.log('Column mapping:', JSON.stringify(colMap));
