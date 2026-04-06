@@ -26,13 +26,12 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
   const [ratingFilter, setRatingFilter] = useState<string>("all");
   const [commentFilter, setCommentFilter] = useState<string>("all");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  // Extract all tags for the chart
   const allTags = useMemo(() => {
     return reviews.flatMap((r) => r.tags || []);
   }, [reviews]);
 
-  // Filter reviews
   const filteredReviews = reviews.filter((review) => {
     const matchesSearch =
       searchTerm === "" ||
@@ -76,16 +75,14 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Tags Bar Chart */}
-      <TagsBarChart 
-        tags={allTags} 
+      <TagsBarChart
+        tags={allTags}
         onTagClick={toggleTag}
         selectedTags={selectedTags}
       />
 
-      {/* Compact Filters Row */}
+      {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-[300px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <Input
@@ -96,7 +93,6 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
           />
         </div>
 
-        {/* Rating Filter */}
         <Select value={ratingFilter} onValueChange={setRatingFilter}>
           <SelectTrigger className="w-[120px] h-8 text-xs">
             <SelectValue placeholder="Note" />
@@ -111,7 +107,6 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
           </SelectContent>
         </Select>
 
-        {/* Comment Filter */}
         <Select value={commentFilter} onValueChange={setCommentFilter}>
           <SelectTrigger className="w-[130px] h-8 text-xs">
             <SelectValue placeholder="Commentaire" />
@@ -123,7 +118,6 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
           </SelectContent>
         </Select>
 
-        {/* Selected Tags */}
         {selectedTags.map((tag) => {
           const isNegative = isNegativeTag(tag);
           return (
@@ -137,7 +131,11 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
               }`}
               onClick={() => toggleTag(tag)}
             >
-              {isNegative ? <ThumbsDown className="h-3 w-3" /> : <ThumbsUp className="h-3 w-3" />}
+              {isNegative ? (
+                <ThumbsDown className="h-3 w-3" />
+              ) : (
+                <ThumbsUp className="h-3 w-3" />
+              )}
               {getTagLabel(tag)}
               <X className="h-3 w-3 ml-0.5" />
             </Badge>
@@ -145,29 +143,35 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
         })}
 
         {activeFiltersCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="h-8 text-xs">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearAllFilters}
+            className="h-8 text-xs"
+          >
             Effacer ({activeFiltersCount})
           </Button>
         )}
 
-        {/* Results Count - Right aligned */}
         <div className="ml-auto text-xs text-muted-foreground">
           {filteredReviews.length}/{reviews.length} avis
         </div>
       </div>
 
-      {/* Compact Reviews List */}
+      {/* Reviews List */}
       <Card className="overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 py-2 px-3 bg-muted/30 border-b text-xs font-medium text-muted-foreground">
           <span className="w-[72px]">Note</span>
-          <span className="w-[70px]">Date</span>
+          <span className="w-[70px]">Commande</span>
+          <span className="w-[70px]">Avis</span>
           <span className="w-[50px] text-right">Panier</span>
           <span className="flex-1">Tags</span>
           <span className="w-[20px]"></span>
           <span className="w-[28px]">Plat.</span>
+          <span className="w-[14px]"></span>
         </div>
-        
+
         <ScrollArea className="h-[500px]">
           {filteredReviews.length > 0 ? (
             filteredReviews.map((review) => (
@@ -175,11 +179,19 @@ export function ReviewsCustomerList({ reviews }: ReviewsCustomerListProps) {
                 key={review.id}
                 overallRating={review.overall_rating}
                 reviewDate={review.review_date}
+                orderDate={review.order_date}
                 orderTotal={review.order_total}
                 comment={review.customer_comment}
                 tags={review.tags}
                 responseStatus={review.response_status}
                 platform={review.platform}
+                uberOrderId={review.uber_order_id}
+                isExpanded={expandedId === review.id}
+                onToggleExpand={() =>
+                  setExpandedId((prev) =>
+                    prev === review.id ? null : review.id
+                  )
+                }
               />
             ))
           ) : (
