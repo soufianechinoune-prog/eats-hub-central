@@ -6,6 +6,34 @@ import { fr } from "date-fns/locale";
 import { extractCityName } from "@/lib/restaurantUtils";
 import { loadChainLogoBase64, getChainName } from "@/lib/pdfLogoHelper";
 
+interface RestaurantStat {
+  id: string;
+  name: string;
+  totalOfflineMinutes: number;
+  availabilityRate: number;
+  hourlyData?: Record<number, number>;
+  weekdayData?: Record<number, number>;
+  dailyData?: Record<string, number>;
+  dailyAvailability?: Record<string, { online: number; offline: number; rate: number }>;
+  hourlyByDay?: Record<string, Record<number, { online: number; offline: number; rate: number }>>;
+}
+
+interface ExportData {
+  title: string;
+  period: string;
+  dateRange: { start: Date; end: Date };
+  stats: RestaurantStat[];
+  sortDirection?: "asc" | "desc";
+  chainId?: string | null;
+  insights: {
+    bestPerformer: { name: string; downtime: number };
+    worstPerformer: { name: string; downtime: number };
+    totalDowntime: number;
+    avgAvailability: number;
+    perfectCount: number;
+  };
+}
+
 const formatMinutesToDisplay = (minutes: number): string => {
   if (minutes === 0) return "0min";
   const h = Math.floor(minutes / 60);

@@ -174,23 +174,7 @@ async function fetchHourlyAvailability(restaurantId: string, startDate: string, 
 
 export function useReportPdfExport() {
 
-  // Load logo as base64 once
-  const loadLogoBase64 = async (): Promise<string | null> => {
-    try {
-      const response = await fetch(csLogoUrl);
-      const blob = await response.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch {
-      return null;
-    }
-  };
-
-  const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions): Promise<Blob> => {
+  const generateReportPdf = useCallback(async (kpi: ReportKPIs, options: PdfOptions & { chainId?: string | null }): Promise<Blob> => {
     const reportType = options.reportType || "ai_global";
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pw = doc.internal.pageSize.getWidth();
@@ -201,7 +185,8 @@ export function useReportPdfExport() {
 
     // ========== HEADER (white + logo + emerald line) ==========
     const cityName = extractCityName(kpi.restaurant_name);
-    const logoBase64 = await loadLogoBase64();
+    const logoBase64 = await loadChainLogoBase64(options.chainId ?? null);
+    const chainName = await getChainName(options.chainId ?? null);
 
     // Logo
     const logoSize = 14;
