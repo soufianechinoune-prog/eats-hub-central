@@ -230,7 +230,7 @@ export function useReviewsOverviewStats(
         p_date_mode: dateMode,
       });
       if (error) throw error;
-      return (data as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+      return (data as unknown as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
     },
     enabled,
   });

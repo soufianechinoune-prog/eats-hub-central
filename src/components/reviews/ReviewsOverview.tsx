@@ -1,4 +1,4 @@
-import { CustomerReview } from "@/hooks/useReviews";
+import { CustomerReview, ReviewsOverviewStats } from "@/hooks/useReviews";
 import { useReviewsStats, DateMode } from "@/hooks/useReviewsStats";
 import { ReviewsKPICards } from "./ReviewsKPICards";
 import { RatingEvolutionChart } from "./RatingEvolutionChart";
@@ -19,6 +19,7 @@ interface ReviewsOverviewProps {
   reviews: CustomerReview[];
   allReviewsForRolling?: CustomerReview[];
   dateMode?: DateMode;
+  overviewStats?: ReviewsOverviewStats;
 }
 
 // Quick period modes that should display daily data
