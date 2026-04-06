@@ -704,9 +704,12 @@ export default function ReportImport() {
         headerRowIndex = i;
         break;
       }
-      // Check for reviews item-level headers
-      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating")) && 
-          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title"))) {
+      // Check for reviews item-level headers (includes SKU variants: "Nom du plat", "Prix du plat", "Catégorie du menu")
+      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating") ||
+           lines[i].includes("Nom du plat") || lines[i].includes("Prix du plat") || 
+           lines[i].includes("Catégorie du menu") || lines[i].includes("Id. externe de l'article")) && 
+          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title") ||
+           lines[i].includes("UUID de la commande") || lines[i].includes("Nom du plat"))) {
         headerRowIndex = i;
         break;
       }

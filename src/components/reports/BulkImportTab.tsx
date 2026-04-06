@@ -222,13 +222,21 @@ const detectReportTypeFromContent = (headerLine: string): string | null => {
     return "sales_over_time";
   }
   // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
-  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article")) && 
-      (lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article"))) {
+  // SKU files have: "nom du plat", "prix du plat", "catégorie du menu" + "uuid de la commande" + "valeur de la note"
+  const hasSkuItemColumns = lowerHeader.includes("nom du plat") || lowerHeader.includes("prix du plat") || 
+                            lowerHeader.includes("catégorie du menu") || lowerHeader.includes("id. externe de l'article");
+  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article") ||
+       lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article") ||
+       hasSkuItemColumns) && 
+      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid") ||
+       lowerHeader.includes("note de l'article") || lowerHeader.includes("titre de l'article"))) {
     return "reviews_item";
   }
-  // Reviews Order Level
-  if ((lowerHeader.includes("note du restaurant") || lowerHeader.includes("restaurant rating")) && 
-      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid"))) {
+  // Reviews Order Level - MUST be checked AFTER reviews_item
+  if ((lowerHeader.includes("note du restaurant") || lowerHeader.includes("restaurant rating") || 
+       lowerHeader.includes("valeur de la note")) && 
+      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid")) &&
+      !hasSkuItemColumns) {
     return "reviews_order";
   }
   // Downtime Report
