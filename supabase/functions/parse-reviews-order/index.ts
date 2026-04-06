@@ -431,8 +431,8 @@ Deno.serve(async (req) => {
 
     // Insert reviews in batches of 500 for performance
     const batchSize = 500;
-    for (let i = 0; i < reviewsToInsert.length; i += batchSize) {
-      const batch = reviewsToInsert.slice(i, i + batchSize);
+    for (let i = 0; i < deduplicatedReviews.length; i += batchSize) {
+      const batch = deduplicatedReviews.slice(i, i + batchSize);
       const { error } = await supabase
         .from('customer_reviews')
         .upsert(batch, {
