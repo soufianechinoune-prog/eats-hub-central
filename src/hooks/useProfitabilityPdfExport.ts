@@ -15,6 +15,7 @@ interface ProfitabilityExportData {
   viewMode: "foodCost" | "margin";
   marginType: "brut" | "net";
   commissionRate: number;
+  chainId?: string | null;
   stats: {
     avgMargin: number | null;
     avgFoodCostPercent: number | null;
