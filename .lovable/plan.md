@@ -1,47 +1,44 @@
 
-Diagnostic court : non, pas sur la version précédente. Après vérification, le problème n’est pas “l’affichage des plats”, c’est que ton fichier SKU est encore importé comme `Avis (commandes)` au lieu de `Avis (articles)`.
+Diagnostic
+- Oui, tu as bien importé le bon fichier : `restaurant_rating_sku_local_...csv`.
+- Preuves :
+  - le nom contient `sku`
+  - les colonnes `Nom du plat`, `Prix du plat`, `Catégorie du menu`, `Id. externe de l'article`, `UUID de la commande` correspondent bien à un fichier `reviews_item`
+  - l’écran de validation affiche `24 077 à insérer`, ce qui correspond à un import article par article. Si le fichier était encore classé comme `reviews_order`, on n’aurait pas ce volume-là.
 
-Ce que j’ai confirmé :
-- Le dernier import de `restaurant_rating_sku_local...csv` a bien été enregistré dans `csv_imports` avec `report_type = reviews_order`, pas `reviews_item`.
-- `parse-reviews-item` n’a pas de logs récents.
-- `parse-reviews-order` a bien traité ce fichier à 07:30 avec `15 726 inserted`.
-- `menu_item_reviews` n’a toujours aucune donnée après `2026-02-01` (`0` ligne à partir de mars 2026).
+Conclusion
+- Le problème n’est donc plus “est-ce le bon fichier ?”.
+- Le vrai blocage est pendant l’import réel.
 
-Pourquoi mon correctif précédent n’était pas suffisant :
-- Ton vrai header SKU est de ce type :
-  `UUID de la commande`, `Date de la commande`, `Nom du plat`, `Prix du plat`, `Catégorie du menu`, `Valeur de la note`, `Commentaire`
-- Or le code actuel détecte `reviews_item` seulement avec des libellés trop stricts :
-  `Note de l'article` + `Titre de l'article`
-- Résultat : comme ton fichier contient aussi `Valeur de la note` + `UUID de la commande`, il retombe encore dans `reviews_order`.
+Cause probable
+- Dans `src/pages/ReportImport.tsx`, un gros fichier `reviews_item` n’est pas découpé en chunks.
+- Dans `supabase/functions/parse-reviews-item/index.ts`, les lignes sont ensuite insérées une par une.
+- Pour 24k lignes, ça peut faire tomber la fonction : ça colle avec le symptôme `FunctionsFetchError / Load failed` côté UI et les logs `shutdown` côté fonction.
 
-Plan corrigé
+Plan de correction
+1. Sécuriser l’import des avis articles côté front
+- Ajouter `reviews_item` aux types “gros fichiers” dans `src/pages/ReportImport.tsx` pour envoyer le CSV par paquets.
+- Appliquer la même protection dans `src/components/reports/BulkImportTab.tsx`.
 
-1. Corriger la signature de détection `reviews_item`
-- Utiliser les vraies variantes Uber du CSV SKU :
-  - titre article : `Nom du plat` / `Titre de l'article` / `Nom de l'article` / `Item title`
-  - note article : `Valeur de la note` / `Note de l'article` / `Item rating`
-  - identifiant commande : `UUID de la commande`
-  - colonnes renforçantes : `Prix du plat`, `Catégorie du menu`, `Id. externe de l'article`
+2. Optimiser `parse-reviews-item`
+- Remplacer l’insertion ligne par ligne par des insertions par batch, sur le modèle de `parse-reviews-order`.
+- Conserver les stats de validation/import.
 
-2. Appliquer la correction partout où le type est décidé
-- `src/pages/ReportImport.tsx`
-- `src/components/reports/BulkImportTab.tsx`
-- `src/lib/reportImportConfig.ts`
-Ainsi, preview + validation + import final utiliseront exactement la même logique.
+3. Fiabiliser le parsing CSV
+- Remplacer le `split('\n')` de `parse-reviews-item` par un parseur CSV robuste, pour supporter correctement les champs quotés et éviter les lignes cassées.
 
-3. Ajouter une garde anti-erreur dans l’UI d’import
-- Afficher clairement : `Type détecté : Avis (articles)`
-- Ajouter un warning si un fichier contient `Nom du plat` mais est encore réglé sur `Avis (commandes)`
+4. Améliorer le feedback dans l’UI
+- Afficher clairement `Type détecté : Avis (articles)`.
+- Mieux distinguer “mauvais type de fichier” et “fonction tombée pendant l’import”.
 
-4. Réimporter ensuite le fichier SKU
-- Une fois le routage corrigé, le fichier ira enfin vers `parse-reviews-item`
-- Les lignes seront insérées dans `menu_item_reviews`
-- L’onglet `Plats` se remplira alors normalement
+Résultat attendu
+- Tu pourras réimporter ce même fichier SKU.
+- Les 24 077 lignes seront traitées correctement sans faire tomber la fonction.
+- L’onglet `Plats` pourra enfin se remplir.
 
-Détail technique important
-- Je ne propose pas pour l’instant de supprimer automatiquement les imports SKU déjà partis dans `customer_reviews`, car on n’a pas de marqueur fiable pour distinguer sans risque les lignes mal routées des vraies lignes order-level. Le plus sûr est : corriger le routage d’abord, puis réimporter correctement.
-
-Fichiers à corriger
-- `src/pages/ReportImport.tsx`
-- `src/components/reports/BulkImportTab.tsx`
-- `src/lib/reportImportConfig.ts`
+Détails techniques
+- Fichiers à modifier :
+  - `src/pages/ReportImport.tsx`
+  - `src/components/reports/BulkImportTab.tsx`
+  - `supabase/functions/parse-reviews-item/index.ts`
+- Aucun changement de table n’est nécessaire pour débloquer ce cas.
