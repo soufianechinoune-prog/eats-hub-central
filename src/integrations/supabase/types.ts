@@ -947,7 +947,9 @@ export type Database = {
           created_at: string
           id: string
           item_id: string
+          item_price: number | null
           item_title: string
+          menu_category: string | null
           platform: string | null
           rating: number
           restaurant_id: string
@@ -955,13 +957,16 @@ export type Database = {
           tags: string[] | null
           thumb_down: number | null
           thumb_up: number | null
+          uber_order_id: string | null
         }
         Insert: {
           comment?: string | null
           created_at?: string
           id?: string
           item_id: string
+          item_price?: number | null
           item_title: string
+          menu_category?: string | null
           platform?: string | null
           rating: number
           restaurant_id: string
@@ -969,13 +974,16 @@ export type Database = {
           tags?: string[] | null
           thumb_down?: number | null
           thumb_up?: number | null
+          uber_order_id?: string | null
         }
         Update: {
           comment?: string | null
           created_at?: string
           id?: string
           item_id?: string
+          item_price?: number | null
           item_title?: string
+          menu_category?: string | null
           platform?: string | null
           rating?: number
           restaurant_id?: string
@@ -983,6 +991,7 @@ export type Database = {
           tags?: string[] | null
           thumb_down?: number | null
           thumb_up?: number | null
+          uber_order_id?: string | null
         }
         Relationships: []
       }
