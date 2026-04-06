@@ -6,7 +6,7 @@ import { ReviewsCustomerList } from "@/components/reviews/ReviewsCustomerList";
 import { ReviewsMenuItems } from "@/components/reviews/ReviewsMenuItems";
 
 import { WeatherCorrelation } from "@/components/reviews/WeatherCorrelation";
-import { useCustomerReviews, useMenuItemReviews, DateMode } from "@/hooks/useReviews";
+import { useCustomerReviews, useMenuItemReviews, useReviewsOverviewStats, DateMode } from "@/hooks/useReviews";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Eye, Users, ChefHat, Cloud, CalendarDays, MessageSquare, Download } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ import { useReviewsExportData } from "@/hooks/useReviewsExportData";
 
 export default function Reviews() {
   const [dateMode, setDateMode] = useState<DateMode>("order");
+  const [activeTab, setActiveTab] = useState("overview");
   
   const {
     selectedRestaurants,
@@ -61,7 +62,7 @@ export default function Reviews() {
   // Date étendue pour le calcul de la moyenne glissante 90 jours
   const extendedStartDate = useMemo(() => {
     const extended = new Date(startDate);
-    extended.setDate(extended.getDate() - 89); // 89 jours avant = fenêtre de 90 jours incluant startDate
+    extended.setDate(extended.getDate() - 89);
     return extended;
   }, [startDate]);
 
@@ -83,13 +84,12 @@ export default function Reviews() {
   });
 
   // When a chain is selected but no specific restaurants, use all chain restaurants as filter
-  // Empty array [] means "this brand has 0 restaurants" → hooks will return empty results
   const restaurantIds = useMemo(() => {
     if (selectedRestaurants.length > 0) return selectedRestaurants;
     if (selectedChainId && restaurantsData) {
-      return restaurantsData.map(r => r.id); // may be [] if brand has no restaurants
+      return restaurantsData.map(r => r.id);
     }
-    return undefined; // undefined = all brands, no filter
+    return undefined;
   }, [selectedRestaurants, selectedChainId, restaurantsData]);
 
   // Filter restaurants based on selection
@@ -99,21 +99,45 @@ export default function Reviews() {
     return restaurantsData.filter((r) => restaurantIds.includes(r.id));
   }, [restaurantsData, restaurantIds]);
 
-  const {
-    data: customerReviews,
-    isLoading: isLoadingCustomer,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, startDate, endDate, dateMode);
+  // === CONDITIONAL LOADING: only load data for the active tab ===
 
-  // Avis étendus pour le calcul de la moyenne glissante 90 jours
+  // Overview tab: use RPC for instant KPIs (no individual rows needed for KPIs)
   const {
-    data: allReviewsForRolling,
+    data: overviewStats,
+    isLoading: isLoadingOverviewStats,
+  } = useReviewsOverviewStats(restaurantIds, selectedPlatform, startDate, endDate, dateMode, activeTab === "overview");
+
+  // Overview tab also needs individual reviews for evolution chart + rolling average
+  // Use a SINGLE call on extended period, filter in memory for normal period
+  const needsReviews = activeTab === "overview" || activeTab === "customers" || activeTab === "weather";
+  const {
+    data: extendedReviews,
     isLoading: isLoadingExtended,
-  } = useCustomerReviews(restaurantIds, selectedPlatform, extendedStartDate, endDate, dateMode);
+  } = useCustomerReviews(
+    restaurantIds,
+    selectedPlatform,
+    activeTab === "overview" || activeTab === "weather" ? extendedStartDate : startDate,
+    endDate,
+    dateMode,
+    needsReviews
+  );
 
+  // Filter extended reviews to get normal period reviews (in memory)
+  const customerReviews = useMemo(() => {
+    if (!extendedReviews) return [];
+    return extendedReviews.filter(r => {
+      const dateStr = dateMode === "order" && r.order_date ? r.order_date : r.review_date;
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d >= startDate && d <= endDate;
+    });
+  }, [extendedReviews, startDate, endDate, dateMode]);
+
+  // Menu items: only load when "Plats" tab is active
   const {
     data: menuItemReviews,
     isLoading: isLoadingMenuItems,
-  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate);
+  } = useMenuItemReviews(restaurantIds, selectedPlatform, startDate, endDate, activeTab === "menu");
 
   const { exportReviews, isExporting: isExportingData } = useReviewsExportData();
 
@@ -132,7 +156,12 @@ export default function Reviews() {
     );
   };
 
-  const isLoading = isLoadingCustomer || isLoadingMenuItems || isLoadingExtended;
+  // Loading state depends on active tab
+  const isLoading = 
+    (activeTab === "overview" && (isLoadingOverviewStats || isLoadingExtended)) ||
+    (activeTab === "customers" && isLoadingExtended) ||
+    (activeTab === "menu" && isLoadingMenuItems) ||
+    (activeTab === "weather" && isLoadingExtended);
 
   if (isLoading) {
     return (
@@ -147,7 +176,7 @@ export default function Reviews() {
 
   return (
     <div className="space-y-4">
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         {/* Tabs + Date Toggle sur la même ligne */}
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <div className="flex items-center gap-3">
@@ -242,8 +271,9 @@ export default function Reviews() {
         <TabsContent value="overview" className="mt-6">
           <ReviewsOverview 
             reviews={customerReviews || []} 
-            allReviewsForRolling={allReviewsForRolling || []}
+            allReviewsForRolling={extendedReviews || []}
             dateMode={dateMode}
+            overviewStats={overviewStats}
           />
         </TabsContent>
 

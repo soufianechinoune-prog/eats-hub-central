@@ -3794,6 +3794,16 @@ export type Database = {
           sales: number
         }[]
       }
+      get_reviews_overview_stats: {
+        Args: {
+          p_date_mode?: string
+          p_end_date: string
+          p_platform: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: Json
+      }
       get_uber_one_stats: {
         Args: {
           p_end_date: string

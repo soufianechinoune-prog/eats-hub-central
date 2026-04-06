@@ -43,6 +43,12 @@ export interface MenuItemReview {
   platform: string;
 }
 
+// Columns needed for customer reviews (avoids select("*"))
+const CUSTOMER_REVIEW_COLUMNS = "id, restaurant_id, overall_rating, food_rating, delivery_rating, review_date, order_date, customer_name, customer_type, customer_comment, order_total, response_status, response_text, tags, platform";
+
+// Columns needed for menu item reviews
+const MENU_ITEM_REVIEW_COLUMNS = "id, restaurant_id, item_id, item_title, rating, thumb_up, thumb_down, comment, review_date, tags, platform";
+
 const PAGE_SIZE = 1000;
 
 // Helper to fetch all pages of customer reviews
@@ -66,7 +72,7 @@ async function fetchAllCustomerReviews(
   while (hasMore) {
     let query = supabase
       .from("customer_reviews")
-      .select("*")
+      .select(CUSTOMER_REVIEW_COLUMNS)
       .order("review_date", { ascending: false })
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -123,7 +129,7 @@ async function fetchAllMenuItemReviews(
   while (hasMore) {
     let query = supabase
       .from("menu_item_reviews")
-      .select("*")
+      .select(MENU_ITEM_REVIEW_COLUMNS)
       .order("review_date", { ascending: false })
       .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -167,11 +173,13 @@ export function useCustomerReviews(
   platform?: string,
   startDate?: Date,
   endDate?: Date,
-  dateMode: DateMode = "review"
+  dateMode: DateMode = "review",
+  enabled: boolean = true
 ) {
   return useQuery({
     queryKey: ["customer_reviews", restaurantIds, platform, startDate, endDate, dateMode],
     queryFn: () => fetchAllCustomerReviews(restaurantIds, platform, startDate, endDate, dateMode),
+    enabled,
   });
 }
 
@@ -179,10 +187,51 @@ export function useMenuItemReviews(
   restaurantIds?: string[],
   platform?: string,
   startDate?: Date,
-  endDate?: Date
+  endDate?: Date,
+  enabled: boolean = true
 ) {
   return useQuery({
     queryKey: ["menu_item_reviews", restaurantIds, platform, startDate, endDate],
     queryFn: () => fetchAllMenuItemReviews(restaurantIds, platform, startDate, endDate),
+    enabled,
+  });
+}
+
+// New hook: fetch overview stats via RPC (aggregated, no individual rows)
+export interface ReviewsOverviewStats {
+  avg_rating: number | null;
+  total_count: number;
+  tag_rate: number | null;
+  comment_rate: number | null;
+  rating_distribution: Record<string, number> | null;
+  day_stats: Array<{ day_index: number; avg_rating: number; count: number }> | null;
+  tag_counts: Array<{ tag: string; count: number }> | null;
+}
+
+export function useReviewsOverviewStats(
+  restaurantIds?: string[],
+  platform?: string,
+  startDate?: Date,
+  endDate?: Date,
+  dateMode: DateMode = "review",
+  enabled: boolean = true
+) {
+  return useQuery({
+    queryKey: ["reviews_overview_stats", restaurantIds, platform, startDate, endDate, dateMode],
+    queryFn: async (): Promise<ReviewsOverviewStats> => {
+      if (!restaurantIds || restaurantIds.length === 0) {
+        return { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+      }
+      const { data, error } = await supabase.rpc("get_reviews_overview_stats", {
+        p_restaurant_ids: restaurantIds,
+        p_platform: platform || "global",
+        p_start_date: startDate ? formatDateLocal(startDate) : "2020-01-01",
+        p_end_date: endDate ? formatDateLocal(endDate) : "2099-12-31",
+        p_date_mode: dateMode,
+      });
+      if (error) throw error;
+      return (data as unknown as ReviewsOverviewStats) || { avg_rating: null, total_count: 0, tag_rate: null, comment_rate: null, rating_distribution: null, day_stats: null, tag_counts: null };
+    },
+    enabled,
   });
 }
