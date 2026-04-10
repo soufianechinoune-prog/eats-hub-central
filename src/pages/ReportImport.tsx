@@ -1188,19 +1188,10 @@ export default function ReportImport() {
           if (clientScan.unknownStoreIds.length > 0) {
             console.log(`[Client scan] Found ${clientScan.unknownStoreIds.length} unknown restaurants across ${clientScan.skippedCount} rows`);
             
-            // Merge with server-side results
-            const existingUnknowns = new Set(validationData.validation?.unknownStoreIds || []);
-            const mergedUnknowns = [...existingUnknowns];
-            const mergedDetails = { ...(validationData.validation?.unknownStoreDetails || {}) };
-            
-            for (const uid of clientScan.unknownStoreIds) {
-              if (!existingUnknowns.has(uid)) {
-                mergedUnknowns.push(uid);
-              }
-              if (!mergedDetails[uid]) {
-                mergedDetails[uid] = clientScan.unknownStoreDetails[uid];
-              }
-            }
+            // Merge: use client results as the authoritative source for unknown detection
+            // (server only sees a sample, client scans ALL rows)
+            const mergedUnknowns = [...clientScan.unknownStoreIds];
+            const mergedDetails = { ...clientScan.unknownStoreDetails };
             
             validationData = {
               ...validationData,
@@ -1212,6 +1203,17 @@ export default function ReportImport() {
                 ...validationData.validation!,
                 unknownStoreIds: mergedUnknowns,
                 unknownStoreDetails: mergedDetails,
+              },
+            };
+          } else if ((validationData.validation?.unknownStoreIds?.length || 0) > 0) {
+            // Client found 0 unknowns but server found some from sampling — clear server false positives
+            console.log(`[Client scan] Full scan found 0 unknowns, clearing server-side false positives`);
+            validationData = {
+              ...validationData,
+              validation: {
+                ...validationData.validation!,
+                unknownStoreIds: [],
+                unknownStoreDetails: {},
               },
             };
           }
