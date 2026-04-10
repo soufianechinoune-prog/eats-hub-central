@@ -1,46 +1,47 @@
 
 
-# Bug : le scan client sur-détecte les restaurants inconnus (37 au lieu de ~1)
+# Corrections statut restaurants + mécanisme de succession
 
-## Cause racine
+## Problèmes identifiés
 
-Le scan côté client (`clientSideRestaurantScan` dans `ReportImport.tsx`) ne fait que du matching **exact par nom normalisé**. Il manque deux logiques que le serveur (`parse-payment-report`) possède :
+1. **Bug réactivation** : Le switch `is_active` ne nettoie pas `uber_closing_date` → le badge "Fermé le..." reste visible même après réactivation
+2. **Pas de workflow de succession** : Quand un franchisé ferme sa société et en ouvre une nouvelle, il n'y a aucun moyen de transférer les identifiants Uber vers la nouvelle fiche
 
-1. **Matching partiel** (`findRestaurantByPartialName`) : le serveur extrait la ville de "Chicken Street - Besançon" et cherche si un restaurant connu contient "besancon". Le client ne fait pas ça → il flag "Chicken Street - Besançon" comme inconnu alors que "Chicken Street Besançon" existe en base.
+## Corrections
 
-2. **Cross-référence nom ↔ store_id** : une ligne CSV a souvent à la fois un `uber_store_id` ET un `Nom du restaurant`. Si le store_id est connu (via `restaurant_uber_ids`), le restaurant est reconnu même si le nom CSV diffère légèrement. Le client vérifie les noms et les store_ids **séparément** sans croiser les deux.
+### 1. Fix du switch de réactivation (`src/pages/RestaurantDetail.tsx`)
 
-Résultat : le client rapporte 37 inconnus qui écrasent le résultat serveur (qui en trouvait peut-être ~1).
+Dans `toggleActiveMutation`, quand `isActive = true` :
+- Remettre `uber_closing_date` à `null`
+- Remettre `deliveroo_closing_date` à `null`
+- Afficher un toast de confirmation
 
-## Correction
+### 2. Bouton "Réactiver" visible sur les restaurants fermés (`src/pages/RestaurantDetail.tsx`)
 
-**Fichier : `src/pages/ReportImport.tsx`** — fonction `clientSideRestaurantScan`
+Ajouter un bouton "Réactiver ce restaurant" bien visible à côté du badge "Fermé" en haut de la fiche (en plus du switch en bas). Ce bouton :
+- Met `is_active = true`
+- Efface les dates de fermeture
+- Propose optionnellement de mettre à jour la date d'ouverture à aujourd'hui
 
-### 1. Ajouter le matching partiel (même logique que le serveur)
+### 3. Mécanisme de succession / transfert d'identifiants (`src/pages/RestaurantDetail.tsx`)
 
-Après la vérification `knownNormalizedNames.has(normalized)`, ajouter :
-- Extraire la partie ville du nom CSV (regex `Chicken\s*Street\s*[-–—]\s*(.+)`)
-- Chercher si une seule entrée dans `knownNormalizedNames` contient cette ville normalisée
-- Si oui → considérer comme trouvé
+Ajouter un bouton "Transférer vers un autre restaurant" sur les fiches fermées. Workflow :
+- L'utilisateur sélectionne le restaurant cible (dropdown des restaurants actifs)
+- Le système transfère tous les `restaurant_uber_ids` de l'ancien restaurant vers le nouveau (en tant qu'IDs secondaires)
+- Transfère aussi les `restaurant_name_aliases`
+- L'ancien restaurant reste marqué comme fermé avec une note de succession
 
-### 2. Croiser nom et store_id par ligne
+### 4. Actions immédiates via migration
 
-Actuellement le scan collecte les noms et store_ids dans des Sets séparés. Il faut aussi construire un Map `nom → store_ids associés` pour que si un nom est inconnu mais que son store_id correspondant est connu, on ne le flagge pas.
+Pas de migration nécessaire — tout se fait via l'UI existante ou les améliorations ci-dessus.
 
-Concrètement :
-- Pendant le parcours des lignes, construire `nameToStoreIds: Map<string, Set<string>>`
-- Lors de la vérification d'un nom inconnu, checker si au moins un store_id associé est dans `knownUberStoreIds`
-- Si oui → le restaurant est en fait connu via son UUID
+## Fichiers modifiés
 
-### 3. Éviter d'écraser les résultats serveur quand le client est moins précis
+- `src/pages/RestaurantDetail.tsx` : fix switch réactivation + bouton réactiver + bouton transfert succession
 
-Actuellement (ligne 1199), le client **remplace** `stats.skipped` par son propre `skippedCount`. Si le serveur a déjà un meilleur résultat (moins d'inconnus grâce au matching partiel), le client ne devrait pas augmenter le nombre d'inconnus.
+## Résultat
 
-Logique : ne fusionner le scan client que si le serveur n'a renvoyé aucun `unknownStoreIds` (sampling raté) ou si le client trouve des inconnus supplémentaires que le serveur n'a pas vus.
-
-## Résultat attendu
-
-- Seul "Chicken Street - Lens" (le vrai inconnu) apparaîtra dans l'alerte rouge
-- Les 36 autres restaurants seront correctement résolus par le matching partiel ou le cross-référencement store_id
-- Le compteur "À ignorer" reflétera uniquement les lignes de Lens
+- Tu pourras réactiver Poitiers, Sens et Besançon directement depuis leur fiche
+- Pour Clermont-Ferrand et Paris 18, tu pourras transférer leurs identifiants Uber vers la nouvelle fiche/fiche cible
+- Pour les prochaines fois, le même workflow de transfert sera disponible sur toute fiche fermée
 
