@@ -395,8 +395,7 @@ Deno.serve(async (req) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       const result = await supabase
         .from('restaurants')
-        .select('id, name, uber_store_id')
-;
+        .select('id, name, uber_store_id');
       if (!result.error) {
         restaurants = result.data;
         break;
@@ -413,8 +412,7 @@ Deno.serve(async (req) => {
     // Also fetch from the multi-UUID mapping table
     const { data: uberIdMappings } = await supabase
       .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id')
-      ;
+      .select('restaurant_id, uber_store_id');
 
     const restaurantMap = new Map<string, { id: string; name: string }>();
     
