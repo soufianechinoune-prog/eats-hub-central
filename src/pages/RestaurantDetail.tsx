@@ -126,9 +126,14 @@ const RestaurantDetail = () => {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (isActive: boolean) => {
+      const updates: Record<string, unknown> = { is_active: isActive };
+      if (isActive) {
+        updates.uber_closing_date = null;
+        updates.deliveroo_closing_date = null;
+      }
       const { error } = await supabase
         .from("restaurants")
-        .update({ is_active: isActive })
+        .update(updates)
         .eq("id", id);
       
       if (error) throw error;
@@ -138,11 +143,56 @@ const RestaurantDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["restaurants"] });
       toast({ 
         title: "Succès", 
-        description: isActive ? "Restaurant activé" : "Restaurant désactivé" 
+        description: isActive ? "Restaurant réactivé — dates de fermeture effacées" : "Restaurant désactivé" 
       });
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" });
+    },
+  });
+
+  // Query active restaurants for transfer dialog
+  const { data: activeRestaurants = [] } = useQuery({
+    queryKey: ["restaurants-active-for-transfer"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city")
+        .eq("is_active", true)
+        .neq("id", id!)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: showTransferDialog && !!id,
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: async (targetId: string) => {
+      // 1. Transfer uber_ids: update restaurant_id to target
+      const { error: uberError } = await supabase
+        .from("restaurant_uber_ids")
+        .update({ restaurant_id: targetId, is_primary: false })
+        .eq("restaurant_id", id!);
+      if (uberError) throw uberError;
+
+      // 2. Transfer name aliases
+      const { error: aliasError } = await supabase
+        .from("restaurant_name_aliases")
+        .update({ restaurant_id: targetId })
+        .eq("restaurant_id", id!);
+      if (aliasError) throw aliasError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["restaurant-uber-ids"] });
+      queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["restaurant", id] });
+      setShowTransferDialog(false);
+      setTransferTargetId("");
+      toast({ title: "Succès", description: "Identifiants transférés vers le nouveau restaurant" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de transférer les identifiants", variant: "destructive" });
     },
   });
 
