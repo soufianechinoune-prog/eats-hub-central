@@ -2636,7 +2636,16 @@ export default function ReportImport() {
                     <AlertTitle>Détail des erreurs</AlertTitle>
                     <AlertDescription>
                       <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
-                        {importResult.errorDetails.map((err, idx) => (
+                        {importResult.errorDetails
+                          .map((err) => {
+                            if (err.includes('<!DOCTYPE') || err.includes('<html') || err.includes('Bad gateway')) {
+                              return err.replace(/<!DOCTYPE[\s\S]*$/, 'Erreur serveur temporaire (502) - le serveur était surchargé');
+                            }
+                            return err;
+                          })
+                          .filter((err, idx, arr) => arr.indexOf(err) === idx) // deduplicate
+                          .slice(0, 10)
+                          .map((err, idx) => (
                           <li key={idx}>{err}</li>
                         ))}
                       </ul>
