@@ -169,10 +169,11 @@ async function clientSideRestaurantScan(
     return { unknownStoreIds: [], unknownStoreDetails: {}, skippedCount: 0 };
   }
 
-  // Collect all unique identifiers from full file
+  // Collect all unique identifiers from full file, and track name↔storeId associations
   const uniqueNames = new Set<string>();
   const uniqueStoreIds = new Set<string>();
   const rowCountByKey = new Map<string, number>();
+  const nameToStoreIds = new Map<string, Set<string>>();
 
   for (const row of dataRecords) {
     const fields = parseCSVLineFn(row);
@@ -182,6 +183,11 @@ async function clientSideRestaurantScan(
     if (storeId) uniqueStoreIds.add(storeId);
     const key = name || storeId;
     if (key) rowCountByKey.set(key, (rowCountByKey.get(key) || 0) + 1);
+    // Track which storeIds are associated with each name
+    if (name && storeId) {
+      if (!nameToStoreIds.has(name)) nameToStoreIds.set(name, new Set());
+      nameToStoreIds.get(name)!.add(storeId);
+    }
   }
 
   // Fetch known mappings from database
@@ -213,38 +219,42 @@ async function clientSideRestaurantScan(
     }
   }
 
-  // Check each unique name/ID
+  // Helper: partial matching — extract city from "Brand - City" and check if any known name contains it
+  const partialMatch = (name: string): boolean => {
+    const cityMatch = name.match(/chicken\s*street\s*[-–—]\s*(.+)/i);
+    if (!cityMatch) return false;
+    const cityNormalized = normalizeForAlias(cityMatch[1]);
+    if (!cityNormalized) return false;
+    for (const known of knownNormalizedNames) {
+      if (known.includes(cityNormalized)) return true;
+    }
+    return false;
+  };
+
+  // Check each unique name
   const unknownStoreIds: string[] = [];
   const unknownStoreDetails: Record<string, { name: string; type?: 'store_id' | 'restaurant_name' }> = {};
   let skippedCount = 0;
 
   for (const name of uniqueNames) {
     const normalized = normalizeForAlias(name);
-    // Check if this name matches any known restaurant
-    let found = knownNormalizedNames.has(normalized);
-    if (!found) {
-      // Check if corresponding storeId is known (we need to find the storeId for rows with this name)
-      // Skip this check - if the name is unknown, flag it
-      unknownStoreIds.push(name);
-      unknownStoreDetails[name] = { name, type: 'restaurant_name' };
-      skippedCount += rowCountByKey.get(name) || 0;
-    }
-  }
-
-  // Also check store IDs that don't have a matching name already flagged
-  for (const storeId of uniqueStoreIds) {
-    if (knownUberStoreIds.has(storeId)) continue;
-    // Only flag if we haven't already flagged this via name
-    const alreadyFlagged = unknownStoreIds.some(uid => uid === storeId);
-    if (!alreadyFlagged) {
-      // Check if any row with this storeId has a name we already flagged
-      // For simplicity, if storeId is unknown and not already covered, flag it
-      if (!unknownStoreDetails[storeId]) {
-        unknownStoreIds.push(storeId);
-        unknownStoreDetails[storeId] = { name: storeId, type: 'store_id' };
-        skippedCount += rowCountByKey.get(storeId) || 0;
+    // 1. Exact normalized match
+    if (knownNormalizedNames.has(normalized)) continue;
+    // 2. Partial city match (same logic as server's findRestaurantByPartialName)
+    if (partialMatch(name)) continue;
+    // 3. Cross-reference: if any storeId associated with this name is known, it's resolved
+    const associatedIds = nameToStoreIds.get(name);
+    if (associatedIds) {
+      let resolvedViaId = false;
+      for (const sid of associatedIds) {
+        if (knownUberStoreIds.has(sid)) { resolvedViaId = true; break; }
       }
+      if (resolvedViaId) continue;
     }
+    // Truly unknown
+    unknownStoreIds.push(name);
+    unknownStoreDetails[name] = { name, type: 'restaurant_name' };
+    skippedCount += rowCountByKey.get(name) || 0;
   }
 
   return { unknownStoreIds, unknownStoreDetails, skippedCount };
@@ -1178,19 +1188,10 @@ export default function ReportImport() {
           if (clientScan.unknownStoreIds.length > 0) {
             console.log(`[Client scan] Found ${clientScan.unknownStoreIds.length} unknown restaurants across ${clientScan.skippedCount} rows`);
             
-            // Merge with server-side results
-            const existingUnknowns = new Set(validationData.validation?.unknownStoreIds || []);
-            const mergedUnknowns = [...existingUnknowns];
-            const mergedDetails = { ...(validationData.validation?.unknownStoreDetails || {}) };
-            
-            for (const uid of clientScan.unknownStoreIds) {
-              if (!existingUnknowns.has(uid)) {
-                mergedUnknowns.push(uid);
-              }
-              if (!mergedDetails[uid]) {
-                mergedDetails[uid] = clientScan.unknownStoreDetails[uid];
-              }
-            }
+            // Merge: use client results as the authoritative source for unknown detection
+            // (server only sees a sample, client scans ALL rows)
+            const mergedUnknowns = [...clientScan.unknownStoreIds];
+            const mergedDetails = { ...clientScan.unknownStoreDetails };
             
             validationData = {
               ...validationData,
@@ -1202,6 +1203,17 @@ export default function ReportImport() {
                 ...validationData.validation!,
                 unknownStoreIds: mergedUnknowns,
                 unknownStoreDetails: mergedDetails,
+              },
+            };
+          } else if ((validationData.validation?.unknownStoreIds?.length || 0) > 0) {
+            // Client found 0 unknowns but server found some from sampling — clear server false positives
+            console.log(`[Client scan] Full scan found 0 unknowns, clearing server-side false positives`);
+            validationData = {
+              ...validationData,
+              validation: {
+                ...validationData.validation!,
+                unknownStoreIds: [],
+                unknownStoreDetails: {},
               },
             };
           }
