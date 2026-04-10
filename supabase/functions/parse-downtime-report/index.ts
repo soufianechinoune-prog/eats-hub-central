@@ -140,7 +140,7 @@ serve(async (req) => {
     const { data: uberIdMappings } = await supabase
       .from('restaurant_uber_ids')
       .select('restaurant_id, uber_store_id')
-      .limit(500);
+      ;
 
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));

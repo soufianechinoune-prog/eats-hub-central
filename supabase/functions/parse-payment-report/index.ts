@@ -396,7 +396,7 @@ Deno.serve(async (req) => {
       const result = await supabase
         .from('restaurants')
         .select('id, name, uber_store_id')
-        .limit(500);
+;
       if (!result.error) {
         restaurants = result.data;
         break;

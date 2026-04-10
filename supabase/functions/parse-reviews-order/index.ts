@@ -203,7 +203,7 @@ Deno.serve(async (req) => {
     // Fetch all restaurants + aliases + secondary UUIDs in parallel
     const [{ data: restaurants }, { data: uberIdMappings }, { data: nameAliases }] = await Promise.all([
       supabase.from('restaurants').select('id, name, uber_store_id'),
-      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id').limit(500),
+      supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id'),
       supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
     ]);
 
