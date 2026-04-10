@@ -2231,18 +2231,34 @@ export default function ReportImport() {
                     </Alert>
                   )}
 
-                  <div className="flex justify-end gap-3 pt-4 border-t">
-                    <Button variant="outline" onClick={resetImport}>
-                      Annuler
-                    </Button>
-                    <Button variant="outline" onClick={() => setStep("preview")}>
-                      Retour à l'aperçu
-                    </Button>
-                    <Button onClick={handleImport} disabled={isLoading}>
-                      <Send className="h-4 w-4 mr-2" />
-                      Confirmer l'import
-                    </Button>
-                  </div>
+                  {(() => {
+                    const hasUnknownStores = (validationResult.validation?.unknownStoreIds?.length ?? 0) > 0;
+                    return (
+                      <div className="space-y-3 pt-4 border-t">
+                        {hasUnknownStores && (
+                          <Alert variant="destructive" className="border-red-500 bg-red-500/10">
+                            <AlertTriangle className="h-4 w-4" />
+                            <AlertDescription className="text-sm">
+                              <strong>Import bloqué :</strong> {validationResult.validation!.unknownStoreIds!.length} restaurant(s) non reconnu(s). 
+                              Mappez-les ci-dessus puis revalidez, ou les <strong>{validationResult.stats.skipped.toLocaleString()} lignes</strong> correspondantes seront définitivement perdues.
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        <div className="flex justify-end gap-3">
+                          <Button variant="outline" onClick={resetImport}>
+                            Annuler
+                          </Button>
+                          <Button variant="outline" onClick={() => setStep("preview")}>
+                            Retour à l'aperçu
+                          </Button>
+                          <Button onClick={handleImport} disabled={isLoading || hasUnknownStores}>
+                            <Send className="h-4 w-4 mr-2" />
+                            Confirmer l'import
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
             </div>
