@@ -1036,16 +1036,22 @@ export default function ReportImport() {
       let contentToValidate = csvContent;
       let totalLinesCount = 0;
       let isLargeFile = false;
+      let fullDataRecords: string[] = [];
+      let fullHeaderFields: string[] = [];
       
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
         
+        // Always store full data + headers for client-side restaurant scan
+        fullHeaderFields = parseCSVLine(records[headerIndex]);
+        fullDataRecords = records.slice(headerIndex + 1);
+        
         // If file is large, use uniform sampling for representative dry run
         if (totalLinesCount > CHUNK_SIZE) {
           isLargeFile = true;
-          const dataRecords = records.slice(headerIndex + 1);
+          const dataRecords = fullDataRecords;
           const sampleSize = 1000;
           const step = Math.max(1, Math.floor(dataRecords.length / sampleSize));
           const sampledRecords: string[] = [];
@@ -1056,8 +1062,7 @@ export default function ReportImport() {
           contentToValidate = [...headerRecords, ...sampledRecords].join('\n');
           
           // Scan full file for date range client-side
-          const headerFields = parseCSVLine(records[headerIndex]);
-          const dateColIndex = headerFields.findIndex(h => 
+          const dateColIndex = fullHeaderFields.findIndex(h => 
             h.toLowerCase().includes("date de la commande") || 
             h.toLowerCase().includes("heure de la commande") ||
             h.toLowerCase().includes("order date")
