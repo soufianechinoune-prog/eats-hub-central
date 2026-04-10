@@ -66,8 +66,7 @@ function normalizeRestaurantName(name: string): string {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[^a-z0-9]/g, '')
     .trim();
 }
 
@@ -140,8 +139,7 @@ serve(async (req) => {
     // Fetch secondary UUIDs from restaurant_uber_ids
     const { data: uberIdMappings } = await supabase
       .from('restaurant_uber_ids')
-      .select('restaurant_id, uber_store_id')
-      .limit(500);
+      .select('restaurant_id, uber_store_id');
 
     if (uberIdMappings && restaurants) {
       const restaurantById = new Map((restaurants || []).map(r => [r.id, r]));
