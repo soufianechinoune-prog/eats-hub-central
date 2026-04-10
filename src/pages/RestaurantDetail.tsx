@@ -69,6 +69,9 @@ const RestaurantDetail = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
 
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState<string>("");
+
   const { data: restaurant, isLoading } = useQuery({
     queryKey: ["restaurant", id],
     queryFn: async () => {
