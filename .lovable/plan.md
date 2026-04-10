@@ -1,55 +1,55 @@
 
 
-## Plan : Corriger la normalisation des noms et la limite de 500
+# Correction : remonter les restaurants inconnus dans parse-downtime-report
 
-### Diagnostic
+## Probleme
 
-Le vrai bug : **les alias de restaurants ne matchent jamais** dans certains parseurs.
+`parse-downtime-report` incrémente `stats.skipped` quand un restaurant n'est pas trouvé, mais ne renvoie jamais de champ `validation.unknownStoreIds`. L'UI (`ReportImport.tsx`) cherche exclusivement `chunkResult.validation.unknownStoreIds` pour afficher l'alerte rouge et le composant de mapping. Résultat : 276 lignes ignorées silencieusement sans explication.
 
-- Le frontend (`UnknownStoreMapping.tsx`) stocke les alias avec `normalizeForAlias` qui supprime **tout** sauf `a-z0-9` (pas d'espaces)
-- `parse-downtime-report` utilise `normalizeRestaurantName` qui **garde les espaces** → l'alias lookup échoue systématiquement
-- `parse-reviews-item` et `parse-payment-report` utilisent `.replace(/[^a-z0-9]/g, '')` qui supprime aussi les espaces → OK, ça matche
-- `parse-reviews-order` utilise déjà `normalizeForAlias` → OK
-- `parse-report-csv` n'a pas de normalize → pas concerné (le conseil de ton avis était faux sur ce fichier)
+## Correction (1 seul fichier)
 
-Le `.limit(500)` sur `restaurant_uber_ids` est un vrai risque si tu as beaucoup de mappings.
+**Fichier : `supabase/functions/parse-downtime-report/index.ts`**
 
-### Corrections
-
-**1. Aligner `parse-downtime-report` sur la normalisation du frontend**
-
-Remplacer la fonction `normalizeRestaurantName` (ligne 64-72) par :
+1. Ajouter deux variables de tracking après la ligne `const rowsToInsert`:
 ```typescript
-function normalizeRestaurantName(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9]/g, '')
-    .trim();
+const unknownStoreIds = new Set<string>();
+const unknownStoreDetails: Record<string, { name: string; type: string }> = {};
+```
+
+2. Remplacer le bloc "restaurant not found" (lignes 292-298) :
+```typescript
+if (!matchedRestaurant) {
+  result.stats.skipped++;
+  const restaurantName = colIndices.restaurantName !== undefined 
+    ? values[colIndices.restaurantName]?.trim() || 'unknown' 
+    : 'unknown';
+  const storeId = colIndices.storeId !== undefined 
+    ? values[colIndices.storeId]?.trim() || '' 
+    : '';
+  const identifier = storeId || restaurantName;
+  unknownStoreIds.add(identifier);
+  unknownStoreDetails[identifier] = { 
+    name: restaurantName, 
+    type: storeId ? 'uber_store_id' : 'restaurant_name' 
+  };
+  continue;
 }
 ```
-Supprimer les `.replace(/[^a-z0-9\s]/g, '')` et `.replace(/\s+/g, ' ')` qui créent le décalage.
 
-**2. Supprimer `.limit(500)` dans 3 fichiers**
+3. Dans les deux `return new Response(JSON.stringify(result), ...)` (dryRun à ligne 387 et final à ligne 416), remplacer par `JSON.stringify({ ...result, validation: { ... } })` pour ajouter :
+```typescript
+validation: {
+  unknownStoreIds: Array.from(unknownStoreIds),
+  unknownStoreDetails,
+  dateRange: result.dateRange,
+  restaurants: Object.entries(result.restaurantStats).map(([name]) => ({ name })),
+}
+```
 
-| Fichier | Ligne |
-|---------|-------|
-| `parse-downtime-report/index.ts` | 144 |
-| `parse-reviews-item/index.ts` | 172 |
-| `parse-reviews-order/index.ts` | 206 |
-| `parse-payment-report/index.ts` | 399 (restaurants) et 417 (uber_ids) |
+## Résultat attendu
 
-**3. Fichiers modifiés**
-- `supabase/functions/parse-downtime-report/index.ts` — normalisation + suppression limit
-- `supabase/functions/parse-reviews-item/index.ts` — suppression limit
-- `supabase/functions/parse-reviews-order/index.ts` — suppression limit
-- `supabase/functions/parse-payment-report/index.ts` — suppression 2× limit
-
-### Ce que ça ne change PAS
-- `parse-report-csv` : pas de normalize, pas de limit → pas touché
-- La logique de tirets (`[-–—]` → espaces) proposée par ton avis n'est pas nécessaire : puisqu'on supprime tout sauf `a-z0-9`, les tirets sont déjà éliminés
-
-### Résultat attendu
-Les alias créés manuellement via l'UI matcheront correctement dans tous les parseurs, et les 276 lignes ignorées devraient être récupérées au prochain import.
+- L'UI affichera l'alerte rouge avec le nom exact du restaurant non reconnu (ex: "Chicken Street - Lens")
+- Le composant `UnknownStoreMapping` apparaitra pour permettre le mapping
+- Le bouton "Confirmer l'import" sera bloqué tant que le mapping n'est pas fait
+- Aucun changement nécessaire côté front, le contrat `validation.unknownStoreIds` est déjà géré
 
