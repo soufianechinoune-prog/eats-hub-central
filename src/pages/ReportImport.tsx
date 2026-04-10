@@ -1183,6 +1183,7 @@ export default function ReportImport() {
         const errorDetails: string[] = [];
         const allUnknownStoreIds: string[] = [];
         const allUnknownStoreDetails: Record<string, { name: string }> = {};
+        let aggregatedOrphanInfo: OrphanInfo | null = null;
         
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
@@ -1291,6 +1292,30 @@ export default function ReportImport() {
             if (chunkResult.validation?.unknownStoreDetails) {
               Object.assign(allUnknownStoreDetails, chunkResult.validation.unknownStoreDetails);
             }
+
+            // Merge orphanInfo across chunks
+            if (chunkResult.orphanInfo && chunkResult.orphanInfo.count > 0) {
+              if (!aggregatedOrphanInfo) {
+                aggregatedOrphanInfo = { ...chunkResult.orphanInfo };
+              } else {
+                aggregatedOrphanInfo.count += chunkResult.orphanInfo.count;
+                aggregatedOrphanInfo.totalMissingFlowIds = (aggregatedOrphanInfo.totalMissingFlowIds || 0) + (chunkResult.orphanInfo.totalMissingFlowIds || 0);
+                // Merge unique missing flow IDs (keep max 10 samples)
+                const existingIds = new Set(aggregatedOrphanInfo.missingFlowIds);
+                for (const fid of chunkResult.orphanInfo.missingFlowIds || []) {
+                  if (aggregatedOrphanInfo.missingFlowIds.length < 10 && !existingIds.has(fid)) {
+                    aggregatedOrphanInfo.missingFlowIds.push(fid);
+                  }
+                }
+                // Expand date range
+                if (chunkResult.orphanInfo.dateRange?.start && (!aggregatedOrphanInfo.dateRange.start || chunkResult.orphanInfo.dateRange.start < aggregatedOrphanInfo.dateRange.start)) {
+                  aggregatedOrphanInfo.dateRange.start = chunkResult.orphanInfo.dateRange.start;
+                }
+                if (chunkResult.orphanInfo.dateRange?.end && (!aggregatedOrphanInfo.dateRange.end || chunkResult.orphanInfo.dateRange.end > aggregatedOrphanInfo.dateRange.end)) {
+                  aggregatedOrphanInfo.dateRange.end = chunkResult.orphanInfo.dateRange.end;
+                }
+              }
+            }
           } catch (chunkError: any) {
             errorDetails.push(`Chunk ${i + 1}: ${chunkError.message || 'Erreur inconnue'}`);
             totalErrors += (end - start);
@@ -1318,6 +1343,7 @@ export default function ReportImport() {
             skippedDetails: [],
           },
           errorDetails,
+          ...(aggregatedOrphanInfo ? { orphanInfo: aggregatedOrphanInfo } : {}),
         };
         
         setChunkProgress({
