@@ -392,10 +392,17 @@ serve(async (req) => {
 
     console.log(`Parsed ${deduplicatedRows.length} unique rows for ${result.restaurants.count} restaurants`);
 
+    const validation = {
+      unknownStoreIds: Array.from(unknownStoreIds),
+      unknownStoreDetails,
+      dateRange: result.dateRange,
+      restaurants: Object.entries(result.restaurantStats).map(([name]) => ({ name })),
+    };
+
     if (dryRun) {
       result.stats.inserted = deduplicatedRows.length;
       return new Response(
-        JSON.stringify(result),
+        JSON.stringify({ ...result, validation }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
