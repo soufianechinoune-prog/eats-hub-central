@@ -1,46 +1,44 @@
 
 
-# Diagnostic : les 101 565 articles ignorés sont un effet cascade
+# Correction : le sampling de validation rate les restaurants inconnus
 
-## Cause racine
+## Problème
 
-C'est le **même problème de restaurant non reconnu** qui cascade :
+La validation (étape 3) échantillonne **1 000 lignes** uniformément sur 350 156 lignes (step = 350). Si "Chicken Street - Lens" représente ~7% des données, l'échantillon peut en capter quelques lignes, mais le résultat est affiché comme "~0 À ignorer" car c'est une estimation.
 
-1. Tu importes les **commandes** (Niveau commande) → "Chicken Street - Lens" n'est pas reconnu → ses ~101 565 commandes sont **silencieusement ignorées** (skipped) dans `parse-payment-report`
-2. Tu importes ensuite les **articles** (Niveau articles) → le parseur cherche les `uber_flow_id` dans la table `orders` → les commandes de Chicken Street - Lens n'y sont pas → les articles sont marqués comme **orphelins**
+**Le vrai bug** : l'UI affiche les compteurs comme des estimations (`~`) mais ne fait **aucun scan côté client pour détecter les restaurants inconnus sur tout le fichier**. Seul l'échantillon envoyé au serveur est analysé.
 
-Le message "101 565 ignorées" est trompeur : ce ne sont pas des orphelins au sens "commandes manquantes", c'est que les commandes n'ont jamais été importées car le restaurant n'est pas mappé.
+Pour les 68 280 "À mettre à jour" : c'est normal — tu as déjà importé ce fichier, donc les commandes existantes seront mises à jour (upsert).
 
-## Preuve
+## Correction proposée
 
-Tes imports "Niveau commande" montrent aussi des écarts :
-- 17 028 lignes → 15 894 traitées → **~1 134 ignorées**
-- 350 156 lignes → 326 864 traitées → **~23 292 ignorées**
+**Fichier : `src/pages/ReportImport.tsx`** (validation des gros fichiers, ~lignes 930-995)
 
-Ces lignes ignorées correspondent vraisemblablement à Chicken Street - Lens dans les commandes.
+Ajouter un **scan côté client** qui parcourt toutes les lignes du fichier pour extraire les noms/IDs de restaurants uniques, puis les compare à la liste des restaurants accessibles. Les non-reconnus sont injectés dans `validationResult.validation.unknownStoreIds` avant l'affichage.
 
-## Correction
+### Étapes techniques
 
-Le fix qu'on a déjà appliqué sur `parse-downtime-report` (remonter `unknownStoreIds` dans `validation`) doit être **vérifié aussi dans `parse-payment-report`** — c'est lui qui traite les commandes.
+1. Après l'échantillonnage (ligne 943), scanner **toutes** les lignes pour collecter les identifiants restaurants uniques :
+   - Trouver la colonne "Nom du restaurant" et "Id. du restaurant" dans le header
+   - Parcourir toutes les `dataRecords` pour extraire les valeurs uniques (Set)
 
-**Fichier : `supabase/functions/parse-payment-report/index.ts`**
+2. Comparer ces identifiants avec les restaurants connus :
+   - Récupérer la liste depuis `allRestaurants` (déjà disponible) + `restaurant_uber_ids` + `restaurant_name_aliases`
+   - Les identifiants non trouvés sont des `unknownStoreIds`
 
-1. Vérifier que quand un restaurant n'est pas trouvé, le parseur remplit bien `validation.unknownStoreIds` et `unknownStoreDetails` (pas juste `stats.skipped`)
-2. Si ce n'est pas le cas, appliquer la même correction que pour `parse-downtime-report`
+3. Injecter les résultats dans `validationResult` après le retour du dryRun :
+   - Fusionner les unknown du scan client avec ceux du serveur
+   - Recalculer `stats.skipped` = nombre de lignes totales contenant ces identifiants inconnus
 
-**Fichier : `src/pages/ReportImport.tsx`**
+### Détail de l'implémentation
 
-3. Dans l'agrégation des chunks (lignes 1300-1321), ajouter la fusion de `orphanInfo` pour que l'alerte orange s'affiche correctement sur les imports articles
+- Le scan client est rapide (juste lire 2 colonnes de strings, pas de parsing complexe)
+- On ne renvoie pas plus de données au serveur — on fait le matching côté client
+- Le scan se fait en parallèle de l'appel dryRun pour ne pas ralentir
 
 ## Résultat attendu
 
-- À l'import des **commandes**, l'UI bloquera et affichera "Chicken Street - Lens" comme restaurant inconnu → tu pourras le mapper
-- Une fois mappé et les commandes réimportées, l'import **articles** trouvera les flow_ids → plus d'orphelins
-- L'alerte orphelins (orange) s'affichera correctement même sur les gros fichiers découpés en chunks
-
-## Ordre d'action
-
-1. Mapper "Chicken Street - Lens" via l'UI (si le fix `parse-downtime-report` fonctionne déjà, fais un import downtime pour déclencher le mapping)
-2. Réimporter les commandes → Chicken Street - Lens sera reconnu
-3. Réimporter les articles → les orphelins disparaîtront
+- L'alerte rouge "Chicken Street - Lens" apparaîtra **même sur les gros fichiers** à l'étape Validation
+- Le compteur "À ignorer" affichera le vrai nombre (~23 292 pour les commandes de Lens)
+- L'import sera bloqué tant que le mapping n'est pas fait
 
