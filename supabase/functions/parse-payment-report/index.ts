@@ -414,7 +414,7 @@ Deno.serve(async (req) => {
     const { data: uberIdMappings } = await supabase
       .from('restaurant_uber_ids')
       .select('restaurant_id, uber_store_id')
-      .limit(500);
+      ;
 
     const restaurantMap = new Map<string, { id: string; name: string }>();
     
