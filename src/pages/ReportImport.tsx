@@ -1183,6 +1183,7 @@ export default function ReportImport() {
         const errorDetails: string[] = [];
         const allUnknownStoreIds: string[] = [];
         const allUnknownStoreDetails: Record<string, { name: string }> = {};
+        let aggregatedOrphanInfo: OrphanInfo | null = null;
         
         for (let i = 0; i < totalChunks; i++) {
           const start = i * CHUNK_SIZE;
