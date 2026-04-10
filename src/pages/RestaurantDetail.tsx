@@ -428,11 +428,31 @@ const RestaurantDetail = () => {
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
               {restaurant.is_active === false ? (
-                <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-                  Fermé{restaurant.uber_closing_date 
-                    ? ` le ${new Date(restaurant.uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` 
-                    : ''}
-                </Badge>
+                <>
+                  <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                    Fermé{restaurant.uber_closing_date 
+                      ? ` le ${new Date(restaurant.uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` 
+                      : ''}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    onClick={() => toggleActiveMutation.mutate(true)}
+                    disabled={toggleActiveMutation.isPending}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Réactiver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowTransferDialog(true)}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                    Transférer
+                  </Button>
+                </>
               ) : restaurant.csv_verified ? (
                 <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
               ) : restaurant.uber_store_id ? (
