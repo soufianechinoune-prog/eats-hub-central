@@ -60,6 +60,7 @@ import {
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
+// Restaurant detail page component
 const RestaurantDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
