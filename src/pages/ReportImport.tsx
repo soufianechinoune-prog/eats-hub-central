@@ -137,6 +137,119 @@ interface ImportResult {
   errorDetails: string[];
 }
 
+// Normalize name for alias matching - must match server-side normalizeForAlias
+function normalizeForAlias(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+
+/**
+ * Client-side full scan: extract all unique restaurant identifiers from ALL CSV rows
+ * and cross-reference against known restaurants to find unknowns the sample might miss.
+ */
+async function clientSideRestaurantScan(
+  dataRecords: string[],
+  headerFields: string[],
+  knownRestaurants: RestaurantOption[],
+  parseCSVLineFn: (line: string) => string[],
+): Promise<{ unknownStoreIds: string[]; unknownStoreDetails: Record<string, { name: string; type?: 'store_id' | 'restaurant_name' }>; skippedCount: number }> {
+  // Find restaurant name and store ID column indices
+  const nameColIdx = headerFields.findIndex(h =>
+    h.toLowerCase().includes("nom du restaurant") || h.toLowerCase() === "store name"
+  );
+  const idColIdx = headerFields.findIndex(h =>
+    h.toLowerCase().includes("id. du restaurant") || h.toLowerCase() === "restaurant id"
+  );
+
+  if (nameColIdx < 0 && idColIdx < 0) {
+    return { unknownStoreIds: [], unknownStoreDetails: {}, skippedCount: 0 };
+  }
+
+  // Collect all unique identifiers from full file
+  const uniqueNames = new Set<string>();
+  const uniqueStoreIds = new Set<string>();
+  const rowCountByKey = new Map<string, number>();
+
+  for (const row of dataRecords) {
+    const fields = parseCSVLineFn(row);
+    const name = nameColIdx >= 0 ? fields[nameColIdx]?.trim() : '';
+    const storeId = idColIdx >= 0 ? fields[idColIdx]?.trim() : '';
+    if (name) uniqueNames.add(name);
+    if (storeId) uniqueStoreIds.add(storeId);
+    const key = name || storeId;
+    if (key) rowCountByKey.set(key, (rowCountByKey.get(key) || 0) + 1);
+  }
+
+  // Fetch known mappings from database
+  const [{ data: uberIds }, { data: aliases }] = await Promise.all([
+    supabase.from('restaurant_uber_ids').select('restaurant_id, uber_store_id'),
+    supabase.from('restaurant_name_aliases').select('normalized_name, restaurant_id'),
+  ]);
+
+  // Build lookup sets
+  const knownUberStoreIds = new Set<string>();
+  const knownNormalizedNames = new Set<string>();
+
+  // From restaurants table
+  for (const r of knownRestaurants) {
+    knownNormalizedNames.add(normalizeForAlias(r.name));
+  }
+
+  // From restaurant_uber_ids table
+  if (uberIds) {
+    for (const m of uberIds) {
+      if (m.uber_store_id) knownUberStoreIds.add(m.uber_store_id);
+    }
+  }
+
+  // From restaurant_name_aliases table
+  if (aliases) {
+    for (const a of aliases) {
+      if (a.normalized_name) knownNormalizedNames.add(a.normalized_name);
+    }
+  }
+
+  // Check each unique name/ID
+  const unknownStoreIds: string[] = [];
+  const unknownStoreDetails: Record<string, { name: string; type?: 'store_id' | 'restaurant_name' }> = {};
+  let skippedCount = 0;
+
+  for (const name of uniqueNames) {
+    const normalized = normalizeForAlias(name);
+    // Check if this name matches any known restaurant
+    let found = knownNormalizedNames.has(normalized);
+    if (!found) {
+      // Check if corresponding storeId is known (we need to find the storeId for rows with this name)
+      // Skip this check - if the name is unknown, flag it
+      unknownStoreIds.push(name);
+      unknownStoreDetails[name] = { name, type: 'restaurant_name' };
+      skippedCount += rowCountByKey.get(name) || 0;
+    }
+  }
+
+  // Also check store IDs that don't have a matching name already flagged
+  for (const storeId of uniqueStoreIds) {
+    if (knownUberStoreIds.has(storeId)) continue;
+    // Only flag if we haven't already flagged this via name
+    const alreadyFlagged = unknownStoreIds.some(uid => uid === storeId);
+    if (!alreadyFlagged) {
+      // Check if any row with this storeId has a name we already flagged
+      // For simplicity, if storeId is unknown and not already covered, flag it
+      if (!unknownStoreDetails[storeId]) {
+        unknownStoreIds.push(storeId);
+        unknownStoreDetails[storeId] = { name: storeId, type: 'store_id' };
+        skippedCount += rowCountByKey.get(storeId) || 0;
+      }
+    }
+  }
+
+  return { unknownStoreIds, unknownStoreDetails, skippedCount };
+}
+
 /**
  * Scan the first 20 lines of a CSV to find the real header row.
  * Uber Eats exports often have metadata lines before the actual column headers.
@@ -923,16 +1036,22 @@ export default function ReportImport() {
       let contentToValidate = csvContent;
       let totalLinesCount = 0;
       let isLargeFile = false;
+      let fullDataRecords: string[] = [];
+      let fullHeaderFields: string[] = [];
       
       const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
         
+        // Always store full data + headers for client-side restaurant scan
+        fullHeaderFields = parseCSVLine(records[headerIndex]);
+        fullDataRecords = records.slice(headerIndex + 1);
+        
         // If file is large, use uniform sampling for representative dry run
         if (totalLinesCount > CHUNK_SIZE) {
           isLargeFile = true;
-          const dataRecords = records.slice(headerIndex + 1);
+          const dataRecords = fullDataRecords;
           const sampleSize = 1000;
           const step = Math.max(1, Math.floor(dataRecords.length / sampleSize));
           const sampledRecords: string[] = [];
@@ -943,8 +1062,7 @@ export default function ReportImport() {
           contentToValidate = [...headerRecords, ...sampledRecords].join('\n');
           
           // Scan full file for date range client-side
-          const headerFields = parseCSVLine(records[headerIndex]);
-          const dateColIndex = headerFields.findIndex(h => 
+          const dateColIndex = fullHeaderFields.findIndex(h => 
             h.toLowerCase().includes("date de la commande") || 
             h.toLowerCase().includes("heure de la commande") ||
             h.toLowerCase().includes("order date")
@@ -1045,6 +1163,51 @@ export default function ReportImport() {
           title: "Fichier volumineux détecté",
           description: `${totalLinesCount.toLocaleString()} lignes seront importées en ${Math.ceil(totalLinesCount / CHUNK_SIZE)} chunks`,
         });
+      }
+
+      // Client-side full scan for unknown restaurants (bypasses sampling limitation)
+      if (fullDataRecords.length > 0 && fullHeaderFields.length > 0) {
+        try {
+          const clientScan = await clientSideRestaurantScan(
+            fullDataRecords,
+            fullHeaderFields,
+            allRestaurants,
+            parseCSVLine,
+          );
+          
+          if (clientScan.unknownStoreIds.length > 0) {
+            console.log(`[Client scan] Found ${clientScan.unknownStoreIds.length} unknown restaurants across ${clientScan.skippedCount} rows`);
+            
+            // Merge with server-side results
+            const existingUnknowns = new Set(validationData.validation?.unknownStoreIds || []);
+            const mergedUnknowns = [...existingUnknowns];
+            const mergedDetails = { ...(validationData.validation?.unknownStoreDetails || {}) };
+            
+            for (const uid of clientScan.unknownStoreIds) {
+              if (!existingUnknowns.has(uid)) {
+                mergedUnknowns.push(uid);
+              }
+              if (!mergedDetails[uid]) {
+                mergedDetails[uid] = clientScan.unknownStoreDetails[uid];
+              }
+            }
+            
+            validationData = {
+              ...validationData,
+              stats: {
+                ...validationData.stats,
+                skipped: clientScan.skippedCount,
+              },
+              validation: {
+                ...validationData.validation!,
+                unknownStoreIds: mergedUnknowns,
+                unknownStoreDetails: mergedDetails,
+              },
+            };
+          }
+        } catch (scanError) {
+          console.warn('[Client scan] Failed:', scanError);
+        }
       }
 
       setValidationResult(validationData);
