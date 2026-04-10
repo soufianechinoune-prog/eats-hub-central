@@ -1,45 +1,55 @@
 
 
-## Plan : Logo dynamique par marque dans les exports PDF
+## Plan : Corriger la normalisation des noms et la limite de 500
 
-### Contexte
-Actuellement, **tous les PDF exportés** (inactivité, rentabilité, overview, menu, rapports hebdo) utilisent le logo CS en dur (`cs-logo.jpeg`). La marque sélectionnée a pourtant un `logo_url` stocké dans la table `chains` et affiché dans le header/sidebar.
+### Diagnostic
 
-### Approche
-Créer une **fonction utilitaire partagée** qui charge le logo de la marque active, avec fallback sur le logo CS si aucun logo n'est configuré.
+Le vrai bug : **les alias de restaurants ne matchent jamais** dans certains parseurs.
 
-### Détail technique
+- Le frontend (`UnknownStoreMapping.tsx`) stocke les alias avec `normalizeForAlias` qui supprime **tout** sauf `a-z0-9` (pas d'espaces)
+- `parse-downtime-report` utilise `normalizeRestaurantName` qui **garde les espaces** → l'alias lookup échoue systématiquement
+- `parse-reviews-item` et `parse-payment-report` utilisent `.replace(/[^a-z0-9]/g, '')` qui supprime aussi les espaces → OK, ça matche
+- `parse-reviews-order` utilise déjà `normalizeForAlias` → OK
+- `parse-report-csv` n'a pas de normalize → pas concerné (le conseil de ton avis était faux sur ce fichier)
 
-**1. Nouveau helper : `src/lib/pdfLogoHelper.ts`**
-- Fonction `loadChainLogoBase64(chainId: string | null): Promise<string>`
-- Si `chainId` existe → fetch `chains.logo_url` depuis Supabase
-- Si `logo_url` trouvé → fetch l'image, convertir en base64
-- Sinon → fallback sur le logo CS local (`cs-logo.jpeg`)
-- Cache en mémoire pour éviter les re-fetch dans la même session
+Le `.limit(500)` sur `restaurant_uber_ids` est un vrai risque si tu as beaucoup de mappings.
 
-**2. Mise à jour des 5 hooks d'export PDF**
-Remplacer `import csLogoUrl from "@/assets/cs-logo.jpeg"` + `loadLogoBase64()` par un appel à `loadChainLogoBase64(selectedChainId)` dans :
-- `src/hooks/useDowntimeExport.ts`
-- `src/hooks/useReportPdfExport.ts`
-- `src/hooks/useOverviewExport.ts`
-- `src/hooks/useProfitabilityPdfExport.ts`
-- `src/pages/MenuItems.tsx`
+### Corrections
 
-Chaque hook recevra `selectedChainId` via son composant parent (déjà disponible via `useAnalyticsContext`).
+**1. Aligner `parse-downtime-report` sur la normalisation du frontend**
 
-**3. Titre dynamique**
-Remplacer aussi les textes "CS Delivery Performance" hardcodés dans les PDF par le nom de la marque active.
+Remplacer la fonction `normalizeRestaurantName` (ligne 64-72) par :
+```typescript
+function normalizeRestaurantName(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '')
+    .trim();
+}
+```
+Supprimer les `.replace(/[^a-z0-9\s]/g, '')` et `.replace(/\s+/g, ' ')` qui créent le décalage.
 
-### Résultat
-- Marque avec logo uploadé → son logo apparaît dans le PDF
-- Marque sans logo → fallback logo CS
-- Aucune marque sélectionnée → logo CS par défaut
+**2. Supprimer `.limit(500)` dans 3 fichiers**
 
-### Fichiers modifiés
-- `src/lib/pdfLogoHelper.ts` (nouveau)
-- `src/hooks/useDowntimeExport.ts`
-- `src/hooks/useReportPdfExport.ts`
-- `src/hooks/useOverviewExport.ts`
-- `src/hooks/useProfitabilityPdfExport.ts`
-- `src/pages/MenuItems.tsx`
+| Fichier | Ligne |
+|---------|-------|
+| `parse-downtime-report/index.ts` | 144 |
+| `parse-reviews-item/index.ts` | 172 |
+| `parse-reviews-order/index.ts` | 206 |
+| `parse-payment-report/index.ts` | 399 (restaurants) et 417 (uber_ids) |
+
+**3. Fichiers modifiés**
+- `supabase/functions/parse-downtime-report/index.ts` — normalisation + suppression limit
+- `supabase/functions/parse-reviews-item/index.ts` — suppression limit
+- `supabase/functions/parse-reviews-order/index.ts` — suppression limit
+- `supabase/functions/parse-payment-report/index.ts` — suppression 2× limit
+
+### Ce que ça ne change PAS
+- `parse-report-csv` : pas de normalize, pas de limit → pas touché
+- La logique de tirets (`[-–—]` → espaces) proposée par ton avis n'est pas nécessaire : puisqu'on supprime tout sauf `a-z0-9`, les tirets sont déjà éliminés
+
+### Résultat attendu
+Les alias créés manuellement via l'UI matcheront correctement dans tous les parseurs, et les 276 lignes ignorées devraient être récupérées au prochain import.
 
