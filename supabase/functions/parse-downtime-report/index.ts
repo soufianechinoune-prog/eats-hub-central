@@ -431,7 +431,7 @@ serve(async (req) => {
     console.log('Import complete:', result);
 
     return new Response(
-      JSON.stringify(result),
+      JSON.stringify({ ...result, validation }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
