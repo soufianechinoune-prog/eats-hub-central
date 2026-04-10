@@ -1,47 +1,44 @@
 
 
-# Corrections statut restaurants + mécanisme de succession
+# Fix : erreurs 502 Bad Gateway lors de l'import de gros fichiers (350k lignes)
 
-## Problèmes identifiés
+## Problème
 
-1. **Bug réactivation** : Le switch `is_active` ne nettoie pas `uber_closing_date` → le badge "Fermé le..." reste visible même après réactivation
-2. **Pas de workflow de succession** : Quand un franchisé ferme sa société et en ouvre une nouvelle, il n'y a aucun moyen de transférer les identifiants Uber vers la nouvelle fiche
+L'import de 350 156 lignes génère ~70 chunks de 5 000 lignes envoyés au serveur. Chaque chunk fait des batch upserts de 200 lignes avec seulement 150ms de délai entre batches. Sur les gros volumes, la base de données sature et Cloudflare renvoie une erreur 502 Bad Gateway. Résultat : 200 erreurs sur le chunk 70.
+
+Le message d'erreur affiché contient le HTML brut de la page Cloudflare 502 au lieu d'un message lisible.
 
 ## Corrections
 
-### 1. Fix du switch de réactivation (`src/pages/RestaurantDetail.tsx`)
+### 1. Réduire la taille des batches et augmenter le délai (`supabase/functions/parse-payment-report/index.ts`)
 
-Dans `toggleActiveMutation`, quand `isActive = true` :
-- Remettre `uber_closing_date` à `null`
-- Remettre `deliveroo_closing_date` à `null`
-- Afficher un toast de confirmation
+- Réduire `BATCH_SIZE` de 200 à 100
+- Augmenter le délai inter-batch de 150ms à 300ms
+- Cela réduit la pression sur la base de données
 
-### 2. Bouton "Réactiver" visible sur les restaurants fermés (`src/pages/RestaurantDetail.tsx`)
+### 2. Ajouter un retry automatique sur les erreurs 502/réseau
 
-Ajouter un bouton "Réactiver ce restaurant" bien visible à côté du badge "Fermé" en haut de la fiche (en plus du switch en bas). Ce bouton :
-- Met `is_active = true`
-- Efface les dates de fermeture
-- Propose optionnellement de mettre à jour la date d'ouverture à aujourd'hui
+Quand un batch upsert échoue avec une erreur contenant "502", "Bad gateway", "network", ou "fetch" :
+- Attendre 2 secondes
+- Retenter une fois
+- Si le retry échoue aussi, alors comptabiliser l'erreur
 
-### 3. Mécanisme de succession / transfert d'identifiants (`src/pages/RestaurantDetail.tsx`)
+### 3. Nettoyer le message d'erreur affiché
 
-Ajouter un bouton "Transférer vers un autre restaurant" sur les fiches fermées. Workflow :
-- L'utilisateur sélectionne le restaurant cible (dropdown des restaurants actifs)
-- Le système transfère tous les `restaurant_uber_ids` de l'ancien restaurant vers le nouveau (en tant qu'IDs secondaires)
-- Transfère aussi les `restaurant_name_aliases`
-- L'ancien restaurant reste marqué comme fermé avec une note de succession
+Dans le traitement d'erreur du batch, détecter si le message contient du HTML (`<!DOCTYPE` ou `<html`) et le remplacer par un message lisible : "Erreur serveur temporaire (502) - le serveur était surchargé"
 
-### 4. Actions immédiates via migration
+### 4. Afficher un message d'erreur propre côté client (`src/pages/ReportImport.tsx`)
 
-Pas de migration nécessaire — tout se fait via l'UI existante ou les améliorations ci-dessus.
+Si les erreurs retournées contiennent du HTML, les filtrer/nettoyer avant affichage pour éviter le mur de HTML brut visible sur ta capture.
 
 ## Fichiers modifiés
 
-- `src/pages/RestaurantDetail.tsx` : fix switch réactivation + bouton réactiver + bouton transfert succession
+- `supabase/functions/parse-payment-report/index.ts` : batch size, délai, retry, nettoyage erreurs
+- `src/pages/ReportImport.tsx` : filtrage des erreurs HTML avant affichage
 
-## Résultat
+## Résultat attendu
 
-- Tu pourras réactiver Poitiers, Sens et Besançon directement depuis leur fiche
-- Pour Clermont-Ferrand et Paris 18, tu pourras transférer leurs identifiants Uber vers la nouvelle fiche/fiche cible
-- Pour les prochaines fois, le même workflow de transfert sera disponible sur toute fiche fermée
+- Les erreurs 502 transitoires seront automatiquement retentées (1 retry)
+- Les messages d'erreur seront lisibles (plus de HTML brut)
+- La pression sur la base sera réduite, diminuant les risques de 502
 
