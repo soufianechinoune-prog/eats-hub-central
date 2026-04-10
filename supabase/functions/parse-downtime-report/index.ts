@@ -230,6 +230,8 @@ serve(async (req) => {
     };
 
     const rowsToInsert: any[] = [];
+    const unknownStoreIds = new Set<string>();
+    const unknownStoreDetails: Record<string, { name: string; type: string }> = {};
     const restaurantIdsSet = new Set<string>();
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
@@ -291,10 +293,18 @@ serve(async (req) => {
 
       if (!matchedRestaurant) {
         result.stats.skipped++;
-        if (result.errorMessages.length < 10) {
-          const restaurantName = colIndices.restaurantName !== undefined ? values[colIndices.restaurantName] : 'unknown';
-          result.errorMessages.push(`Row ${i + 1}: Restaurant not found - ${restaurantName}`);
-        }
+        const restaurantName = colIndices.restaurantName !== undefined 
+          ? values[colIndices.restaurantName]?.trim() || 'unknown' 
+          : 'unknown';
+        const storeId = colIndices.storeId !== undefined 
+          ? values[colIndices.storeId]?.trim() || '' 
+          : '';
+        const identifier = storeId || restaurantName;
+        unknownStoreIds.add(identifier);
+        unknownStoreDetails[identifier] = { 
+          name: restaurantName, 
+          type: storeId ? 'uber_store_id' : 'restaurant_name' 
+        };
         continue;
       }
 
