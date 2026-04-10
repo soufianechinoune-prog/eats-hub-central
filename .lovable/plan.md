@@ -1,44 +1,46 @@
 
 
-# Correction : le sampling de validation rate les restaurants inconnus
+# Bug : le scan client sur-détecte les restaurants inconnus (37 au lieu de ~1)
 
-## Problème
+## Cause racine
 
-La validation (étape 3) échantillonne **1 000 lignes** uniformément sur 350 156 lignes (step = 350). Si "Chicken Street - Lens" représente ~7% des données, l'échantillon peut en capter quelques lignes, mais le résultat est affiché comme "~0 À ignorer" car c'est une estimation.
+Le scan côté client (`clientSideRestaurantScan` dans `ReportImport.tsx`) ne fait que du matching **exact par nom normalisé**. Il manque deux logiques que le serveur (`parse-payment-report`) possède :
 
-**Le vrai bug** : l'UI affiche les compteurs comme des estimations (`~`) mais ne fait **aucun scan côté client pour détecter les restaurants inconnus sur tout le fichier**. Seul l'échantillon envoyé au serveur est analysé.
+1. **Matching partiel** (`findRestaurantByPartialName`) : le serveur extrait la ville de "Chicken Street - Besançon" et cherche si un restaurant connu contient "besancon". Le client ne fait pas ça → il flag "Chicken Street - Besançon" comme inconnu alors que "Chicken Street Besançon" existe en base.
 
-Pour les 68 280 "À mettre à jour" : c'est normal — tu as déjà importé ce fichier, donc les commandes existantes seront mises à jour (upsert).
+2. **Cross-référence nom ↔ store_id** : une ligne CSV a souvent à la fois un `uber_store_id` ET un `Nom du restaurant`. Si le store_id est connu (via `restaurant_uber_ids`), le restaurant est reconnu même si le nom CSV diffère légèrement. Le client vérifie les noms et les store_ids **séparément** sans croiser les deux.
 
-## Correction proposée
+Résultat : le client rapporte 37 inconnus qui écrasent le résultat serveur (qui en trouvait peut-être ~1).
 
-**Fichier : `src/pages/ReportImport.tsx`** (validation des gros fichiers, ~lignes 930-995)
+## Correction
 
-Ajouter un **scan côté client** qui parcourt toutes les lignes du fichier pour extraire les noms/IDs de restaurants uniques, puis les compare à la liste des restaurants accessibles. Les non-reconnus sont injectés dans `validationResult.validation.unknownStoreIds` avant l'affichage.
+**Fichier : `src/pages/ReportImport.tsx`** — fonction `clientSideRestaurantScan`
 
-### Étapes techniques
+### 1. Ajouter le matching partiel (même logique que le serveur)
 
-1. Après l'échantillonnage (ligne 943), scanner **toutes** les lignes pour collecter les identifiants restaurants uniques :
-   - Trouver la colonne "Nom du restaurant" et "Id. du restaurant" dans le header
-   - Parcourir toutes les `dataRecords` pour extraire les valeurs uniques (Set)
+Après la vérification `knownNormalizedNames.has(normalized)`, ajouter :
+- Extraire la partie ville du nom CSV (regex `Chicken\s*Street\s*[-–—]\s*(.+)`)
+- Chercher si une seule entrée dans `knownNormalizedNames` contient cette ville normalisée
+- Si oui → considérer comme trouvé
 
-2. Comparer ces identifiants avec les restaurants connus :
-   - Récupérer la liste depuis `allRestaurants` (déjà disponible) + `restaurant_uber_ids` + `restaurant_name_aliases`
-   - Les identifiants non trouvés sont des `unknownStoreIds`
+### 2. Croiser nom et store_id par ligne
 
-3. Injecter les résultats dans `validationResult` après le retour du dryRun :
-   - Fusionner les unknown du scan client avec ceux du serveur
-   - Recalculer `stats.skipped` = nombre de lignes totales contenant ces identifiants inconnus
+Actuellement le scan collecte les noms et store_ids dans des Sets séparés. Il faut aussi construire un Map `nom → store_ids associés` pour que si un nom est inconnu mais que son store_id correspondant est connu, on ne le flagge pas.
 
-### Détail de l'implémentation
+Concrètement :
+- Pendant le parcours des lignes, construire `nameToStoreIds: Map<string, Set<string>>`
+- Lors de la vérification d'un nom inconnu, checker si au moins un store_id associé est dans `knownUberStoreIds`
+- Si oui → le restaurant est en fait connu via son UUID
 
-- Le scan client est rapide (juste lire 2 colonnes de strings, pas de parsing complexe)
-- On ne renvoie pas plus de données au serveur — on fait le matching côté client
-- Le scan se fait en parallèle de l'appel dryRun pour ne pas ralentir
+### 3. Éviter d'écraser les résultats serveur quand le client est moins précis
+
+Actuellement (ligne 1199), le client **remplace** `stats.skipped` par son propre `skippedCount`. Si le serveur a déjà un meilleur résultat (moins d'inconnus grâce au matching partiel), le client ne devrait pas augmenter le nombre d'inconnus.
+
+Logique : ne fusionner le scan client que si le serveur n'a renvoyé aucun `unknownStoreIds` (sampling raté) ou si le client trouve des inconnus supplémentaires que le serveur n'a pas vus.
 
 ## Résultat attendu
 
-- L'alerte rouge "Chicken Street - Lens" apparaîtra **même sur les gros fichiers** à l'étape Validation
-- Le compteur "À ignorer" affichera le vrai nombre (~23 292 pour les commandes de Lens)
-- L'import sera bloqué tant que le mapping n'est pas fait
+- Seul "Chicken Street - Lens" (le vrai inconnu) apparaîtra dans l'alerte rouge
+- Les 36 autres restaurants seront correctement résolus par le matching partiel ou le cross-référencement store_id
+- Le compteur "À ignorer" reflétera uniquement les lignes de Lens
 
