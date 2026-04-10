@@ -27,6 +27,21 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   ArrowLeft,
   Building2,
   User,
@@ -39,6 +54,8 @@ import {
   Trash2,
   Copy,
   Hash,
+  RotateCcw,
+  ArrowRightLeft,
 } from "lucide-react";
 import { UberEatsIcon, DeliverooIcon } from "@/components/icons/PlatformIcons";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -51,6 +68,9 @@ const RestaurantDetail = () => {
   const { selectedChainId } = useAnalyticsContext();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState<Record<string, string>>({});
+
+  const [showTransferDialog, setShowTransferDialog] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState<string>("");
 
   const { data: restaurant, isLoading } = useQuery({
     queryKey: ["restaurant", id],
@@ -106,9 +126,14 @@ const RestaurantDetail = () => {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (isActive: boolean) => {
+      const updates: Record<string, unknown> = { is_active: isActive };
+      if (isActive) {
+        updates.uber_closing_date = null;
+        updates.deliveroo_closing_date = null;
+      }
       const { error } = await supabase
         .from("restaurants")
-        .update({ is_active: isActive })
+        .update(updates)
         .eq("id", id);
       
       if (error) throw error;
@@ -118,11 +143,56 @@ const RestaurantDetail = () => {
       queryClient.invalidateQueries({ queryKey: ["restaurants"] });
       toast({ 
         title: "Succès", 
-        description: isActive ? "Restaurant activé" : "Restaurant désactivé" 
+        description: isActive ? "Restaurant réactivé — dates de fermeture effacées" : "Restaurant désactivé" 
       });
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de modifier le statut", variant: "destructive" });
+    },
+  });
+
+  // Query active restaurants for transfer dialog
+  const { data: activeRestaurants = [] } = useQuery({
+    queryKey: ["restaurants-active-for-transfer"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city")
+        .eq("is_active", true)
+        .neq("id", id!)
+        .order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: showTransferDialog && !!id,
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: async (targetId: string) => {
+      // 1. Transfer uber_ids: update restaurant_id to target
+      const { error: uberError } = await supabase
+        .from("restaurant_uber_ids")
+        .update({ restaurant_id: targetId, is_primary: false })
+        .eq("restaurant_id", id!);
+      if (uberError) throw uberError;
+
+      // 2. Transfer name aliases
+      const { error: aliasError } = await supabase
+        .from("restaurant_name_aliases")
+        .update({ restaurant_id: targetId })
+        .eq("restaurant_id", id!);
+      if (aliasError) throw aliasError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["restaurant-uber-ids"] });
+      queryClient.invalidateQueries({ queryKey: ["restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["restaurant", id] });
+      setShowTransferDialog(false);
+      setTransferTargetId("");
+      toast({ title: "Succès", description: "Identifiants transférés vers le nouveau restaurant" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de transférer les identifiants", variant: "destructive" });
     },
   });
 
@@ -358,11 +428,31 @@ const RestaurantDetail = () => {
             <div className="flex items-center gap-3">
               <h2 className="text-3xl font-bold tracking-tight">{restaurant.name}</h2>
               {restaurant.is_active === false ? (
-                <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-                  Fermé{restaurant.uber_closing_date 
-                    ? ` le ${new Date(restaurant.uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` 
-                    : ''}
-                </Badge>
+                <>
+                  <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
+                    Fermé{restaurant.uber_closing_date 
+                      ? ` le ${new Date(restaurant.uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}` 
+                      : ''}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-500/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                    onClick={() => toggleActiveMutation.mutate(true)}
+                    disabled={toggleActiveMutation.isPending}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                    Réactiver
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowTransferDialog(true)}
+                  >
+                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                    Transférer
+                  </Button>
+                </>
               ) : restaurant.csv_verified ? (
                 <Badge className="bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30">Validé</Badge>
               ) : restaurant.uber_store_id ? (
@@ -624,6 +714,53 @@ const RestaurantDetail = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Transfer Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transférer les identifiants</DialogTitle>
+            <DialogDescription>
+              Transférez les identifiants Uber et alias de « {restaurant.name} » vers un autre restaurant actif. 
+              Utile quand un franchisé ferme sa société et en crée une nouvelle.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Label>Restaurant cible</Label>
+            <Select value={transferTargetId} onValueChange={setTransferTargetId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner le restaurant cible..." />
+              </SelectTrigger>
+              <SelectContent>
+                {activeRestaurants.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name} — {r.city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {uberIds.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-1">Identifiants à transférer :</p>
+                {uberIds.map((uid) => (
+                  <code key={uid.id} className="block text-xs bg-muted px-2 py-1 rounded mb-1 font-mono">
+                    {uid.uber_store_id} {uid.is_primary ? "(actuel)" : "(ancien)"}
+                  </code>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTransferDialog(false)}>Annuler</Button>
+            <Button
+              onClick={() => transferMutation.mutate(transferTargetId)}
+              disabled={!transferTargetId || transferMutation.isPending}
+            >
+              {transferMutation.isPending ? "Transfert..." : "Transférer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
