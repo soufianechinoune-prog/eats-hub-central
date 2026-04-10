@@ -2024,9 +2024,20 @@ export default function ReportImport() {
                             <p className="text-2xl font-bold text-blue-600">{isEstimated ? '~' : ''}{validationResult.stats.updated.toLocaleString()}</p>
                             <p className="text-sm text-muted-foreground">À mettre à jour</p>
                           </div>
-                          <div className="p-4 bg-amber-500/10 rounded-lg text-center">
-                            <p className="text-2xl font-bold text-amber-600">{isEstimated ? '~' : ''}{validationResult.stats.skipped.toLocaleString()}</p>
+                          <div className={`p-4 rounded-lg text-center ${
+                            validationResult.stats.skipped > 0 && validationResult.validation?.unknownStoreIds?.length > 0
+                              ? 'bg-red-500/10 ring-2 ring-red-500/30'
+                              : 'bg-amber-500/10'
+                          }`}>
+                            <p className={`text-2xl font-bold ${
+                              validationResult.stats.skipped > 0 && validationResult.validation?.unknownStoreIds?.length > 0
+                                ? 'text-red-600'
+                                : 'text-amber-600'
+                            }`}>{isEstimated ? '~' : ''}{validationResult.stats.skipped.toLocaleString()}</p>
                             <p className="text-sm text-muted-foreground">À ignorer</p>
+                            {validationResult.stats.skipped > 0 && validationResult.validation?.unknownStoreIds?.length > 0 && (
+                              <p className="text-xs text-red-500 mt-1">⚠️ Restaurant(s) non reconnu(s)</p>
+                            )}
                           </div>
                         </div>
                         {isEstimated && (
@@ -2098,15 +2109,29 @@ export default function ReportImport() {
                     </div>
                   )}
 
-                  {/* Unknown store IDs - Interactive mapping */}
+                   {/* Unknown store IDs - Blocking warning + Interactive mapping */}
                   {validationResult.validation?.unknownStoreIds && validationResult.validation.unknownStoreIds.length > 0 && (
-                    <UnknownStoreMapping
-                      unknownStoreIds={validationResult.validation.unknownStoreIds}
-                      unknownStoreDetails={validationResult.validation.unknownStoreDetails}
-                      restaurants={allRestaurants}
-                      selectedRestaurantId={selectedRestaurantId}
-                      onMappingComplete={handleRevalidateAfterMapping}
-                    />
+                    <>
+                      <Alert variant="destructive" className="border-red-500 bg-red-500/10">
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                        <AlertTitle className="text-red-700">
+                          ⚠️ {validationResult.validation.unknownStoreIds.length} restaurant(s) non reconnu(s) — {validationResult.stats.skipped.toLocaleString()} lignes seront ignorées
+                        </AlertTitle>
+                        <AlertDescription className="space-y-2 mt-2">
+                          <p className="text-sm">
+                            Des données de ce fichier ne seront <strong>pas importées</strong> car les restaurants suivants ne sont pas reconnus dans votre base.
+                            Utilisez le mapping ci-dessous pour les associer, puis revalidez le fichier.
+                          </p>
+                        </AlertDescription>
+                      </Alert>
+                      <UnknownStoreMapping
+                        unknownStoreIds={validationResult.validation.unknownStoreIds}
+                        unknownStoreDetails={validationResult.validation.unknownStoreDetails}
+                        restaurants={allRestaurants}
+                        selectedRestaurantId={selectedRestaurantId}
+                        onMappingComplete={handleRevalidateAfterMapping}
+                      />
+                    </>
                   )}
 
                   {/* Skipped details */}
