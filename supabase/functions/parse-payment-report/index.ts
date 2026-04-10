@@ -264,7 +264,16 @@ interface RestaurantStats {
   orderCount: number;
 }
 
-const BATCH_SIZE = 200;
+const BATCH_SIZE = 100;
+
+// Sanitize error messages: replace raw HTML (e.g. Cloudflare 502 pages) with a readable message
+function sanitizeErrorMessage(msg: string): string {
+  if (!msg) return 'Unknown error';
+  if (msg.includes('<!DOCTYPE') || msg.includes('<html') || msg.includes('Bad gateway')) {
+    return 'Erreur serveur temporaire (502) - le serveur était surchargé';
+  }
+  return msg;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -939,17 +948,38 @@ Deno.serve(async (req) => {
       for (let i = 0; i < deduplicatedOrders.length; i += BATCH_SIZE) {
         const batch = deduplicatedOrders.slice(i, i + BATCH_SIZE);
         
-        const { error: upsertError, count } = await supabase
+        let upsertError: any = null;
+        
+        const { error: firstError } = await supabase
           .from('orders')
           .upsert(batch, { 
             onConflict: 'uber_order_id,uber_flow_id',
             ignoreDuplicates: false 
           });
 
+        upsertError = firstError;
+
+        // Retry once on transient 502/network errors
         if (upsertError) {
-          console.error('Batch upsert error:', upsertError.message);
+          const errMsg = sanitizeErrorMessage(upsertError.message || '');
+          if (errMsg.includes('502') || errMsg.includes('surchargé')) {
+            console.warn(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: transient error, retrying in 2s...`);
+            await new Promise(r => setTimeout(r, 2000));
+            const { error: retryError } = await supabase
+              .from('orders')
+              .upsert(batch, { 
+                onConflict: 'uber_order_id,uber_flow_id',
+                ignoreDuplicates: false 
+              });
+            upsertError = retryError;
+          }
+        }
+
+        if (upsertError) {
+          const cleanMsg = sanitizeErrorMessage(upsertError.message);
+          console.error('Batch upsert error:', cleanMsg);
           errorCount += batch.length;
-          errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${upsertError.message}`);
+          errors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${cleanMsg}`);
         } else {
           // All in batch successful - assume half updates, half inserts as approximation
           insertedCount += Math.ceil(batch.length / 2);
@@ -963,7 +993,7 @@ Deno.serve(async (req) => {
         
         // Delay between batches to avoid saturating the database
         if (i + BATCH_SIZE < deduplicatedOrders.length) {
-          await new Promise(r => setTimeout(r, 150));
+          await new Promise(r => setTimeout(r, 300));
         }
       }
     }
@@ -1030,24 +1060,44 @@ Deno.serve(async (req) => {
       for (let i = 0; i < deduplicatedAdjustments.length; i += BATCH_SIZE) {
         const batch = deduplicatedAdjustments.slice(i, i + BATCH_SIZE);
         
-        const { error: adjError } = await supabase
+        let adjError: any = null;
+        
+        const { error: firstAdjError } = await supabase
           .from('payout_adjustments')
           .upsert(batch, {
             onConflict: 'payout_reference_id,description,uber_store_id',
             ignoreDuplicates: false,
           });
 
+        adjError = firstAdjError;
+
+        // Retry once on transient errors
         if (adjError) {
-          console.error('Adjustments upsert error:', adjError.message);
+          const errMsg = sanitizeErrorMessage(adjError.message || '');
+          if (errMsg.includes('502') || errMsg.includes('surchargé')) {
+            await new Promise(r => setTimeout(r, 2000));
+            const { error: retryAdjError } = await supabase
+              .from('payout_adjustments')
+              .upsert(batch, {
+                onConflict: 'payout_reference_id,description,uber_store_id',
+                ignoreDuplicates: false,
+              });
+            adjError = retryAdjError;
+          }
+        }
+
+        if (adjError) {
+          const cleanMsg = sanitizeErrorMessage(adjError.message);
+          console.error('Adjustments upsert error:', cleanMsg);
           adjustmentsErrors += batch.length;
-          errors.push(`Adjustments batch: ${adjError.message}`);
+          errors.push(`Adjustments batch: ${cleanMsg}`);
         } else {
           adjustmentsInserted += batch.length;
         }
         
         // Delay between batches
         if (i + BATCH_SIZE < deduplicatedAdjustments.length) {
-          await new Promise(r => setTimeout(r, 150));
+          await new Promise(r => setTimeout(r, 300));
         }
       }
       
