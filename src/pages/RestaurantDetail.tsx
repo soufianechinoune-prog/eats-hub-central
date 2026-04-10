@@ -714,6 +714,53 @@ const RestaurantDetail = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Transfer Dialog */}
+      <Dialog open={showTransferDialog} onOpenChange={setShowTransferDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Transférer les identifiants</DialogTitle>
+            <DialogDescription>
+              Transférez les identifiants Uber et alias de « {restaurant.name} » vers un autre restaurant actif. 
+              Utile quand un franchisé ferme sa société et en crée une nouvelle.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Label>Restaurant cible</Label>
+            <Select value={transferTargetId} onValueChange={setTransferTargetId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner le restaurant cible..." />
+              </SelectTrigger>
+              <SelectContent>
+                {activeRestaurants.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name} — {r.city}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {uberIds.length > 0 && (
+              <div className="text-sm text-muted-foreground">
+                <p className="font-medium mb-1">Identifiants à transférer :</p>
+                {uberIds.map((uid) => (
+                  <code key={uid.id} className="block text-xs bg-muted px-2 py-1 rounded mb-1 font-mono">
+                    {uid.uber_store_id} {uid.is_primary ? "(actuel)" : "(ancien)"}
+                  </code>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowTransferDialog(false)}>Annuler</Button>
+            <Button
+              onClick={() => transferMutation.mutate(transferTargetId)}
+              disabled={!transferTargetId || transferMutation.isPending}
+            >
+              {transferMutation.isPending ? "Transfert..." : "Transférer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
