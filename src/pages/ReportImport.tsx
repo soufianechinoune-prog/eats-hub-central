@@ -1343,6 +1343,7 @@ export default function ReportImport() {
             skippedDetails: [],
           },
           errorDetails,
+          ...(aggregatedOrphanInfo ? { orphanInfo: aggregatedOrphanInfo } : {}),
         };
         
         setChunkProgress({
