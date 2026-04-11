@@ -1,52 +1,40 @@
 
+Objectif
 
-# Fix : Prépa Initial trop lent a charger
+- En vue annuelle, ne plus afficher les mois futurs vides.
+- Le graphique doit s’arrêter à la dernière date réellement disponible dans les données importées pour la sélection active.
 
-## Probleme
+Plan de correction
 
-`PrepTimeAnalytics` telecharge **toutes les commandes individuelles** de `order_history` (10 000+ lignes pour 1 mois x 101 restaurants) page par page (1000 a la fois) pour calculer des moyennes quotidiennes/mensuelles cote client. C'est la meme architecture lente que le graphique de rentabilite qu'on vient de corriger.
+1. `src/components/analytics/PrepTimeAnalytics.tsx`
+- Calculer une `lastAvailableDate` à partir de `dailyRows` (max de `day`) après filtres restaurant / plateforme / période.
+- En mode année, ne plus générer 12 mois fixes jusqu’en décembre.
+- Générer uniquement les points du graphique entre le 1er janvier et le mois contenant `lastAvailableDate`.
+- Conserver le drill-down actuel : en cliquant sur le dernier mois partiel, la vue mensuelle continuera naturellement jusqu’au dernier jour importé.
 
-## Solution
+2. Navigation
+- Empêcher la navigation “suivant” vers un mois ou un jour postérieur à la dernière date disponible.
+- Garder la navigation arrière inchangée.
 
-Creer une RPC SQL `get_prep_time_daily` qui fait l'agregation directement en base, et l'utiliser dans `PrepTimeAnalytics` a la place du fetch individuel.
+3. Cohérence sur les autres onglets Opérations
+- Appliquer le même correctif à `src/components/analytics/WaitTimeAnalytics.tsx`
+- Appliquer le même correctif à `src/components/analytics/TotalDeliveryTimeAnalytics.tsx`
+- Ces composants ont aujourd’hui le même pattern : année = `31/12` + tableau de 12 mois fixes.
 
-## Modifications
+Détails techniques
 
-### 1. Migration SQL : nouvelle RPC `get_prep_time_daily`
+- Cause actuelle :
+  - `PrepTimeAnalytics.tsx` fixe la vue année au `31/12`
+  - `monthlyEvolution` construit toujours `Array.from({ length: 12 })`
+  - Résultat : l’axe affiche mai → décembre même sans données
+- Correction :
+  - Ajouter une borne d’affichage basée sur la dernière date présente dans les résultats déjà chargés
+  - Tronquer uniquement l’affichage, sans changer les RPC ni la base
+  - Si aucune donnée n’existe, conserver l’état vide actuel
 
-```sql
-CREATE FUNCTION get_prep_time_daily(
-  p_restaurant_ids uuid[],
-  p_start_date date,
-  p_end_date date,
-  p_platform text DEFAULT NULL
-)
-RETURNS TABLE(
-  restaurant_id uuid,
-  day date,
-  hour integer,        -- NULL pour l'agregat journalier, 0-23 pour le detail horaire
-  avg_prep_time numeric,
-  min_prep_time numeric,
-  max_prep_time numeric,
-  order_count bigint
-)
-```
+Résultat attendu
 
-La RPC retourne :
-- Agregats par jour et restaurant (hour = NULL) pour les graphiques quotidiens/mensuels
-- Agregats par jour+heure et restaurant (hour = 0-23) pour le drill-down journalier
-- KPIs globaux calculables par simple SUM/AVG sur le resultat
-
-### 2. `src/components/analytics/PrepTimeAnalytics.tsx`
-
-- Remplacer le `useQuery` qui pagine `order_history` par un appel a `supabase.rpc('get_prep_time_daily', ...)`
-- La RPC retourne ~30-400 lignes (vs 10 000+) — chargement instantane
-- Adapter les `useMemo` (kpis, monthlyEvolution, dailyEvolution, hourlyEvolution) pour consommer le format RPC au lieu des commandes individuelles
-- Garder le meme rendu visuel (graphiques, KPIs, classement)
-
-### 3. Performances attendues
-
-- Chargement passe de ~5-15 secondes a < 1 seconde
-- Plus de pagination client (while loop avec 10+ requetes)
-- Le filtre restaurant/platform est applique cote serveur
-
+- Si les imports vont jusqu’au 11/04, la vue annuelle s’arrête à avril
+- Plus de mois futurs vides sur le graphique
+- Le détail mensuel s’arrête bien au dernier jour importé
+- Même comportement sur Prépa initial, Attente coursier et Temps de prépa total
