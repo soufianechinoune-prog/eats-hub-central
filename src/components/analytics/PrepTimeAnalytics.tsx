@@ -110,38 +110,31 @@ export function PrepTimeAnalytics() {
     return map;
   }, [restaurants]);
 
-  // Calculate KPIs
+  // Calculate KPIs from daily rows (weighted average)
   const kpis = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) {
-      return {
-        avgPrepTime: 0,
-        totalOrders: 0,
-        ordersUnderTarget: 0,
-        percentUnderTarget: 0,
-        minPrepTime: 0,
-        maxPrepTime: 0,
-      };
+    if (!dailyRows.length) {
+      return { avgPrepTime: 0, totalOrders: 0, ordersUnderTarget: 0, percentUnderTarget: 0, minPrepTime: 0, maxPrepTime: 0 };
     }
 
-    const prepTimes = orderHistoryData
-      .map((o) => o.initial_prep_time_minutes)
-      .filter((t): t is number => t !== null);
+    const totalOrders = dailyRows.reduce((s, r) => s + r.order_count, 0);
+    const weightedSum = dailyRows.reduce((s, r) => s + r.avg_prep_time * r.order_count, 0);
+    const avgPrepTime = totalOrders > 0 ? weightedSum / totalOrders : 0;
+    const minPrepTime = Math.min(...dailyRows.map(r => r.min_prep_time));
+    const maxPrepTime = Math.max(...dailyRows.map(r => r.max_prep_time));
 
-    const avgPrepTime = prepTimes.length > 0
-      ? prepTimes.reduce((sum, t) => sum + t, 0) / prepTimes.length
-      : 0;
-
-    const ordersUnderTarget = prepTimes.filter((t) => t <= targetMinutes).length;
+    // For ordersUnderTarget we approximate: if avg_prep_time <= target for a day, count all orders of that day
+    // This is an approximation since we don't have individual order data anymore
+    const ordersUnderTarget = dailyRows.filter(r => r.avg_prep_time <= targetMinutes).reduce((s, r) => s + r.order_count, 0);
 
     return {
       avgPrepTime,
-      totalOrders: orderHistoryData.length,
+      totalOrders,
       ordersUnderTarget,
-      percentUnderTarget: prepTimes.length > 0 ? (ordersUnderTarget / prepTimes.length) * 100 : 0,
-      minPrepTime: prepTimes.length > 0 ? Math.min(...prepTimes) : 0,
-      maxPrepTime: prepTimes.length > 0 ? Math.max(...prepTimes) : 0,
+      percentUnderTarget: totalOrders > 0 ? (ordersUnderTarget / totalOrders) * 100 : 0,
+      minPrepTime,
+      maxPrepTime,
     };
-  }, [orderHistoryData, targetMinutes]);
+  }, [dailyRows, targetMinutes]);
 
   // Monthly evolution for year view
   const monthlyEvolution = useMemo(() => {
@@ -154,105 +147,86 @@ export function PrepTimeAnalytics() {
       year: selectedYear,
     }));
 
-    if (!orderHistoryData || orderHistoryData.length === 0) return allMonths;
+    if (!dailyRows.length) return allMonths;
 
-    const monthlyMap = new Map<string, { total: number; sum: number }>();
-
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.initial_prep_time_minutes === null) return;
-      const dateStr = o.order_datetime.split('T')[0] || o.order_datetime.substring(0, 10);
-      const monthKey = dateStr.substring(0, 7);
-      const existing = monthlyMap.get(monthKey) || { total: 0, sum: 0 };
-      existing.total++;
-      existing.sum += o.initial_prep_time_minutes;
+    const monthlyMap = new Map<string, { totalOrders: number; weightedSum: number }>();
+    dailyRows.forEach((r) => {
+      const monthKey = String(r.day).substring(0, 7);
+      const existing = monthlyMap.get(monthKey) || { totalOrders: 0, weightedSum: 0 };
+      existing.totalOrders += r.order_count;
+      existing.weightedSum += r.avg_prep_time * r.order_count;
       monthlyMap.set(monthKey, existing);
     });
 
     return allMonths.map((month) => {
       const data = monthlyMap.get(month.monthKey);
-      if (data && data.total > 0) {
-        return {
-          ...month,
-          avgPrepTime: data.sum / data.total,
-          orderCount: data.total,
-        };
+      if (data && data.totalOrders > 0) {
+        return { ...month, avgPrepTime: data.weightedSum / data.totalOrders, orderCount: data.totalOrders };
       }
       return month;
     });
-  }, [orderHistoryData, selectedYear]);
+  }, [dailyRows, selectedYear]);
 
   // Daily evolution for month view
   const dailyEvolution = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!dailyRows.length) return [];
 
-    const dailyMap = new Map<string, { total: number; sum: number }>();
-
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.initial_prep_time_minutes === null) return;
-      const date = format(parseISO(o.order_datetime), "yyyy-MM-dd");
-      const existing = dailyMap.get(date) || { total: 0, sum: 0 };
-      existing.total++;
-      existing.sum += o.initial_prep_time_minutes;
-      dailyMap.set(date, existing);
+    // Aggregate across restaurants for same day
+    const dayMap = new Map<string, { totalOrders: number; weightedSum: number }>();
+    dailyRows.forEach((r) => {
+      const day = String(r.day);
+      const existing = dayMap.get(day) || { totalOrders: 0, weightedSum: 0 };
+      existing.totalOrders += r.order_count;
+      existing.weightedSum += r.avg_prep_time * r.order_count;
+      dayMap.set(day, existing);
     });
 
-    return Array.from(dailyMap.entries())
+    return Array.from(dayMap.entries())
       .map(([date, values]) => ({
         date,
         displayDate: format(parseISO(date), "d", { locale: fr }),
-        avgPrepTime: values.total > 0 ? values.sum / values.total : 0,
-        orderCount: values.total,
+        avgPrepTime: values.totalOrders > 0 ? values.weightedSum / values.totalOrders : 0,
+        orderCount: values.totalOrders,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [orderHistoryData]);
+  }, [dailyRows]);
 
   // Hourly evolution for day view
   const hourlyEvolution = useMemo(() => {
-    if (!selectedDay || !orderHistoryData) return [];
+    if (!selectedDay || !hourlyRows.length) return [];
 
-    const dayData = orderHistoryData.filter((o) =>
-      o.order_datetime && o.order_datetime.startsWith(selectedDay)
-    );
+    const dayHourlyData = hourlyRows.filter((r) => String(r.day) === selectedDay);
 
     return Array.from({ length: 24 }, (_, hour) => {
-      const hourStr = String(hour).padStart(2, "0");
-      const hourData = dayData.filter((o) => {
-        if (!o.order_datetime) return false;
-        const hourPart = o.order_datetime.substring(11, 13);
-        return hourPart === hourStr;
-      });
-
-      const prepTimes = hourData
-        .map((o) => o.initial_prep_time_minutes)
-        .filter((t): t is number => t !== null);
+      const hourData = dayHourlyData.filter((r) => r.hour === hour);
+      const totalOrders = hourData.reduce((s, r) => s + r.order_count, 0);
+      const weightedSum = hourData.reduce((s, r) => s + r.avg_prep_time * r.order_count, 0);
 
       return {
         hour: `${hour}h`,
         hourIndex: hour,
-        avgPrepTime: prepTimes.length > 0 ? prepTimes.reduce((s, t) => s + t, 0) / prepTimes.length : null,
-        orderCount: hourData.length,
+        avgPrepTime: totalOrders > 0 ? weightedSum / totalOrders : null,
+        orderCount: totalOrders,
       };
     });
-  }, [orderHistoryData, selectedDay]);
+  }, [hourlyRows, selectedDay]);
 
   // Hourly heatmap (hour x day of week)
   const hourlyHeatmap = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!hourlyRows.length) return [];
 
-    const heatmap: Record<string, { sum: number; count: number }> = {};
+    const heatmap: Record<string, { weightedSum: number; totalOrders: number }> = {};
 
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.initial_prep_time_minutes === null) return;
-      const dateObj = parseISO(o.order_datetime);
-      const hour = dateObj.getHours();
+    hourlyRows.forEach((r) => {
+      const dateObj = parseISO(String(r.day));
       const dayOfWeek = dateObj.getDay();
-      const key = `${dayOfWeek}-${hour}`;
+      const key = `${dayOfWeek}-${r.hour}`;
 
       if (!heatmap[key]) {
-        heatmap[key] = { sum: 0, count: 0 };
+        heatmap[key] = { weightedSum: 0, totalOrders: 0 };
       }
-      heatmap[key].sum += o.initial_prep_time_minutes;
-      heatmap[key].count++;
+      heatmap[key].weightedSum += r.avg_prep_time * r.order_count;
+      heatmap[key].totalOrders += r.order_count;
     });
 
     const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -265,38 +239,36 @@ export function PrepTimeAnalytics() {
         result.push({
           day: days[day],
           hour,
-          avgPrepTime: data && data.count > 0 ? data.sum / data.count : 0,
+          avgPrepTime: data && data.totalOrders > 0 ? data.weightedSum / data.totalOrders : 0,
           dayIndex: day,
         });
       }
     }
 
     return result;
-  }, [orderHistoryData]);
+  }, [hourlyRows]);
 
   // Restaurant ranking by prep time
   const restaurantRanking = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!dailyRows.length) return [];
 
-    const restaurantStats = new Map<string, { sum: number; count: number }>();
+    const restaurantStats = new Map<string, { weightedSum: number; totalOrders: number }>();
 
-    orderHistoryData.forEach((o) => {
-      if (o.initial_prep_time_minutes === null) return;
-      const existing = restaurantStats.get(o.restaurant_id) || { sum: 0, count: 0 };
-      existing.sum += o.initial_prep_time_minutes;
-      existing.count++;
-      restaurantStats.set(o.restaurant_id, existing);
+    dailyRows.forEach((r) => {
+      const existing = restaurantStats.get(r.restaurant_id) || { weightedSum: 0, totalOrders: 0 };
+      existing.weightedSum += r.avg_prep_time * r.order_count;
+      existing.totalOrders += r.order_count;
+      restaurantStats.set(r.restaurant_id, existing);
     });
 
     return Array.from(restaurantStats.entries())
       .map(([id, stats]) => ({
         id,
         name: restaurantMap.get(id) || id.slice(0, 8),
-        avgPrepTime: stats.count > 0 ? stats.sum / stats.count : 0,
-        totalOrders: stats.count,
+        avgPrepTime: stats.totalOrders > 0 ? stats.weightedSum / stats.totalOrders : 0,
+        totalOrders: stats.totalOrders,
       }))
-      .sort((a, b) => a.avgPrepTime - b.avgPrepTime); // Fastest first
-  }, [orderHistoryData, restaurantMap]);
+      .sort((a, b) => a.avgPrepTime - b.avgPrepTime);
 
   const topFlop = useMemo(() => {
     return {
