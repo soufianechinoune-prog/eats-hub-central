@@ -516,7 +516,6 @@ interface UseFinancesDrilldownParams {
   granularity: DrilldownGranularity;
   enabled?: boolean;
   orderSearchQuery?: string;
-  orderLimit?: number;
   orderSortField?: OrderSortField;
   orderSortDirection?: SortDirection;
   platform?: "uber_eats" | "deliveroo" | "global";
@@ -530,7 +529,6 @@ export function useFinancesDrilldown({
   granularity,
   enabled = true,
   orderSearchQuery = "",
-  orderLimit = 50,
   orderSortField = "order_datetime",
   orderSortDirection = "desc",
   platform = "uber_eats",
