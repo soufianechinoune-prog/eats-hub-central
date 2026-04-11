@@ -190,7 +190,7 @@ async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, sta
   return Object.values(grouped);
 }
 
-export type OrderSortField = "order_datetime" | "sales_incl_vat" | "profitability" | "uber_fee" | "promo" | "refund" | "net_payout" | "meal_voucher" | "total_payout";
+export type OrderSortField = "order_datetime" | "sales_excl_vat" | "sales_incl_vat" | "profitability" | "uber_fee" | "promo" | "refund" | "net_payout" | "meal_voucher" | "total_payout";
 export type SortDirection = "asc" | "desc";
 
 // Helper: fetch Uber individual orders (extracted from old inline code)
@@ -200,6 +200,7 @@ async function fetchUberIndividualOrders(
 ) {
   const sortColumnMap: Record<OrderSortField, string> = {
     order_datetime: "order_datetime",
+    sales_excl_vat: "sales_excl_vat",
     sales_incl_vat: "sales_incl_vat",
     profitability: "sales_incl_vat",
     uber_fee: "uber_fee_after_promo_incl_vat",
@@ -254,7 +255,7 @@ async function fetchUberIndividualOrders(
 
   let query = supabase
     .from("orders")
-    .select(`id, uber_order_id, order_datetime, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount`)
+    .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount`)
     .gte("order_datetime", `${startStr}T00:00:00`)
     .lte("order_datetime", `${endStr}T23:59:59`)
     .order(dbSortColumn, { ascending: isAscending })
@@ -488,6 +489,8 @@ export interface OrderFinanceData {
   id: string;
   uber_order_id: string;
   order_datetime: string;
+  sales_excl_vat: number;
+  vat_amount: number;
   sales_incl_vat: number;
   uber_fee_incl_vat: number;
   promo_incl_vat: number;
@@ -908,6 +911,8 @@ export function useFinancesDrilldown({
     if (granularity !== "order" || !individualOrdersData?.orders?.length) return [];
 
     return individualOrdersData.orders.map(order => {
+      const salesExclVat = Math.abs(Number(order.sales_excl_vat) || 0);
+      const vatAmount = Math.abs((Number(order.vat_1_sales) || 0) + (Number(order.vat_2_sales) || 0) + (Number(order.vat_3_sales) || 0));
       const salesInclVat = Math.abs(Number(order.sales_incl_vat) || 0);
       const uberFeeInclVat = Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
       const promoInclVat = Math.abs(Number(order.item_promo_incl_vat) || 0);
@@ -921,6 +926,8 @@ export function useFinancesDrilldown({
         id: order.id,
         uber_order_id: order.uber_order_id,
         order_datetime: order.order_datetime,
+        sales_excl_vat: salesExclVat,
+        vat_amount: vatAmount,
         sales_incl_vat: salesInclVat,
         uber_fee_incl_vat: uberFeeInclVat,
         promo_incl_vat: promoInclVat,
