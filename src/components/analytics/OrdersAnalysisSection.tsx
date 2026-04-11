@@ -855,7 +855,7 @@ export function OrdersAnalysisSection({
                       className="pl-9"
                     />
                   </div>
-                  <Select value={fulfillmentFilter} onValueChange={(v) => setFulfillmentFilter(v as "all" | "delivery" | "pickup")}>
+                  <Select value={fulfillmentFilter} onValueChange={(v) => { setFulfillmentFilter(v as "all" | "delivery" | "pickup"); setOrderLimit(ORDER_PAGE_SIZE); }}>
                     <SelectTrigger className="w-[170px] h-9">
                       <SelectValue />
                     </SelectTrigger>
