@@ -255,7 +255,7 @@ async function fetchUberIndividualOrders(
 
   let query = supabase
     .from("orders")
-    .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount`)
+    .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type`)
     .gte("order_datetime", `${startStr}T00:00:00`)
     .lte("order_datetime", `${endStr}T23:59:59`)
     .order(dbSortColumn, { ascending: isAscending })
@@ -502,6 +502,7 @@ export interface OrderFinanceData {
   has_offer?: boolean;
   offer_note?: string;
   deliveroo_funding?: number;
+  fulfillment_type?: string | null;
 }
 
 
@@ -939,6 +940,7 @@ export function useFinancesDrilldown({
         has_offer: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 || Math.abs(Number((order as any).promotion_discount) || 0) > 0,
         offer_note: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : "",
         deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
+        fulfillment_type: (order as any).fulfillment_type || null,
       };
     });
   }, [individualOrdersData, granularity]);
