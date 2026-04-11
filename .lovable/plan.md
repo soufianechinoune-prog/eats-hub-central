@@ -1,39 +1,66 @@
 
 
-# Fix : CA HT/TVA à 0 et alignement des articles
+# Exploiter le type de commande (Livraison / Emporté) — design épuré
 
-## Diagnostic
+## Approche : 3 intégrations légères, zéro colonne supplémentaire
 
-### CA HT / TVA affichant 0,00 €
-J'ai vérifié la base de données : les données sont **correctement stockées**. Par exemple la commande `#86DA6` avec CA TTC = 12,40 € a bien `sales_excl_vat = 11,27` et `vat_2_sales = 1,13` en base.
+Le tableau "Par Commande" a déjà 13 colonnes. Ajouter une colonne "Type" alourdirait la lecture. Voici une approche plus élégante :
 
-Le code source actuel (fichiers modifiés dans le message précédent) est également correct — la requête Supabase inclut `sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales` et le useMemo les exploite.
+### 1. Icône discrète sur chaque ligne commande
 
-**Cause probable** : le build précédent n'est peut-être pas encore complètement déployé. Pour sécuriser, je vais retirer les `(order as any)` inutiles et m'assurer que les types sont correctement exploités.
+À côté du numéro de commande (là où se trouve déjà le badge "Offre"), ajouter une petite icône :
+- 🚴 `Truck` icon (bleu) pour Livraison
+- 🛍️ `ShoppingBag` icon (violet) pour Emporté
 
-### Alignement des articles
-Le `OrderItemsDropdown` rend une `<table>` imbriquée dans un `<td colSpan={13}>`. Les largeurs de colonnes de la table interne ne correspondent pas à celles de la table parente — d'où les montants qui tombent sous les mauvaises colonnes (sous "Commission" et "Vers. Total" au lieu de "CA HT", "TVA", "CA TTC").
+Avec un tooltip au survol qui affiche le type complet. Pas de texte, juste l'icône — ça ne prend aucune place.
 
-## Corrections
+### 2. Filtre toggle dans la barre de filtres existante
 
-### 1. `src/components/analytics/OrderItemsDropdown.tsx`
-- Supprimer la `<table>` interne
-- Retourner directement des `<TableRow>` qui s'intègrent dans la table parente
-- Chaque ligne article = une `<TableRow>` avec exactement les mêmes colonnes que le tableau parent :
-  - Cellule chevron (vide)
-  - Cellule nom : `{qty}x {item_title}` (colSpan=2, couvre N° Commande + Date)
-  - CA HT, TVA, CA TTC dans les 3 cellules correspondantes
-  - 7 cellules vides (Rentab, Commission, Promos, Remb, Vers Uber, Titre Resto, Vers Total)
+À côté du filtre "Avec offre" qui existe déjà, ajouter un `Select` compact :
+- "Tous types" (défaut)
+- "Livraison uniquement"
+- "Emporté uniquement"
 
-### 2. `src/components/analytics/OrdersAnalysisSection.tsx`
-- Remplacer le `<TableRow>` wrapper avec `colSpan={13}` par un rendu direct des lignes articles dans le `<TableBody>`
-- Passer à `OrderItemsDropdown` un mode "fragment" qui retourne des `<>` avec des `<TableRow>` directement
+Permet d'isoler un type sans surcharger le tableau.
 
-### 3. `src/hooks/useFinancesDrilldown.ts`
-- Retirer les `(order as any)` pour `sales_excl_vat`, `vat_1_sales`, `vat_2_sales`, `vat_3_sales` — ces champs existent dans les types générés
-- S'assurer que le type de retour de la requête est correctement inféré
+### 3. Mini KPI résumé au-dessus du tableau
 
-## Résultat attendu
-- Les montants CA HT / TVA / CA TTC s'affichent correctement pour chaque commande
-- Les lignes articles dépliées sont parfaitement alignées sous les colonnes correspondantes du tableau parent
+Dans la zone d'en-tête de l'onglet "Par Commande", afficher 2 petits badges :
+- `🚴 Livraison : 245 (78%) — 4 520 € CA TTC`
+- `🛍️ Emporté : 68 (22%) — 1 180 € CA TTC`
+
+Ça donne la répartition d'un coup d'œil sans toucher au tableau.
+
+## Fichiers modifiés
+
+### `src/hooks/useFinancesDrilldown.ts`
+- Ajouter `fulfillment_type` au `select` de `fetchUberIndividualOrders`
+- Ajouter le champ à l'interface `OrderFinanceData`
+- Exposer un `fulfillmentFilter` optionnel dans les paramètres du hook
+
+### `src/components/analytics/OrdersAnalysisSection.tsx`
+- **Ligne commande** (~966) : ajouter l'icône Truck/ShoppingBag à côté du `#order_id`
+- **Barre de filtres** (~810-840) : ajouter un `Select` "Type de commande"
+- **KPI résumé** (~845) : calculer et afficher la répartition Livraison/Emporté via un `useMemo` sur `filteredOrderData`
+
+### Mapping des valeurs
+- `fulfillment_type` contenant "Livraison" ou "Delivery" → icône Truck + label "Livraison"
+- `fulfillment_type` contenant "emporter" ou "Pickup" → icône ShoppingBag + label "Emporté"
+- `null` ou autre → pas d'icône
+
+## Résultat
+
+```text
+┌─────────────────────────────────────────────────┐
+│  🚴 Livraison: 245 (78%) — 4 520 €  │  🛍️ Emporté: 68 (22%) — 1 180 €  │
+├─────────────────────────────────────────────────┤
+│ Filtres: [Tous types ▾]  [☐ Avec offre]  245/313 commandes │
+├────┬──────────────────┬──────────┬───────┬──────┤
+│    │ N° Commande      │ Date     │ CA HT │ ...  │
+│ ▶  │ 🚴 #A1B2C3 Offre │ 01/04    │ 11,27 │ ...  │
+│ ▶  │ 🛍️ #D4E5F6       │ 01/04    │ 8,50  │ ...  │
+└────┴──────────────────┴──────────┴───────┴──────┘
+```
+
+Léger, informatif, sans ajouter de colonne.
 
