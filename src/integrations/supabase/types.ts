@@ -3849,6 +3849,24 @@ export type Database = {
         }
         Returns: Json
       }
+      get_total_delivery_time_daily: {
+        Args: {
+          p_end_date: string
+          p_mode?: string
+          p_platform?: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_time: number
+          day: string
+          hour: number
+          max_time: number
+          min_time: number
+          order_count: number
+          restaurant_id: string
+        }[]
+      }
       get_uber_one_stats: {
         Args: {
           p_end_date: string
@@ -3871,6 +3889,25 @@ export type Database = {
         }[]
       }
       get_user_role: { Args: never; Returns: string }
+      get_wait_time_daily: {
+        Args: {
+          p_end_date: string
+          p_mode?: string
+          p_platform?: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_avoidable_wait: number
+          avg_courier_wait: number
+          day: string
+          hour: number
+          orders_with_avoidable: number
+          orders_with_courier_wait: number
+          restaurant_id: string
+          total_orders: number
+        }[]
+      }
       get_yearly_payouts_detail: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
         Returns: {
