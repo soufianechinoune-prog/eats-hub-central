@@ -74,7 +74,8 @@ export function PrepTimeAnalytics() {
 
   const platformParam = selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo" ? selectedPlatform : null;
 
-  const { data: rpcData, isLoading } = useQuery({
+  // Daily aggregates (main view - small result set)
+  const { data: dailyRows = [], isLoading } = useQuery({
     queryKey: ["prep_time_daily_rpc", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
       if (selectedRestaurants.length === 0) return [];
@@ -83,15 +84,29 @@ export function PrepTimeAnalytics() {
         p_start_date: format(dateRange.start, "yyyy-MM-dd"),
         p_end_date: format(dateRange.end, "yyyy-MM-dd"),
         p_platform: platformParam,
-      });
+        p_mode: "daily",
+      } as any);
       if (error) throw error;
       return (data || []) as PrepTimeDailyRow[];
     },
   });
 
-  // Split RPC data into daily rows (hour IS NULL) and hourly rows
-  const dailyRows = useMemo(() => (rpcData || []).filter(r => r.hour === null), [rpcData]);
-  const hourlyRows = useMemo(() => (rpcData || []).filter(r => r.hour !== null), [rpcData]);
+  // Hourly aggregates (loaded separately for heatmap and day drill-down)
+  const { data: hourlyRows = [] } = useQuery({
+    queryKey: ["prep_time_hourly_rpc", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (selectedRestaurants.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_prep_time_daily", {
+        p_restaurant_ids: selectedRestaurants,
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_platform: platformParam,
+        p_mode: "hourly",
+      } as any);
+      if (error) throw error;
+      return (data || []) as PrepTimeDailyRow[];
+    },
+  });
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants_for_prep_time"],
