@@ -517,6 +517,7 @@ interface UseFinancesDrilldownParams {
   orderSortField?: OrderSortField;
   orderSortDirection?: SortDirection;
   platform?: "uber_eats" | "deliveroo" | "global";
+  fulfillmentFilter?: "all" | "delivery" | "pickup";
 }
 
 export function useFinancesDrilldown({
@@ -530,6 +531,7 @@ export function useFinancesDrilldown({
   orderSortField = "order_datetime",
   orderSortDirection = "desc",
   platform = "uber_eats",
+  fulfillmentFilter = "all",
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
