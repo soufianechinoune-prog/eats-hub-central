@@ -96,14 +96,10 @@ export function OrdersAnalysisSection({
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
   );
   
-  // Infinite scroll state for order tab
-  const ORDER_PAGE_SIZE = 50;
-  const [orderLimit, setOrderLimit] = useState(ORDER_PAGE_SIZE);
-  const [orderSearchQuery, setOrderSearchQuery] = useState(""); // Searches by order ID and item title
+  const [orderSearchQuery, setOrderSearchQuery] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showOffersOnly, setShowOffersOnly] = useState(false);
   const [fulfillmentFilter, setFulfillmentFilter] = useState<"all" | "delivery" | "pickup">("all");
-  const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Expanded orders state for dropdown
   const [expandedOrders, setExpandedOrders] = useState<Set<string>>(new Set());
