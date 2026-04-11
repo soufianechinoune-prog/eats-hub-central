@@ -30,11 +30,14 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-interface OrderHistoryData {
-  id: string;
+interface DeliveryTimeDailyRow {
   restaurant_id: string;
-  order_datetime: string | null;
-  total_prep_delivery_time_minutes: number | null;
+  day: string;
+  hour: number | null;
+  avg_time: number;
+  min_time: number;
+  max_time: number;
+  order_count: number;
 }
 
 export function TotalDeliveryTimeAnalytics() {
@@ -53,7 +56,6 @@ export function TotalDeliveryTimeAnalytics() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [targetMinutes, setTargetMinutes] = useState<number>(35);
 
-  // Calculate date range based on period mode
   const dateRange = useMemo(() => {
     if ((periodMode === "range" || periodMode === "7d" || periodMode === "30d" || periodMode === "previous_week") && contextDateRange?.from && contextDateRange?.to) {
       return { start: contextDateRange.from, end: contextDateRange.to };
@@ -68,59 +70,56 @@ export function TotalDeliveryTimeAnalytics() {
     return { start, end };
   }, [selectedYear, selectedMonth, periodMode, contextDateRange]);
 
-  const selectedRestaurantsKey = JSON.stringify(selectedRestaurants.slice().sort());
-
-  const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["order_history_total_delivery_times", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
-    queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: OrderHistoryData[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("order_history")
-          .select("id, restaurant_id, order_datetime, total_prep_delivery_time_minutes")
-          .gte("order_datetime", format(dateRange.start, "yyyy-MM-dd"))
-          .lte("order_datetime", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-          .not("total_prep_delivery_time_minutes", "is", null)
-          .order("order_datetime", { ascending: true })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (selectedRestaurants.length > 0) {
-          query = query.in("restaurant_id", selectedRestaurants);
-        }
-
-        if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
-          query = query.eq("platform", selectedPlatform);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      return allData as OrderHistoryData[];
-    },
-  });
+  const platformParam = selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo" ? selectedPlatform : null;
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants_for_total_delivery_time"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name");
+      const { data, error } = await supabase.from("restaurants").select("id, name");
       if (error) throw error;
       return data || [];
     },
+  });
+
+  const effectiveRestaurantIds = useMemo(
+    () => (selectedRestaurants.length > 0 ? selectedRestaurants : (restaurants || []).map((r) => r.id)),
+    [selectedRestaurants, restaurants]
+  );
+
+  const effectiveRestaurantsKey = JSON.stringify(effectiveRestaurantIds.slice().sort());
+
+  const { data: dailyRows = [], isLoading } = useQuery({
+    queryKey: ["total_delivery_daily_rpc", effectiveRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (effectiveRestaurantIds.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_total_delivery_time_daily", {
+        p_restaurant_ids: effectiveRestaurantIds,
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_platform: platformParam,
+        p_mode: "daily",
+      } as any);
+      if (error) throw error;
+      return (data || []) as DeliveryTimeDailyRow[];
+    },
+    enabled: effectiveRestaurantIds.length > 0,
+  });
+
+  const { data: hourlyRows = [] } = useQuery({
+    queryKey: ["total_delivery_hourly_rpc", effectiveRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+    queryFn: async () => {
+      if (effectiveRestaurantIds.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_total_delivery_time_daily", {
+        p_restaurant_ids: effectiveRestaurantIds,
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_platform: platformParam,
+        p_mode: "hourly",
+      } as any);
+      if (error) throw error;
+      return (data || []) as DeliveryTimeDailyRow[];
+    },
+    enabled: effectiveRestaurantIds.length > 0,
   });
 
   const restaurantMap = useMemo(() => {
@@ -129,53 +128,28 @@ export function TotalDeliveryTimeAnalytics() {
     return map;
   }, [restaurants]);
 
-  // Calculate KPIs
   const kpis = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) {
-      return {
-        avgTime: 0,
-        totalOrders: 0,
-        ordersUnderTarget: 0,
-        percentUnderTarget: 0,
-        minTime: 0,
-        maxTime: 0,
-      };
+    if (!dailyRows.length) {
+      return { avgTime: 0, totalOrders: 0, ordersUnderTarget: 0, percentUnderTarget: 0, minTime: 0, maxTime: 0 };
     }
 
-    const times = orderHistoryData
-      .map((o) => o.total_prep_delivery_time_minutes)
-      .filter((t): t is number => t !== null);
+    const totalOrders = dailyRows.reduce((s, r) => s + r.order_count, 0);
+    const weightedSum = dailyRows.reduce((s, r) => s + r.avg_time * r.order_count, 0);
+    const avgTime = totalOrders > 0 ? weightedSum / totalOrders : 0;
+    const minTime = Math.min(...dailyRows.map(r => r.min_time));
+    const maxTime = Math.max(...dailyRows.map(r => r.max_time));
 
-    const avgTime = times.length > 0
-      ? times.reduce((sum, t) => sum + t, 0) / times.length
-      : 0;
+    const ordersUnderTarget = dailyRows.filter(r => r.avg_time <= targetMinutes).reduce((s, r) => s + r.order_count, 0);
 
-    const ordersUnderTarget = times.filter((t) => t <= targetMinutes).length;
+    return { avgTime, totalOrders, ordersUnderTarget, percentUnderTarget: totalOrders > 0 ? (ordersUnderTarget / totalOrders) * 100 : 0, minTime, maxTime };
+  }, [dailyRows, targetMinutes]);
 
-    return {
-      avgTime,
-      totalOrders: orderHistoryData.length,
-      ordersUnderTarget,
-      percentUnderTarget: times.length > 0 ? (ordersUnderTarget / times.length) * 100 : 0,
-      minTime: times.length > 0 ? Math.min(...times) : 0,
-      maxTime: times.length > 0 ? Math.max(...times) : 0,
-    };
-  }, [orderHistoryData, targetMinutes]);
-
-  // Last available date from data
   const lastAvailableDate = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return null;
-    let maxDate = "";
-    orderHistoryData.forEach((o) => {
-      if (o.order_datetime) {
-        const d = o.order_datetime.substring(0, 10);
-        if (d > maxDate) maxDate = d;
-      }
-    });
-    return maxDate ? parseISO(maxDate) : null;
-  }, [orderHistoryData]);
+    if (!dailyRows.length) return null;
+    const maxDay = dailyRows.reduce((max, r) => (String(r.day) > max ? String(r.day) : max), "");
+    return maxDay ? parseISO(maxDay) : null;
+  }, [dailyRows]);
 
-  // Monthly evolution for year view
   const monthlyEvolution = useMemo(() => {
     const lastMonth = lastAvailableDate && periodMode === "year" ? lastAvailableDate.getMonth() + 1 : 12;
     const allMonths = Array.from({ length: lastMonth }, (_, i) => ({
@@ -187,105 +161,82 @@ export function TotalDeliveryTimeAnalytics() {
       year: selectedYear,
     }));
 
-    if (!orderHistoryData || orderHistoryData.length === 0) return allMonths;
+    if (!dailyRows.length) return allMonths;
 
-    const monthlyMap = new Map<string, { total: number; sum: number }>();
-
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.total_prep_delivery_time_minutes === null) return;
-      const dateStr = o.order_datetime.split('T')[0] || o.order_datetime.substring(0, 10);
-      const monthKey = dateStr.substring(0, 7);
-      const existing = monthlyMap.get(monthKey) || { total: 0, sum: 0 };
-      existing.total++;
-      existing.sum += o.total_prep_delivery_time_minutes;
+    const monthlyMap = new Map<string, { totalOrders: number; weightedSum: number }>();
+    dailyRows.forEach((r) => {
+      const monthKey = String(r.day).substring(0, 7);
+      const existing = monthlyMap.get(monthKey) || { totalOrders: 0, weightedSum: 0 };
+      existing.totalOrders += r.order_count;
+      existing.weightedSum += r.avg_time * r.order_count;
       monthlyMap.set(monthKey, existing);
     });
 
     return allMonths.map((month) => {
       const data = monthlyMap.get(month.monthKey);
-      if (data && data.total > 0) {
-        return {
-          ...month,
-          avgTime: data.sum / data.total,
-          orderCount: data.total,
-        };
+      if (data && data.totalOrders > 0) {
+        return { ...month, avgTime: data.weightedSum / data.totalOrders, orderCount: data.totalOrders };
       }
       return month;
     });
-  }, [orderHistoryData, selectedYear, lastAvailableDate, periodMode]);
+  }, [dailyRows, selectedYear, lastAvailableDate, periodMode]);
 
-  // Daily evolution for month view
   const dailyEvolution = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!dailyRows.length) return [];
 
-    const dailyMap = new Map<string, { total: number; sum: number }>();
-
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.total_prep_delivery_time_minutes === null) return;
-      const date = format(parseISO(o.order_datetime), "yyyy-MM-dd");
-      const existing = dailyMap.get(date) || { total: 0, sum: 0 };
-      existing.total++;
-      existing.sum += o.total_prep_delivery_time_minutes;
-      dailyMap.set(date, existing);
+    const dayMap = new Map<string, { totalOrders: number; weightedSum: number }>();
+    dailyRows.forEach((r) => {
+      const day = String(r.day);
+      const existing = dayMap.get(day) || { totalOrders: 0, weightedSum: 0 };
+      existing.totalOrders += r.order_count;
+      existing.weightedSum += r.avg_time * r.order_count;
+      dayMap.set(day, existing);
     });
 
-    return Array.from(dailyMap.entries())
+    return Array.from(dayMap.entries())
       .map(([date, values]) => ({
         date,
         displayDate: format(parseISO(date), "d", { locale: fr }),
-        avgTime: values.total > 0 ? values.sum / values.total : 0,
-        orderCount: values.total,
+        avgTime: values.totalOrders > 0 ? values.weightedSum / values.totalOrders : 0,
+        orderCount: values.totalOrders,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [orderHistoryData]);
+  }, [dailyRows]);
 
-  // Hourly evolution for day view
   const hourlyEvolution = useMemo(() => {
-    if (!selectedDay || !orderHistoryData) return [];
+    if (!selectedDay || !hourlyRows.length) return [];
 
-    const dayData = orderHistoryData.filter((o) =>
-      o.order_datetime && o.order_datetime.startsWith(selectedDay)
-    );
+    const dayHourlyData = hourlyRows.filter((r) => String(r.day) === selectedDay);
 
     return Array.from({ length: 24 }, (_, hour) => {
-      const hourStr = String(hour).padStart(2, "0");
-      const hourData = dayData.filter((o) => {
-        if (!o.order_datetime) return false;
-        const hourPart = o.order_datetime.substring(11, 13);
-        return hourPart === hourStr;
-      });
-
-      const times = hourData
-        .map((o) => o.total_prep_delivery_time_minutes)
-        .filter((t): t is number => t !== null);
+      const hourData = dayHourlyData.filter((r) => r.hour === hour);
+      const totalOrders = hourData.reduce((s, r) => s + r.order_count, 0);
+      const weightedSum = hourData.reduce((s, r) => s + r.avg_time * r.order_count, 0);
 
       return {
         hour: `${hour}h`,
         hourIndex: hour,
-        avgTime: times.length > 0 ? times.reduce((s, t) => s + t, 0) / times.length : null,
-        orderCount: hourData.length,
+        avgTime: totalOrders > 0 ? weightedSum / totalOrders : null,
+        orderCount: totalOrders,
       };
     });
-  }, [orderHistoryData, selectedDay]);
+  }, [hourlyRows, selectedDay]);
 
-  // Hourly heatmap (hour x day of week)
   const hourlyHeatmap = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!hourlyRows.length) return [];
 
-    const heatmap: Record<string, { sum: number; count: number }> = {};
+    const heatmap: Record<string, { weightedSum: number; totalOrders: number }> = {};
 
-    orderHistoryData.forEach((o) => {
-      if (!o.order_datetime || o.total_prep_delivery_time_minutes === null) return;
-      const dateObj = parseISO(o.order_datetime);
-      const hour = dateObj.getHours();
+    hourlyRows.forEach((r) => {
+      const dateObj = parseISO(String(r.day));
       const dayOfWeek = dateObj.getDay();
-      const key = `${dayOfWeek}-${hour}`;
+      const key = `${dayOfWeek}-${r.hour}`;
 
       if (!heatmap[key]) {
-        heatmap[key] = { sum: 0, count: 0 };
+        heatmap[key] = { weightedSum: 0, totalOrders: 0 };
       }
-      heatmap[key].sum += o.total_prep_delivery_time_minutes;
-      heatmap[key].count++;
+      heatmap[key].weightedSum += r.avg_time * r.order_count;
+      heatmap[key].totalOrders += r.order_count;
     });
 
     const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -298,38 +249,36 @@ export function TotalDeliveryTimeAnalytics() {
         result.push({
           day: days[day],
           hour,
-          avgTime: data && data.count > 0 ? data.sum / data.count : 0,
+          avgTime: data && data.totalOrders > 0 ? data.weightedSum / data.totalOrders : 0,
           dayIndex: day,
         });
       }
     }
 
     return result;
-  }, [orderHistoryData]);
+  }, [hourlyRows]);
 
-  // Restaurant ranking by total delivery time
   const restaurantRanking = useMemo(() => {
-    if (!orderHistoryData || orderHistoryData.length === 0) return [];
+    if (!dailyRows.length) return [];
 
-    const restaurantStats = new Map<string, { sum: number; count: number }>();
+    const restaurantStats = new Map<string, { weightedSum: number; totalOrders: number }>();
 
-    orderHistoryData.forEach((o) => {
-      if (o.total_prep_delivery_time_minutes === null) return;
-      const existing = restaurantStats.get(o.restaurant_id) || { sum: 0, count: 0 };
-      existing.sum += o.total_prep_delivery_time_minutes;
-      existing.count++;
-      restaurantStats.set(o.restaurant_id, existing);
+    dailyRows.forEach((r) => {
+      const existing = restaurantStats.get(r.restaurant_id) || { weightedSum: 0, totalOrders: 0 };
+      existing.totalOrders += r.order_count;
+      existing.weightedSum += r.avg_time * r.order_count;
+      restaurantStats.set(r.restaurant_id, existing);
     });
 
     return Array.from(restaurantStats.entries())
       .map(([id, stats]) => ({
         id,
         name: restaurantMap.get(id) || id.slice(0, 8),
-        avgTime: stats.count > 0 ? stats.sum / stats.count : 0,
-        totalOrders: stats.count,
+        avgTime: stats.totalOrders > 0 ? stats.weightedSum / stats.totalOrders : 0,
+        totalOrders: stats.totalOrders,
       }))
-      .sort((a, b) => a.avgTime - b.avgTime); // Fastest first
-  }, [orderHistoryData, restaurantMap]);
+      .sort((a, b) => a.avgTime - b.avgTime);
+  }, [dailyRows, restaurantMap]);
 
   const topFlop = useMemo(() => {
     return {
@@ -338,7 +287,6 @@ export function TotalDeliveryTimeAnalytics() {
     };
   }, [restaurantRanking]);
 
-  // Select data based on current view
   const isRangeMode = periodMode === "range" || periodMode === "7d" || periodMode === "30d" || periodMode === "previous_week";
   const chartData = selectedDay
     ? hourlyEvolution
@@ -346,11 +294,9 @@ export function TotalDeliveryTimeAnalytics() {
       ? dailyEvolution
       : monthlyEvolution;
 
-  // Navigation handlers
   const handleChartClick = (data: any) => {
     if (data?.activePayload?.[0]?.payload) {
       const payload = data.activePayload[0].payload;
-
       if (periodMode === "year" && payload.monthIndex) {
         setPeriodMode("month");
         setSelectedMonth(payload.monthIndex);
@@ -377,12 +323,8 @@ export function TotalDeliveryTimeAnalytics() {
   };
 
   const getChartTitle = () => {
-    if (selectedDay) {
-      return format(parseISO(selectedDay), "EEEE d MMMM yyyy", { locale: fr });
-    }
-    if (periodMode === "month") {
-      return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
-    }
+    if (selectedDay) return format(parseISO(selectedDay), "EEEE d MMMM yyyy", { locale: fr });
+    if (periodMode === "month") return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
     return "Évolution du temps total prépa+livraison";
   };
 
@@ -398,16 +340,16 @@ export function TotalDeliveryTimeAnalytics() {
   };
 
   const getTimeColor = (mins: number) => {
-    if (mins <= 25) return "hsl(var(--chart-2))"; // Green - Excellent
-    if (mins <= 35) return "hsl(var(--chart-4))"; // Amber - OK
-    return "hsl(var(--destructive))"; // Red - Slow
+    if (mins <= 25) return "hsl(var(--chart-2))";
+    if (mins <= 35) return "hsl(var(--chart-4))";
+    return "hsl(var(--destructive))";
   };
 
   const getBarColor = (value: number | null) => {
     if (value === null || value === 0) return "hsl(142, 76%, 36%)";
-    if (value <= targetMinutes) return "hsl(142, 76%, 36%)"; // Green - Under or at target
-    if (value <= targetMinutes * 1.2) return "hsl(38, 92%, 50%)"; // Amber - Slightly over
-    return "hsl(0, 84%, 50%)"; // Red - Over target
+    if (value <= targetMinutes) return "hsl(142, 76%, 36%)";
+    if (value <= targetMinutes * 1.2) return "hsl(38, 92%, 50%)";
+    return "hsl(0, 84%, 50%)";
   };
 
   const getHeatmapColor = (mins: number) => {
@@ -422,6 +364,41 @@ export function TotalDeliveryTimeAnalytics() {
     return (
       <div className="flex justify-center items-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!dailyRows || dailyRows.length === 0) {
+    const openingCheck = checkRestaurantOpeningDate(
+      restaurants || [],
+      selectedRestaurants,
+      format(dateRange.end, "yyyy-MM-dd")
+    );
+
+    if (openingCheck.isBeforeOpening) {
+      return (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <Building2 className="h-12 w-12 text-blue-500 mb-4" />
+            <p className="text-lg font-medium mb-2">Point de vente récent</p>
+            <p className="text-muted-foreground text-center max-w-md">
+              Le restaurant <span className="font-semibold text-foreground">{openingCheck.cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
+              Les données ne sont disponibles qu'à partir de cette date.
+            </p>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="text-center py-20 space-y-4">
+        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+        <p className="text-lg text-muted-foreground">
+          Aucune donnée de temps prépa+livraison pour cette période.
+        </p>
+        <p className="text-sm text-muted-foreground">
+          Importez un fichier "Historique des commandes" depuis la page Import Rapports.
+        </p>
       </div>
     );
   }
