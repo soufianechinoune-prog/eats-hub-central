@@ -146,6 +146,7 @@ export function OrdersAnalysisSection({
     orderData,
     orderPagination,
     orderIdsWithItems,
+    fulfillmentStats,
     isLoading 
   } = useFinancesDrilldown({
     restaurantIds: queryRestaurantIds,
@@ -158,6 +159,7 @@ export function OrdersAnalysisSection({
     orderSortField,
     orderSortDirection: orderSortDir,
     platform,
+    fulfillmentFilter,
   });
   
   // Handle order sort toggle
