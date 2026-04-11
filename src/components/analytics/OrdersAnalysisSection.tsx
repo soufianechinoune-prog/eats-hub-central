@@ -362,27 +362,12 @@ export function OrdersAnalysisSection({
     return null;
   };
 
-  // Filter orders by offer status and fulfillment type
+  // Filter orders by offer status (fulfillment is now server-side)
   const filteredOrderData = useMemo(() => {
     let data = orderData;
     if (showOffersOnly) data = data.filter(o => o.has_offer);
-    if (fulfillmentFilter !== "all") {
-      data = data.filter(o => getFulfillmentType(o.fulfillment_type) === fulfillmentFilter);
-    }
     return data;
-  }, [orderData, showOffersOnly, fulfillmentFilter]);
-
-  // Fulfillment type stats
-  const fulfillmentStats = useMemo(() => {
-    if (!orderData.length) return null;
-    const delivery = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "delivery");
-    const pickup = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "pickup");
-    const total = orderData.length;
-    return {
-      delivery: { count: delivery.length, pct: total > 0 ? (delivery.length / total) * 100 : 0, revenue: delivery.reduce((s, o) => s + o.sales_incl_vat, 0) },
-      pickup: { count: pickup.length, pct: total > 0 ? (pickup.length / total) * 100 : 0, revenue: pickup.reduce((s, o) => s + o.sales_incl_vat, 0) },
-    };
-  }, [orderData]);
+  }, [orderData, showOffersOnly]);
 
   return (
     <Card>
