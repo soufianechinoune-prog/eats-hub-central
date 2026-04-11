@@ -1,66 +1,42 @@
 
 
-# Exploiter le type de commande (Livraison / Emporté) — design épuré
+# Fix : stats Livraison/Emporté sur la totalité des commandes
 
-## Approche : 3 intégrations légères, zéro colonne supplémentaire
+## Problème
 
-Le tableau "Par Commande" a déjà 13 colonnes. Ajouter une colonne "Type" alourdirait la lecture. Voici une approche plus élégante :
+Les badges KPI "Livraison : 198 (99%)" et "Emporté : 2 (1%)" sont calculés sur `orderData`, qui ne contient que les commandes chargées (200 sur 2783). Les chiffres sont donc faux et changent au fur et à mesure du scroll.
 
-### 1. Icône discrète sur chaque ligne commande
+## Solution
 
-À côté du numéro de commande (là où se trouve déjà le badge "Offre"), ajouter une petite icône :
-- 🚴 `Truck` icon (bleu) pour Livraison
-- 🛍️ `ShoppingBag` icon (violet) pour Emporté
+Créer une requête SQL dédiée qui calcule les stats de fulfillment sur **toutes** les commandes de la période, indépendamment de la pagination.
 
-Avec un tooltip au survol qui affiche le type complet. Pas de texte, juste l'icône — ça ne prend aucune place.
+## Modifications
 
-### 2. Filtre toggle dans la barre de filtres existante
+### 1. `src/hooks/useFinancesDrilldown.ts`
 
-À côté du filtre "Avec offre" qui existe déjà, ajouter un `Select` compact :
-- "Tous types" (défaut)
-- "Livraison uniquement"
-- "Emporté uniquement"
+Ajouter une **nouvelle query** `useQuery` dédiée aux stats fulfillment :
+- Requête : `SELECT fulfillment_type, COUNT(*), SUM(sales_incl_vat)` groupée par `fulfillment_type`, filtrée par dates/restaurants/platform
+- Retournée via un nouveau champ `fulfillmentStats` dans le retour du hook
+- `enabled` uniquement quand `granularity === "order"`
+- Pas de limit/pagination — c'est un agrégat léger
 
-Permet d'isoler un type sans surcharger le tableau.
+### 2. `src/components/analytics/OrdersAnalysisSection.tsx`
 
-### 3. Mini KPI résumé au-dessus du tableau
+- Supprimer le `useMemo` `fulfillmentStats` calculé côté client sur `orderData`
+- Utiliser directement le `fulfillmentStats` retourné par le hook (données complètes serveur)
+- Appliquer le filtre fulfillment **côté serveur** aussi : ajouter `fulfillmentFilter` comme paramètre du hook pour filtrer la requête principale des commandes
 
-Dans la zone d'en-tête de l'onglet "Par Commande", afficher 2 petits badges :
-- `🚴 Livraison : 245 (78%) — 4 520 € CA TTC`
-- `🛍️ Emporté : 68 (22%) — 1 180 € CA TTC`
+### 3. Filtre côté serveur
 
-Ça donne la répartition d'un coup d'œil sans toucher au tableau.
+Actuellement le filtre Livraison/Emporté est appliqué côté client dans `filteredOrderData`. Le déplacer côté serveur dans `fetchUberIndividualOrders` :
+- Si `fulfillmentFilter === "delivery"` → `.ilike("fulfillment_type", "%Livraison%")` ou `.ilike("fulfillment_type", "%Delivery%")`
+- Si `fulfillmentFilter === "pickup"` → `.ilike("fulfillment_type", "%emporter%")` ou `.ilike("fulfillment_type", "%Pickup%")`
 
-## Fichiers modifiés
-
-### `src/hooks/useFinancesDrilldown.ts`
-- Ajouter `fulfillment_type` au `select` de `fetchUberIndividualOrders`
-- Ajouter le champ à l'interface `OrderFinanceData`
-- Exposer un `fulfillmentFilter` optionnel dans les paramètres du hook
-
-### `src/components/analytics/OrdersAnalysisSection.tsx`
-- **Ligne commande** (~966) : ajouter l'icône Truck/ShoppingBag à côté du `#order_id`
-- **Barre de filtres** (~810-840) : ajouter un `Select` "Type de commande"
-- **KPI résumé** (~845) : calculer et afficher la répartition Livraison/Emporté via un `useMemo` sur `filteredOrderData`
-
-### Mapping des valeurs
-- `fulfillment_type` contenant "Livraison" ou "Delivery" → icône Truck + label "Livraison"
-- `fulfillment_type` contenant "emporter" ou "Pickup" → icône ShoppingBag + label "Emporté"
-- `null` ou autre → pas d'icône
+Cela garantit que la pagination (200 affichées / total) est correcte par rapport au filtre.
 
 ## Résultat
 
-```text
-┌─────────────────────────────────────────────────┐
-│  🚴 Livraison: 245 (78%) — 4 520 €  │  🛍️ Emporté: 68 (22%) — 1 180 €  │
-├─────────────────────────────────────────────────┤
-│ Filtres: [Tous types ▾]  [☐ Avec offre]  245/313 commandes │
-├────┬──────────────────┬──────────┬───────┬──────┤
-│    │ N° Commande      │ Date     │ CA HT │ ...  │
-│ ▶  │ 🚴 #A1B2C3 Offre │ 01/04    │ 11,27 │ ...  │
-│ ▶  │ 🛍️ #D4E5F6       │ 01/04    │ 8,50  │ ...  │
-└────┴──────────────────┴──────────┴───────┴──────┘
-```
-
-Léger, informatif, sans ajouter de colonne.
+- Les badges affichent les vrais totaux sur toutes les commandes de la période
+- Le filtre Livraison/Emporté fonctionne côté serveur — plus besoin de charger toute la data
+- Le compteur "X / Y commandes" reflète le filtre appliqué
 
