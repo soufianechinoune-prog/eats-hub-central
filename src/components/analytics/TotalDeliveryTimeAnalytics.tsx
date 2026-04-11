@@ -403,41 +403,6 @@ export function TotalDeliveryTimeAnalytics() {
     );
   }
 
-  if (!orderHistoryData || orderHistoryData.length === 0) {
-    const openingCheck = checkRestaurantOpeningDate(
-      restaurants || [],
-      selectedRestaurants,
-      format(dateRange.end, "yyyy-MM-dd")
-    );
-
-    if (openingCheck.isBeforeOpening) {
-      return (
-        <Card className="border-blue-500/30 bg-blue-500/5">
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <Building2 className="h-12 w-12 text-blue-500 mb-4" />
-            <p className="text-lg font-medium mb-2">Point de vente récent</p>
-            <p className="text-muted-foreground text-center max-w-md">
-              Le restaurant <span className="font-semibold text-foreground">{openingCheck.cityName}</span> a ouvert ses portes le <span className="font-semibold text-foreground">1er novembre 2025</span>. 
-              Les données ne sont disponibles qu'à partir de cette date.
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-
-    return (
-      <div className="text-center py-20 space-y-4">
-        <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
-        <p className="text-lg text-muted-foreground">
-          Aucune donnée de temps prépa+livraison pour cette période.
-        </p>
-        <p className="text-sm text-muted-foreground">
-          Importez un fichier "Historique des commandes" depuis la page Import Rapports.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
