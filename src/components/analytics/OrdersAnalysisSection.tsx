@@ -1033,11 +1033,7 @@ export function OrdersAnalysisSection({
                                 
                                 {/* Expanded row with items */}
                                 {platform !== "deliveroo" && expandedOrders.has(order.id) && (
-                                  <TableRow key={`${order.id}-items`} className="bg-muted/30">
-                                    <TableCell colSpan={13} className="p-0">
-                                      <OrderItemsDropdown orderId={order.id} />
-                                    </TableCell>
-                                  </TableRow>
+                                  <OrderItemsDropdown orderId={order.id} />
                                 )}
                               </>
                             ))}
