@@ -911,8 +911,8 @@ export function useFinancesDrilldown({
     if (granularity !== "order" || !individualOrdersData?.orders?.length) return [];
 
     return individualOrdersData.orders.map(order => {
-      const salesExclVat = Math.abs(Number(order.sales_excl_vat) || 0);
-      const vatAmount = Math.abs((Number(order.vat_1_sales) || 0) + (Number(order.vat_2_sales) || 0) + (Number(order.vat_3_sales) || 0));
+      const salesExclVat = Math.abs(Number((order as any).sales_excl_vat) || 0);
+      const vatAmount = Math.abs((Number((order as any).vat_1_sales) || 0) + (Number((order as any).vat_2_sales) || 0) + (Number((order as any).vat_3_sales) || 0));
       const salesInclVat = Math.abs(Number(order.sales_incl_vat) || 0);
       const uberFeeInclVat = Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
       const promoInclVat = Math.abs(Number(order.item_promo_incl_vat) || 0);
