@@ -269,6 +269,7 @@ export function PrepTimeAnalytics() {
         totalOrders: stats.totalOrders,
       }))
       .sort((a, b) => a.avgPrepTime - b.avgPrepTime);
+  }, [dailyRows, restaurantMap]);
 
   const topFlop = useMemo(() => {
     return {
