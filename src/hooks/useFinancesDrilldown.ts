@@ -196,7 +196,7 @@ export type SortDirection = "asc" | "desc";
 // Helper: fetch Uber individual orders (extracted from old inline code)
 async function fetchUberIndividualOrders(
   restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection,
+  searchQuery: string, sortField: OrderSortField, sortDirection: SortDirection,
   fulfillmentFilter: "all" | "delivery" | "pickup" = "all"
 ) {
   const sortColumnMap: Record<OrderSortField, string> = {
@@ -240,62 +240,63 @@ async function fetchUberIndividualOrders(
     }
   }
 
-  let countQuery = supabase
-    .from("orders").select("id", { count: "exact", head: true })
-    .gte("order_datetime", `${startStr}T00:00:00`)
-    .lte("order_datetime", `${endStr}T23:59:59`);
-  if (restaurantIds?.length) countQuery = countQuery.in("restaurant_id", restaurantIds);
-  if (searchQuery) {
-    if (orderIdsFromItemSearch?.length) {
-      countQuery = countQuery.or(`uber_order_id.ilike.%${searchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
+  // Fetch ALL orders with pagination (while loop)
+  const PAGE_SIZE = 1000;
+  const allOrders: any[] = [];
+  let from = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = supabase
+      .from("orders")
+      .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type`)
+      .gte("order_datetime", `${startStr}T00:00:00`)
+      .lte("order_datetime", `${endStr}T23:59:59`)
+      .order(dbSortColumn, { ascending: isAscending })
+      .range(from, from + PAGE_SIZE - 1);
+    if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
+    if (searchQuery) {
+      if (orderIdsFromItemSearch?.length) {
+        query = query.or(`uber_order_id.ilike.%${searchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
+      } else {
+        query = query.ilike("uber_order_id", `%${searchQuery}%`);
+      }
+    }
+    if (fulfillmentFilter === "delivery") {
+      query = query.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
+    } else if (fulfillmentFilter === "pickup") {
+      query = query.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
+    }
+    const { data, error } = await query;
+    if (error) throw error;
+    if (data) {
+      allOrders.push(...data);
+      hasMore = data.length === PAGE_SIZE;
+      from += PAGE_SIZE;
     } else {
-      countQuery = countQuery.ilike("uber_order_id", `%${searchQuery}%`);
+      hasMore = false;
     }
   }
-  // Apply fulfillment filter
-  if (fulfillmentFilter === "delivery") {
-    countQuery = countQuery.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
-  } else if (fulfillmentFilter === "pickup") {
-    countQuery = countQuery.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
-  }
-  const { count } = await countQuery;
 
-  let query = supabase
-    .from("orders")
-    .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type`)
-    .gte("order_datetime", `${startStr}T00:00:00`)
-    .lte("order_datetime", `${endStr}T23:59:59`)
-    .order(dbSortColumn, { ascending: isAscending })
-    .range(0, limit - 1);
-  if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
-  if (searchQuery) {
-    if (orderIdsFromItemSearch?.length) {
-      query = query.or(`uber_order_id.ilike.%${searchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
-    } else {
-      query = query.ilike("uber_order_id", `%${searchQuery}%`);
-    }
-  }
-  // Apply fulfillment filter to data query
-  if (fulfillmentFilter === "delivery") {
-    query = query.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
-  } else if (fulfillmentFilter === "pickup") {
-    query = query.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
-  }
-  const { data, error } = await query;
-  if (error) throw error;
-
-  const orderIds = data?.map(o => o.id) || [];
+  const orderIds = allOrders.map(o => o.id);
   let orderIdsWithItems: string[] = [];
   if (orderIds.length > 0) {
-    const { data: itemsData } = await supabase
-      .from("order_items").select("order_id").in("order_id", orderIds);
-    if (itemsData) orderIdsWithItems = [...new Set(itemsData.map(i => i.order_id))];
+    // Batch the orderIdsWithItems check too
+    const BATCH = 500;
+    const itemOrderIds = new Set<string>();
+    for (let i = 0; i < orderIds.length; i += BATCH) {
+      const batch = orderIds.slice(i, i + BATCH);
+      const { data: itemsData } = await supabase
+        .from("order_items").select("order_id").in("order_id", batch);
+      if (itemsData) itemsData.forEach(item => itemOrderIds.add(item.order_id));
+    }
+    orderIdsWithItems = [...itemOrderIds];
   }
 
   return {
-    orders: data || [],
-    totalCount: count || 0,
-    hasMore: (data?.length || 0) < (count || 0),
+    orders: allOrders,
+    totalCount: allOrders.length,
+    hasMore: false,
     orderIdsWithItems,
   };
 }
@@ -303,7 +304,7 @@ async function fetchUberIndividualOrders(
 // Helper: fetch Deliveroo individual orders grouped by deliveroo_order_id
 async function fetchDeliverooIndividualOrders(
   restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection
+  searchQuery: string, sortField: OrderSortField, sortDirection: SortDirection
 ) {
   const PAGE_SIZE = 1000;
   const allRows: any[] = [];
@@ -368,16 +369,13 @@ async function fetchDeliverooIndividualOrders(
     const ht = row.history_type;
     const note = row.note || "";
 
-    // Detect offer via "Contribution marketing" row
     if (ht === "Contribution marketing") {
       g.has_offer = true;
       g.deliveroo_funding += Math.abs(Number(row.total_payable) || 0);
     }
 
-    // Detect offer via note containing "Remise sur offre Marketer"
     if (note.includes("Remise sur offre Marketer")) {
       g.has_offer = true;
-      // Extract the offer note part (e.g. "Remise sur offre Marketer: 8,10")
       const match = note.match(/Remise sur offre Marketer[^,\n]*/);
       if (match && !g.offer_note) {
         g.offer_note = match[0].trim();
@@ -414,22 +412,17 @@ async function fetchDeliverooIndividualOrders(
     }
   });
 
-  // Filter out fake "#0" entries (non-order transactions like marketing fees, meal vouchers)
-  // Also filter orphaned meal voucher deductions (0€ CA with only negative adjustments)
   let orders = Object.values(grouped).filter(o => {
     if (o.uber_order_id === "0") return false;
-    // Remove phantom orders: 0€ revenue and only meal voucher content
     if (Math.abs(o.sales_incl_vat) < 0.01 && Math.abs(o.uber_fee_after_promo_incl_vat) < 0.01 && Math.abs(o.meal_voucher_amount) > 0) return false;
     return true;
   });
 
-  // Filter by search
   if (searchQuery) {
     const q = searchQuery.toLowerCase();
     orders = orders.filter(o => o.uber_order_id.toLowerCase().includes(q));
   }
 
-  // Sort
   const isAsc = sortDirection === "asc";
   orders.sort((a, b) => {
     let cmp = 0;
@@ -441,13 +434,10 @@ async function fetchDeliverooIndividualOrders(
     return isAsc ? cmp : -cmp;
   });
 
-  const totalCount = orders.length;
-  const limited = orders.slice(0, limit);
-
   return {
-    orders: limited,
-    totalCount,
-    hasMore: limited.length < totalCount,
+    orders,
+    totalCount: orders.length,
+    hasMore: false,
     orderIdsWithItems: [] as string[],
   };
 }
