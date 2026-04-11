@@ -16,7 +16,7 @@ export function OrderItemsDropdown({ orderId }: OrderItemsDropdownProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("item_title, quantity, sales_incl_vat")
+        .select("item_title, quantity, sales_excl_vat, unit_price, total_price")
         .eq("order_id", orderId);
       
       if (error) throw error;
