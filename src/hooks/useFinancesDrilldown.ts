@@ -275,6 +275,12 @@ async function fetchUberIndividualOrders(
       query = query.ilike("uber_order_id", `%${searchQuery}%`);
     }
   }
+  // Apply fulfillment filter to data query
+  if (fulfillmentFilter === "delivery") {
+    query = query.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
+  } else if (fulfillmentFilter === "pickup") {
+    query = query.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
+  }
   const { data, error } = await query;
   if (error) throw error;
 
