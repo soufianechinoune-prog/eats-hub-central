@@ -839,7 +839,25 @@ export function OrdersAnalysisSection({
               
               {/* Order Tab */}
               <TabsContent value="order" className="mt-0">
-                {/* Search field + offer filter */}
+                {/* Fulfillment KPI badges */}
+                {fulfillmentStats && (fulfillmentStats.delivery.count > 0 || fulfillmentStats.pickup.count > 0) && (
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <Truck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                        Livraison : {fulfillmentStats.delivery.count} ({fulfillmentStats.delivery.pct.toFixed(0)}%) — {formatCurrency(fulfillmentStats.delivery.revenue)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                      <ShoppingBag className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                      <span className="text-xs font-medium text-violet-700 dark:text-violet-300">
+                        Emporté : {fulfillmentStats.pickup.count} ({fulfillmentStats.pickup.pct.toFixed(0)}%) — {formatCurrency(fulfillmentStats.pickup.revenue)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search field + filters */}
                 <div className="flex items-center gap-4 mb-4">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -850,6 +868,20 @@ export function OrdersAnalysisSection({
                       className="pl-9"
                     />
                   </div>
+                  <Select value={fulfillmentFilter} onValueChange={(v) => setFulfillmentFilter(v as "all" | "delivery" | "pickup")}>
+                    <SelectTrigger className="w-[170px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous types</SelectItem>
+                      <SelectItem value="delivery">
+                        <span className="flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" /> Livraison</span>
+                      </SelectItem>
+                      <SelectItem value="pickup">
+                        <span className="flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5" /> Emporté</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   {platform === "deliveroo" && (
                     <div className="flex items-center gap-2">
                       <Switch
