@@ -1,38 +1,52 @@
 
-# Fix : graphique "Rentabilité globale" trop lent à charger
 
-## Problème
+# Fix : Prépa Initial trop lent a charger
 
-Le graphique appelle `useFinancesDrilldown({ granularity: 'daily' })` qui télécharge **toutes les commandes individuelles** (ex: 3000+ lignes pour 1 mois) puis les agrège côté client par date. Pour 2 restaurants sur 3 mois, ça peut représenter 5000-10000 requêtes paginées.
+## Probleme
 
-Or, il existe déjà une RPC `get_profitability_daily` qui fait exactement cette agrégation **côté serveur** en une seule requête SQL ultra-rapide (~100ms).
+`PrepTimeAnalytics` telecharge **toutes les commandes individuelles** de `order_history` (10 000+ lignes pour 1 mois x 101 restaurants) page par page (1000 a la fois) pour calculer des moyennes quotidiennes/mensuelles cote client. C'est la meme architecture lente que le graphique de rentabilite qu'on vient de corriger.
 
 ## Solution
 
-Remplacer l'appel `useFinancesDrilldown` dans `FinancesSection` par un appel direct à la RPC `get_profitability_daily`, qui retourne déjà les données agrégées par jour et par restaurant.
+Creer une RPC SQL `get_prep_time_daily` qui fait l'agregation directement en base, et l'utiliser dans `PrepTimeAnalytics` a la place du fetch individuel.
 
 ## Modifications
 
-### 1. `src/components/analytics/FinancesSection.tsx`
+### 1. Migration SQL : nouvelle RPC `get_prep_time_daily`
 
-- Remplacer l'appel `useFinancesDrilldown({ granularity: 'daily' })` par un `useQuery` appelant `supabase.rpc('get_profitability_daily', { ... })`
-- La RPC retourne : `restaurant_id, day, sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat`
-- Mapper ces champs vers le format `DailyFinanceData` attendu par `ProfitabilityComparisonChart`
-- Construire `dailyDataByRestaurant` à partir du même résultat (groupé par `restaurant_id`)
-- Supprimer l'import `useFinancesDrilldown` devenu inutile dans ce fichier
-
-### Mapping RPC → format chart
-
+```sql
+CREATE FUNCTION get_prep_time_daily(
+  p_restaurant_ids uuid[],
+  p_start_date date,
+  p_end_date date,
+  p_platform text DEFAULT NULL
+)
+RETURNS TABLE(
+  restaurant_id uuid,
+  day date,
+  hour integer,        -- NULL pour l'agregat journalier, 0-23 pour le detail horaire
+  avg_prep_time numeric,
+  min_prep_time numeric,
+  max_prep_time numeric,
+  order_count bigint
+)
 ```
-sales → sales_incl_vat
-net_payout → net_payout  
-meal_voucher → meal_voucher_amount
-orders_count → order_count
-item_promo_incl_vat → promo_incl_vat
-payout - net_payout → uber_fee_incl_vat (approximation)
-```
 
-## Résultat
+La RPC retourne :
+- Agregats par jour et restaurant (hour = NULL) pour les graphiques quotidiens/mensuels
+- Agregats par jour+heure et restaurant (hour = 0-23) pour le drill-down journalier
+- KPIs globaux calculables par simple SUM/AVG sur le resultat
 
-- Chargement du graphique en **< 1 seconde** au lieu de 10-30 secondes
-- Aucun impact sur les autres onglets (Par Jour, Par Commande, etc.) qui continuent d'utiliser `useFinancesDrilldown`
+### 2. `src/components/analytics/PrepTimeAnalytics.tsx`
+
+- Remplacer le `useQuery` qui pagine `order_history` par un appel a `supabase.rpc('get_prep_time_daily', ...)`
+- La RPC retourne ~30-400 lignes (vs 10 000+) — chargement instantane
+- Adapter les `useMemo` (kpis, monthlyEvolution, dailyEvolution, hourlyEvolution) pour consommer le format RPC au lieu des commandes individuelles
+- Garder le meme rendu visuel (graphiques, KPIs, classement)
+
+### 3. Performances attendues
+
+- Chargement passe de ~5-15 secondes a < 1 seconde
+- Plus de pagination client (while loop avec 10+ requetes)
+- Le filtre restaurant/platform est applique cote serveur
+
