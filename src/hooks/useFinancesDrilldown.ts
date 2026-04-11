@@ -1024,6 +1024,7 @@ export function useFinancesDrilldown({
       hasMore: individualOrdersData.hasMore,
     } : null,
     orderIdsWithItems: individualOrdersData?.orderIdsWithItems || [],
+    fulfillmentStats: fulfillmentStatsData || null,
     summary,
     isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
   };
