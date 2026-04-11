@@ -614,19 +614,18 @@ export function useFinancesDrilldown({
     enabled: enabled && granularity === "product",
   });
 
-  // Fetch individual orders for order breakdown with infinite scroll
+  // Fetch ALL individual orders (no pagination limit)
   const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
-    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, platform, fulfillmentFilter],
+    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, platform, fulfillmentFilter],
     queryFn: async () => {
       if (platform === "deliveroo") {
-        return fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection);
+        return fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection);
       }
       if (platform === "global") {
         const [uber, deliveroo] = await Promise.all([
-          fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, fulfillmentFilter),
-          fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection),
+          fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter),
+          fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection),
         ]);
-        // Merge, sort, and limit
         const merged = [...uber.orders, ...deliveroo.orders];
         const sortCol = orderSortField === "order_datetime" ? "order_datetime" : "sales_incl_vat";
         merged.sort((a: any, b: any) => {
@@ -635,15 +634,14 @@ export function useFinancesDrilldown({
           const cmp = va < vb ? -1 : va > vb ? 1 : 0;
           return orderSortDirection === "asc" ? cmp : -cmp;
         });
-        const limited = merged.slice(0, orderLimit);
         return {
-          orders: limited,
+          orders: merged,
           totalCount: uber.totalCount + deliveroo.totalCount,
-          hasMore: limited.length < uber.totalCount + deliveroo.totalCount,
+          hasMore: false,
           orderIdsWithItems: uber.orderIdsWithItems,
         };
       }
-      return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, fulfillmentFilter);
+      return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter);
     },
     enabled: enabled && granularity === "order",
   });
