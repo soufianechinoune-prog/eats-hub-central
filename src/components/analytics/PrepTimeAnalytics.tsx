@@ -29,11 +29,14 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-interface OrderHistoryData {
-  id: string;
+interface PrepTimeDailyRow {
   restaurant_id: string;
-  order_datetime: string | null;
-  initial_prep_time_minutes: number | null;
+  day: string;
+  hour: number | null;
+  avg_prep_time: number;
+  min_prep_time: number;
+  max_prep_time: number;
+  order_count: number;
 }
 
 export function PrepTimeAnalytics() {
@@ -69,47 +72,26 @@ export function PrepTimeAnalytics() {
 
   const selectedRestaurantsKey = JSON.stringify(selectedRestaurants.slice().sort());
 
-  const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["order_history_prep_times", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
+  const platformParam = selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo" ? selectedPlatform : null;
+
+  const { data: rpcData, isLoading } = useQuery({
+    queryKey: ["prep_time_daily_rpc", selectedRestaurantsKey, selectedPlatform, format(dateRange.start, "yyyy-MM-dd"), format(dateRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      let allData: OrderHistoryData[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
-          .from("order_history")
-          .select("id, restaurant_id, order_datetime, initial_prep_time_minutes")
-          .gte("order_datetime", format(dateRange.start, "yyyy-MM-dd"))
-          .lte("order_datetime", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-          .not("initial_prep_time_minutes", "is", null)
-          .order("order_datetime", { ascending: true })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-
-        if (selectedRestaurants.length > 0) {
-          query = query.in("restaurant_id", selectedRestaurants);
-        }
-
-        if (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") {
-          query = query.eq("platform", selectedPlatform);
-        }
-
-        const { data, error } = await query;
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      return allData as OrderHistoryData[];
+      if (selectedRestaurants.length === 0) return [];
+      const { data, error } = await supabase.rpc("get_prep_time_daily", {
+        p_restaurant_ids: selectedRestaurants,
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+        p_platform: platformParam,
+      });
+      if (error) throw error;
+      return (data || []) as PrepTimeDailyRow[];
     },
   });
+
+  // Split RPC data into daily rows (hour IS NULL) and hourly rows
+  const dailyRows = useMemo(() => (rpcData || []).filter(r => r.hour === null), [rpcData]);
+  const hourlyRows = useMemo(() => (rpcData || []).filter(r => r.hour !== null), [rpcData]);
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants_for_prep_time"],
