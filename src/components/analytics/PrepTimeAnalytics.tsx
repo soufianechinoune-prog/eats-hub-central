@@ -358,7 +358,7 @@ export function PrepTimeAnalytics() {
     );
   }
 
-  if (!orderHistoryData || orderHistoryData.length === 0) {
+  if (!dailyRows || dailyRows.length === 0) {
     const openingCheck = checkRestaurantOpeningDate(
       restaurants || [],
       selectedRestaurants,
