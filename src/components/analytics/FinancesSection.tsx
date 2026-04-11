@@ -7,7 +7,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
-import { useFinancesDrilldown } from "@/hooks/useFinancesDrilldown";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
 
 interface RestaurantAction {
   id: string;
@@ -20,21 +22,18 @@ interface RestaurantAction {
 }
 
 interface FinancesSectionProps {
-  dailyPayoutsData: any[]; // Uses actual payout data from the table
+  dailyPayoutsData: any[];
   advertisingData?: { payout_date: string; restaurant_id: string; amount: number }[];
   restaurants: { id: string; name: string; city?: string }[];
   selectedRestaurants: string[];
   startDate: Date;
   endDate: Date;
-  // Date ranges for chart
   dateRange?: { start: Date; end: Date };
   previousDateRange?: { start: Date; end: Date };
   profitabilityComparisonMode?: "yearOverYear" | "rollingPeriod";
   onProfitabilityComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   onMonthDrillDown?: (month: number | null) => void;
-  // Platform for actions filtering
   selectedPlatform?: "uber_eats" | "deliveroo" | "global";
-  // Action filtering props (aligned with Revenus & Ventes)
   showActions?: boolean;
   onShowActionsChange?: (value: boolean) => void;
   globalActions?: RestaurantAction[];
@@ -65,7 +64,6 @@ export function FinancesSection({
   onProfitabilityComparisonModeChange,
   onMonthDrillDown,
   selectedPlatform,
-  // Action props
   showActions = false,
   onShowActionsChange,
   globalActions = [],
@@ -84,24 +82,99 @@ export function FinancesSection({
 }: FinancesSectionProps) {
   const hasActions = globalActions.length > 0;
 
-  // Fetch daily data from orders table for the chart (same source as "Par Jour" table)
-  const { dailyData: chartDailyData, dailyDataByRestaurant, isLoading: isChartLoading } = useFinancesDrilldown({
-    restaurantIds: selectedRestaurants.length > 0 
+  const activeIds = useMemo(() => 
+    selectedRestaurants.length > 0 
       ? selectedRestaurants 
       : restaurants?.map(r => r.id) || [],
-    startDate,
-    endDate,
-    granularity: 'daily',
-    platform: selectedPlatform,
+    [selectedRestaurants, restaurants]
+  );
+
+  // Use RPC for fast server-side aggregation instead of fetching all individual orders
+  const { data: rpcData, isLoading: isChartLoading } = useQuery({
+    queryKey: ['profitability-daily-rpc', activeIds, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_profitability_daily', {
+        p_restaurant_ids: activeIds,
+        p_start_date: format(startDate, 'yyyy-MM-dd'),
+        p_end_date: format(endDate, 'yyyy-MM-dd'),
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: activeIds.length > 0,
   });
 
-  // Prepare restaurant details for the chart
+  // Map RPC data to DailyOrderData format for the chart
+  const { chartDailyData, dailyDataByRestaurant } = useMemo(() => {
+    if (!rpcData || rpcData.length === 0) return { chartDailyData: [], dailyDataByRestaurant: {} };
+
+    // Aggregate all restaurants per day for the main chart
+    const dayMap: Record<string, any> = {};
+    const byRestaurant: Record<string, any[]> = {};
+
+    for (const row of rpcData) {
+      const dateStr = row.day;
+      if (!dayMap[dateStr]) {
+        dayMap[dateStr] = {
+          date: dateStr,
+          label: dateStr,
+          sales_incl_vat: 0,
+          net_payout: 0,
+          meal_voucher_amount: 0,
+          promo_incl_vat: 0,
+          order_count: 0,
+          uber_fee_incl_vat: 0,
+          refund_incl_vat: 0,
+          avg_basket: 0,
+          total_payout: 0,
+        };
+      }
+      const d = dayMap[dateStr];
+      const sales = Number(row.sales) || 0;
+      const netPayout = Number(row.net_payout) || 0;
+      const payout = Number(row.payout) || 0;
+      const mealVoucher = Number(row.meal_voucher) || 0;
+      const promo = Number(row.item_promo_incl_vat) || 0;
+      const orders = Number(row.orders_count) || 0;
+
+      d.sales_incl_vat += sales;
+      d.net_payout += netPayout;
+      d.meal_voucher_amount += mealVoucher;
+      d.promo_incl_vat += promo;
+      d.order_count += orders;
+      d.uber_fee_incl_vat += (payout - netPayout);
+      d.total_payout += payout;
+
+      // Per-restaurant
+      const rid = row.restaurant_id;
+      if (!byRestaurant[rid]) byRestaurant[rid] = [];
+      byRestaurant[rid].push({
+        date: dateStr,
+        label: dateStr,
+        sales_incl_vat: sales,
+        net_payout: netPayout,
+        meal_voucher_amount: mealVoucher,
+        promo_incl_vat: promo,
+        order_count: orders,
+        uber_fee_incl_vat: payout - netPayout,
+        refund_incl_vat: 0,
+        avg_basket: orders > 0 ? sales / orders : 0,
+        total_payout: payout,
+        restaurant_id: rid,
+      });
+    }
+
+    const dailyData = Object.values(dayMap).map((d: any) => ({
+      ...d,
+      avg_basket: d.order_count > 0 ? d.sales_incl_vat / d.order_count : 0,
+    })).sort((a: any, b: any) => a.date.localeCompare(b.date));
+
+    return { chartDailyData: dailyData, dailyDataByRestaurant: byRestaurant };
+  }, [rpcData]);
+
   const chartRestaurantDetails = useMemo(() => {
-    const activeIds = selectedRestaurants.length > 0 
-      ? selectedRestaurants 
-      : restaurants?.map(r => r.id) || [];
     return restaurants?.filter(r => activeIds.includes(r.id)) || [];
-  }, [restaurants, selectedRestaurants]);
+  }, [restaurants, activeIds]);
 
   return (
     <div className="space-y-6">
