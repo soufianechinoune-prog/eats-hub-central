@@ -43,6 +43,8 @@ import {
   Receipt,
   Search,
   Tag,
+  Truck,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancesDrilldown, type DrilldownGranularity, type OrderSortField, type SortDirection as OrderSortDirection } from "@/hooks/useFinancesDrilldown";
@@ -100,6 +102,7 @@ export function OrdersAnalysisSection({
   const [orderSearchQuery, setOrderSearchQuery] = useState(""); // Searches by order ID and item title
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showOffersOnly, setShowOffersOnly] = useState(false);
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<"all" | "delivery" | "pickup">("all");
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Expanded orders state for dropdown
@@ -348,11 +351,36 @@ export function OrdersAnalysisSection({
     };
   }, [productData]);
 
-  // Filter orders by offer status
+  // Helper to detect fulfillment type
+  const getFulfillmentType = (ft: string | null | undefined): "delivery" | "pickup" | null => {
+    if (!ft) return null;
+    const lower = ft.toLowerCase();
+    if (lower.includes("livraison") || lower.includes("delivery") || lower.includes("coursier")) return "delivery";
+    if (lower.includes("emporter") || lower.includes("pickup") || lower.includes("à emporter")) return "pickup";
+    return null;
+  };
+
+  // Filter orders by offer status and fulfillment type
   const filteredOrderData = useMemo(() => {
-    if (!showOffersOnly) return orderData;
-    return orderData.filter(o => o.has_offer);
-  }, [orderData, showOffersOnly]);
+    let data = orderData;
+    if (showOffersOnly) data = data.filter(o => o.has_offer);
+    if (fulfillmentFilter !== "all") {
+      data = data.filter(o => getFulfillmentType(o.fulfillment_type) === fulfillmentFilter);
+    }
+    return data;
+  }, [orderData, showOffersOnly, fulfillmentFilter]);
+
+  // Fulfillment type stats
+  const fulfillmentStats = useMemo(() => {
+    if (!orderData.length) return null;
+    const delivery = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "delivery");
+    const pickup = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "pickup");
+    const total = orderData.length;
+    return {
+      delivery: { count: delivery.length, pct: total > 0 ? (delivery.length / total) * 100 : 0, revenue: delivery.reduce((s, o) => s + o.sales_incl_vat, 0) },
+      pickup: { count: pickup.length, pct: total > 0 ? (pickup.length / total) * 100 : 0, revenue: pickup.reduce((s, o) => s + o.sales_incl_vat, 0) },
+    };
+  }, [orderData]);
 
   return (
     <Card>
@@ -811,7 +839,25 @@ export function OrdersAnalysisSection({
               
               {/* Order Tab */}
               <TabsContent value="order" className="mt-0">
-                {/* Search field + offer filter */}
+                {/* Fulfillment KPI badges */}
+                {fulfillmentStats && (fulfillmentStats.delivery.count > 0 || fulfillmentStats.pickup.count > 0) && (
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                      <Truck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      <span className="text-xs font-medium text-blue-700 dark:text-blue-300">
+                        Livraison : {fulfillmentStats.delivery.count} ({fulfillmentStats.delivery.pct.toFixed(0)}%) — {formatCurrency(fulfillmentStats.delivery.revenue)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-500/10 border border-violet-500/20">
+                      <ShoppingBag className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
+                      <span className="text-xs font-medium text-violet-700 dark:text-violet-300">
+                        Emporté : {fulfillmentStats.pickup.count} ({fulfillmentStats.pickup.pct.toFixed(0)}%) — {formatCurrency(fulfillmentStats.pickup.revenue)}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Search field + filters */}
                 <div className="flex items-center gap-4 mb-4">
                   <div className="relative flex-1 max-w-sm">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -822,6 +868,20 @@ export function OrdersAnalysisSection({
                       className="pl-9"
                     />
                   </div>
+                  <Select value={fulfillmentFilter} onValueChange={(v) => setFulfillmentFilter(v as "all" | "delivery" | "pickup")}>
+                    <SelectTrigger className="w-[170px] h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tous types</SelectItem>
+                      <SelectItem value="delivery">
+                        <span className="flex items-center gap-1.5"><Truck className="h-3.5 w-3.5" /> Livraison</span>
+                      </SelectItem>
+                      <SelectItem value="pickup">
+                        <span className="flex items-center gap-1.5"><ShoppingBag className="h-3.5 w-3.5" /> Emporté</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
                   {platform === "deliveroo" && (
                     <div className="flex items-center gap-2">
                       <Switch
@@ -965,6 +1025,26 @@ export function OrdersAnalysisSection({
                                   )}
                                   <TableCell className="font-mono text-xs">
                                     <div className="flex items-center gap-1.5">
+                                      {getFulfillmentType(order.fulfillment_type) === "delivery" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Truck className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                                            </TooltipTrigger>
+                                            <TooltipContent><span className="text-xs">Livraison</span></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {getFulfillmentType(order.fulfillment_type) === "pickup" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <ShoppingBag className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+                                            </TooltipTrigger>
+                                            <TooltipContent><span className="text-xs">Emporté</span></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                       <span>#{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}</span>
                                       {order.has_offer && (
                                         <TooltipProvider>
