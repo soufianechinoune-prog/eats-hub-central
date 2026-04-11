@@ -852,7 +852,7 @@ export function OrdersAnalysisSection({
                   )}
                   {orderPagination && (
                     <span className="text-sm text-muted-foreground">
-                      {filteredOrderData.length.toLocaleString('fr-FR')} / {orderPagination.totalCount.toLocaleString('fr-FR')} commandes
+                      {orderPagination.totalCount.toLocaleString('fr-FR')} commandes
                     </span>
                   )}
                 </div>
