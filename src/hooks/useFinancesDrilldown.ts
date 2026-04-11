@@ -936,8 +936,8 @@ export function useFinancesDrilldown({
         meal_voucher_amount: mealVoucherAmount,
         total_payout: totalPayout,
         profitability,
-        has_offer: (order as any).has_offer || Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 || Math.abs(Number((order as any).promotion_discount) || 0) > 0,
-        offer_note: (order as any).offer_note || (Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : ""),
+        has_offer: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 || Math.abs(Number((order as any).promotion_discount) || 0) > 0,
+        offer_note: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : "",
         deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
       };
     });
