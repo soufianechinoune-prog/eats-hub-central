@@ -196,7 +196,8 @@ export type SortDirection = "asc" | "desc";
 // Helper: fetch Uber individual orders (extracted from old inline code)
 async function fetchUberIndividualOrders(
   restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection
+  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection,
+  fulfillmentFilter: "all" | "delivery" | "pickup" = "all"
 ) {
   const sortColumnMap: Record<OrderSortField, string> = {
     order_datetime: "order_datetime",
