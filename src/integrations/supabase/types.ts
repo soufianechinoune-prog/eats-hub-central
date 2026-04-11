@@ -3748,6 +3748,23 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_prep_time_daily: {
+        Args: {
+          p_end_date: string
+          p_platform?: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_prep_time: number
+          day: string
+          hour: number
+          max_prep_time: number
+          min_prep_time: number
+          order_count: number
+          restaurant_id: string
+        }[]
+      }
       get_product_sales_for_period:
         | {
             Args: {
