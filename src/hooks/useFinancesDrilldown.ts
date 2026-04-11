@@ -252,6 +252,12 @@ async function fetchUberIndividualOrders(
       countQuery = countQuery.ilike("uber_order_id", `%${searchQuery}%`);
     }
   }
+  // Apply fulfillment filter
+  if (fulfillmentFilter === "delivery") {
+    countQuery = countQuery.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
+  } else if (fulfillmentFilter === "pickup") {
+    countQuery = countQuery.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
+  }
   const { count } = await countQuery;
 
   let query = supabase
