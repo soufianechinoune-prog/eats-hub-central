@@ -43,6 +43,8 @@ import {
   Receipt,
   Search,
   Tag,
+  Truck,
+  ShoppingBag,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFinancesDrilldown, type DrilldownGranularity, type OrderSortField, type SortDirection as OrderSortDirection } from "@/hooks/useFinancesDrilldown";
@@ -100,6 +102,7 @@ export function OrdersAnalysisSection({
   const [orderSearchQuery, setOrderSearchQuery] = useState(""); // Searches by order ID and item title
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [showOffersOnly, setShowOffersOnly] = useState(false);
+  const [fulfillmentFilter, setFulfillmentFilter] = useState<"all" | "delivery" | "pickup">("all");
   const loadMoreRef = useRef<HTMLDivElement>(null);
   
   // Expanded orders state for dropdown
@@ -348,11 +351,36 @@ export function OrdersAnalysisSection({
     };
   }, [productData]);
 
-  // Filter orders by offer status
+  // Helper to detect fulfillment type
+  const getFulfillmentType = (ft: string | null | undefined): "delivery" | "pickup" | null => {
+    if (!ft) return null;
+    const lower = ft.toLowerCase();
+    if (lower.includes("livraison") || lower.includes("delivery") || lower.includes("coursier")) return "delivery";
+    if (lower.includes("emporter") || lower.includes("pickup") || lower.includes("à emporter")) return "pickup";
+    return null;
+  };
+
+  // Filter orders by offer status and fulfillment type
   const filteredOrderData = useMemo(() => {
-    if (!showOffersOnly) return orderData;
-    return orderData.filter(o => o.has_offer);
-  }, [orderData, showOffersOnly]);
+    let data = orderData;
+    if (showOffersOnly) data = data.filter(o => o.has_offer);
+    if (fulfillmentFilter !== "all") {
+      data = data.filter(o => getFulfillmentType(o.fulfillment_type) === fulfillmentFilter);
+    }
+    return data;
+  }, [orderData, showOffersOnly, fulfillmentFilter]);
+
+  // Fulfillment type stats
+  const fulfillmentStats = useMemo(() => {
+    if (!orderData.length) return null;
+    const delivery = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "delivery");
+    const pickup = orderData.filter(o => getFulfillmentType(o.fulfillment_type) === "pickup");
+    const total = orderData.length;
+    return {
+      delivery: { count: delivery.length, pct: total > 0 ? (delivery.length / total) * 100 : 0, revenue: delivery.reduce((s, o) => s + o.sales_incl_vat, 0) },
+      pickup: { count: pickup.length, pct: total > 0 ? (pickup.length / total) * 100 : 0, revenue: pickup.reduce((s, o) => s + o.sales_incl_vat, 0) },
+    };
+  }, [orderData]);
 
   return (
     <Card>
