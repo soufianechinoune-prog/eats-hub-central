@@ -823,7 +823,7 @@ export function OrdersAnalysisSection({
                       className="pl-9"
                     />
                   </div>
-                  <Select value={fulfillmentFilter} onValueChange={(v) => { setFulfillmentFilter(v as "all" | "delivery" | "pickup"); setOrderLimit(ORDER_PAGE_SIZE); }}>
+                  <Select value={fulfillmentFilter} onValueChange={(v) => { setFulfillmentFilter(v as "all" | "delivery" | "pickup"); }}>
                     <SelectTrigger className="w-[170px] h-9">
                       <SelectValue />
                     </SelectTrigger>
@@ -1075,17 +1075,13 @@ export function OrdersAnalysisSection({
                           </TableBody>
                         </table>
                         
-                        {/* Infinite scroll loader */}
-                        <div ref={loadMoreRef} className="py-4 flex justify-center">
-                          {isLoading && filteredOrderData.length > 0 && (
-                            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                          )}
-                          {!orderPagination?.hasMore && filteredOrderData.length > 0 && (
+                        {filteredOrderData.length > 0 && (
+                          <div className="py-3 flex justify-center">
                             <span className="text-muted-foreground text-sm">
-                              Toutes les commandes sont affichées
+                              {filteredOrderData.length.toLocaleString('fr-FR')} commandes affichées
                             </span>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
