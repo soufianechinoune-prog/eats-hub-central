@@ -16,7 +16,7 @@ export function OrderItemsDropdown({ orderId }: OrderItemsDropdownProps) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("order_items")
-        .select("item_title, quantity, sales_incl_vat")
+        .select("item_title, quantity, sales_excl_vat, unit_price, total_price")
         .eq("order_id", orderId);
       
       if (error) throw error;
@@ -48,12 +48,15 @@ export function OrderItemsDropdown({ orderId }: OrderItemsDropdownProps) {
 
   return (
     <div className="pl-10 py-2 space-y-1">
-      {items.map((item, i) => (
-        <div key={i} className="flex justify-between text-sm text-muted-foreground">
-          <span>{item.quantity}x {item.item_title}</span>
-          <span className="tabular-nums">{formatCurrency(item.sales_incl_vat || 0)}</span>
-        </div>
-      ))}
+      {items.map((item, i) => {
+        const amount = item.sales_excl_vat || (item.unit_price * item.quantity) || item.total_price || 0;
+        return (
+          <div key={i} className="flex justify-between text-sm text-muted-foreground gap-4">
+            <span className="truncate">{item.quantity}x {item.item_title}</span>
+            <span className="tabular-nums whitespace-nowrap">{formatCurrency(amount)} HT</span>
+          </div>
+        );
+      })}
     </div>
   );
 }
