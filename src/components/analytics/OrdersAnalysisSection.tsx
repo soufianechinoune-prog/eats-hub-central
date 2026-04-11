@@ -862,6 +862,18 @@ export function OrdersAnalysisSection({
                               </TableHead>
                               <TableHead 
                                 className="text-right cursor-pointer hover:bg-muted/50 select-none"
+                                onClick={() => handleOrderSort('sales_excl_vat')}
+                              >
+                                <div className="flex items-center justify-end">
+                                  CA HT
+                                  {renderOrderSortIcon('sales_excl_vat')}
+                                </div>
+                              </TableHead>
+                              <TableHead className="text-right select-none">
+                                TVA
+                              </TableHead>
+                              <TableHead 
+                                className="text-right cursor-pointer hover:bg-muted/50 select-none"
                                 onClick={() => handleOrderSort('sales_incl_vat')}
                               >
                                 <div className="flex items-center justify-end">
@@ -985,6 +997,12 @@ export function OrdersAnalysisSection({
                                     }
                                   </TableCell>
                                   <TableCell className="text-right tabular-nums font-medium">
+                                    {formatCurrencyPrecise(order.sales_excl_vat)}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums text-muted-foreground">
+                                    {formatCurrencyPrecise(order.vat_amount)}
+                                  </TableCell>
+                                  <TableCell className="text-right tabular-nums font-medium">
                                     {formatCurrencyPrecise(order.sales_incl_vat)}
                                   </TableCell>
                                   <TableCell className={cn(
@@ -1016,7 +1034,7 @@ export function OrdersAnalysisSection({
                                 {/* Expanded row with items */}
                                 {platform !== "deliveroo" && expandedOrders.has(order.id) && (
                                   <TableRow key={`${order.id}-items`} className="bg-muted/30">
-                                    <TableCell colSpan={11} className="p-0">
+                                    <TableCell colSpan={13} className="p-0">
                                       <OrderItemsDropdown orderId={order.id} />
                                     </TableCell>
                                   </TableRow>
