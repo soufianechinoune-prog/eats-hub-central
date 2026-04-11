@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -122,7 +122,6 @@ export function OrdersAnalysisSection({
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(orderSearchQuery);
-      setOrderLimit(ORDER_PAGE_SIZE); // Reset limit when search changes
     }, 300);
     return () => clearTimeout(timer);
   }, [orderSearchQuery]);
@@ -151,7 +150,6 @@ export function OrdersAnalysisSection({
     granularity: activeTab,
     enabled: true,
     orderSearchQuery: debouncedSearch,
-    orderLimit,
     orderSortField,
     orderSortDirection: orderSortDir,
     platform,
@@ -166,7 +164,6 @@ export function OrdersAnalysisSection({
       setOrderSortField(field);
       setOrderSortDir('desc');
     }
-    setOrderLimit(ORDER_PAGE_SIZE); // Reset when sorting changes
   };
   
   // Render sort icon for order columns
@@ -178,30 +175,6 @@ export function OrdersAnalysisSection({
       ? <ArrowUp className="h-3 w-3 ml-1" />
       : <ArrowDown className="h-3 w-3 ml-1" />;
   };
-  
-  // Infinite scroll observer
-  const loadMore = useCallback(() => {
-    if (orderPagination?.hasMore && !isLoading) {
-      setOrderLimit(prev => prev + ORDER_PAGE_SIZE);
-    }
-  }, [orderPagination?.hasMore, isLoading]);
-  
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-    
-    if (loadMoreRef.current) {
-      observer.observe(loadMoreRef.current);
-    }
-    
-    return () => observer.disconnect();
-  }, [loadMore]);
   
   // Toggle expanded order
   const toggleOrder = (orderId: string) => {
@@ -216,7 +189,6 @@ export function OrdersAnalysisSection({
   // Reset state when changing tabs
   const handleTabChange = (value: string) => {
     setActiveTab(value as DrilldownGranularity);
-    setOrderLimit(ORDER_PAGE_SIZE);
     setOrderSearchQuery("");
     setDebouncedSearch("");
     setExpandedOrders(new Set());
