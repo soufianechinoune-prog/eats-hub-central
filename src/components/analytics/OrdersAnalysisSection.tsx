@@ -1025,6 +1025,26 @@ export function OrdersAnalysisSection({
                                   )}
                                   <TableCell className="font-mono text-xs">
                                     <div className="flex items-center gap-1.5">
+                                      {getFulfillmentType(order.fulfillment_type) === "delivery" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Truck className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
+                                            </TooltipTrigger>
+                                            <TooltipContent><span className="text-xs">Livraison</span></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {getFulfillmentType(order.fulfillment_type) === "pickup" && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <ShoppingBag className="h-3.5 w-3.5 text-violet-500 flex-shrink-0" />
+                                            </TooltipTrigger>
+                                            <TooltipContent><span className="text-xs">Emporté</span></TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                       <span>#{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}</span>
                                       {order.has_offer && (
                                         <TooltipProvider>
