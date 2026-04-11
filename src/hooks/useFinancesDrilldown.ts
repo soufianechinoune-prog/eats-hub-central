@@ -196,7 +196,8 @@ export type SortDirection = "asc" | "desc";
 // Helper: fetch Uber individual orders (extracted from old inline code)
 async function fetchUberIndividualOrders(
   restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection
+  searchQuery: string, limit: number, sortField: OrderSortField, sortDirection: SortDirection,
+  fulfillmentFilter: "all" | "delivery" | "pickup" = "all"
 ) {
   const sortColumnMap: Record<OrderSortField, string> = {
     order_datetime: "order_datetime",
@@ -251,6 +252,12 @@ async function fetchUberIndividualOrders(
       countQuery = countQuery.ilike("uber_order_id", `%${searchQuery}%`);
     }
   }
+  // Apply fulfillment filter
+  if (fulfillmentFilter === "delivery") {
+    countQuery = countQuery.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
+  } else if (fulfillmentFilter === "pickup") {
+    countQuery = countQuery.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
+  }
   const { count } = await countQuery;
 
   let query = supabase
@@ -267,6 +274,12 @@ async function fetchUberIndividualOrders(
     } else {
       query = query.ilike("uber_order_id", `%${searchQuery}%`);
     }
+  }
+  // Apply fulfillment filter to data query
+  if (fulfillmentFilter === "delivery") {
+    query = query.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
+  } else if (fulfillmentFilter === "pickup") {
+    query = query.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
   }
   const { data, error } = await query;
   if (error) throw error;
@@ -517,6 +530,7 @@ interface UseFinancesDrilldownParams {
   orderSortField?: OrderSortField;
   orderSortDirection?: SortDirection;
   platform?: "uber_eats" | "deliveroo" | "global";
+  fulfillmentFilter?: "all" | "delivery" | "pickup";
 }
 
 export function useFinancesDrilldown({
@@ -530,6 +544,7 @@ export function useFinancesDrilldown({
   orderSortField = "order_datetime",
   orderSortDirection = "desc",
   platform = "uber_eats",
+  fulfillmentFilter = "all",
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
@@ -611,14 +626,14 @@ export function useFinancesDrilldown({
 
   // Fetch individual orders for order breakdown with infinite scroll
   const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
-    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, platform],
+    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, platform, fulfillmentFilter],
     queryFn: async () => {
       if (platform === "deliveroo") {
         return fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection);
       }
       if (platform === "global") {
         const [uber, deliveroo] = await Promise.all([
-          fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection),
+          fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, fulfillmentFilter),
           fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection),
         ]);
         // Merge, sort, and limit
@@ -638,9 +653,62 @@ export function useFinancesDrilldown({
           orderIdsWithItems: uber.orderIdsWithItems,
         };
       }
-      return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection);
+      return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderLimit, orderSortField, orderSortDirection, fulfillmentFilter);
     },
     enabled: enabled && granularity === "order",
+  });
+
+  // Fetch fulfillment stats (server-side aggregation on ALL orders, not paginated)
+  const { data: fulfillmentStatsData } = useQuery({
+    queryKey: ["finances-fulfillment-stats", restaurantIds, startStr, endStr, platform],
+    queryFn: async () => {
+      // Only Uber orders have fulfillment_type
+      if (platform === "deliveroo") return null;
+
+      let query = supabase
+        .from("orders")
+        .select("fulfillment_type, sales_incl_vat")
+        .gte("order_datetime", `${startStr}T00:00:00`)
+        .lte("order_datetime", `${endStr}T23:59:59`);
+
+      if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
+
+      // Paginate to get all
+      const PAGE_SIZE = 1000;
+      let from = 0;
+      let hasMore = true;
+      let deliveryCount = 0, pickupCount = 0, deliveryRevenue = 0, pickupRevenue = 0, totalCount = 0;
+
+      while (hasMore) {
+        const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+        if (error) throw error;
+        if (data) {
+          data.forEach(row => {
+            totalCount++;
+            const ft = (row.fulfillment_type || "").toLowerCase();
+            const rev = Math.abs(Number(row.sales_incl_vat) || 0);
+            if (ft.includes("livraison") || ft.includes("delivery") || ft.includes("coursier")) {
+              deliveryCount++;
+              deliveryRevenue += rev;
+            } else if (ft.includes("emporter") || ft.includes("pickup")) {
+              pickupCount++;
+              pickupRevenue += rev;
+            }
+          });
+          hasMore = data.length === PAGE_SIZE;
+          from += PAGE_SIZE;
+        } else {
+          hasMore = false;
+        }
+      }
+
+      if (totalCount === 0) return null;
+      return {
+        delivery: { count: deliveryCount, pct: totalCount > 0 ? (deliveryCount / totalCount) * 100 : 0, revenue: deliveryRevenue },
+        pickup: { count: pickupCount, pct: totalCount > 0 ? (pickupCount / totalCount) * 100 : 0, revenue: pickupRevenue },
+      };
+    },
+    enabled: enabled && granularity === "order" && platform !== "deliveroo",
   });
 
   // Process daily data with additional financial columns
@@ -956,6 +1024,7 @@ export function useFinancesDrilldown({
       hasMore: individualOrdersData.hasMore,
     } : null,
     orderIdsWithItems: individualOrdersData?.orderIdsWithItems || [],
+    fulfillmentStats: fulfillmentStatsData || null,
     summary,
     isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
   };
