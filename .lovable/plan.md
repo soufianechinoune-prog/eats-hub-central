@@ -1,47 +1,38 @@
 
+# Fix : graphique "Rentabilité globale" trop lent à charger
 
-# Charger toutes les commandes d'un coup
+## Problème
 
-## Analyse
+Le graphique appelle `useFinancesDrilldown({ granularity: 'daily' })` qui télécharge **toutes les commandes individuelles** (ex: 3000+ lignes pour 1 mois) puis les agrège côté client par date. Pour 2 restaurants sur 3 mois, ça peut représenter 5000-10000 requêtes paginées.
 
-Tu as actuellement ~2783 commandes sur la période. Le système charge 50 à la fois avec un scroll infini. Charger tout d'un coup est faisable mais il y a des compromis à connaître.
+Or, il existe déjà une RPC `get_profitability_daily` qui fait exactement cette agrégation **côté serveur** en une seule requête SQL ultra-rapide (~100ms).
 
-## Impact performance
+## Solution
 
-- **2 000-3 000 commandes** : requête ~1-2 secondes, rendu DOM acceptable
-- **10 000+ commandes** : le navigateur pourrait ramer avec autant de lignes DOM
-- **Recommandation** : charger toutes les données en mémoire mais garder une virtualisation du rendu (afficher toutes les lignes sans pagination, mais le navigateur ne rend que celles visibles). Alternativement, pour ~3K lignes, un rendu brut reste fluide.
+Remplacer l'appel `useFinancesDrilldown` dans `FinancesSection` par un appel direct à la RPC `get_profitability_daily`, qui retourne déjà les données agrégées par jour et par restaurant.
 
-## Approche retenue : tout charger, supprimer le scroll infini
+## Modifications
 
-Pour ~3K commandes c'est parfaitement gérable. On supprime la pagination côté serveur et on charge tout.
+### 1. `src/components/analytics/FinancesSection.tsx`
 
-### 1. `src/hooks/useFinancesDrilldown.ts`
+- Remplacer l'appel `useFinancesDrilldown({ granularity: 'daily' })` par un `useQuery` appelant `supabase.rpc('get_profitability_daily', { ... })`
+- La RPC retourne : `restaurant_id, day, sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat`
+- Mapper ces champs vers le format `DailyFinanceData` attendu par `ProfitabilityComparisonChart`
+- Construire `dailyDataByRestaurant` à partir du même résultat (groupé par `restaurant_id`)
+- Supprimer l'import `useFinancesDrilldown` devenu inutile dans ce fichier
 
-- `fetchUberIndividualOrders` : remplacer `.range(0, limit - 1)` par une boucle `while` avec `PAGE_SIZE = 1000` (comme les autres fonctions du hook) pour récupérer toutes les commandes
-- Supprimer le paramètre `limit` de cette fonction
-- Supprimer `orderLimit` des paramètres du hook
-- Le `count` query reste pour afficher le total mais `hasMore` sera toujours `false`
-- Même traitement pour `fetchDeliverooIndividualOrders`
+### Mapping RPC → format chart
 
-### 2. `src/components/analytics/OrdersAnalysisSection.tsx`
-
-- Supprimer `orderLimit`, `setOrderLimit`, `ORDER_PAGE_SIZE`
-- Supprimer le `IntersectionObserver` et `loadMoreRef`
-- Supprimer le loader de scroll infini en bas du tableau
-- Le compteur affichera simplement "2783 commandes" au lieu de "100 / 2783"
-- Les resets `setOrderLimit(ORDER_PAGE_SIZE)` dans les handlers de filtre/tri deviennent inutiles — les supprimer
-
-### 3. Performance
-
-- Un spinner s'affichera pendant le chargement initial (~1-2s)
-- Le tri et filtrage client seront instantanés car toute la data est en mémoire
-- Pour les items (détail déplié), le chargement reste à la demande (au clic sur le chevron)
+```
+sales → sales_incl_vat
+net_payout → net_payout  
+meal_voucher → meal_voucher_amount
+orders_count → order_count
+item_promo_incl_vat → promo_incl_vat
+payout - net_payout → uber_fee_incl_vat (approximation)
+```
 
 ## Résultat
 
-- Toutes les commandes visibles immédiatement après chargement
-- Plus de "charger plus" / scroll infini
-- Tri et filtres instantanés
-- Les stats KPI (Livraison/Emporté) restent calculées côté serveur via la query dédiée
-
+- Chargement du graphique en **< 1 seconde** au lieu de 10-30 secondes
+- Aucun impact sur les autres onglets (Par Jour, Par Commande, etc.) qui continuent d'utiliser `useFinancesDrilldown`
