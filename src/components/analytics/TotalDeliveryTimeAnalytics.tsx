@@ -162,9 +162,23 @@ export function TotalDeliveryTimeAnalytics() {
     };
   }, [orderHistoryData, targetMinutes]);
 
+  // Last available date from data
+  const lastAvailableDate = useMemo(() => {
+    if (!orderHistoryData || orderHistoryData.length === 0) return null;
+    let maxDate = "";
+    orderHistoryData.forEach((o) => {
+      if (o.order_datetime) {
+        const d = o.order_datetime.substring(0, 10);
+        if (d > maxDate) maxDate = d;
+      }
+    });
+    return maxDate ? parseISO(maxDate) : null;
+  }, [orderHistoryData]);
+
   // Monthly evolution for year view
   const monthlyEvolution = useMemo(() => {
-    const allMonths = Array.from({ length: 12 }, (_, i) => ({
+    const lastMonth = lastAvailableDate && periodMode === "year" ? lastAvailableDate.getMonth() + 1 : 12;
+    const allMonths = Array.from({ length: lastMonth }, (_, i) => ({
       monthKey: `${selectedYear}-${String(i + 1).padStart(2, '0')}`,
       displayDate: format(new Date(selectedYear, i, 1), "MMM", { locale: fr }),
       avgTime: null as number | null,
@@ -198,7 +212,7 @@ export function TotalDeliveryTimeAnalytics() {
       }
       return month;
     });
-  }, [orderHistoryData, selectedYear]);
+  }, [orderHistoryData, selectedYear, lastAvailableDate, periodMode]);
 
   // Daily evolution for month view
   const dailyEvolution = useMemo(() => {
@@ -348,11 +362,19 @@ export function TotalDeliveryTimeAnalytics() {
   };
 
   const handlePrevMonth = () => setSelectedMonth(selectedMonth === 1 ? 12 : selectedMonth - 1);
-  const handleNextMonth = () => setSelectedMonth(selectedMonth === 12 ? 1 : selectedMonth + 1);
+  const handleNextMonth = () => {
+    if (lastAvailableDate && selectedMonth >= lastAvailableDate.getMonth() + 1 && selectedYear >= lastAvailableDate.getFullYear()) return;
+    setSelectedMonth(selectedMonth === 12 ? 1 : selectedMonth + 1);
+  };
   const handleBackToYear = () => { setPeriodMode("year"); setSelectedDay(null); };
   const handleBackToMonth = () => setSelectedDay(null);
   const handlePrevDay = () => selectedDay && setSelectedDay(format(subDays(parseISO(selectedDay), 1), "yyyy-MM-dd"));
-  const handleNextDay = () => selectedDay && setSelectedDay(format(addDays(parseISO(selectedDay), 1), "yyyy-MM-dd"));
+  const handleNextDay = () => {
+    if (!selectedDay) return;
+    const nextDay = addDays(parseISO(selectedDay), 1);
+    if (lastAvailableDate && nextDay > lastAvailableDate) return;
+    setSelectedDay(format(nextDay, "yyyy-MM-dd"));
+  };
 
   const getChartTitle = () => {
     if (selectedDay) {
