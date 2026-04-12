@@ -758,9 +758,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data so AnalyticsCharts can aggregate weekly if needed
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -946,9 +945,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -1104,9 +1102,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -1179,9 +1176,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
