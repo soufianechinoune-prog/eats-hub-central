@@ -1514,6 +1514,8 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   allConversionData={allUberConversionData}
                   granularity={granularity}
+                  conversionGranularityOverride={conversionGranularityOverride}
+                  onConversionGranularityOverrideChange={setConversionGranularityOverride}
                   comparisonMode={comparisonMode}
                   onComparisonModeChange={setComparisonMode}
                   drillDownMonth={drillDownMonth}
