@@ -1283,7 +1283,7 @@ export function AnalyticsCharts({
             prevConversionRate: prevData && prevData.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
           };
         });
-    } else if (isDailyData) {
+    } else if (isDailyData && effectiveConversionGranularity === "daily") {
       const dailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       const prevDailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       
@@ -1332,28 +1332,34 @@ export function AnalyticsCharts({
           };
         });
     } else {
+      // Monthly aggregation (from daily data or monthly data)
       const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       
       conversionData.forEach((item: any) => {
-        if (!monthlyData[item.month]) {
-          monthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        const month = isDailyData ? new Date(item.date).getMonth() + 1 : item.month;
+        if (!monthlyData[month]) {
+          monthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
         }
-        monthlyData[item.month].visits += item.visits || 0;
-        monthlyData[item.month].views += item.menu_views || 0;
-        monthlyData[item.month].cart += item.add_to_cart || 0;
-        monthlyData[item.month].orders += item.orders || 0;
+        monthlyData[month].visits += item.visits || 0;
+        monthlyData[month].views += item.menu_views || 0;
+        monthlyData[month].cart += item.add_to_cart || 0;
+        monthlyData[month].orders += item.orders || 0;
       });
 
       prevConversionData?.forEach((item: any) => {
-        if (!prevMonthlyData[item.month]) {
-          prevMonthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        const month = ('date' in item) ? new Date(item.date).getMonth() + 1 : item.month;
+        if (!prevMonthlyData[month]) {
+          prevMonthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
         }
-        prevMonthlyData[item.month].visits += item.visits || 0;
-        prevMonthlyData[item.month].views += item.menu_views || 0;
-        prevMonthlyData[item.month].cart += item.add_to_cart || 0;
-        prevMonthlyData[item.month].orders += item.orders || 0;
+        prevMonthlyData[month].visits += item.visits || 0;
+        prevMonthlyData[month].views += item.menu_views || 0;
+        prevMonthlyData[month].cart += item.add_to_cart || 0;
+        prevMonthlyData[month].orders += item.orders || 0;
       });
+
+      // Find last month with actual data to truncate empty future months
+      const lastMonthWithData = Math.max(0, ...Object.keys(monthlyData).map(Number));
       
       return Array.from({ length: 12 }, (_, i) => {
         const data = monthlyData[i + 1];
@@ -1369,9 +1375,11 @@ export function AnalyticsCharts({
           prevVisits: prevData?.visits || 0,
           prevConversionRate: prevData?.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
         };
-      }).filter(d => filterByRange(d.monthNum));
+      })
+        .filter(d => filterByRange(d.monthNum))
+        .filter(d => lastMonthWithData === 0 || d.monthNum <= lastMonthWithData);
     }
-  }, [conversionData, prevConversionData, startMonth, endMonth, granularity]);
+  }, [conversionData, prevConversionData, startMonth, endMonth, effectiveConversionGranularity]);
 
   // Aggregate fees data
   const aggregatedFeesData = useMemo(() => {
