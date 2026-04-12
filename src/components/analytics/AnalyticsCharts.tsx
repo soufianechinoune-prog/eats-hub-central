@@ -3049,6 +3049,39 @@ export function AnalyticsCharts({
         />
       )}
 
+      {/* Granularity toggle for conversion section */}
+      {showConversion && effectiveConversionGranularity !== "daily" && onConversionGranularityOverrideChange && (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs gap-1.5 px-3 py-1">
+            {effectiveConversionGranularity === "weekly" ? "📊 Hebdomadaire" : "📆 Mensuel"}
+          </Badge>
+          <div className="flex items-center bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => onConversionGranularityOverrideChange("monthly")}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                effectiveConversionGranularity === "monthly"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Mois
+            </button>
+            <button
+              onClick={() => onConversionGranularityOverrideChange("weekly")}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                effectiveConversionGranularity === "weekly"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Semaine
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Conversion Funnel Chart - New Enhanced Component */}
       {showConversion && (
       <ConversionFunnelChart
