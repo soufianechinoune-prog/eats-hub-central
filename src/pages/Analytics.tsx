@@ -88,6 +88,9 @@ export default function Analytics() {
   // Profitability chart comparison mode state
   const [profitabilityComparisonMode, setProfitabilityComparisonMode] = useState<"yearOverYear" | "rollingPeriod">("yearOverYear");
 
+  // Conversion granularity override (user can force weekly even in year view)
+  const [conversionGranularityOverride, setConversionGranularityOverride] = useState<"auto" | "weekly" | "monthly">("auto");
+
   // Handler for synchronized drill-down (changes global context)
   const handleMonthDrillDown = (month: number | null) => {
     if (month === null) {
@@ -755,9 +758,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data so AnalyticsCharts can aggregate weekly if needed
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -943,9 +945,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -1101,9 +1102,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -1176,9 +1176,8 @@ export default function Analytics() {
         month: new Date(item.date).getMonth() + 1,
         year: new Date(item.date).getFullYear(),
       }));
-
-      if (granularity === "daily") return dailyData;
-      return aggregateDailyConversionByMonth(dailyData);
+      // Always return daily data for flexible aggregation in AnalyticsCharts
+      return dailyData;
     },
     staleTime: 0,
     refetchOnMount: true,
@@ -1515,6 +1514,8 @@ export default function Analytics() {
                   selectedRestaurants={selectedRestaurants}
                   allConversionData={allUberConversionData}
                   granularity={granularity}
+                  conversionGranularityOverride={conversionGranularityOverride}
+                  onConversionGranularityOverrideChange={setConversionGranularityOverride}
                   comparisonMode={comparisonMode}
                   onComparisonModeChange={setComparisonMode}
                   drillDownMonth={drillDownMonth}

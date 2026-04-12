@@ -253,6 +253,8 @@ interface AnalyticsChartsProps {
   selectedRestaurants?: string[];
   allConversionData?: MonthlyConversion[];
   granularity?: "daily" | "weekly" | "monthly";
+  conversionGranularityOverride?: "auto" | "weekly" | "monthly";
+  onConversionGranularityOverrideChange?: (value: "auto" | "weekly" | "monthly") => void;
   comparisonMode?: "yearOverYear" | "rollingPeriod";
   onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   // Drill-down props (synchronized with global context)
@@ -555,6 +557,8 @@ export function AnalyticsCharts({
   selectedRestaurants = [],
   allConversionData,
   granularity = "monthly",
+  conversionGranularityOverride = "auto",
+  onConversionGranularityOverrideChange,
   comparisonMode = "yearOverYear",
   onComparisonModeChange,
   drillDownMonth,
@@ -1212,12 +1216,19 @@ export function AnalyticsCharts({
     }
   };
 
+  // Determine effective granularity for conversion (user can override)
+  const effectiveConversionGranularity = useMemo(() => {
+    if (conversionGranularityOverride !== "auto") return conversionGranularityOverride;
+    return granularity;
+  }, [conversionGranularityOverride, granularity]);
+
   const aggregatedConversionData = useMemo(() => {
     if (!conversionData) return [];
     
+    // Conversion data is now always daily rows from Analytics.tsx
     const isDailyData = conversionData.length > 0 && 'date' in conversionData[0];
     
-    if (isDailyData && granularity === "weekly") {
+    if (isDailyData && effectiveConversionGranularity === "weekly") {
       // Weekly granularity: group by week
       const weeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
       const prevWeeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
@@ -1272,7 +1283,7 @@ export function AnalyticsCharts({
             prevConversionRate: prevData && prevData.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
           };
         });
-    } else if (isDailyData) {
+    } else if (isDailyData && effectiveConversionGranularity === "daily") {
       const dailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       const prevDailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       
@@ -1321,28 +1332,34 @@ export function AnalyticsCharts({
           };
         });
     } else {
+      // Monthly aggregation (from daily data or monthly data)
       const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       
       conversionData.forEach((item: any) => {
-        if (!monthlyData[item.month]) {
-          monthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        const month = isDailyData ? new Date(item.date).getMonth() + 1 : item.month;
+        if (!monthlyData[month]) {
+          monthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
         }
-        monthlyData[item.month].visits += item.visits || 0;
-        monthlyData[item.month].views += item.menu_views || 0;
-        monthlyData[item.month].cart += item.add_to_cart || 0;
-        monthlyData[item.month].orders += item.orders || 0;
+        monthlyData[month].visits += item.visits || 0;
+        monthlyData[month].views += item.menu_views || 0;
+        monthlyData[month].cart += item.add_to_cart || 0;
+        monthlyData[month].orders += item.orders || 0;
       });
 
       prevConversionData?.forEach((item: any) => {
-        if (!prevMonthlyData[item.month]) {
-          prevMonthlyData[item.month] = { visits: 0, views: 0, cart: 0, orders: 0 };
+        const month = ('date' in item) ? new Date(item.date).getMonth() + 1 : item.month;
+        if (!prevMonthlyData[month]) {
+          prevMonthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
         }
-        prevMonthlyData[item.month].visits += item.visits || 0;
-        prevMonthlyData[item.month].views += item.menu_views || 0;
-        prevMonthlyData[item.month].cart += item.add_to_cart || 0;
-        prevMonthlyData[item.month].orders += item.orders || 0;
+        prevMonthlyData[month].visits += item.visits || 0;
+        prevMonthlyData[month].views += item.menu_views || 0;
+        prevMonthlyData[month].cart += item.add_to_cart || 0;
+        prevMonthlyData[month].orders += item.orders || 0;
       });
+
+      // Find last month with actual data to truncate empty future months
+      const lastMonthWithData = Math.max(0, ...Object.keys(monthlyData).map(Number));
       
       return Array.from({ length: 12 }, (_, i) => {
         const data = monthlyData[i + 1];
@@ -1358,9 +1375,11 @@ export function AnalyticsCharts({
           prevVisits: prevData?.visits || 0,
           prevConversionRate: prevData?.visits > 0 ? ((prevData.orders / prevData.visits) * 100) : 0,
         };
-      }).filter(d => filterByRange(d.monthNum));
+      })
+        .filter(d => filterByRange(d.monthNum))
+        .filter(d => lastMonthWithData === 0 || d.monthNum <= lastMonthWithData);
     }
-  }, [conversionData, prevConversionData, startMonth, endMonth, granularity]);
+  }, [conversionData, prevConversionData, startMonth, endMonth, effectiveConversionGranularity]);
 
   // Aggregate fees data
   const aggregatedFeesData = useMemo(() => {
@@ -3028,6 +3047,39 @@ export function AnalyticsCharts({
           isLoading={isProfitabilityLoading}
           uberOneData={uberOneDataForChart}
         />
+      )}
+
+      {/* Granularity toggle for conversion section */}
+      {showConversion && effectiveConversionGranularity !== "daily" && onConversionGranularityOverrideChange && (
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-xs gap-1.5 px-3 py-1">
+            {effectiveConversionGranularity === "weekly" ? "📊 Hebdomadaire" : "📆 Mensuel"}
+          </Badge>
+          <div className="flex items-center bg-muted rounded-lg p-0.5">
+            <button
+              onClick={() => onConversionGranularityOverrideChange("monthly")}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                effectiveConversionGranularity === "monthly"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Mois
+            </button>
+            <button
+              onClick={() => onConversionGranularityOverrideChange("weekly")}
+              className={cn(
+                "px-3 py-1 text-xs font-medium rounded-md transition-colors",
+                effectiveConversionGranularity === "weekly"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              Semaine
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Conversion Funnel Chart - New Enhanced Component */}
