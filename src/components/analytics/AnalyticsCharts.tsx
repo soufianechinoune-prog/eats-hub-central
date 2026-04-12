@@ -253,6 +253,8 @@ interface AnalyticsChartsProps {
   selectedRestaurants?: string[];
   allConversionData?: MonthlyConversion[];
   granularity?: "daily" | "weekly" | "monthly";
+  conversionGranularityOverride?: "auto" | "weekly" | "monthly";
+  onConversionGranularityOverrideChange?: (value: "auto" | "weekly" | "monthly") => void;
   comparisonMode?: "yearOverYear" | "rollingPeriod";
   onComparisonModeChange?: (mode: "yearOverYear" | "rollingPeriod") => void;
   // Drill-down props (synchronized with global context)
