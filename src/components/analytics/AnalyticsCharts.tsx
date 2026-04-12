@@ -1216,12 +1216,19 @@ export function AnalyticsCharts({
     }
   };
 
+  // Determine effective granularity for conversion (user can override)
+  const effectiveConversionGranularity = useMemo(() => {
+    if (conversionGranularityOverride !== "auto") return conversionGranularityOverride;
+    return granularity;
+  }, [conversionGranularityOverride, granularity]);
+
   const aggregatedConversionData = useMemo(() => {
     if (!conversionData) return [];
     
+    // Conversion data is now always daily rows from Analytics.tsx
     const isDailyData = conversionData.length > 0 && 'date' in conversionData[0];
     
-    if (isDailyData && granularity === "weekly") {
+    if (isDailyData && effectiveConversionGranularity === "weekly") {
       // Weekly granularity: group by week
       const weeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
       const prevWeeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
