@@ -508,7 +508,7 @@ export default function ReportImport() {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files).slice(0, 10); // Max 10 files
+    const fileArray = Array.from(files);
     
     // Validate all are CSV
     const invalidFile = fileArray.find(f => !f.name.endsWith(".csv"));
