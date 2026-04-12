@@ -88,6 +88,9 @@ export default function Analytics() {
   // Profitability chart comparison mode state
   const [profitabilityComparisonMode, setProfitabilityComparisonMode] = useState<"yearOverYear" | "rollingPeriod">("yearOverYear");
 
+  // Conversion granularity override (user can force weekly even in year view)
+  const [conversionGranularityOverride, setConversionGranularityOverride] = useState<"auto" | "weekly" | "monthly">("auto");
+
   // Handler for synchronized drill-down (changes global context)
   const handleMonthDrillDown = (month: number | null) => {
     if (month === null) {
