@@ -91,6 +91,7 @@ export function OrdersAnalysisSection({
   endDate,
   platform = "uber_eats",
 }: OrdersAnalysisSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<DrilldownGranularity>('daily');
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
@@ -148,7 +149,7 @@ export function OrdersAnalysisSection({
     startDate,
     endDate,
     granularity: activeTab,
-    enabled: true,
+    enabled: isExpanded,
     orderSearchQuery: debouncedSearch,
     orderSortField,
     orderSortDirection: orderSortDir,
