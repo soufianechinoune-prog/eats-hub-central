@@ -280,9 +280,48 @@ export function ConversionFunnelChart({
     });
   }, [data]);
 
-  // Calculate aggregated funnel metrics
-  const funnelMetrics = useMemo(() => {
-    const totals = data.reduce(
+  // Compute weekly breakdown from raw daily data
+  const weeklyBreakdown = useMemo(() => {
+    if (!rawConversionData || rawConversionData.length === 0 || granularity !== "weekly") return [];
+    
+    const weeklyMap: Record<string, { visits: number; views: number; cart: number; orders: number; weekStart: Date }> = {};
+    
+    rawConversionData.forEach((item: any) => {
+      if (!item.date) return;
+      const ws = startOfWeek(parseISO(item.date), { locale: fr });
+      const key = format(ws, 'yyyy-MM-dd');
+      if (!weeklyMap[key]) {
+        weeklyMap[key] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart: ws };
+      }
+      weeklyMap[key].visits += item.visits || 0;
+      weeklyMap[key].views += item.menu_views || 0;
+      weeklyMap[key].cart += item.add_to_cart || 0;
+      weeklyMap[key].orders += item.orders || 0;
+    });
+    
+    return Object.keys(weeklyMap).sort().map((key, idx) => {
+      const w = weeklyMap[key];
+      const we = endOfWeek(w.weekStart, { locale: fr });
+      return {
+        key,
+        label: `S${idx + 1}`,
+        range: `${format(w.weekStart, 'dd/MM')} - ${format(we, 'dd/MM')}`,
+        visits: w.visits,
+        views: w.views,
+        cart: w.cart,
+        orders: w.orders,
+      };
+    });
+  }, [rawConversionData, granularity]);
+
+  // Determine which data to use for the funnel (selected week or full period)
+  const activeFunnelSource = useMemo(() => {
+    if (selectedWeek && weeklyBreakdown.length > 0) {
+      const week = weeklyBreakdown.find(w => w.key === selectedWeek);
+      if (week) return { visits: week.visits, views: week.views, cart: week.cart, orders: week.orders };
+    }
+    // Full period
+    return data.reduce(
       (acc, d) => ({
         visits: acc.visits + d.visits,
         views: acc.views + d.views,
@@ -291,6 +330,26 @@ export function ConversionFunnelChart({
       }),
       { visits: 0, views: 0, cart: 0, orders: 0 }
     );
+  }, [data, selectedWeek, weeklyBreakdown]);
+
+  // WoW comparison
+  const wowComparison = useMemo(() => {
+    if (!selectedWeek || weeklyBreakdown.length === 0) return null;
+    const idx = weeklyBreakdown.findIndex(w => w.key === selectedWeek);
+    if (idx <= 0) return null;
+    const curr = weeklyBreakdown[idx];
+    const prev = weeklyBreakdown[idx - 1];
+    const visitsDelta = prev.visits > 0 ? ((curr.visits - prev.visits) / prev.visits) * 100 : 0;
+    const ordersDelta = prev.orders > 0 ? ((curr.orders - prev.orders) / prev.orders) * 100 : 0;
+    const currRate = curr.visits > 0 ? (curr.orders / curr.visits) * 100 : 0;
+    const prevRate = prev.visits > 0 ? (prev.orders / prev.visits) * 100 : 0;
+    const rateDelta = prevRate > 0 ? currRate - prevRate : 0;
+    return { prevLabel: prev.label, visitsDelta, ordersDelta, rateDelta };
+  }, [selectedWeek, weeklyBreakdown]);
+
+  // Calculate aggregated funnel metrics
+  const funnelMetrics = useMemo(() => {
+    const totals = activeFunnelSource;
 
     return {
       ...totals,
@@ -303,7 +362,7 @@ export function ConversionFunnelChart({
       lossAfterMenu: 100 - calcRate(totals.cart, totals.views),
       lossAfterCart: 100 - calcRate(totals.orders, totals.cart),
     };
-  }, [data]);
+  }, [activeFunnelSource]);
 
   // Detect significant drops (>10% month over month)
   const alertMonths = useMemo(() => {
