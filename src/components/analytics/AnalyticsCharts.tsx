@@ -3107,6 +3107,7 @@ export function AnalyticsCharts({
         granularity={effectiveConversionGranularity}
         showActions={shouldShowActionsForChart("conversionFunnel")}
         actions={filteredActions}
+        periodMode={periodMode}
         actionsByMonth={actionsByMonth}
         onActionClick={onActionClick}
       />

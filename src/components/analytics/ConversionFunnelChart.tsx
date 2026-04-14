@@ -247,6 +247,7 @@ export function ConversionFunnelChart({
   actions = [],
   actionsByMonth = {},
   onActionClick,
+  periodMode,
 }: ConversionFunnelChartProps) {
   // View mode state
   const [viewMode, setViewMode] = useState<"volumes" | "rates">("volumes");
