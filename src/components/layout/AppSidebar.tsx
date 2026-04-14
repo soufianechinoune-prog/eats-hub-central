@@ -214,6 +214,7 @@ export function AppSidebar() {
     const newChainId = value === "all" ? null : value;
     if (newChainId !== selectedChainId) {
       setSelectedChainId(newChainId);
+      setIsNetworkView(true);
       setSelectedRestaurants([]);
       setVisibleRestaurants([]);
       void queryClient.invalidateQueries();
