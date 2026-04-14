@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -14,6 +15,8 @@ import {
   Medal,
   TrendingUp,
   TrendingDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface RestaurantConversionData {
@@ -47,9 +50,10 @@ export function ConversionRankingByStage({
   highlightedRestaurants = [],
 }: ConversionRankingByStageProps) {
   const [selectedStage, setSelectedStage] = useState<StageKey>("conversionRate");
+  const [showAll, setShowAll] = useState(false);
 
   // Calculate rankings for the selected stage
-  const rankings = useMemo(() => {
+  const allRankings = useMemo(() => {
     return data
       .map((r) => {
         const conversionRate = r.visits > 0 ? (r.orders / r.visits) * 100 : 0;
@@ -59,9 +63,10 @@ export function ConversionRankingByStage({
           value: selectedStage === "conversionRate" ? conversionRate : r[selectedStage as keyof typeof r] as number,
         };
       })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10); // Top 10
+      .sort((a, b) => b.value - a.value);
   }, [data, selectedStage]);
+
+  const rankings = showAll ? allRankings : allRankings.slice(0, 10);
 
   const maxValue = rankings[0]?.value || 1;
   const stageConfig = STAGES.find((s) => s.key === selectedStage)!;
@@ -125,82 +130,108 @@ export function ConversionRankingByStage({
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-2 pt-0">
-        {rankings.map((restaurant, index) => {
-          const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
-          const isTop3 = index < 3;
-          const isHighlighted = highlightedRestaurants.includes(restaurant.restaurantId);
+      <CardContent className="pt-0">
+        <ScrollArea className={cn(showAll && allRankings.length > 10 && "max-h-[400px]")}>
+          <div className="space-y-2">
+            {rankings.map((restaurant, index) => {
+              const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
+              const isTop3 = index < 3;
+              const isHighlighted = highlightedRestaurants.includes(restaurant.restaurantId);
 
-          return (
-            <motion.div
-              key={restaurant.restaurantId}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: index * 0.05, duration: 0.2 }}
-              className={cn(
-                "flex items-center gap-3 py-1.5 transition-all",
-                isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg",
-                isHighlighted && "bg-primary/10 border-l-4 border-primary -mx-2 px-2 rounded-r-lg"
-              )}
-            >
-              {/* Rank medal */}
-              <div className="w-6 flex justify-center shrink-0">
-                {getMedal(index)}
-              </div>
+              return (
+                <motion.div
+                  key={restaurant.restaurantId}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: Math.min(index, 10) * 0.05, duration: 0.2 }}
+                  className={cn(
+                    "flex items-center gap-3 py-1.5 transition-all",
+                    isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg",
+                    isHighlighted && "bg-primary/10 border-l-4 border-primary -mx-2 px-2 rounded-r-lg"
+                  )}
+                >
+                  {/* Rank medal */}
+                  <div className="w-6 flex justify-center shrink-0">
+                    {getMedal(index)}
+                  </div>
 
-              {/* Restaurant name and bar */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <TooltipProvider>
-                    <UITooltip>
-                      <TooltipTrigger asChild>
-                        <span className="text-sm font-medium truncate max-w-[280px] cursor-help">
-                          {restaurant.restaurantName}
-                        </span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">
-                        <div className="text-xs space-y-1">
-                          <p className="font-semibold">{restaurant.restaurantName}</p>
-                          <p>Visites: {restaurant.visits.toLocaleString("fr-FR")}</p>
-                          <p>Vues: {restaurant.views.toLocaleString("fr-FR")}</p>
-                          <p>Paniers: {restaurant.cart.toLocaleString("fr-FR")}</p>
-                          <p>Commandes: {restaurant.orders.toLocaleString("fr-FR")}</p>
-                          <p className="font-medium pt-1 border-t">
-                            Taux: {restaurant.conversionRate.toFixed(2)}%
-                          </p>
-                        </div>
-                      </TooltipContent>
-                    </UITooltip>
-                  </TooltipProvider>
-                  <span className="text-sm font-bold tabular-nums" style={{ color: stageConfig.color }}>
-                    {formatValue(restaurant.value)}
-                  </span>
-                </div>
+                  {/* Restaurant name and bar */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <TooltipProvider>
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <span className="text-sm font-medium truncate max-w-[280px] cursor-help">
+                              {restaurant.restaurantName}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent side="top">
+                            <div className="text-xs space-y-1">
+                              <p className="font-semibold">{restaurant.restaurantName}</p>
+                              <p>Visites: {restaurant.visits.toLocaleString("fr-FR")}</p>
+                              <p>Vues: {restaurant.views.toLocaleString("fr-FR")}</p>
+                              <p>Paniers: {restaurant.cart.toLocaleString("fr-FR")}</p>
+                              <p>Commandes: {restaurant.orders.toLocaleString("fr-FR")}</p>
+                              <p className="font-medium pt-1 border-t">
+                                Taux: {restaurant.conversionRate.toFixed(2)}%
+                              </p>
+                            </div>
+                          </TooltipContent>
+                        </UITooltip>
+                      </TooltipProvider>
+                      <span className="text-sm font-bold tabular-nums" style={{ color: stageConfig.color }}>
+                        {formatValue(restaurant.value)}
+                      </span>
+                    </div>
 
-                {/* Progress bar */}
-                <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${barWidth}%` }}
-                    transition={{ delay: index * 0.05 + 0.1, duration: 0.4, ease: "easeOut" }}
-                    className="h-full rounded-full"
-                    style={{
-                      background: `linear-gradient(90deg, ${stageConfig.color}, ${stageConfig.color}99)`,
-                    }}
-                  />
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
+                    {/* Progress bar */}
+                    <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barWidth}%` }}
+                        transition={{ delay: Math.min(index, 10) * 0.05 + 0.1, duration: 0.4, ease: "easeOut" }}
+                        className="h-full rounded-full"
+                        style={{
+                          background: `linear-gradient(90deg, ${stageConfig.color}, ${stageConfig.color}99)`,
+                        }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </ScrollArea>
+
+        {/* Toggle show all / reduce */}
+        {allRankings.length > 10 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full mt-3 text-muted-foreground"
+            onClick={() => setShowAll(!showAll)}
+          >
+            {showAll ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-1" />
+                Réduire
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-1" />
+                Voir les {allRankings.length} restaurants
+              </>
+            )}
+          </Button>
+        )}
 
         {/* Network average indicator */}
-        {rankings.length > 0 && (
+        {allRankings.length > 0 && (
           <div className="mt-4 pt-3 border-t border-border flex items-center justify-between text-sm">
             <span className="text-muted-foreground">Moyenne réseau :</span>
             <Badge variant="outline" className="font-mono">
               {formatValue(
-                rankings.reduce((sum, r) => sum + r.value, 0) / rankings.length
+                allRankings.reduce((sum, r) => sum + r.value, 0) / allRankings.length
               )}
             </Badge>
           </div>
