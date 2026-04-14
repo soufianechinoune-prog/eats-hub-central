@@ -131,7 +131,7 @@ export function ConversionRankingByStage({
       </CardHeader>
 
       <CardContent className="pt-0">
-        <ScrollArea className={cn(showAll && allRankings.length > 10 && "max-h-[400px]")}>
+        <ScrollArea className={cn(showAll && allRankings.length > 10 && "h-[400px]")}>
           <div className="space-y-2">
             {rankings.map((restaurant, index) => {
               const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
