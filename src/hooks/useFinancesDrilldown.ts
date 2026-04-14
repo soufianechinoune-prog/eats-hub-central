@@ -554,6 +554,7 @@ export function useFinancesDrilldown({
       return fetchUberOrdersData(restaurantIds, startStr, endStr);
     },
     enabled: enabled && (granularity === "daily" || granularity === "hourly"),
+    retry: false,
   });
 
   // Fetch order items for product breakdown with pagination
@@ -610,6 +611,7 @@ export function useFinancesDrilldown({
       return allItems;
     },
     enabled: enabled && granularity === "product",
+    retry: false,
   });
 
   // Fetch ALL individual orders (no pagination limit)
@@ -642,6 +644,7 @@ export function useFinancesDrilldown({
       return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter);
     },
     enabled: enabled && granularity === "order",
+    retry: false,
   });
 
   // Fetch fulfillment stats (server-side aggregation on ALL orders, not paginated)
@@ -695,6 +698,7 @@ export function useFinancesDrilldown({
       };
     },
     enabled: enabled && granularity === "order" && platform !== "deliveroo",
+    retry: false,
   });
 
   // Process daily data with additional financial columns

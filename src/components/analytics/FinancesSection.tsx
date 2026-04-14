@@ -102,6 +102,7 @@ export function FinancesSection({
       return data || [];
     },
     enabled: activeIds.length > 0,
+    retry: false,
   });
 
   // Map RPC data to DailyOrderData format for the chart

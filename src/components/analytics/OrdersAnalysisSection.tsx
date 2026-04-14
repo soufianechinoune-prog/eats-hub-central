@@ -91,6 +91,7 @@ export function OrdersAnalysisSection({
   endDate,
   platform = "uber_eats",
 }: OrdersAnalysisSectionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<DrilldownGranularity>('daily');
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
@@ -148,7 +149,7 @@ export function OrdersAnalysisSection({
     startDate,
     endDate,
     granularity: activeTab,
-    enabled: true,
+    enabled: isExpanded,
     orderSearchQuery: debouncedSearch,
     orderSortField,
     orderSortDirection: orderSortDir,
@@ -336,6 +337,20 @@ export function OrdersAnalysisSection({
     if (showOffersOnly) data = data.filter(o => o.has_offer);
     return data;
   }, [orderData, showOffersOnly]);
+
+  if (!isExpanded) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-8 flex flex-col items-center gap-3">
+          <Package className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Analyse détaillée des commandes individuelles</p>
+          <Button variant="outline" onClick={() => setIsExpanded(true)}>
+            Charger l'analyse des commandes
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
