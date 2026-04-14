@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { startOfWeek, endOfWeek, parseISO, format } from "date-fns";
+import { startOfWeek, endOfWeek, parseISO, format, isSameMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays, isSameMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
