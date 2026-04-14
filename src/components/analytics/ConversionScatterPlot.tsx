@@ -23,6 +23,8 @@ import {
   BarChart3,
   TableIcon,
   ArrowUpDown,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 interface RestaurantConversionData {
