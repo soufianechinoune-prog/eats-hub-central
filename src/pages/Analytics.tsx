@@ -118,6 +118,10 @@ export default function Analytics() {
   const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
   const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
 
+  // Platform-specific flags to avoid loading data for unselected platforms
+  const shouldLoadUber = selectedPlatform === "uber_eats" || selectedPlatform === "global";
+  const shouldLoadDeliveroo = selectedPlatform === "deliveroo" || selectedPlatform === "global";
+
   // Determine data granularity based on selected period
   const { granularity, startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
