@@ -110,6 +110,7 @@ export function useUberOneStats({
   const { data: rpcData, isLoading } = useQuery({
     queryKey: ["uber-one-stats-rpc", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString(), platformFilter, useDaily ? "daily" : "monthly"],
     staleTime: 5 * 60 * 1000,
+    retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_uber_one_stats", {
         p_start_date: startDate.toISOString(),
