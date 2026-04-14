@@ -1,45 +1,29 @@
 
 
-# Meilleur format de labels hebdomadaires
+# Calendrier "Période perso." en mode semaine pour l'onglet Conversion
 
 ## Probleme
-Les labels "S1, S2, S3..." sont identiques d'un mois a l'autre — impossible de savoir de quelle periode il s'agit sans survoler le tooltip. En vue annuelle, c'est encore pire.
+La data de conversion est hebdomadaire. Permettre de selectionner des jours individuels dans le calendrier personnalise n'a pas de sens — ca peut couper des semaines en plein milieu et fausser les resultats.
 
-## Solution : labels avec dates integrees
+## Solution
+Quand l'utilisateur est sur l'onglet **Conversion**, modifier le comportement du calendrier "Periode perso." pour que :
+- Un clic sur n'importe quel jour selectionne automatiquement la **semaine entiere** (lundi-dimanche)
+- Un deuxieme clic sur un autre jour etend la selection jusqu'a la fin de cette semaine
+- Les selections sont toujours alignees sur des semaines completes
 
-Remplacer `S1`, `S2`... par un format compact incluant les dates :
+## Fichier modifie
 
-- **Vue mois** : `03-09 mars`, `10-16 mars`, `17-23 mars`...
-- **Vue annee** : `03-09 mar`, `10-16 mar`, `17-23 mar`... (mois abrege)
-- **Vue range** : idem, avec mois abrege
+### `src/components/analytics/AnalyticsHeader.tsx`
 
-Le format utilise `format(weekStart, 'd')` + `format(weekEnd, 'd MMM')` quand les deux dates sont dans le meme mois, et `format(weekStart, 'd MMM')` + `format(weekEnd, 'd MMM')` sinon.
+1. **Ajouter une prop optionnelle** `weekOnlyRange?: boolean` au composant
+2. **Modifier `handleDateRangeSelect`** : quand `weekOnlyRange` est actif, snapper `from` au lundi de la semaine cliquee et `to` au dimanche de la semaine cliquee (ou de la deuxieme semaine si plage multi-semaines)
+3. **Ajouter un petit texte d'indication** sous le calendrier quand le mode semaine est actif (ex: "Selection par semaine uniquement")
 
-Exemples :
-- Meme mois : `3-9 mars`
-- Cheval sur 2 mois : `27 fev - 5 mars`
+### `src/pages/Analytics.tsx`
 
-## Fichiers modifies
+1. Passer `weekOnlyRange={viewMode === "conversion"}` a `<AnalyticsHeader />`
 
-### 1. `src/components/analytics/AnalyticsCharts.tsx` (ligne ~1277)
-Remplacer :
-```typescript
-const weekLabel = `S${idx + 1}`;
-```
-Par un label dynamique du type `3-9 mar` ou `27 fev - 5 mar`.
-
-### 2. `src/components/analytics/ConversionFunnelChart.tsx` (ligne ~310)
-Meme correction dans `weeklyBreakdown` :
-```typescript
-label: `S${idx + 1}`,
-```
-Remplacer par le meme format de dates compact.
-
-### 3. Format helper
-Creer une petite fonction utilitaire `formatWeekLabel(weekStart, weekEnd)` reutilisable, soit inline soit dans un fichier utils.
-
-## Resultat attendu
-- Axe X du graphique : `3-9 mar | 10-16 mar | 17-23 mar | 24-30 mar`
-- Pills du funnel : `3-9 mar | 10-16 mar | ...`
-- Tooltip inchange (deja correct avec la plage complete)
+## Comportement attendu
+- Onglet Conversion : clic sur "mercredi 12 mars" → selectionne automatiquement lun 10 - dim 16 mars
+- Autres onglets : comportement inchange (selection jour par jour)
 
