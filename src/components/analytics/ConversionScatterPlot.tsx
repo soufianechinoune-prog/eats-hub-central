@@ -23,6 +23,8 @@ import {
   BarChart3,
   TableIcon,
   ArrowUpDown,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 
 interface RestaurantConversionData {
@@ -64,6 +66,7 @@ export function ConversionScatterPlot({
   highlightedRestaurants = [],
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
+  const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -201,6 +204,15 @@ export function ConversionScatterPlot({
                 <TableIcon className="h-3.5 w-3.5" />
               </button>
             </div>
+            {viewMode === "chart" && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={expanded ? "Réduire" : "Agrandir"}
+              >
+                {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            )}
             <TooltipProvider>
               <UITooltip>
                 <TooltipTrigger asChild>
@@ -252,7 +264,7 @@ export function ConversionScatterPlot({
         </div>
 
         {viewMode === "chart" ? (
-          <div className="h-[400px]">
+          <div style={{ height: expanded ? 700 : 400 }} className="transition-all duration-300">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -272,7 +284,7 @@ export function ConversionScatterPlot({
                   className="text-xs"
                   label={{ value: "Conversion % →", angle: -90, position: "left", offset: -5, className: "text-xs fill-muted-foreground" }}
                 />
-                <ZAxis type="number" dataKey="bubbleSize" range={[60, 400]} />
+                <ZAxis type="number" dataKey="bubbleSize" range={[40, 300]} />
                 
                 <ReferenceLine
                   x={averages.visits}
@@ -308,7 +320,7 @@ export function ConversionScatterPlot({
           </div>
         ) : (
           /* Table view */
-          <div className="max-h-[400px] overflow-auto rounded-lg border border-border">
+          <div className="overflow-auto rounded-lg border border-border" style={{ maxHeight: expanded ? 700 : 400 }}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                 <tr>
