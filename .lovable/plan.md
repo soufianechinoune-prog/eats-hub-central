@@ -1,30 +1,31 @@
 
+# Fix: Graphiques finances qui ne chargent pas — `useFinancesDrilldown` trop lent
 
-# Fix: Graphiques "Rentabilité globale" et UberOne qui bloquent
+## Diagnostic
 
-## Problème
-Les logs montrent des timeouts `57014` répétés. Deux causes :
+Le graphique "Rentabilité globale" **fonctionne** (les logs montrent 4 data points, 4.2M€ de ventes). Ce qui bloque, c'est la section **"Analyse des commandes"** (`OrdersAnalysisSection`) en dessous, qui utilise `useFinancesDrilldown`.
 
-1. **`get_uber_one_stats`** n'est pas `SECURITY DEFINER` → la RLS scanne 4.4M lignes avec sous-requête à chaque appel → timeout
-2. **Requêtes profitability** (`get_profitability_daily`) : bien que déjà SECURITY DEFINER, elles n'ont pas `retry: false` → React Query relance 3 fois chaque timeout (3 × ~30s = 1min30 d'attente)
-3. **`useUberOneStats`** dans `AnalyticsCharts.tsx` se lance même en mode revenue sur la plateforme Uber Eats alors qu'il n'est pas nécessaire pour les graphiques principaux
+Ce hook fait des boucles de pagination sur la table `orders` brute (PAGE_SIZE=1000, while loop) **sans `retry: false`**. Pour 150+ restaurants sur 3-4 mois, ça représente potentiellement des dizaines de milliers de lignes récupérées une par une, avec 3 retries par défaut en cas de timeout.
 
 ## Corrections
 
-### 1. Migration SQL — `get_uber_one_stats` en SECURITY DEFINER
-```sql
-ALTER FUNCTION public.get_uber_one_stats(timestamptz, timestamptz, uuid[], text, text)
-  SECURITY DEFINER SET search_path = public;
-```
+### 1. `src/hooks/useFinancesDrilldown.ts` — `retry: false` sur toutes les queries
+Ajouter `retry: false` aux 4 `useQuery` du hook (lignes ~541, ~560, ~616, ~648) pour éviter les retries de timeout qui multiplient les temps d'attente.
 
-### 2. `src/pages/Analytics.tsx` — retry: false sur les requêtes profitability
-Ajouter `retry: false` aux deux queries `get_profitability_daily` (current + prev period, lignes ~533 et ~554).
+### 2. `src/components/analytics/OrdersAnalysisSection.tsx` — Lazy loading
+La section "Analyse des commandes" n'a pas besoin de charger immédiatement. Passer `enabled: false` par défaut et ne l'activer que quand l'utilisateur clique/scroll vers cette section. Cela évite de bloquer l'affichage du graphique de rentabilité pendant que les commandes individuelles chargent.
 
-### 3. `src/hooks/useUberOneStats.ts` — retry: false
-Ajouter `retry: false` à la query `get_uber_one_stats` (ligne ~110).
+Concrètement : ajouter un state `isExpanded` (défaut `false`) avec un bouton "Charger l'analyse des commandes". Les queries de `useFinancesDrilldown` ne se lancent que quand `isExpanded = true`.
+
+### 3. `src/components/analytics/FinancesSection.tsx` — `retry: false` sur la query RPC
+Ajouter `retry: false` à la query `get_profitability_daily` (ligne ~93) pour cohérence.
+
+## Fichiers modifiés
+- `src/hooks/useFinancesDrilldown.ts` — retry: false sur les 4 queries
+- `src/components/analytics/OrdersAnalysisSection.tsx` — lazy loading avec bouton d'expansion
+- `src/components/analytics/FinancesSection.tsx` — retry: false sur la query RPC
 
 ## Résultat attendu
-- `get_uber_one_stats` bypass la RLS → temps de réponse de timeout → quelques secondes
-- Plus de retries inutiles sur les timeouts → feedback immédiat
-- Le graphique "Rentabilité globale" charge en quelques secondes au lieu de bloquer
-
+- Le graphique de rentabilité apparaît immédiatement (déjà OK)
+- Plus de chargement bloquant en dessous
+- L'analyse des commandes se charge uniquement à la demande
