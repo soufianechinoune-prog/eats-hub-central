@@ -1,48 +1,45 @@
 
 
-# Fix: deduplication des donnees hebdomadaires de conversion
+# Meilleur format de labels hebdomadaires
 
 ## Probleme
+Les labels "S1, S2, S3..." sont identiques d'un mois a l'autre — impossible de savoir de quelle periode il s'agit sans survoler le tooltip. En vue annuelle, c'est encore pire.
 
-La table `daily_conversion` contient des valeurs **identiques** pour chaque jour d'une meme semaine par restaurant (c'est Uber qui fournit la data a la semaine). Le code actuel **somme** toutes les lignes quotidiennes, ce qui produit :
-- S1 = 1 jour (ex: samedi 1er mars seul) → valeur correcte × 1
-- S2 = 7 jours identiques → valeur correcte × 7
+## Solution : labels avec dates integrees
 
-Resultat : S1 parait anormalement faible et les autres semaines sont gonflees.
+Remplacer `S1`, `S2`... par un format compact incluant les dates :
 
-## Solution
+- **Vue mois** : `03-09 mars`, `10-16 mars`, `17-23 mars`...
+- **Vue annee** : `03-09 mar`, `10-16 mar`, `17-23 mar`... (mois abrege)
+- **Vue range** : idem, avec mois abrege
 
-Au lieu de sommer directement toutes les lignes par semaine, **deduplicquer par (restaurant, semaine)** : ne garder qu'une seule ligne par restaurant par semaine, puis sommer ces lignes dedupliquees.
+Le format utilise `format(weekStart, 'd')` + `format(weekEnd, 'd MMM')` quand les deux dates sont dans le meme mois, et `format(weekStart, 'd MMM')` + `format(weekEnd, 'd MMM')` sinon.
+
+Exemples :
+- Meme mois : `3-9 mars`
+- Cheval sur 2 mois : `27 fev - 5 mars`
 
 ## Fichiers modifies
 
-### 1. `src/components/analytics/AnalyticsCharts.tsx` (lignes ~1232-1247 et ~1249-1260)
+### 1. `src/components/analytics/AnalyticsCharts.tsx` (ligne ~1277)
+Remplacer :
+```typescript
+const weekLabel = `S${idx + 1}`;
+```
+Par un label dynamique du type `3-9 mar` ou `27 fev - 5 mar`.
 
-Dans `aggregatedConversionData`, section weekly :
-- Creer une cle composite `restaurant_id + weekKey`
-- Ne garder qu'une seule ligne par couple (restaurant, semaine) — la premiere rencontree
-- Puis sommer par semaine comme actuellement
+### 2. `src/components/analytics/ConversionFunnelChart.tsx` (ligne ~310)
+Meme correction dans `weeklyBreakdown` :
+```typescript
+label: `S${idx + 1}`,
+```
+Remplacer par le meme format de dates compact.
 
-Meme correction pour `prevWeeklyMap`.
+### 3. Format helper
+Creer une petite fonction utilitaire `formatWeekLabel(weekStart, weekEnd)` reutilisable, soit inline soit dans un fichier utils.
 
-### 2. `src/components/analytics/ConversionFunnelChart.tsx` (lignes ~289-300)
-
-Dans `weeklyBreakdown` :
-- Meme logique de deduplication par (restaurant_id, weekKey)
-- Ne garder qu'une ligne par restaurant par semaine avant de sommer
-
-### 3. Verifier aussi les aggregations mensuelles et daily
-
-Les memes duplications affectent potentiellement :
-- Le mode "monthly" (un mois complet a 4 semaines = valeurs × ~28-31)
-- Le mode "daily" (correct car on somme par date, mais chaque restaurant apparait avec la meme valeur chaque jour → les totaux sont gonfles)
-
-Le probleme est **structural** : toutes les aggregations de `daily_conversion` qui somment doivent deduplicquer par restaurant+semaine d'abord.
-
-La correction consistera a ecrire une fonction utilitaire `deduplicateWeeklyConversion(data)` qui :
-1. Groupe par `(restaurant_id, weekStartKey)`
-2. Garde une seule ligne par groupe
-3. Retourne le tableau deduplique
-
-Cette fonction sera appelee avant toute aggregation (weekly, monthly, daily, funnel).
+## Resultat attendu
+- Axe X du graphique : `3-9 mar | 10-16 mar | 17-23 mar | 24-30 mar`
+- Pills du funnel : `3-9 mar | 10-16 mar | ...`
+- Tooltip inchange (deja correct avec la plage complete)
 
