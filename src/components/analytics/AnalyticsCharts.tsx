@@ -2,6 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
+import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -1233,12 +1234,14 @@ export function AnalyticsCharts({
       const weeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
       const prevWeeklyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; weekStart: Date } } = {};
       
-      conversionData.forEach((item: any) => {
-        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
-        const weekKey = format(weekStart, 'yyyy-MM-dd');
+      // Deduplicate: keep one row per (restaurant, week) before summing
+      const deduped = deduplicateWeeklyConversion(conversionData as any[]);
+      deduped.forEach((item: any) => {
+        const ws = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(ws, 'yyyy-MM-dd');
         
         if (!weeklyMap[weekKey]) {
-          weeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart };
+          weeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart: ws };
         }
         weeklyMap[weekKey].visits += item.visits || 0;
         weeklyMap[weekKey].views += item.menu_views || 0;
@@ -1246,12 +1249,13 @@ export function AnalyticsCharts({
         weeklyMap[weekKey].orders += item.orders || 0;
       });
       
-      prevConversionData?.forEach((item: any) => {
-        const weekStart = startOfWeek(parseISO(item.date), { locale: fr });
-        const weekKey = format(weekStart, 'yyyy-MM-dd');
+      const dedupedPrev = deduplicateWeeklyConversion((prevConversionData || []) as any[]);
+      dedupedPrev.forEach((item: any) => {
+        const ws = startOfWeek(parseISO(item.date), { locale: fr });
+        const weekKey = format(ws, 'yyyy-MM-dd');
         
         if (!prevWeeklyMap[weekKey]) {
-          prevWeeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart };
+          prevWeeklyMap[weekKey] = { visits: 0, views: 0, cart: 0, orders: 0, weekStart: ws };
         }
         prevWeeklyMap[weekKey].visits += item.visits || 0;
         prevWeeklyMap[weekKey].views += item.menu_views || 0;
@@ -1291,7 +1295,9 @@ export function AnalyticsCharts({
       const dailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       const prevDailyMap: { [key: string]: { visits: number; views: number; cart: number; orders: number; date: string } } = {};
       
-      conversionData.forEach((item: any) => {
+      // Deduplicate: keep one row per (restaurant, week) even in daily view
+      const dedupedDaily = deduplicateWeeklyConversion(conversionData as any[]);
+      dedupedDaily.forEach((item: any) => {
         if (!dailyMap[item.date]) {
           dailyMap[item.date] = { visits: 0, views: 0, cart: 0, orders: 0, date: item.date };
         }
@@ -1301,7 +1307,8 @@ export function AnalyticsCharts({
         dailyMap[item.date].orders += item.orders || 0;
       });
       
-      prevConversionData?.forEach((item: any) => {
+      const dedupedPrevDaily = deduplicateWeeklyConversion((prevConversionData || []) as any[]);
+      dedupedPrevDaily.forEach((item: any) => {
         if (!prevDailyMap[item.date]) {
           prevDailyMap[item.date] = { visits: 0, views: 0, cart: 0, orders: 0, date: item.date };
         }

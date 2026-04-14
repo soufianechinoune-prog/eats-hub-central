@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { startOfWeek, endOfWeek, parseISO, format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -286,7 +287,9 @@ export function ConversionFunnelChart({
     
     const weeklyMap: Record<string, { visits: number; views: number; cart: number; orders: number; weekStart: Date }> = {};
     
-    rawConversionData.forEach((item: any) => {
+    // Deduplicate: keep one row per (restaurant, week) before summing
+    const deduped = deduplicateWeeklyConversion(rawConversionData as any[]);
+    deduped.forEach((item: any) => {
       if (!item.date) return;
       const ws = startOfWeek(parseISO(item.date), { locale: fr });
       const key = format(ws, 'yyyy-MM-dd');
