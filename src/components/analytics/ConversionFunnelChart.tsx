@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { startOfWeek, endOfWeek, parseISO, format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
