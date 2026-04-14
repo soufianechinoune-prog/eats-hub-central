@@ -535,6 +535,61 @@ export function ConversionFunnelChart({
       </CardHeader>
       
       <CardContent className="space-y-4">
+        {/* Week Selector Pills */}
+        {weeklyBreakdown.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSelectedWeek(null)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                !selectedWeek
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+              )}
+            >
+              Tout le mois
+            </button>
+            {weeklyBreakdown.map(w => (
+              <TooltipProvider key={w.key}>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedWeek(selectedWeek === w.key ? null : w.key)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                        selectedWeek === w.key
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      {w.label}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>{w.range}</p></TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            ))}
+          </div>
+        )}
+
+        {/* WoW Comparison */}
+        {wowComparison && selectedWeek && (
+          <div className="flex flex-wrap gap-2 text-xs">
+            <Badge variant="outline" className="gap-1">
+              vs {wowComparison.prevLabel}
+            </Badge>
+            <Badge variant={wowComparison.visitsDelta >= 0 ? "default" : "destructive"} className="gap-1">
+              Visites {wowComparison.visitsDelta >= 0 ? "+" : ""}{wowComparison.visitsDelta.toFixed(1)}%
+            </Badge>
+            <Badge variant={wowComparison.ordersDelta >= 0 ? "default" : "destructive"} className="gap-1">
+              Commandes {wowComparison.ordersDelta >= 0 ? "+" : ""}{wowComparison.ordersDelta.toFixed(1)}%
+            </Badge>
+            <Badge variant={wowComparison.rateDelta >= 0 ? "default" : "destructive"} className="gap-1">
+              Taux {wowComparison.rateDelta >= 0 ? "+" : ""}{wowComparison.rateDelta.toFixed(2)}pts
+            </Badge>
+          </div>
+        )}
+
         {/* Funnel Summary Badges */}
         <div className="flex flex-wrap gap-2">
           <TooltipProvider>
