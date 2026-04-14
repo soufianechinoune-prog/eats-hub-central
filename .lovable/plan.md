@@ -1,32 +1,39 @@
 
 
-# Fix: Timeout sur les requêtes de revenus (4.4M lignes + RLS)
+# Fix: isLoading bloque l'affichage sur l'onglet Revenus
 
 ## Problème
-La RPC `get_daily_revenue_from_orders` timeout car :
-1. La table `orders` contient **4.4 millions de lignes**
-2. La RPC n'est **pas** `SECURITY DEFINER` → la politique RLS "Chain scoped access on orders" s'applique
-3. Cette RLS fait un **sous-select sur `restaurants`** pour chaque ligne vérifiée, ce qui est extrêmement coûteux à cette échelle
-
-Même résultat pour `get_monthly_revenue_from_orders`.
+Ligne 1161 de `Analytics.tsx`, `isLoading` inclut `loadingUberConversion` et `loadingDeliverooConversion` même quand `needsConversion = false` (ex: on est sur l'onglet "revenue"). Les queries désactivées (`enabled: false`) peuvent rester en état "loading" indéfiniment → l'UI affiche le spinner infini au lieu des graphiques.
 
 ## Solution
-Convertir les deux RPCs en `SECURITY DEFINER` (comme c'est déjà fait pour d'autres RPCs du projet : `get_network_orders_summary`, `get_network_ratings_summary`, etc.). Le filtrage par restaurant est déjà assuré par le paramètre `p_restaurant_ids`, donc la sécurité est maintenue.
 
-## Migration SQL
+### Fichier : `src/pages/Analytics.tsx` (ligne 1161-1162)
 
-```sql
-ALTER FUNCTION public.get_daily_revenue_from_orders(date, date, uuid[]) 
-  SECURITY DEFINER 
-  SET search_path = public;
-
-ALTER FUNCTION public.get_monthly_revenue_from_orders(date, date, uuid[]) 
-  SECURITY DEFINER 
-  SET search_path = public;
+Remplacer :
+```tsx
+const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
+                  loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
 ```
 
-## Impact
-- Les requêtes bypassent la RLS coûteuse et utilisent directement l'index `idx_orders_restaurant_datetime`
-- Temps de réponse attendu : de timeout (>2min) à quelques secondes
-- Aucun changement côté frontend
+Par :
+```tsx
+const isLoading = (() => {
+  if (viewMode === 'revenue') {
+    return loadingUberRevenue || loadingDeliverooRevenue ||
+           loadingUberFees || loadingDeliverooFees;
+  }
+  if (viewMode === 'conversion') {
+    return loadingUberConversion || loadingDeliverooConversion;
+  }
+  if (viewMode === 'finances') {
+    return loadingUberRevenue || loadingDeliverooRevenue;
+  }
+  // overview: all
+  return loadingUberRevenue || loadingUberConversion ||
+         loadingUberFees || loadingDeliverooRevenue ||
+         loadingDeliverooConversion || loadingDeliverooFees;
+})();
+```
+
+Changement unique, 1 fichier, 2 lignes remplacées par 15.
 
