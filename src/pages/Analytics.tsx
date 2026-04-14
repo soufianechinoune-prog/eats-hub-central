@@ -1158,8 +1158,22 @@ export default function Analytics() {
     return [...(uberPrevFeesData || []), ...(deliverooPrevFeesData || [])];
   }, [uberPrevFeesData, deliverooPrevFeesData]);
 
-  const isLoading = loadingUberRevenue || loadingUberConversion || loadingUberFees ||
-                    loadingDeliverooRevenue || loadingDeliverooConversion || loadingDeliverooFees;
+  const isLoading = (() => {
+    if (viewMode === 'revenue') {
+      return loadingUberRevenue || loadingDeliverooRevenue ||
+             loadingUberFees || loadingDeliverooFees;
+    }
+    if (viewMode === 'conversion') {
+      return loadingUberConversion || loadingDeliverooConversion;
+    }
+    if (viewMode === 'finances') {
+      return loadingUberRevenue || loadingDeliverooRevenue;
+    }
+    // overview: all
+    return loadingUberRevenue || loadingUberConversion ||
+           loadingUberFees || loadingDeliverooRevenue ||
+           loadingDeliverooConversion || loadingDeliverooFees;
+  })();
 
   // Debug logging
   useEffect(() => {
