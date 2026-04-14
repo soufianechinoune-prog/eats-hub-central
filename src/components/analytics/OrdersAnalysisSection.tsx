@@ -338,6 +338,20 @@ export function OrdersAnalysisSection({
     return data;
   }, [orderData, showOffersOnly]);
 
+  if (!isExpanded) {
+    return (
+      <Card className="border-dashed">
+        <CardContent className="py-8 flex flex-col items-center gap-3">
+          <Package className="h-8 w-8 text-muted-foreground" />
+          <p className="text-sm text-muted-foreground">Analyse détaillée des commandes individuelles</p>
+          <Button variant="outline" onClick={() => setIsExpanded(true)}>
+            Charger l'analyse des commandes
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="pb-4">
