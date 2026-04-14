@@ -1,30 +1,32 @@
 
 
-# Fix: Pas de données sur Revenus & Ventes
+# Fix: Timeout sur les requêtes de revenus (4.4M lignes + RLS)
 
-## Problème identifié
-Les logs console montrent que `restaurantFilter` vaut `["00000000-0000-0000-0000-000000000000"]` — un UUID fictif qui ne correspond à aucun restaurant. Cela se produit quand la liste des restaurants n'a pas encore fini de charger au moment où la requête de revenus se lance.
+## Problème
+La RPC `get_daily_revenue_from_orders` timeout car :
+1. La table `orders` contient **4.4 millions de lignes**
+2. La RPC n'est **pas** `SECURITY DEFINER` → la politique RLS "Chain scoped access on orders" s'applique
+3. Cette RLS fait un **sous-select sur `restaurants`** pour chaque ligne vérifiée, ce qui est extrêmement coûteux à cette échelle
 
-La fonction `resolveBrandScopedRestaurantIds` retourne ce UUID "vide" quand `selectedChainId` est défini mais `chainRestaurantIds` est encore `[]` (chargement en cours). La requête RPC part donc avec un filtre qui ne matche rien → 0 résultats.
+Même résultat pour `get_monthly_revenue_from_orders`.
 
 ## Solution
+Convertir les deux RPCs en `SECURITY DEFINER` (comme c'est déjà fait pour d'autres RPCs du projet : `get_network_orders_summary`, `get_network_ratings_summary`, etc.). Le filtrage par restaurant est déjà assuré par le paramètre `p_restaurant_ids`, donc la sécurité est maintenue.
 
-**Fichier** : `src/pages/Analytics.tsx`
+## Migration SQL
 
-1. **Ajouter une garde sur `enabled`** : les requêtes de revenus (et comparaisons) ne doivent se lancer que quand `restaurantFilter` n'est pas le tableau "vide" dummy :
+```sql
+ALTER FUNCTION public.get_daily_revenue_from_orders(date, date, uuid[]) 
+  SECURITY DEFINER 
+  SET search_path = public;
 
-```tsx
-const isRestaurantScopeReady = !restaurantFilter || 
-  restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+ALTER FUNCTION public.get_monthly_revenue_from_orders(date, date, uuid[]) 
+  SECURITY DEFINER 
+  SET search_path = public;
 ```
 
-2. **Modifier les `enabled` des queries revenue** (current, previous year, rolling, deliveroo) pour inclure cette condition :
-
-```tsx
-enabled: needsRevenue && isRestaurantScopeReady,
-```
-
-Cela empêche les requêtes de partir avec le UUID fictif. Dès que les restaurants sont chargés, `restaurantFilter` sera mis à jour avec les vrais IDs et les requêtes se lanceront automatiquement.
-
-3. **Import** : ajouter `EMPTY_BRAND_SCOPE_RESTAURANT_IDS` depuis `@/lib/brandScope` (même pattern que `Dashboard.tsx`).
+## Impact
+- Les requêtes bypassent la RLS coûteuse et utilisent directement l'index `idx_orders_restaurant_datetime`
+- Temps de réponse attendu : de timeout (>2min) à quelques secondes
+- Aucun changement côté frontend
 
