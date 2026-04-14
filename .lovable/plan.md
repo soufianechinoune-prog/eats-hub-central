@@ -1,43 +1,30 @@
 
 
-# Fix : Même data quelle que soit la marque sélectionnée
+# Fix: Graphiques "Rentabilité globale" et UberOne qui bloquent
 
-## Diagnostic
+## Problème
+Les logs montrent des timeouts `57014` répétés. Deux causes :
 
-Le problème vient de la **vue "Épinglés"** (14 restaurants épinglés). Les 14 restaurants épinglés appartiennent **tous** à Chicken Street. Donc quand tu passes de "Toutes les marques" à "Chicken Street", le filtre appliqué est identique (les mêmes 14 IDs) → mêmes données.
+1. **`get_uber_one_stats`** n'est pas `SECURITY DEFINER` → la RLS scanne 4.4M lignes avec sous-requête à chaque appel → timeout
+2. **Requêtes profitability** (`get_profitability_daily`) : bien que déjà SECURITY DEFINER, elles n'ont pas `retry: false` → React Query relance 3 fois chaque timeout (3 × ~30s = 1min30 d'attente)
+3. **`useUberOneStats`** dans `AnalyticsCharts.tsx` se lance même en mode revenue sur la plateforme Uber Eats alors qu'il n'est pas nécessaire pour les graphiques principaux
 
-La logique actuelle dans `resolveBrandScopedRestaurantIds` en mode Épinglés :
-- "Toutes les marques" → 14 IDs épinglés
-- "Chicken Street" → 14 IDs épinglés (les mêmes, puisqu'aucun épinglé n'est TASTY CROUSTY)
+## Corrections
 
-**C'est techniquement correct**, mais trompeur. En mode **Réseau**, le résultat serait bien différent (157 vs 101 restaurants).
-
-## Ce que je vais corriger
-
-### 1. Forcer la vue Réseau quand on change de marque
-Dans `AppSidebar.tsx`, quand l'utilisateur change de marque, basculer automatiquement en vue Réseau pour que le changement soit immédiatement visible dans les données :
-
-```tsx
-// AppSidebar.tsx — dans handleChainChange
-setIsNetworkView(true); // forcer la vue réseau au changement de marque
-```
-
-### 2. Fix performance : `get_profitability_daily` timeout
-Les logs console montrent des timeouts `57014` sur `get_profitability_daily`. Cette fonction n'est pas encore `SECURITY DEFINER`. Migration SQL :
-
+### 1. Migration SQL — `get_uber_one_stats` en SECURITY DEFINER
 ```sql
-ALTER FUNCTION public.get_profitability_daily(date, date, uuid[], text)
+ALTER FUNCTION public.get_uber_one_stats(timestamptz, timestamptz, uuid[], text, text)
   SECURITY DEFINER SET search_path = public;
 ```
 
-### 3. Même traitement pour les autres fonctions non optimisées
-`get_availability_daily` et `get_monthly_sales_from_daily` ne sont pas non plus `SECURITY DEFINER`. Les corriger en même temps pour éviter de futures timeouts.
+### 2. `src/pages/Analytics.tsx` — retry: false sur les requêtes profitability
+Ajouter `retry: false` aux deux queries `get_profitability_daily` (current + prev period, lignes ~533 et ~554).
 
-## Fichiers modifiés
-- `src/components/layout/AppSidebar.tsx` — ajouter `setIsNetworkView(true)` au changement de marque
-- Nouvelle migration SQL — SECURITY DEFINER sur `get_profitability_daily`, `get_availability_daily`, `get_monthly_sales_from_daily`
+### 3. `src/hooks/useUberOneStats.ts` — retry: false
+Ajouter `retry: false` à la query `get_uber_one_stats` (ligne ~110).
 
 ## Résultat attendu
-- Changer de marque → passage automatique en vue Réseau → données différentes selon la marque
-- Plus de timeouts sur les graphiques de rentabilité
+- `get_uber_one_stats` bypass la RLS → temps de réponse de timeout → quelques secondes
+- Plus de retries inutiles sur les timeouts → feedback immédiat
+- Le graphique "Rentabilité globale" charge en quelques secondes au lieu de bloquer
 
