@@ -48,7 +48,7 @@ const currentYear = today.getFullYear();
 const currentMonth = today.getMonth(); // 0-11 (janvier = 0)
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = false }: { hidePeriodSelector?: boolean; hideFilters?: boolean } = {}) {
+export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = false, weekOnlyRange = false }: { hidePeriodSelector?: boolean; hideFilters?: boolean; weekOnlyRange?: boolean } = {}) {
   const {
     selectedRestaurants,
     setSelectedRestaurants,
@@ -202,7 +202,13 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
   };
 
   const handleDateRangeSelect = (range: DateRange | undefined) => {
-    if (range?.from && range?.to) {
+    if (weekOnlyRange && range?.from) {
+      const snappedFrom = startOfWeek(range.from, { weekStartsOn: 1 });
+      const snappedTo = endOfWeek(range.to || range.from, { weekStartsOn: 1 });
+      const snapped = { from: snappedFrom, to: snappedTo };
+      setPeriodMode("range");
+      setDateRange(snapped);
+    } else if (range?.from && range?.to) {
       setPeriodMode("range");
       setDateRange(range);
     } else {
@@ -662,6 +668,11 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                       }}
                     />
                   </div>
+                  {weekOnlyRange && (
+                    <p className="text-xs text-muted-foreground text-center pb-2">
+                      Sélection par semaine uniquement (lun–dim)
+                    </p>
+                  )}
                   {dateRange?.from && dateRange?.to && (
                     <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">
