@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays, isSameMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1274,7 +1274,9 @@ export function AnalyticsCharts({
           const data = weeklyMap[weekKey];
           const prevData = prevWeeklyMap[prevWeekKey];
           
-          const weekLabel = `S${idx + 1}`;
+          const weekLabel = isSameMonth(weekStart, weekEnd)
+            ? `${format(weekStart, 'd')}-${format(weekEnd, 'd MMM', { locale: fr })}`
+            : `${format(weekStart, 'd MMM', { locale: fr })} - ${format(weekEnd, 'd MMM', { locale: fr })}`;
           const weekRange = `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`;
           
           return {
