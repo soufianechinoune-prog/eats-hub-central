@@ -1162,20 +1162,24 @@ export default function Analytics() {
   }, [uberPrevFeesData, deliverooPrevFeesData]);
 
   const isLoading = (() => {
+    const uberRevLoading = shouldLoadUber && loadingUberRevenue;
+    const delRevLoading = shouldLoadDeliveroo && loadingDeliverooRevenue;
+    const uberFeesLoading = shouldLoadUber && loadingUberFees;
+    const delFeesLoading = shouldLoadDeliveroo && loadingDeliverooFees;
+
     if (viewMode === 'revenue') {
-      return loadingUberRevenue || loadingDeliverooRevenue ||
-             loadingUberFees || loadingDeliverooFees;
+      return uberRevLoading || delRevLoading || uberFeesLoading || delFeesLoading;
     }
     if (viewMode === 'conversion') {
       return loadingUberConversion || loadingDeliverooConversion;
     }
     if (viewMode === 'finances') {
-      return loadingUberRevenue || loadingDeliverooRevenue;
+      return uberRevLoading || delRevLoading;
     }
     // overview: all
-    return loadingUberRevenue || loadingUberConversion ||
-           loadingUberFees || loadingDeliverooRevenue ||
-           loadingDeliverooConversion || loadingDeliverooFees;
+    return uberRevLoading || loadingUberConversion ||
+           uberFeesLoading || delRevLoading ||
+           loadingDeliverooConversion || delFeesLoading;
   })();
 
   // Debug logging
