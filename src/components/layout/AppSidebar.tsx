@@ -177,7 +177,7 @@ export function AppSidebar() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const collapsed = state === "collapsed";
-  const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants } = useAnalyticsContext();
+  const { selectedChainId, setSelectedChainId, setSelectedRestaurants, setVisibleRestaurants, setIsNetworkView } = useAnalyticsContext();
   const unreadCount = useUnreadMessages(selectedChainId);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [newChainDialogOpen, setNewChainDialogOpen] = useState(false);
