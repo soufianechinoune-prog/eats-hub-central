@@ -204,6 +204,15 @@ export function ConversionScatterPlot({
                 <TableIcon className="h-3.5 w-3.5" />
               </button>
             </div>
+            {viewMode === "chart" && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                title={expanded ? "Réduire" : "Agrandir"}
+              >
+                {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            )}
             <TooltipProvider>
               <UITooltip>
                 <TooltipTrigger asChild>
