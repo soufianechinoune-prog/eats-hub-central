@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
+
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -131,77 +131,75 @@ export function ConversionRankingByStage({
       </CardHeader>
 
       <CardContent className="pt-0">
-        <ScrollArea className={cn(showAll && allRankings.length > 10 && "h-[400px]")}>
-          <div className="space-y-2">
-            {rankings.map((restaurant, index) => {
-              const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
-              const isTop3 = index < 3;
-              const isHighlighted = highlightedRestaurants.includes(restaurant.restaurantId);
+        <div className="space-y-2">
+          {rankings.map((restaurant, index) => {
+            const barWidth = maxValue > 0 ? (restaurant.value / maxValue) * 100 : 0;
+            const isTop3 = index < 3;
+            const isHighlighted = highlightedRestaurants.includes(restaurant.restaurantId);
 
-              return (
-                <motion.div
-                  key={restaurant.restaurantId}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: Math.min(index, 10) * 0.05, duration: 0.2 }}
-                  className={cn(
-                    "flex items-center gap-3 py-1.5 transition-all",
-                    isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg",
-                    isHighlighted && "bg-primary/10 border-l-4 border-primary -mx-2 px-2 rounded-r-lg"
-                  )}
-                >
-                  {/* Rank medal */}
-                  <div className="w-6 flex justify-center shrink-0">
-                    {getMedal(index)}
+            return (
+              <motion.div
+                key={restaurant.restaurantId}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: Math.min(index, 10) * 0.05, duration: 0.2 }}
+                className={cn(
+                  "flex items-center gap-3 py-1.5 transition-all",
+                  isTop3 && "bg-muted/30 -mx-2 px-2 rounded-lg",
+                  isHighlighted && "bg-primary/10 border-l-4 border-primary -mx-2 px-2 rounded-r-lg"
+                )}
+              >
+                {/* Rank medal */}
+                <div className="w-6 flex justify-center shrink-0">
+                  {getMedal(index)}
+                </div>
+
+                {/* Restaurant name and bar */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-1">
+                    <TooltipProvider>
+                      <UITooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-sm font-medium truncate max-w-[280px] cursor-help">
+                            {restaurant.restaurantName}
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent side="top">
+                          <div className="text-xs space-y-1">
+                            <p className="font-semibold">{restaurant.restaurantName}</p>
+                            <p>Visites: {restaurant.visits.toLocaleString("fr-FR")}</p>
+                            <p>Vues: {restaurant.views.toLocaleString("fr-FR")}</p>
+                            <p>Paniers: {restaurant.cart.toLocaleString("fr-FR")}</p>
+                            <p>Commandes: {restaurant.orders.toLocaleString("fr-FR")}</p>
+                            <p className="font-medium pt-1 border-t">
+                              Taux: {restaurant.conversionRate.toFixed(2)}%
+                            </p>
+                          </div>
+                        </TooltipContent>
+                      </UITooltip>
+                    </TooltipProvider>
+                    <span className="text-sm font-bold tabular-nums" style={{ color: stageConfig.color }}>
+                      {formatValue(restaurant.value)}
+                    </span>
                   </div>
 
-                  {/* Restaurant name and bar */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <TooltipProvider>
-                        <UITooltip>
-                          <TooltipTrigger asChild>
-                            <span className="text-sm font-medium truncate max-w-[280px] cursor-help">
-                              {restaurant.restaurantName}
-                            </span>
-                          </TooltipTrigger>
-                          <TooltipContent side="top">
-                            <div className="text-xs space-y-1">
-                              <p className="font-semibold">{restaurant.restaurantName}</p>
-                              <p>Visites: {restaurant.visits.toLocaleString("fr-FR")}</p>
-                              <p>Vues: {restaurant.views.toLocaleString("fr-FR")}</p>
-                              <p>Paniers: {restaurant.cart.toLocaleString("fr-FR")}</p>
-                              <p>Commandes: {restaurant.orders.toLocaleString("fr-FR")}</p>
-                              <p className="font-medium pt-1 border-t">
-                                Taux: {restaurant.conversionRate.toFixed(2)}%
-                              </p>
-                            </div>
-                          </TooltipContent>
-                        </UITooltip>
-                      </TooltipProvider>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: stageConfig.color }}>
-                        {formatValue(restaurant.value)}
-                      </span>
-                    </div>
-
-                    {/* Progress bar */}
-                    <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${barWidth}%` }}
-                        transition={{ delay: Math.min(index, 10) * 0.05 + 0.1, duration: 0.4, ease: "easeOut" }}
-                        className="h-full rounded-full"
-                        style={{
-                          background: `linear-gradient(90deg, ${stageConfig.color}, ${stageConfig.color}99)`,
-                        }}
-                      />
-                    </div>
+                  {/* Progress bar */}
+                  <div className="h-2.5 bg-muted/50 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${barWidth}%` }}
+                      transition={{ delay: Math.min(index, 10) * 0.05 + 0.1, duration: 0.4, ease: "easeOut" }}
+                      className="h-full rounded-full"
+                      style={{
+                        background: `linear-gradient(90deg, ${stageConfig.color}, ${stageConfig.color}99)`,
+                      }}
+                    />
                   </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </ScrollArea>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
 
         {/* Toggle show all / reduce */}
         {allRankings.length > 10 && (
