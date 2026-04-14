@@ -1,72 +1,43 @@
-<final-text>## Diagnostic
-- Le `0` affiché n’est pas fiable: les logs montrent que la requête Uber échoue avec `57014: canceling statement due to statement timeout`.
-- Sur `Mars 2026`, la page est en vue mensuelle mais `useDataGranularity` bascule en `daily` pour une période de 31 jours. Donc `/analytics/revenue` appelle `get_daily_revenue_from_orders`, pas la RPC mensuelle.
-- La migration précédente a optimisé `get_monthly_revenue_from_orders`, mais pas `get_daily_revenue_from_orders`. Résultat: la vue année peut être mieux, mais la vue mois reste lente.
-- Le front aggrave l’attente:
-  1. la requête Uber revenue a `retry: 3`, donc elle relance plusieurs timeouts,
-  2. en vue `revenue`, le code charge encore Uber + Deliveroo même si l’onglet actif est seulement `Uber Eats`,
-  3. `isLoading` attend encore les deux plateformes en mode revenue.
 
-## Code à appliquer
-### 1) Backend
-Appliquer la même optimisation à la RPC journalière:
+
+# Fix : Même data quelle que soit la marque sélectionnée
+
+## Diagnostic
+
+Le problème vient de la **vue "Épinglés"** (14 restaurants épinglés). Les 14 restaurants épinglés appartiennent **tous** à Chicken Street. Donc quand tu passes de "Toutes les marques" à "Chicken Street", le filtre appliqué est identique (les mêmes 14 IDs) → mêmes données.
+
+La logique actuelle dans `resolveBrandScopedRestaurantIds` en mode Épinglés :
+- "Toutes les marques" → 14 IDs épinglés
+- "Chicken Street" → 14 IDs épinglés (les mêmes, puisqu'aucun épinglé n'est TASTY CROUSTY)
+
+**C'est techniquement correct**, mais trompeur. En mode **Réseau**, le résultat serait bien différent (157 vs 101 restaurants).
+
+## Ce que je vais corriger
+
+### 1. Forcer la vue Réseau quand on change de marque
+Dans `AppSidebar.tsx`, quand l'utilisateur change de marque, basculer automatiquement en vue Réseau pour que le changement soit immédiatement visible dans les données :
+
+```tsx
+// AppSidebar.tsx — dans handleChainChange
+setIsNetworkView(true); // forcer la vue réseau au changement de marque
+```
+
+### 2. Fix performance : `get_profitability_daily` timeout
+Les logs console montrent des timeouts `57014` sur `get_profitability_daily`. Cette fonction n'est pas encore `SECURITY DEFINER`. Migration SQL :
+
 ```sql
-ALTER FUNCTION public.get_daily_revenue_from_orders(date, date, uuid[])
-  SECURITY DEFINER
-  SET search_path = public;
+ALTER FUNCTION public.get_profitability_daily(date, date, uuid[], text)
+  SECURITY DEFINER SET search_path = public;
 ```
 
-### 2) Frontend `src/pages/Analytics.tsx`
-Ajouter des flags par plateforme:
-```ts
-const shouldLoadUberRevenue =
-  needsRevenue &&
-  isRestaurantScopeReady &&
-  (selectedPlatform === "uber_eats" || selectedPlatform === "global");
+### 3. Même traitement pour les autres fonctions non optimisées
+`get_availability_daily` et `get_monthly_sales_from_daily` ne sont pas non plus `SECURITY DEFINER`. Les corriger en même temps pour éviter de futures timeouts.
 
-const shouldLoadDeliverooRevenue =
-  needsRevenue &&
-  isRestaurantScopeReady &&
-  (selectedPlatform === "deliveroo" || selectedPlatform === "global");
-```
+## Fichiers modifiés
+- `src/components/layout/AppSidebar.tsx` — ajouter `setIsNetworkView(true)` au changement de marque
+- Nouvelle migration SQL — SECURITY DEFINER sur `get_profitability_daily`, `get_availability_daily`, `get_monthly_sales_from_daily`
 
-Puis les utiliser pour:
-- `uberRevenueData`
-- `deliverooRevenueData`
-- `uberFeesData`
-- `deliverooFeesData`
-- leurs datasets N-1 associés
+## Résultat attendu
+- Changer de marque → passage automatique en vue Réseau → données différentes selon la marque
+- Plus de timeouts sur les graphiques de rentabilité
 
-Exemple:
-```ts
-enabled: shouldLoadUberRevenue
-```
-
-### 3) Éviter les faux chargements interminables
-Sur les requêtes revenue lourdes, couper les retries de timeout:
-```ts
-retry: (count, error: any) => error?.code !== "57014" && count < 1
-```
-ou plus simplement:
-```ts
-retry: false
-```
-
-### 4) Ne plus afficher un faux zéro
-Ajouter un état d’erreur visible si la requête revenue échoue, au lieu de tomber sur des KPIs vides qui ressemblent à `0 €`.
-
-## Pourquoi tu vois zéro aujourd’hui
-- Ce n’est pas forcément “zéro commande”.
-- Aujourd’hui, la requête expire avant de renvoyer les données.
-- L’UI finit donc avec des données absentes/vides et affiche visuellement `0`, ce qui masque en réalité une erreur backend.
-
-## Vérification après correction
-- Ouvrir `/analytics/revenue`
-- Sélection `Uber Eats`
-- Période `Mars 2026`
-- Vérifier:
-  - plus de log `57014`
-  - chargement nettement plus court
-  - plus d’attente inutile sur Deliveroo
-  - vraies valeurs si les commandes existent
-  - sinon message clair “aucune donnée importée”, pas un faux zéro</final-text>
