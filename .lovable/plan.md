@@ -1,29 +1,30 @@
 
 
-# Utiliser la table `orders` comme source unique pour les graphiques CA/Commandes/Panier Moyen
+# Fix: Pas de données sur Revenus & Ventes
 
-## Contexte
-Actuellement, les graphiques "Revenus & Ventes" utilisent deux sources selon l'année :
-- 2025+ : table `daily_sales_uber` (import "Sales Over Time")
-- 2024 et avant : table `orders` (import "Paiements par commande")
+## Problème identifié
+Les logs console montrent que `restaurantFilter` vaut `["00000000-0000-0000-0000-000000000000"]` — un UUID fictif qui ne correspond à aucun restaurant. Cela se produit quand la liste des restaurants n'a pas encore fini de charger au moment où la requête de revenus se lance.
 
-L'utilisateur importe déjà les rapports par commande. Avoir un import séparé "Sales Over Time" est redondant.
+La fonction `resolveBrandScopedRestaurantIds` retourne ce UUID "vide" quand `selectedChainId` est défini mais `chainRestaurantIds` est encore `[]` (chargement en cours). La requête RPC part donc avec un filtre qui ne matche rien → 0 résultats.
 
 ## Solution
-Supprimer la logique hybride et toujours utiliser les RPCs basées sur `orders` : `get_daily_revenue_from_orders` et `get_monthly_revenue_from_orders`.
 
-## Modifications
+**Fichier** : `src/pages/Analytics.tsx`
 
-### 1. `src/pages/Analytics.tsx`
-- Supprimer la constante `SALES_OVER_TIME_START_YEAR`
-- **Requête "current year"** (~ligne 573-646) : retirer les branches `if (useNewTable)` et ne garder que les appels `get_daily_revenue_from_orders` / `get_monthly_revenue_from_orders`
-- **Requête "previous year"** (~ligne 822-916) : même chose, supprimer les branches `daily_sales_uber` et le mode `rollingPeriod` spécial qui utilisait `get_daily_sales_uber`. Le rolling period utilisera aussi `get_daily_revenue_from_orders` avec des dates décalées de 28 jours
+1. **Ajouter une garde sur `enabled`** : les requêtes de revenus (et comparaisons) ne doivent se lancer que quand `restaurantFilter` n'est pas le tableau "vide" dummy :
 
-### 2. Nettoyage optionnel
-- Le type de rapport `sales_over_time` dans `reportImportConfig.ts` peut rester (l'import existe toujours côté edge function) mais n'est plus nécessaire pour ces graphiques
+```tsx
+const isRestaurantScopeReady = !restaurantFilter || 
+  restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+```
 
-## Impact
-- Les graphiques CA, Commandes, Panier Moyen se baseront sur les données déjà importées via les rapports par commande
-- Plus besoin d'importer le rapport "Sales Over Time" pour voir ces graphiques
-- La comparaison N-1 et rolling period fonctionnera de la même façon pour toutes les années
+2. **Modifier les `enabled` des queries revenue** (current, previous year, rolling, deliveroo) pour inclure cette condition :
+
+```tsx
+enabled: needsRevenue && isRestaurantScopeReady,
+```
+
+Cela empêche les requêtes de partir avec le UUID fictif. Dès que les restaurants sont chargés, `restaurantFilter` sera mis à jour avec les vrais IDs et les requêtes se lanceront automatiquement.
+
+3. **Import** : ajouter `EMPTY_BRAND_SCOPE_RESTAURANT_IDS` depuis `@/lib/brandScope` (même pattern que `Dashboard.tsx`).
 
