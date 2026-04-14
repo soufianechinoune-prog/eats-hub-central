@@ -1,40 +1,48 @@
 
 
-# Analyse et ameliorations de la page Conversion
+# Fix: deduplication des donnees hebdomadaires de conversion
 
-## Problemes identifies
+## Probleme
 
-### 1. Graphique "Taux de Conversion Global" : affichage quotidien alors que la data est hebdomadaire
-La data source (`daily_conversion`) contient en realite des valeurs identiques pour tous les jours d'une meme semaine (c'est Uber qui fournit la data a la semaine). Du coup, afficher en "daily" cree des lignes plates avec des paliers — c'est trompeur. Il faut forcer la granularite par defaut a "weekly" quand on est en vue mois, et labelliser les semaines de maniere lisible (ex: "S1 Mars", "S2 Mars" ou "03/03 - 09/03").
+La table `daily_conversion` contient des valeurs **identiques** pour chaque jour d'une meme semaine par restaurant (c'est Uber qui fournit la data a la semaine). Le code actuel **somme** toutes les lignes quotidiennes, ce qui produit :
+- S1 = 1 jour (ex: samedi 1er mars seul) → valeur correcte × 1
+- S2 = 7 jours identiques → valeur correcte × 7
 
-### 2. Funnel de conversion : pas de comparaison entre semaines
-Le funnel (`ConversionFunnelChart`) affiche actuellement les totaux agreges sur toute la periode selectionnee (ex: tout le mois de mars). Il n'y a aucun moyen de comparer semaine par semaine au sein d'un mois. L'utilisateur veut voir l'evolution du funnel semaine apres semaine.
+Resultat : S1 parait anormalement faible et les autres semaines sont gonflees.
 
-## Plan de correction
+## Solution
 
-### 1. Granularite par defaut en "Semaine" pour la vue mois
+Au lieu de sommer directement toutes les lignes par semaine, **deduplicquer par (restaurant, semaine)** : ne garder qu'une seule ligne par restaurant par semaine, puis sommer ces lignes dedupliquees.
 
-**`src/components/analytics/AnalyticsCharts.tsx`**
-- Quand `periodMode === "month"` ou que la periode selectionnee est <= 31 jours, forcer la granularite par defaut a `"weekly"` au lieu de `"daily"` pour la section conversion.
-- Modifier les labels du mode weekly : au lieu de `dd/MM` (ex: "03/03"), afficher `"S1"`, `"S2"`, `"S3"`, `"S4"` ou `"Sem. 03/03"` — format plus lisible.
-- Mettre a jour le tooltip pour afficher la plage de dates de la semaine (ex: "03/03 - 09/03").
+## Fichiers modifies
 
-### 2. Comparaison par semaine dans le funnel
+### 1. `src/components/analytics/AnalyticsCharts.tsx` (lignes ~1232-1247 et ~1249-1260)
 
-**`src/components/analytics/ConversionFunnelChart.tsx`**
-- Ajouter un selecteur de semaine en haut du funnel : des pills/badges "Tout le mois", "S1 (03-09/03)", "S2 (10-16/03)", etc.
-- Quand une semaine est selectionnee, le funnel n'affiche que les donnees de cette semaine.
-- Quand "Tout le mois" est selectionne, comportement actuel (agrege).
-- Afficher les variations par rapport a la semaine precedente (ex: "S2 vs S1 : +12% visites").
-- Les semaines sont calculees dynamiquement a partir des donnees brutes `conversionData` passees au composant.
+Dans `aggregatedConversionData`, section weekly :
+- Creer une cle composite `restaurant_id + weekKey`
+- Ne garder qu'une seule ligne par couple (restaurant, semaine) — la premiere rencontree
+- Puis sommer par semaine comme actuellement
 
-**`src/components/analytics/AnalyticsCharts.tsx`**
-- Passer les donnees brutes quotidiennes (`conversionData`) au `ConversionFunnelChart` en plus des donnees agregees, pour qu'il puisse calculer les sous-totaux par semaine.
+Meme correction pour `prevWeeklyMap`.
 
-### 3. Pas de changements backend
-Toutes les modifications sont purement front-end — les donnees quotidiennes sont deja disponibles.
+### 2. `src/components/analytics/ConversionFunnelChart.tsx` (lignes ~289-300)
 
-## Resume des fichiers modifies
-- `src/components/analytics/AnalyticsCharts.tsx` — granularite par defaut weekly en vue mois, passage des raw data au funnel
-- `src/components/analytics/ConversionFunnelChart.tsx` — selecteur de semaine + comparaison S vs S-1
+Dans `weeklyBreakdown` :
+- Meme logique de deduplication par (restaurant_id, weekKey)
+- Ne garder qu'une ligne par restaurant par semaine avant de sommer
+
+### 3. Verifier aussi les aggregations mensuelles et daily
+
+Les memes duplications affectent potentiellement :
+- Le mode "monthly" (un mois complet a 4 semaines = valeurs × ~28-31)
+- Le mode "daily" (correct car on somme par date, mais chaque restaurant apparait avec la meme valeur chaque jour → les totaux sont gonfles)
+
+Le probleme est **structural** : toutes les aggregations de `daily_conversion` qui somment doivent deduplicquer par restaurant+semaine d'abord.
+
+La correction consistera a ecrire une fonction utilitaire `deduplicateWeeklyConversion(data)` qui :
+1. Groupe par `(restaurant_id, weekStartKey)`
+2. Garde une seule ligne par groupe
+3. Retourne le tableau deduplique
+
+Cette fonction sera appelee avant toute aggregation (weekly, monthly, daily, funnel).
 
