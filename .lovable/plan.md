@@ -1,29 +1,30 @@
 
 
-# Calendrier "Période perso." en mode semaine pour l'onglet Conversion
+# Remplacer "Tout le mois" par "Sur la période" dynamique
 
-## Probleme
-La data de conversion est hebdomadaire. Permettre de selectionner des jours individuels dans le calendrier personnalise n'a pas de sens — ca peut couper des semaines en plein milieu et fausser les resultats.
+## Problème
+Le bouton "Tout le mois" dans le Funnel de Conversion est statique et incorrect quand la période sélectionnée est une année ou une plage personnalisée.
 
 ## Solution
-Quand l'utilisateur est sur l'onglet **Conversion**, modifier le comportement du calendrier "Periode perso." pour que :
-- Un clic sur n'importe quel jour selectionne automatiquement la **semaine entiere** (lundi-dimanche)
-- Un deuxieme clic sur un autre jour etend la selection jusqu'a la fin de cette semaine
-- Les selections sont toujours alignees sur des semaines completes
+Remplacer le label "Tout le mois" par un texte dynamique "Sur la période" qui reflète le choix fait dans le sélecteur de dates en haut de page. Le composant recevra les infos de période nécessaires pour construire ce label.
 
-## Fichier modifie
+## Fichiers modifiés
 
-### `src/components/analytics/AnalyticsHeader.tsx`
+### 1. `src/components/analytics/ConversionFunnelChart.tsx`
+- Ajouter des props : `periodMode`, `selectedMonth`, `selectedYear` (déjà présent), `dateRange`
+- Remplacer le texte fixe `"Tout le mois"` par un label dynamique :
+  - Mode **mois** : "Tout le mois" (mars 2026 → reste pertinent)
+  - Mode **année** : "Toute l'année" ou "Année 2026"
+  - Mode **range** : "Sur la période" 
+  - Mode **7d/30d/current_month/previous_week** : "Sur la période"
+- Logique simple via une fonction `getPeriodLabel()` qui retourne le bon texte selon `periodMode`
 
-1. **Ajouter une prop optionnelle** `weekOnlyRange?: boolean` au composant
-2. **Modifier `handleDateRangeSelect`** : quand `weekOnlyRange` est actif, snapper `from` au lundi de la semaine cliquee et `to` au dimanche de la semaine cliquee (ou de la deuxieme semaine si plage multi-semaines)
-3. **Ajouter un petit texte d'indication** sous le calendrier quand le mode semaine est actif (ex: "Selection par semaine uniquement")
+### 2. `src/components/analytics/AnalyticsCharts.tsx`
+- Passer les nouvelles props `periodMode`, `selectedMonth`, `dateRange` depuis le contexte Analytics vers `<ConversionFunnelChart />`
+- Ces valeurs sont déjà disponibles via `useAnalyticsContext()` utilisé dans le composant parent
 
-### `src/pages/Analytics.tsx`
-
-1. Passer `weekOnlyRange={viewMode === "conversion"}` a `<AnalyticsHeader />`
-
-## Comportement attendu
-- Onglet Conversion : clic sur "mercredi 12 mars" → selectionne automatiquement lun 10 - dim 16 mars
-- Autres onglets : comportement inchange (selection jour par jour)
+## Résultat attendu
+- Vue "Année 2026" → bouton affiche **"Toute la période"**
+- Vue "Mars 2026" → bouton affiche **"Tout le mois"**
+- Vue "Période perso." → bouton affiche **"Toute la période"**
 
