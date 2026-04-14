@@ -3326,13 +3326,13 @@ export function AnalyticsCharts({
           if (perRestaurantData.length < 2) return null;
 
           return (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <ConversionRankingByStage 
-                data={perRestaurantData} 
-                highlightedRestaurants={selectedRestaurants}
-              />
+            <div className="space-y-4">
               <ConversionScatterPlot 
                 data={perRestaurantData}
+                highlightedRestaurants={selectedRestaurants}
+              />
+              <ConversionRankingByStage 
+                data={perRestaurantData} 
                 highlightedRestaurants={selectedRestaurants}
               />
             </div>
