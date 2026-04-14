@@ -66,6 +66,7 @@ export function ConversionScatterPlot({
   highlightedRestaurants = [],
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
+  const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
