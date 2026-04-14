@@ -118,6 +118,10 @@ export default function Analytics() {
   const needsPayouts = viewMode === 'revenue' || viewMode === 'finances' || viewMode === 'overview';
   const needsProfitability = viewMode === 'revenue' || viewMode === 'finances';
 
+  // Platform-specific flags to avoid loading data for unselected platforms
+  const shouldLoadUber = selectedPlatform === "uber_eats" || selectedPlatform === "global";
+  const shouldLoadDeliveroo = selectedPlatform === "deliveroo" || selectedPlatform === "global";
+
   // Determine data granularity based on selected period
   const { granularity, startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
@@ -600,10 +604,9 @@ export default function Analytics() {
         return data || [];
       }
     },
-    retry: 3,
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
-    placeholderData: (previousData) => previousData,
-    enabled: needsRevenue && isRestaurantScopeReady,
+    retry: (count: number, error: any) => error?.code !== "57014" && count < 1,
+    placeholderData: (previousData: any) => previousData,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
   });
 
   // Helper function to aggregate daily conversion data by month
@@ -777,7 +780,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
-    enabled: needsRevenue && isRestaurantScopeReady,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
   });
 
   // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
@@ -840,7 +843,7 @@ export default function Analytics() {
         return data || [];
       }
     },
-    enabled: needsRevenue && isRestaurantScopeReady,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
   });
 
   const { data: uberPrevConversionData } = useQuery({
@@ -899,7 +902,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
-    enabled: needsRevenue && isRestaurantScopeReady,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
   });
 
   // ========== DELIVEROO DATA (Current Year) ==========
@@ -1001,8 +1004,8 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
-    placeholderData: (previousData) => previousData,
-    enabled: needsRevenue && isRestaurantScopeReady,
+    placeholderData: (previousData: any) => previousData,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadDeliveroo,
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
@@ -1056,8 +1059,8 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
-    placeholderData: (previousData) => previousData,
-    enabled: needsRevenue && isRestaurantScopeReady,
+    placeholderData: (previousData: any) => previousData,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadDeliveroo,
   });
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
@@ -1071,7 +1074,7 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(prevStartDate, "yyyy-MM-dd"), format(prevEndDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
-    enabled: needsRevenue && isRestaurantScopeReady,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadDeliveroo,
   });
 
   const { data: deliverooPrevConversionData } = useQuery({
@@ -1130,7 +1133,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
-    enabled: needsRevenue && isRestaurantScopeReady,
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadDeliveroo,
   });
 
   // ========== GLOBAL DATA (Combined) ==========
@@ -1159,20 +1162,24 @@ export default function Analytics() {
   }, [uberPrevFeesData, deliverooPrevFeesData]);
 
   const isLoading = (() => {
+    const uberRevLoading = shouldLoadUber && loadingUberRevenue;
+    const delRevLoading = shouldLoadDeliveroo && loadingDeliverooRevenue;
+    const uberFeesLoading = shouldLoadUber && loadingUberFees;
+    const delFeesLoading = shouldLoadDeliveroo && loadingDeliverooFees;
+
     if (viewMode === 'revenue') {
-      return loadingUberRevenue || loadingDeliverooRevenue ||
-             loadingUberFees || loadingDeliverooFees;
+      return uberRevLoading || delRevLoading || uberFeesLoading || delFeesLoading;
     }
     if (viewMode === 'conversion') {
       return loadingUberConversion || loadingDeliverooConversion;
     }
     if (viewMode === 'finances') {
-      return loadingUberRevenue || loadingDeliverooRevenue;
+      return uberRevLoading || delRevLoading;
     }
     // overview: all
-    return loadingUberRevenue || loadingUberConversion ||
-           loadingUberFees || loadingDeliverooRevenue ||
-           loadingDeliverooConversion || loadingDeliverooFees;
+    return uberRevLoading || loadingUberConversion ||
+           uberFeesLoading || delRevLoading ||
+           loadingDeliverooConversion || delFeesLoading;
   })();
 
   // Debug logging
