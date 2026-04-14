@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { startOfWeek, endOfWeek, parseISO, format } from "date-fns";
+import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -79,7 +80,9 @@ interface RestaurantAction {
 
 interface ConversionFunnelChartProps {
   data: ConversionDataPoint[];
+  rawConversionData?: any[];
   selectedYear: number;
+  granularity?: "daily" | "weekly" | "monthly";
   showActions?: boolean;
   actions?: RestaurantAction[];
   actionsByMonth?: Record<number, RestaurantAction[]>;
@@ -227,7 +230,9 @@ function ActionMarker({
 
 export function ConversionFunnelChart({
   data,
+  rawConversionData,
   selectedYear,
+  granularity = "monthly",
   showActions = false,
   actions = [],
   actionsByMonth = {},
@@ -236,6 +241,7 @@ export function ConversionFunnelChart({
   // View mode state
   const [viewMode, setViewMode] = useState<"volumes" | "rates">("volumes");
   const [showExplanation, setShowExplanation] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
   
   // Hidden areas state for interactive legend
   const [hiddenAreas, setHiddenAreas] = useState<Set<string>>(new Set());
