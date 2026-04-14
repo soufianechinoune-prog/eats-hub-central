@@ -548,6 +548,7 @@ export default function Analytics() {
       return data || [];
     },
     enabled: needsProfitability && (restaurants?.length || 0) > 0,
+    retry: false,
   });
 
   // Fetch profitability data for previous period
@@ -569,6 +570,7 @@ export default function Analytics() {
       return data || [];
     },
     enabled: needsProfitability && (restaurants?.length || 0) > 0,
+    retry: false,
   });
 
   // ========== UBER EATS DATA (Current Year) — always from orders table ==========
