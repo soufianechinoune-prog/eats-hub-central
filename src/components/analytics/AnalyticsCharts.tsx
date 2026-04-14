@@ -1347,7 +1347,9 @@ export function AnalyticsCharts({
       const monthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       const prevMonthlyData: { [key: number]: { visits: number; views: number; cart: number; orders: number } } = {};
       
-      conversionData.forEach((item: any) => {
+      // Deduplicate weekly data before monthly aggregation
+      const dedupedMonthly = isDailyData ? deduplicateWeeklyConversion(conversionData as any[]) : conversionData;
+      (dedupedMonthly as any[]).forEach((item: any) => {
         const month = isDailyData ? new Date(item.date).getMonth() + 1 : item.month;
         if (!monthlyData[month]) {
           monthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
@@ -1358,7 +1360,8 @@ export function AnalyticsCharts({
         monthlyData[month].orders += item.orders || 0;
       });
 
-      prevConversionData?.forEach((item: any) => {
+      const dedupedPrevMonthly = isDailyData ? deduplicateWeeklyConversion((prevConversionData || []) as any[]) : (prevConversionData || []);
+      (dedupedPrevMonthly as any[]).forEach((item: any) => {
         const month = ('date' in item) ? new Date(item.date).getMonth() + 1 : item.month;
         if (!prevMonthlyData[month]) {
           prevMonthlyData[month] = { visits: 0, views: 0, cart: 0, orders: 0 };
