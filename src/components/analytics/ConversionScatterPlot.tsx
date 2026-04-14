@@ -284,7 +284,7 @@ export function ConversionScatterPlot({
                   className="text-xs"
                   label={{ value: "Conversion % →", angle: -90, position: "left", offset: -5, className: "text-xs fill-muted-foreground" }}
                 />
-                <ZAxis type="number" dataKey="bubbleSize" range={[60, 400]} />
+                <ZAxis type="number" dataKey="bubbleSize" range={[40, 300]} />
                 
                 <ReferenceLine
                   x={averages.visits}
