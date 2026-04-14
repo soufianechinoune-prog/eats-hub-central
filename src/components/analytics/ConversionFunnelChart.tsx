@@ -307,7 +307,9 @@ export function ConversionFunnelChart({
       const we = endOfWeek(w.weekStart, { locale: fr });
       return {
         key,
-        label: `S${idx + 1}`,
+        label: isSameMonth(w.weekStart, we)
+          ? `${format(w.weekStart, 'd')}-${format(we, 'd MMM', { locale: fr })}`
+          : `${format(w.weekStart, 'd MMM', { locale: fr })} - ${format(we, 'd MMM', { locale: fr })}`,
         range: `${format(w.weekStart, 'dd/MM')} - ${format(we, 'dd/MM')}`,
         visits: w.visits,
         views: w.views,

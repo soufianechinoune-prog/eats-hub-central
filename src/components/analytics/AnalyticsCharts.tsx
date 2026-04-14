@@ -1274,7 +1274,9 @@ export function AnalyticsCharts({
           const data = weeklyMap[weekKey];
           const prevData = prevWeeklyMap[prevWeekKey];
           
-          const weekLabel = `S${idx + 1}`;
+          const weekLabel = isSameMonth(weekStart, weekEnd)
+            ? `${format(weekStart, 'd')}-${format(weekEnd, 'd MMM', { locale: fr })}`
+            : `${format(weekStart, 'd MMM', { locale: fr })} - ${format(weekEnd, 'd MMM', { locale: fr })}`;
           const weekRange = `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`;
           
           return {
