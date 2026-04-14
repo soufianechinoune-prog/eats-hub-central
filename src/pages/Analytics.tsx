@@ -15,7 +15,7 @@ import { RestaurantRanking } from "@/components/analytics/RestaurantRanking";
 import { useAnalyticsPdfExport } from "@/hooks/useAnalyticsPdfExport";
 import { useRestaurantActions } from "@/hooks/useRestaurantActions";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { resolveBrandScopedRestaurantIds, EMPTY_BRAND_SCOPE_RESTAURANT_IDS } from "@/lib/brandScope";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import Reviews from "@/pages/Reviews";
@@ -268,6 +268,9 @@ export default function Analytics() {
       pinnedRestaurantIds,
     })
   ), [selectedRestaurants, selectedChainId, isNetworkView, pinnedRestaurantIds, chainRestaurantIds]);
+
+  const isRestaurantScopeReady = !restaurantFilter || 
+    restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
 
   // Fetch payouts data from payouts table (aggregated by month)
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
@@ -600,7 +603,7 @@ export default function Analytics() {
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
     placeholderData: (previousData) => previousData,
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   // Helper function to aggregate daily conversion data by month
@@ -774,7 +777,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   // ========== UBER EATS DATA (Previous Year - N-1 or Rolling Period) ==========
@@ -837,7 +840,7 @@ export default function Analytics() {
         return data || [];
       }
     },
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   const { data: uberPrevConversionData } = useQuery({
@@ -896,7 +899,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   // ========== DELIVEROO DATA (Current Year) ==========
@@ -999,7 +1002,7 @@ export default function Analytics() {
       return aggregateDeliverooRevenue(rows, granularity);
     },
     placeholderData: (previousData) => previousData,
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   const { data: deliverooConversionData, isLoading: loadingDeliverooConversion } = useQuery({
@@ -1054,7 +1057,7 @@ export default function Analytics() {
       return data;
     },
     placeholderData: (previousData) => previousData,
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   // ========== DELIVEROO DATA (Previous Year - N-1) ==========
@@ -1068,7 +1071,7 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(prevStartDate, "yyyy-MM-dd"), format(prevEndDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   const { data: deliverooPrevConversionData } = useQuery({
@@ -1127,7 +1130,7 @@ export default function Analytics() {
       if (error) throw error;
       return data;
     },
-    enabled: needsRevenue,
+    enabled: needsRevenue && isRestaurantScopeReady,
   });
 
   // ========== GLOBAL DATA (Combined) ==========
