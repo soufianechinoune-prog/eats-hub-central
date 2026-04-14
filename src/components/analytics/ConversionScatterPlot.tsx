@@ -264,7 +264,7 @@ export function ConversionScatterPlot({
         </div>
 
         {viewMode === "chart" ? (
-          <div className="h-[400px]">
+          <div style={{ height: expanded ? 700 : 400 }} className="transition-all duration-300">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -320,7 +320,7 @@ export function ConversionScatterPlot({
           </div>
         ) : (
           /* Table view */
-          <div className="max-h-[400px] overflow-auto rounded-lg border border-border">
+          <div className="overflow-auto rounded-lg border border-border" style={{ maxHeight: expanded ? 700 : 400 }}>
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/80 backdrop-blur-sm">
                 <tr>
