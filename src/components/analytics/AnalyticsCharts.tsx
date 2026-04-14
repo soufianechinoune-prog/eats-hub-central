@@ -3359,28 +3359,16 @@ export function AnalyticsCharts({
         })()
       )}
 
-      {/* Leaky Bucket Analysis + Revenue per Visit KPI - moved to bottom of conversion section */}
+      {/* Leaky Bucket Analysis */}
       {showConversion && aggregatedConversionData.length > 0 && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2">
-            <ConversionLeakyBucket
-              data={{
-                visits: aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0),
-                views: aggregatedConversionData.reduce((sum, d) => sum + d.views, 0),
-                cart: aggregatedConversionData.reduce((sum, d) => sum + d.cart, 0),
-                orders: aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0),
-              }}
-            />
-          </div>
-          <div className="flex flex-col gap-4">
-            <RevenuePerVisitKPI
-              visits={aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0)}
-              revenue={aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0)}
-              previousVisits={aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0)}
-              previousRevenue={aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0)}
-            />
-          </div>
-        </div>
+        <ConversionLeakyBucket
+          data={{
+            visits: aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0),
+            views: aggregatedConversionData.reduce((sum, d) => sum + d.views, 0),
+            cart: aggregatedConversionData.reduce((sum, d) => sum + d.cart, 0),
+            orders: aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0),
+          }}
+        />
       )}
 
       {/* Payout Detail Sheet */}

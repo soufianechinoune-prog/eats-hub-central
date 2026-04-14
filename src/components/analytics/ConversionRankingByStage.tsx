@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { motion } from "framer-motion";
 import {
@@ -14,6 +15,8 @@ import {
   Medal,
   TrendingUp,
   TrendingDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 interface RestaurantConversionData {
@@ -47,9 +50,10 @@ export function ConversionRankingByStage({
   highlightedRestaurants = [],
 }: ConversionRankingByStageProps) {
   const [selectedStage, setSelectedStage] = useState<StageKey>("conversionRate");
+  const [showAll, setShowAll] = useState(false);
 
   // Calculate rankings for the selected stage
-  const rankings = useMemo(() => {
+  const allRankings = useMemo(() => {
     return data
       .map((r) => {
         const conversionRate = r.visits > 0 ? (r.orders / r.visits) * 100 : 0;
@@ -59,9 +63,10 @@ export function ConversionRankingByStage({
           value: selectedStage === "conversionRate" ? conversionRate : r[selectedStage as keyof typeof r] as number,
         };
       })
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10); // Top 10
+      .sort((a, b) => b.value - a.value);
   }, [data, selectedStage]);
+
+  const rankings = showAll ? allRankings : allRankings.slice(0, 10);
 
   const maxValue = rankings[0]?.value || 1;
   const stageConfig = STAGES.find((s) => s.key === selectedStage)!;
