@@ -589,7 +589,7 @@ export function AnalyticsCharts({
   isPayoutsLoading,
 }: AnalyticsChartsProps) {
   const navigate = useNavigate();
-  const { selectedPlatform } = useAnalyticsContext();
+  const { selectedPlatform, periodMode } = useAnalyticsContext();
   const prevYear = selectedYear - 1;
   
   // Determine restaurant IDs for profitability data
