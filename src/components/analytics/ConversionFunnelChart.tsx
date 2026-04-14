@@ -1,4 +1,6 @@
 import { useState, useMemo } from "react";
+import type { DateRange } from "react-day-picker";
+import type { PeriodMode } from "@/contexts/AnalyticsContext";
 import { startOfWeek, endOfWeek, parseISO, format, isSameMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
@@ -89,7 +91,13 @@ interface ConversionFunnelChartProps {
   actions?: RestaurantAction[];
   actionsByMonth?: Record<number, RestaurantAction[]>;
   onActionClick?: (actionId: string) => void;
+  periodMode?: PeriodMode;
 }
+
+const getPeriodLabel = (periodMode?: PeriodMode): string => {
+  if (periodMode === "month") return "Tout le mois";
+  return "Toute la période";
+};
 
 // Rate calculation helpers
 const calcRate = (numerator: number, denominator: number): number => {
@@ -239,6 +247,7 @@ export function ConversionFunnelChart({
   actions = [],
   actionsByMonth = {},
   onActionClick,
+  periodMode,
 }: ConversionFunnelChartProps) {
   // View mode state
   const [viewMode, setViewMode] = useState<"volumes" | "rates">("volumes");
@@ -552,7 +561,7 @@ export function ConversionFunnelChart({
                   : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
               )}
             >
-              Tout le mois
+              {getPeriodLabel(periodMode)}
             </button>
             {weeklyBreakdown.map(w => (
               <TooltipProvider key={w.key}>
