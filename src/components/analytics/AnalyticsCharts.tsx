@@ -1,6 +1,6 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { format, startOfWeek, parseISO, subWeeks } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1259,10 +1259,10 @@ export function AnalyticsCharts({
         prevWeeklyMap[weekKey].orders += item.orders || 0;
       });
       
-      return Object.keys(weeklyMap)
-        .sort()
-        .map(weekKey => {
+      const sortedWeekKeys = Object.keys(weeklyMap).sort();
+      return sortedWeekKeys.map((weekKey, idx) => {
           const weekStart = weeklyMap[weekKey].weekStart;
+          const weekEnd = endOfWeek(weekStart, { locale: fr });
           const prevWeekStart = new Date(weekStart);
           prevWeekStart.setFullYear(prevWeekStart.getFullYear() - 1);
           const prevWeekKey = format(prevWeekStart, 'yyyy-MM-dd');
@@ -1270,9 +1270,13 @@ export function AnalyticsCharts({
           const data = weeklyMap[weekKey];
           const prevData = prevWeeklyMap[prevWeekKey];
           
+          const weekLabel = `S${idx + 1}`;
+          const weekRange = `${format(weekStart, 'dd/MM')} - ${format(weekEnd, 'dd/MM')}`;
+          
           return {
-            month: format(weekStart, 'dd/MM', { locale: fr }), // Week start date label
-            monthNum: weekStart.getDate(),
+            month: weekLabel,
+            weekRange,
+            monthNum: idx + 1,
             fullDate: weekKey,
             visits: data.visits,
             views: data.views,
@@ -3086,7 +3090,9 @@ export function AnalyticsCharts({
       {showConversion && (
       <ConversionFunnelChart
         data={aggregatedConversionData}
+        rawConversionData={conversionData}
         selectedYear={selectedYear}
+        granularity={effectiveConversionGranularity}
         showActions={shouldShowActionsForChart("conversionFunnel")}
         actions={filteredActions}
         actionsByMonth={actionsByMonth}
@@ -3174,7 +3180,7 @@ export function AnalyticsCharts({
                       : null;
                     return (
                       <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                        <p className="font-medium mb-2">{label}</p>
+                        <p className="font-medium mb-2">{data?.weekRange ? `${label} (${data.weekRange})` : label}</p>
                         <div className="space-y-1 text-sm">
                           <p>
                             <span className="text-muted-foreground">Taux {selectedYear} :</span>{" "}
