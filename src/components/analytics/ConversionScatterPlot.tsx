@@ -264,7 +264,7 @@ export function ConversionScatterPlot({
         </div>
 
         {viewMode === "chart" ? (
-          <div style={{ height: expanded ? 700 : 400 }} className="transition-all duration-300">
+          <div style={{ height: expanded ? 700 : 500 }} className="transition-all duration-300">
             <ResponsiveContainer width="100%" height="100%">
               <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
@@ -282,6 +282,7 @@ export function ConversionScatterPlot({
                   name="Conversion"
                   tickFormatter={(v) => `${v.toFixed(1)}%`}
                   className="text-xs"
+                  domain={([dataMin, dataMax]: [number, number]) => [Math.max(0, dataMin - 0.5), dataMax + 1]}
                   label={{ value: "Conversion % →", angle: -90, position: "left", offset: -5, className: "text-xs fill-muted-foreground" }}
                 />
                 <ZAxis type="number" dataKey="bubbleSize" range={[40, 300]} />
