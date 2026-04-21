@@ -1,67 +1,46 @@
 
-## Fix : afficher IDU + date d'adhésion directement dans le tableau
 
-### Problème
-Dans `RestaurantDrilldown` (ligne 1196-1205 de `EcoContributionSection.tsx`), la `TableCell` du nom de restaurant n'affiche que le nom. L'IDU et les dates d'adhésion sont enfouis dans `RepDetailPanel`, qui n'apparaît que si la ligne est dépliée (`open && hasRepDetail`, ligne 1249).
+## Diagnostic en 2 points
 
-### Correction
-Modifier la `TableCell` du nom (lignes 1196-1205) pour ajouter, **sous le nom du restaurant**, une rangée compacte d'infos REP visible dès que `repData` existe (donc dès que `repChecked = true`).
+### 1. Pourquoi l'IDU n'apparaît pas
+Le code d'affichage inline est bien en place (lignes 1206-1233), mais il ne s'affiche que si `repData.status === "inscrit"` ET `iduEntries.length > 0`.
 
-### Code proposé (à insérer dans la TableCell du nom)
+Sur ta capture, les restaurants visibles sont soit :
+- **"Non adhérent"** (Clichy, Montigny, Vaulx en Velin) → pas d'IDU par définition
+- **"Adhérent"** (Les Lilas, Saint-Denis, Mulhouse, etc.) → ils sont marqués adhérents mais `iduEntries` est vide, donc rien ne s'affiche
 
-```tsx
-<TableCell className="font-medium text-sm py-3">
-  <div className="flex items-center gap-2">
-    <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
-    <span className={cn(
-      "inline-block h-2 w-2 rounded-full flex-shrink-0",
-      r.net >= 0 ? "bg-green-500" : "bg-red-500"
-    )} />
-    {name}
-  </div>
+Le problème : pour les "Adhérent" basés uniquement sur le **dataset annuel** (sans IDU dans le dataset quotidien), `iduEntries = []` et `entries[].matchingIdu = undefined`. Du coup la ligne reste vide.
 
-  {/* ── Infos REP inline (visibles sans déplier) ── */}
-  {repData?.status === "inscrit" && (repData.iduEntries.length > 0 || repData.entries.length > 0) && (
-    <div className="ml-[22px] mt-1 flex flex-wrap items-center gap-1.5">
-      {/* Badges IDU */}
-      {repData.iduEntries.map((idu, idx) => (
-        <span
-          key={idx}
-          className="inline-flex items-center gap-1 font-mono text-[10px] bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded"
-          title={`Filière ${idu.filiere}`}
-        >
-          <Hash className="h-2.5 w-2.5" />
-          {idu.identifiant_unique}
-        </span>
-      ))}
+**Correction** : afficher aussi les `entries` même sans IDU rattaché, en montrant juste la filière + dates d'adhésion. Et s'assurer que le bloc s'affiche dès qu'il y a au moins une `entry`, pas seulement si `iduEntries.length > 0`.
 
-      {/* Date(s) d'adhésion — la 1re entrée active, ou toutes si peu nombreuses */}
-      {repData.entries.slice(0, 2).map((entry, idx) => (
-        <span
-          key={idx}
-          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
-        >
-          <CalendarDays className="h-2.5 w-2.5" />
-          {entry.filiere} : du {entry.start} au {entry.end ? fmtDateShort(entry.end) : "En cours"}
-          {!entry.isActive && <Badge variant="destructive" className="text-[8px] h-3.5 px-1 ml-0.5">Expiré</Badge>}
-        </span>
-      ))}
-      {repData.entries.length > 2 && (
-        <span className="text-[10px] text-muted-foreground italic">+{repData.entries.length - 2}</span>
-      )}
-    </div>
-  )}
-</TableCell>
-```
+En relisant le code (ligne 1207) : la condition est `iduEntries.length > 0 || entries.length > 0` — donc elle devrait passer. Le vrai souci : pour les adhérents annuels, `entries` contient bien les filières mais avec `start`/`end` issus du dataset annuel. Vérifier que ces champs sont correctement remplis dans le mapping ligne 171-182.
 
-### Comportement
-- Dès que `repChecked = true`, chaque ligne "Adhérent" affiche directement sous son nom :
-  - Un ou plusieurs **badges IDU** bleus (un par filière)
-  - La **date d'adhésion** au format "Filière : du JJ/MM/AAAA au En cours"
-- Affichage limité aux 2 premières entrées avec un compteur "+N" pour éviter de surcharger la ligne ; le détail complet reste accessible en dépliant.
-- `RepDetailPanel` (panneau déplié) reste inchangé pour l'affichage exhaustif (orgs, IDU non rattachés, etc.).
+### 2. Le badge "Perdu" (ligne 1041)
+Il s'affiche sous "Non adhérent" quand le restaurant **était adhérent lors d'un scan précédent** et ne l'est plus maintenant. Détecté par `useRepCheckPersistence` qui compare le snapshot actuel au précédent (`changeType === "lost_adherent"`).
 
-### Fichier modifié
-- `src/components/analytics/EcoContributionSection.tsx` (lignes 1196-1205 uniquement)
+→ Sur ta capture, Clichy, Montigny et Vaulx en Velin étaient marqués "Adhérent" lors d'un scan précédent et sont passés à "Non adhérent" maintenant.
 
-Tu veux que j'applique tel quel, ou tu préfères ajuster le seuil (ex : afficher toutes les entrées sans tronquer à 2) avant ?
+## Corrections à apporter
+
+### A. Renommer "Perdu" en quelque chose de plus clair
+Remplacer le label `Perdu` (ligne 1041) par `Adhésion perdue` avec un tooltip explicatif : *"Ce restaurant était inscrit au REP lors du scan précédent, mais ne l'est plus aujourd'hui."*
+
+Idem pour `Nouveau` (ligne ~1022) → `Nouvel adhérent` avec tooltip *"Ce restaurant n'était pas inscrit au REP lors du scan précédent."*
+
+### B. Forcer l'affichage de l'IDU + dates pour TOUS les adhérents
+Modifier le bloc inline (lignes 1206-1233) pour :
+1. Si `iduEntries.length > 0` → afficher les badges IDU bleus
+2. Sinon, afficher un badge gris **"Adhésion annuelle (sans IDU)"** pour expliquer pourquoi il n'y a pas de numéro
+3. Toujours afficher les `entries` (filière + dates) tant que `entries.length > 0`
+
+### C. Debug temporaire
+Ajouter un `console.log` dans le mapping (ligne ~155) pour vérifier ce que `result.idu_results` contient réellement pour les "Adhérent" affichés sans IDU. Si le backend ne renvoie pas d'IDU pour ces restaurants, c'est normal qu'aucun numéro ne s'affiche — il faut alors clarifier visuellement (point B).
+
+## Fichier modifié
+- `src/components/analytics/EcoContributionSection.tsx` — labels "Perdu"/"Nouveau" + tooltips, et bloc d'affichage IDU/entries plus permissif avec fallback "Adhésion annuelle (sans IDU)"
+
+## Résultat attendu
+- "Perdu" devient explicite avec un tooltip
+- Tous les adhérents affichent quelque chose sous leur nom : soit l'IDU, soit un badge expliquant pourquoi il n'y a pas d'IDU disponible
+- Tu sauras immédiatement si le problème vient du backend (aucun IDU renvoyé) ou de l'affichage
+
