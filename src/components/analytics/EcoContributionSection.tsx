@@ -216,8 +216,8 @@ export function EcoContributionSection({
             status: cached.status,
             filiereCount: cached.filiereCount,
             orgs: cached.orgs || [],
-            iduEntries: [],
-            entries: [],
+            iduEntries: (cached as any).iduEntries || [],
+            entries: (cached as any).entries || [],
           });
         } else {
           map.set(rId, { status: "sans_siret", filiereCount: 0, orgs: [], iduEntries: [], entries: [] });
