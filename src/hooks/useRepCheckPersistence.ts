@@ -4,12 +4,28 @@ import type { EcoOrganismCheckResult } from "@/hooks/useEcoOrganismCheck";
 
 export type RepStatus = "inscrit" | "non_trouve" | "sans_siret";
 
+export interface RepSnapshotIdu {
+  identifiant_unique: string;
+  filiere?: string | null;
+}
+
+export interface RepSnapshotEntryDetail {
+  filiere: string;
+  org: string;
+  start: string;
+  end: string | null;
+  isActive: boolean;
+  idu?: string;
+}
+
 export interface RepSnapshotEntry {
   restaurant_id: string;
   status: RepStatus;
   filiereCount: number;
   orgs: string[];
   idus: string[];
+  iduEntries?: RepSnapshotIdu[];
+  entries?: RepSnapshotEntryDetail[];
 }
 
 export interface RepSnapshot {
