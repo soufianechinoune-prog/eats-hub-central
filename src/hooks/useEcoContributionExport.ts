@@ -153,8 +153,9 @@ export function useEcoContributionExport() {
     XLSX.writeFile(wb, `eco-contribution_${yearLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }, []);
 
-  const exportPDF = useCallback(({ restaurants, monthlyData, totals, yearLabel }: ExportParams) => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const exportPDF = useCallback(({ restaurants, monthlyData, totals, yearLabel, repByRestaurant }: ExportParams) => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const hasRep = repByRestaurant && repByRestaurant.size > 0;
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
