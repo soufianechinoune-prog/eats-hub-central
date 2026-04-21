@@ -1018,10 +1018,19 @@ function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; chang
           Adhérent
         </span>
         {changeType === "new_adherent" && (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-green-600 animate-fade-in">
-            <Sparkles className="h-2.5 w-2.5" />
-            Nouveau
-          </span>
+          <UITooltipProvider delayDuration={150}>
+            <UITooltip>
+              <UITooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-green-600 animate-fade-in cursor-help">
+                  <Sparkles className="h-2.5 w-2.5" />
+                  Nouvel adhérent
+                </span>
+              </UITooltipTrigger>
+              <UITooltipContent side="top" className="max-w-xs text-xs">
+                Ce restaurant n'était pas inscrit au REP lors du scan précédent.
+              </UITooltipContent>
+            </UITooltip>
+          </UITooltipProvider>
         )}
       </div>
     );
