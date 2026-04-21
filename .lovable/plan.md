@@ -1,31 +1,67 @@
 
-# Fix: Graphiques finances qui ne chargent pas — `useFinancesDrilldown` trop lent
+## Fix : afficher IDU + date d'adhésion directement dans le tableau
 
-## Diagnostic
+### Problème
+Dans `RestaurantDrilldown` (ligne 1196-1205 de `EcoContributionSection.tsx`), la `TableCell` du nom de restaurant n'affiche que le nom. L'IDU et les dates d'adhésion sont enfouis dans `RepDetailPanel`, qui n'apparaît que si la ligne est dépliée (`open && hasRepDetail`, ligne 1249).
 
-Le graphique "Rentabilité globale" **fonctionne** (les logs montrent 4 data points, 4.2M€ de ventes). Ce qui bloque, c'est la section **"Analyse des commandes"** (`OrdersAnalysisSection`) en dessous, qui utilise `useFinancesDrilldown`.
+### Correction
+Modifier la `TableCell` du nom (lignes 1196-1205) pour ajouter, **sous le nom du restaurant**, une rangée compacte d'infos REP visible dès que `repData` existe (donc dès que `repChecked = true`).
 
-Ce hook fait des boucles de pagination sur la table `orders` brute (PAGE_SIZE=1000, while loop) **sans `retry: false`**. Pour 150+ restaurants sur 3-4 mois, ça représente potentiellement des dizaines de milliers de lignes récupérées une par une, avec 3 retries par défaut en cas de timeout.
+### Code proposé (à insérer dans la TableCell du nom)
 
-## Corrections
+```tsx
+<TableCell className="font-medium text-sm py-3">
+  <div className="flex items-center gap-2">
+    <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
+    <span className={cn(
+      "inline-block h-2 w-2 rounded-full flex-shrink-0",
+      r.net >= 0 ? "bg-green-500" : "bg-red-500"
+    )} />
+    {name}
+  </div>
 
-### 1. `src/hooks/useFinancesDrilldown.ts` — `retry: false` sur toutes les queries
-Ajouter `retry: false` aux 4 `useQuery` du hook (lignes ~541, ~560, ~616, ~648) pour éviter les retries de timeout qui multiplient les temps d'attente.
+  {/* ── Infos REP inline (visibles sans déplier) ── */}
+  {repData?.status === "inscrit" && (repData.iduEntries.length > 0 || repData.entries.length > 0) && (
+    <div className="ml-[22px] mt-1 flex flex-wrap items-center gap-1.5">
+      {/* Badges IDU */}
+      {repData.iduEntries.map((idu, idx) => (
+        <span
+          key={idx}
+          className="inline-flex items-center gap-1 font-mono text-[10px] bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 px-1.5 py-0.5 rounded"
+          title={`Filière ${idu.filiere}`}
+        >
+          <Hash className="h-2.5 w-2.5" />
+          {idu.identifiant_unique}
+        </span>
+      ))}
 
-### 2. `src/components/analytics/OrdersAnalysisSection.tsx` — Lazy loading
-La section "Analyse des commandes" n'a pas besoin de charger immédiatement. Passer `enabled: false` par défaut et ne l'activer que quand l'utilisateur clique/scroll vers cette section. Cela évite de bloquer l'affichage du graphique de rentabilité pendant que les commandes individuelles chargent.
+      {/* Date(s) d'adhésion — la 1re entrée active, ou toutes si peu nombreuses */}
+      {repData.entries.slice(0, 2).map((entry, idx) => (
+        <span
+          key={idx}
+          className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+        >
+          <CalendarDays className="h-2.5 w-2.5" />
+          {entry.filiere} : du {entry.start} au {entry.end ? fmtDateShort(entry.end) : "En cours"}
+          {!entry.isActive && <Badge variant="destructive" className="text-[8px] h-3.5 px-1 ml-0.5">Expiré</Badge>}
+        </span>
+      ))}
+      {repData.entries.length > 2 && (
+        <span className="text-[10px] text-muted-foreground italic">+{repData.entries.length - 2}</span>
+      )}
+    </div>
+  )}
+</TableCell>
+```
 
-Concrètement : ajouter un state `isExpanded` (défaut `false`) avec un bouton "Charger l'analyse des commandes". Les queries de `useFinancesDrilldown` ne se lancent que quand `isExpanded = true`.
+### Comportement
+- Dès que `repChecked = true`, chaque ligne "Adhérent" affiche directement sous son nom :
+  - Un ou plusieurs **badges IDU** bleus (un par filière)
+  - La **date d'adhésion** au format "Filière : du JJ/MM/AAAA au En cours"
+- Affichage limité aux 2 premières entrées avec un compteur "+N" pour éviter de surcharger la ligne ; le détail complet reste accessible en dépliant.
+- `RepDetailPanel` (panneau déplié) reste inchangé pour l'affichage exhaustif (orgs, IDU non rattachés, etc.).
 
-### 3. `src/components/analytics/FinancesSection.tsx` — `retry: false` sur la query RPC
-Ajouter `retry: false` à la query `get_profitability_daily` (ligne ~93) pour cohérence.
+### Fichier modifié
+- `src/components/analytics/EcoContributionSection.tsx` (lignes 1196-1205 uniquement)
 
-## Fichiers modifiés
-- `src/hooks/useFinancesDrilldown.ts` — retry: false sur les 4 queries
-- `src/components/analytics/OrdersAnalysisSection.tsx` — lazy loading avec bouton d'expansion
-- `src/components/analytics/FinancesSection.tsx` — retry: false sur la query RPC
-
-## Résultat attendu
-- Le graphique de rentabilité apparaît immédiatement (déjà OK)
-- Plus de chargement bloquant en dessous
-- L'analyse des commandes se charge uniquement à la demande
+Tu veux que j'applique tel quel, ou tu préfères ajuster le seuil (ex : afficher toutes les entrées sans tronquer à 2) avant ?
