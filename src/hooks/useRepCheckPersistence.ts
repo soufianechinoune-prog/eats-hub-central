@@ -4,12 +4,28 @@ import type { EcoOrganismCheckResult } from "@/hooks/useEcoOrganismCheck";
 
 export type RepStatus = "inscrit" | "non_trouve" | "sans_siret";
 
+export interface RepSnapshotIdu {
+  identifiant_unique: string;
+  filiere?: string | null;
+}
+
+export interface RepSnapshotEntryDetail {
+  filiere: string;
+  org: string;
+  start: string;
+  end: string | null;
+  isActive: boolean;
+  idu?: string;
+}
+
 export interface RepSnapshotEntry {
   restaurant_id: string;
   status: RepStatus;
   filiereCount: number;
   orgs: string[];
   idus: string[];
+  iduEntries?: RepSnapshotIdu[];
+  entries?: RepSnapshotEntryDetail[];
 }
 
 export interface RepSnapshot {
@@ -93,16 +109,52 @@ export function useRepCheckPersistence(restaurantIds: string[], chainId?: string
       }
       if (result.count > 0 || (result.idu_results || []).length > 0) {
         inscrit++;
+        const iduEntries = (result.idu_results || []).map(i => ({
+          identifiant_unique: i.identifiant_unique,
+          filiere: i.filiere ?? null,
+        }));
+        const fmtDateShort = (d: string | null | undefined) => {
+          if (!d) return "—";
+          try {
+            return new Date(d).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+          } catch { return "—"; }
+        };
+        const entries: RepSnapshotEntryDetail[] = result.results.map(rr => {
+          const matchingIdu = iduEntries.find(i => i.filiere === rr.filiere)
+            || (iduEntries.length === 1 ? iduEntries[0] : undefined);
+          return {
+            filiere: rr.filiere,
+            org: rr.raison_sociale_ecoorganisme,
+            start: fmtDateShort(rr.date_debutvalidite_inscription),
+            end: rr.date_finvalidite_inscription,
+            isActive: !rr.date_finvalidite_inscription || new Date(rr.date_finvalidite_inscription) > new Date(),
+            idu: matchingIdu?.identifiant_unique,
+          };
+        });
+        if (result.count === 0 && iduEntries.length > 0) {
+          for (const idu of iduEntries) {
+            entries.push({
+              filiere: idu.filiere || "—",
+              org: "Non encore enregistré (adhésion en cours)",
+              start: "—",
+              end: null,
+              isActive: true,
+              idu: idu.identifiant_unique,
+            });
+          }
+        }
         results[r.id] = {
           restaurant_id: r.id,
           status: "inscrit",
-          filiereCount: result.count || (result.idu_results || []).length,
-          orgs: [...new Set(result.results.map(r => r.raison_sociale_ecoorganisme).filter(Boolean))],
-          idus: (result.idu_results || []).map(i => i.identifiant_unique),
+          filiereCount: result.count || iduEntries.length,
+          orgs: [...new Set(result.results.map(rr => rr.raison_sociale_ecoorganisme).filter(Boolean))],
+          idus: iduEntries.map(i => i.identifiant_unique),
+          iduEntries,
+          entries,
         };
       } else {
         nonTrouve++;
-        results[r.id] = { restaurant_id: r.id, status: "non_trouve", filiereCount: 0, orgs: [], idus: [] };
+        results[r.id] = { restaurant_id: r.id, status: "non_trouve", filiereCount: 0, orgs: [], idus: [], iduEntries: [], entries: [] };
       }
     }
 
