@@ -169,6 +169,9 @@ export function EcoContributionSection({
 
         const hasResults = result.count > 0;
         const iduEntries = result.idu_results || [];
+        if (hasResults && iduEntries.length === 0) {
+          console.log("[REP debug] Adhérent sans IDU:", restaurantMap.get(rId) || rId, { count: result.count, results: result.results });
+        }
         const entries = result.results.map(r => {
           const matchingIdu = iduEntries.find(i => i.filiere === r.filiere)
             || (iduEntries.length === 1 ? iduEntries[0] : undefined);
