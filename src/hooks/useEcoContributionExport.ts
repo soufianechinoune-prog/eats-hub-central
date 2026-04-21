@@ -153,8 +153,9 @@ export function useEcoContributionExport() {
     XLSX.writeFile(wb, `eco-contribution_${yearLabel}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   }, []);
 
-  const exportPDF = useCallback(({ restaurants, monthlyData, totals, yearLabel }: ExportParams) => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const exportPDF = useCallback(({ restaurants, monthlyData, totals, yearLabel, repByRestaurant }: ExportParams) => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+    const hasRep = repByRestaurant && repByRestaurant.size > 0;
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const margin = 14;
@@ -194,12 +195,16 @@ export function useEcoContributionExport() {
     doc.setTextColor(0, 0, 0);
     doc.setFont("helvetica", "normal");
 
-    // Table
+    // Table — adapt columns based on whether REP data is available
     y = 56;
-    const colWidths = [70, 30, 30, 30, 22];
-    const headers = ["Restaurant", "Remb.", "Prél.", "Solde", "Lignes"];
+    const colWidths = hasRep
+      ? [55, 22, 22, 22, 14, 50, 65] // Restaurant, Remb, Prél, Solde, Lignes, IDU, Adhésions
+      : [70, 30, 30, 30, 22];
+    const headers = hasRep
+      ? ["Restaurant", "Remb.", "Prél.", "Solde", "Lignes", "IDU", "Adhésions"]
+      : ["Restaurant", "Remb.", "Prél.", "Solde", "Lignes"];
     const headerH = 7;
-    const rowH = 6;
+    const rowH = hasRep ? 8 : 6;
 
     const drawHeader = () => {
       doc.setFillColor(16, 185, 129);
@@ -209,7 +214,8 @@ export function useEcoContributionExport() {
       doc.setTextColor(255, 255, 255);
       let x = margin + 2;
       headers.forEach((h, i) => {
-        if (i >= 1) {
+        const isNumeric = i >= 1 && i <= 4;
+        if (isNumeric) {
           doc.text(h, x + colWidths[i] - 3, y + 5, { align: "right" });
         } else {
           doc.text(h, x, y + 5);
@@ -245,7 +251,7 @@ export function useEcoContributionExport() {
       doc.text(nameStr, x, y + 4.2);
       x += colWidths[0];
 
-      // Values
+      // Numeric values
       const vals = [fmt(r.refund), fmt(r.charge), fmt(r.net), String(r.count)];
       vals.forEach((v, i) => {
         if (i === 0) doc.setTextColor(22, 163, 74);
@@ -257,6 +263,31 @@ export function useEcoContributionExport() {
       });
 
       doc.setTextColor(0, 0, 0);
+
+      // REP columns: IDU + Adhésions (filière + dates)
+      if (hasRep) {
+        const rep = repByRestaurant!.get(r.restaurant_id);
+        const idus = rep?.entries
+          .filter(e => e.idu)
+          .map(e => `${e.filiere}: ${e.idu}`)
+          .join(" | ") || (rep?.status === "inscrit" ? "Adh. annuelle" : "—");
+        const adhesions = rep?.entries
+          .map(e => `${e.filiere} (${e.start} → ${e.end ? fmtDate(e.end) : "en cours"})`)
+          .join(" | ") || "—";
+
+        const truncate = (s: string, w: number) => {
+          const maxW = w - 3;
+          if (doc.getTextWidth(s) <= maxW) return s;
+          return s.substring(0, Math.floor(s.length * maxW / doc.getTextWidth(s))) + "…";
+        };
+
+        doc.setFontSize(6);
+        doc.text(truncate(idus, colWidths[5]), x, y + 4.2);
+        x += colWidths[5];
+        doc.text(truncate(adhesions, colWidths[6]), x, y + 4.2);
+        doc.setFontSize(6.5);
+      }
+
       y += rowH;
     });
 
