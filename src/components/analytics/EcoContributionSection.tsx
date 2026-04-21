@@ -1046,10 +1046,19 @@ function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; chang
           Non adhérent
         </span>
         {changeType === "lost_adherent" && (
-          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-500 animate-fade-in">
-            <ArrowDownCircle className="h-2.5 w-2.5" />
-            Perdu
-          </span>
+          <UITooltipProvider delayDuration={150}>
+            <UITooltip>
+              <UITooltipTrigger asChild>
+                <span className="inline-flex items-center gap-0.5 text-[9px] font-bold text-red-500 animate-fade-in cursor-help">
+                  <ArrowDownCircle className="h-2.5 w-2.5" />
+                  Adhésion perdue
+                </span>
+              </UITooltipTrigger>
+              <UITooltipContent side="top" className="max-w-xs text-xs">
+                Ce restaurant était inscrit au REP lors du scan précédent, mais ne l'est plus aujourd'hui.
+              </UITooltipContent>
+            </UITooltip>
+          </UITooltipProvider>
         )}
       </div>
     );
