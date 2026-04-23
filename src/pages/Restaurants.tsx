@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2 } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce, type ScanStatus } from "@/components/restaurants/BodaccScanButton";
 import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
 import { loadAllDismissedKeys, getAnnonceKey } from "@/hooks/useBodaccDismissals";
@@ -47,6 +47,7 @@ const Restaurants = () => {
   const { toast } = useToast();
   const { exportCSV, exportPDF } = useRestaurantsExport();
   const { selectedChainId } = useAnalyticsContext();
+  const [copiedId, setCopiedId] = useState<string | null>(null);
   
   // Load preferences from localStorage
   const savedPrefs = useMemo(() => {
@@ -502,6 +503,60 @@ const Restaurants = () => {
                     <TableCell className="font-medium" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <div className="flex items-center gap-2">
                         {restaurant.name}
+                        {restaurant.uber_store_id && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(restaurant.uber_store_id!);
+                                    setCopiedId(`uber-${restaurant.id}`);
+                                    toast({ title: "UUID Uber copié" });
+                                    setTimeout(() => setCopiedId((c) => (c === `uber-${restaurant.id}` ? null : c)), 1000);
+                                  }}
+                                >
+                                  {copiedId === `uber-${restaurant.id}` ? (
+                                    <Check className="h-3 w-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copier UUID Uber : {restaurant.uber_store_id}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {restaurant.deliveroo_store_id && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 shrink-0"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(restaurant.deliveroo_store_id!);
+                                    setCopiedId(`deliveroo-${restaurant.id}`);
+                                    toast({ title: "ID Deliveroo copié" });
+                                    setTimeout(() => setCopiedId((c) => (c === `deliveroo-${restaurant.id}` ? null : c)), 1000);
+                                  }}
+                                >
+                                  {copiedId === `deliveroo-${restaurant.id}` ? (
+                                    <Check className="h-3 w-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>Copier ID Deliveroo : {restaurant.deliveroo_store_id}</TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         {/* Scanning indicator */}
                         {scanningId === restaurant.id && (
                           <Loader2 className="h-3.5 w-3.5 animate-spin text-primary shrink-0" />
