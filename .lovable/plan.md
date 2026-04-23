@@ -1,69 +1,29 @@
 
 
-## Fix : persister IDU + entries dans le snapshot REP
+## Bouton "Copier UUID" dans la liste des restaurants
 
-### Diagnostic confirmé
-Ton ingénieure a raison. Deux trous :
-1. `RepSnapshotEntry` (hook `useRepCheckPersistence`) ne stocke qu'une liste de strings `idus[]` et ne stocke **pas** les `entries` (filière + dates d'adhésion).
-2. Le fallback dans `EcoContributionSection.tsx` (lignes 219-220) force `iduEntries: []` et `entries: []`, donc tout disparaît au rechargement de la page tant qu'on ne relance pas le scan.
+### Contexte
+Sur Uber Eats Manager (cf. screenshot), un bouton "Copy Store UUID" est dispo en haut de la fiche restaurant. Aujourd'hui dans notre app, l'UUID Uber n'est copiable que depuis la fiche détail (`RestaurantDetail.tsx` ligne 657-661). Sur la liste `/restaurants`, il faut ouvrir la fiche pour le récupérer — peu pratique quand on doit le coller dans Uber.
 
-### Corrections
+### Proposition
+Ajouter une **petite icône "copier"** discrète à côté de chaque restaurant dans la liste, qui copie son `uber_store_id` en un clic + toast de confirmation.
 
-#### 1. `src/hooks/useRepCheckPersistence.ts`
-Étendre `RepSnapshotEntry` pour inclure les données détaillées :
+### Emplacement
+Dans la cellule "Nom" du tableau (`Restaurants.tsx`), juste après le nom du restaurant : un bouton ghost icône `Copy` (lucide) de taille `h-6 w-6`, visible uniquement si `r.uber_store_id` existe.
 
-```ts
-export interface RepSnapshotIdu {
-  identifiant_unique: string;
-  filiere?: string | null;
-}
+### Comportement
+- Clic → `navigator.clipboard.writeText(r.uber_store_id)` + toast "UUID copié"
+- `e.stopPropagation()` pour éviter de naviguer vers la fiche détail
+- Tooltip au survol : "Copier l'UUID Uber : `xxxx-xxxx`"
+- Icône grise par défaut, devient verte 1s après le clic (feedback visuel rapide)
+- Si pas d'UUID Uber : icône absente (pas d'état désactivé inutile)
 
-export interface RepSnapshotEntryDetail {
-  filiere: string;
-  org: string;
-  start: string;       // déjà formatée "JJ/MM/AAAA"
-  end: string | null;  // brut ISO ou null
-  isActive: boolean;
-  idu?: string;
-}
-
-export interface RepSnapshotEntry {
-  restaurant_id: string;
-  status: RepStatus;
-  filiereCount: number;
-  orgs: string[];
-  idus: string[];                     // conservé pour compat (compteurs/changes)
-  iduEntries?: RepSnapshotIdu[];      // NOUVEAU
-  entries?: RepSnapshotEntryDetail[]; // NOUVEAU
-}
-```
-
-Modifier `saveSnapshot` pour calculer et persister ces deux champs en réutilisant exactement la même logique de mapping que celle de `EcoContributionSection.tsx` (lignes 175-200), afin que le contenu en cache soit identique au contenu live.
-
-Pas de migration SQL nécessaire : la colonne `results` est déjà `jsonb` et accepte les nouveaux champs facultatifs.
-
-#### 2. `src/components/analytics/EcoContributionSection.tsx`
-Restaurer les deux champs depuis le cache (lignes 215-221) :
-
-```tsx
-map.set(rId, {
-  status: cached.status,
-  filiereCount: cached.filiereCount,
-  orgs: cached.orgs || [],
-  iduEntries: cached.iduEntries || [],   // ← restauré
-  entries: cached.entries || [],         // ← restauré
-});
-```
-
-### Compatibilité avec les snapshots existants
-Les anciens snapshots (déjà en base) n'ont pas `iduEntries` ni `entries` → le fallback `|| []` garantit qu'ils ne plantent pas. Ils retrouveront leurs IDU au prochain scan, qui réécrira un snapshot complet.
+### Variante optionnelle (à valider)
+Ajouter aussi un second bouton pour le `deliveroo_store_id` à côté, avec la même mécanique. Actuellement les 2 plateformes sont représentées dans l'app, donc pertinent.
 
 ### Fichiers modifiés
-- `src/hooks/useRepCheckPersistence.ts` — types étendus + `saveSnapshot` enrichi
-- `src/components/analytics/EcoContributionSection.tsx` — fallback du `latestSnapshot` qui restaure `iduEntries` et `entries`
+- `src/pages/Restaurants.tsx` — ajout du bouton copier dans la `TableCell` du nom + import de l'icône `Copy` + handler local
 
 ### Résultat attendu
-- Au rechargement de la page (sans relancer le scan), les badges IDU bleus et les dates d'adhésion s'affichent à nouveau sous chaque restaurant adhérent.
-- Aucun changement de comportement quand le scan vient d'être relancé (live data inchangée).
-- Les anciens snapshots restent lisibles (juste sans IDU/dates jusqu'au prochain scan).
+Depuis la liste, un clic sur l'icône à côté de "Chicken Street - Marseille Belsunce" copie son UUID Uber dans le presse-papier sans avoir à ouvrir la fiche. Workflow identique à celui d'Uber Manager.
 
