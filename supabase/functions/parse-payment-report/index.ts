@@ -481,7 +481,7 @@ Deno.serve(async (req) => {
     }>();
 
     // Track eco-contribution refunds (lines without uber_order_id but with positive "Autres frais")
-    const ecoContributionByPayout = new Map<string, { amount: number; restaurantId: string }>();
+    const ecoContributionByPayout = new Map<string, { refund: number; charge: number; restaurantId: string }>();
     let ecoContributionRowCount = 0;
 
     // Build a set of recognized DB fields for extra_columns detection
