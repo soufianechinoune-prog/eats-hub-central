@@ -3116,6 +3116,97 @@ export type Database = {
         }
         Relationships: []
       }
+      splash360_daily_sales: {
+        Row: {
+          average_basket: number
+          created_at: string
+          date: string
+          granularity: string
+          id: string
+          n1_order_count: number | null
+          n1_revenue_ttc: number | null
+          order_count: number
+          platform: string
+          restaurant_id: string | null
+          restaurant_splash_id: number
+          revenue_ht: number
+          revenue_ttc: number
+          updated_at: string
+          vat_amount: number
+        }
+        Insert: {
+          average_basket?: number
+          created_at?: string
+          date: string
+          granularity: string
+          id?: string
+          n1_order_count?: number | null
+          n1_revenue_ttc?: number | null
+          order_count?: number
+          platform: string
+          restaurant_id?: string | null
+          restaurant_splash_id: number
+          revenue_ht?: number
+          revenue_ttc?: number
+          updated_at?: string
+          vat_amount?: number
+        }
+        Update: {
+          average_basket?: number
+          created_at?: string
+          date?: string
+          granularity?: string
+          id?: string
+          n1_order_count?: number | null
+          n1_revenue_ttc?: number | null
+          order_count?: number
+          platform?: string
+          restaurant_id?: string | null
+          restaurant_splash_id?: number
+          revenue_ht?: number
+          revenue_ttc?: number
+          updated_at?: string
+          vat_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash360_daily_sales_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash360_restaurant_mapping: {
+        Row: {
+          matched_at: string
+          restaurant_id: string | null
+          restaurant_splash_id: number
+          splash_name: string | null
+        }
+        Insert: {
+          matched_at?: string
+          restaurant_id?: string | null
+          restaurant_splash_id: number
+          splash_name?: string | null
+        }
+        Update: {
+          matched_at?: string
+          restaurant_id?: string | null
+          restaurant_splash_id?: number
+          splash_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash360_restaurant_mapping_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           activated_at: string | null
