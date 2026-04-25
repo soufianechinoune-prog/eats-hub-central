@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import type { DateRange } from "react-day-picker";
+import { supabase } from "@/integrations/supabase/client";
 
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
 export type Platform = "uber_eats" | "deliveroo" | "global";
@@ -136,6 +137,46 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSelectedRestaurants((prev) => prev.filter((id) => visibleRestaurants.includes(id)));
   }, [visibleRestaurants]);
+
+  // Auto-select chain for users restricted to a single brand (e.g., 'client' role).
+  // Relies on RLS: the chains query returns only chains the user has access to.
+  useEffect(() => {
+    let cancelled = false;
+    const autoSelectSingleChain = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || cancelled) return;
+        const { data: chains, error } = await supabase
+          .from("chains")
+          .select("id");
+        if (error || cancelled || !chains) return;
+        // If the user has access to exactly ONE chain, force-select it.
+        // This prevents 'client' role users from seeing "All brands" (cross-brand) view.
+        if (chains.length === 1 && selectedChainId !== chains[0].id) {
+          setSelectedChainId(chains[0].id);
+          setSelectedRestaurants([]);
+          setVisibleRestaurants([]);
+        }
+      } catch {
+        // Silent: if anything fails, keep the existing selection
+      }
+    };
+    autoSelectSingleChain();
+    // Re-run on auth state changes (login/logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        autoSelectSingleChain();
+      }
+      if (event === "SIGNED_OUT") {
+        setSelectedChainId(null);
+      }
+    });
+    return () => {
+      cancelled = true;
+      subscription.unsubscribe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Persist to localStorage whenever state changes (but not on initial mount)
   useEffect(() => {
