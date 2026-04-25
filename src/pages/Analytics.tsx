@@ -731,6 +731,7 @@ export default function Analytics() {
   const { data: allUberConversionData } = useQuery({
     queryKey: [
       "analytics_conversion_uber_all",
+      restaurantFilter,
       selectedYear,
       format(startDate, "yyyy-MM-dd"),
       format(endDate, "yyyy-MM-dd"),
@@ -743,6 +744,9 @@ export default function Analytics() {
         platform: "uber_eats",
         start: startKey,
         end: endKey,
+        // Scope to current brand to avoid mixing restaurants from other chains
+        // (otherwise the scatter plot shows them as "Restaurant inconnu").
+        restaurantIds: restaurantFilter,
       });
 
       const dailyData = rows.map((item) => ({
@@ -754,7 +758,7 @@ export default function Analytics() {
       return aggregateDailyConversionByMonth(dailyData);
     },
     placeholderData: (previousData) => previousData,
-    enabled: needsConversion,
+    enabled: needsConversion && isRestaurantScopeReady && !!restaurantFilter && restaurantFilter.length > 0,
   });
 
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
