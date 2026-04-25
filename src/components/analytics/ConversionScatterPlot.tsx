@@ -25,7 +25,12 @@ import {
   ArrowUpDown,
   Maximize2,
   Minimize2,
+  Users,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface RestaurantConversionData {
   restaurantId: string;
