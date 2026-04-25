@@ -20,7 +20,6 @@ import { RestaurantComparisonTable } from "@/components/overview/RestaurantCompa
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
-import { CashRevenueCard } from "@/components/overview/CashRevenueCard";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
@@ -601,7 +600,7 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className={cn("grid gap-8", cashRevenueData ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
+          <div className="grid gap-8 lg:grid-cols-3">
             {/* Global Card */}
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
@@ -689,14 +688,6 @@ const Overview = () => {
               </CardContent>
             </Card>
 
-            {/* Cash Card (only shown when Splash360 data exists for the active brand) */}
-            {cashRevenueData && (
-              <CashRevenueCard
-                data={cashRevenueData}
-                isLoading={cashLoading}
-                periodLabel={getPeriodLabel()}
-              />
-            )}
           </div>
 
           {/* Platform Revenue Split */}
@@ -705,6 +696,8 @@ const Overview = () => {
               stats={comparisonStats}
               isLoading={statsLoading || cashLoading}
               cashTotal={cashRevenueData?.totalCash ?? 0}
+              cashDaysWithData={cashRevenueData?.daysWithData}
+              cashVariation={cashRevenueData?.cashVariation ?? null}
             />
           </div>
 

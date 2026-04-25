@@ -1,19 +1,28 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Store } from "lucide-react";
+import { Store, Info, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { AnimatedNumber } from "@/components/ui/animated-number";
+import { cn } from "@/lib/utils";
 import type { RestaurantNetworkStats } from "@/hooks/useNetworkStats";
 
 interface Props {
   stats: RestaurantNetworkStats[];
   isLoading: boolean;
   cashTotal?: number; // Optional — only when Splash360 data is available
+  cashDaysWithData?: number;
+  cashVariation?: number | null;
 }
 
-export function PlatformRevenueSplit({ stats, isLoading, cashTotal = 0 }: Props) {
+export function PlatformRevenueSplit({
+  stats,
+  isLoading,
+  cashTotal = 0,
+  cashDaysWithData,
+  cashVariation = null,
+}: Props) {
   const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
