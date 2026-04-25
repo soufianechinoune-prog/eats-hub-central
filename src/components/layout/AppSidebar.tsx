@@ -325,6 +325,15 @@ export function AppSidebar() {
               </div>
             )}
           </SidebarGroupLabel>
+          {/* Read-only badge for client role */}
+          {!collapsed && isClientReadOnly && (
+            <div className="px-2 pb-2">
+              <div className="flex items-center justify-center gap-1.5 rounded-md border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-primary">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Accès lecture seule
+              </div>
+            </div>
+          )}
           {/* Chain selector */}
           {!collapsed && canImport && (
             <div className="px-2 pb-2">
