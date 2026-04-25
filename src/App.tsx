@@ -173,6 +173,7 @@ const App = () => {
                     <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
                     <Route path="/account" element={<P><AppLayout><Account /></AppLayout></P>} />
                     <Route path="/reviews" element={<P><AppLayout><Reviews /></AppLayout></P>} />
+                    <Route path="/settings/integrations" element={<P><AppLayout><Integrations /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
