@@ -126,6 +126,7 @@ function PlatformSubRow({
         {formatCurrency(data.revenue)}
       </TableCell>
       {showN1Comparison && <TableCell></TableCell>}
+      {showCashColumn && <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>}
       <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
         {formatCurrency(data.netPayout)}
       </TableCell>
@@ -369,6 +370,9 @@ export function RestaurantComparisonTable({
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
+                    {showCashColumn && (
+                      <TableCell className="text-right text-muted-foreground">—</TableCell>
+                    )}
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
                     </TableCell>
@@ -443,6 +447,11 @@ export function RestaurantComparisonTable({
               {showN1Comparison && (
                 <TableCell className="text-right">
                   {formatVariation(networkTotals.revenueVariation)}
+                </TableCell>
+              )}
+              {showCashColumn && (
+                <TableCell className="text-right font-bold text-cash whitespace-nowrap">
+                  {formatCurrency(networkCashTotal)}
                 </TableCell>
               )}
               <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
