@@ -764,6 +764,35 @@ export default function Analytics() {
     enabled: needsConversion && chainRestaurantIds.length > 0,
   });
 
+  // Benchmark local : points de conversion ANONYMISÉS des concurrents
+  // (autres marques) situés dans les mêmes villes que la marque active.
+  // Sécurité : la RPC ne renvoie ni nom de restaurant ni UUID réel —
+  // uniquement un `anon_id` haché stable, la ville, et les métriques agrégées.
+  const { data: localBenchmarkData } = useQuery({
+    queryKey: [
+      "analytics_local_benchmark_uber",
+      selectedChainId,
+      format(startDate, "yyyy-MM-dd"),
+      format(endDate, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      if (!selectedChainId) return [];
+      const { data, error } = await supabase.rpc("get_local_benchmark_conversion", {
+        p_chain_id: selectedChainId,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+        p_platform: "uber_eats",
+      });
+      if (error) {
+        console.error("[Analytics] local benchmark error", error);
+        return [];
+      }
+      return data || [];
+    },
+    placeholderData: (previousData) => previousData,
+    enabled: needsConversion && !!selectedChainId,
+  });
+
   const { data: uberFeesData, isLoading: loadingUberFees } = useQuery({
     queryKey: ["analytics_fees_uber", restaurantFilter, selectedYear],
     queryFn: async () => {
