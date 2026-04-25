@@ -180,18 +180,29 @@ serve(async (req) => {
       const errors: any[] = [];
       const CONCURRENCY = 5;
 
+      // Pour granularity=day, on doit boucler sur chaque jour du mois (l'API renvoie 1 point par appel)
+      const dayList: number[] =
+        granularity === "day"
+          ? Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1)
+          : [1];
+
       for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
         const batch = allTargets.slice(i, i + CONCURRENCY);
         await Promise.all(batch.map(async (splashId) => {
-          for (const endpoint of ["salesturnover", "ubersalesturnover", "deliveroosalesturnover"] as const) {
-            try {
-              const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId);
-              const row: any = buildRow(splashId, dateRef, granularity, PLATFORM_MAP[endpoint], data);
-              const restoUuid = splashToRestaurantId.get(splashId);
-              if (restoUuid) row.restaurant_id = restoUuid;
-              rowsToUpsert.push(row);
-            } catch (e: any) {
-              errors.push({ splashId, endpoint, error: e.message });
+          for (const day of dayList) {
+            const dayDateRef = granularity === "day"
+              ? `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+              : dateRef;
+            for (const endpoint of ["salesturnover", "ubersalesturnover", "deliveroosalesturnover"] as const) {
+              try {
+                const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId, day);
+                const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+                const restoUuid = splashToRestaurantId.get(splashId);
+                if (restoUuid) row.restaurant_id = restoUuid;
+                rowsToUpsert.push(row);
+              } catch (e: any) {
+                errors.push({ splashId, day, endpoint, error: e.message });
+              }
             }
           }
         }));
