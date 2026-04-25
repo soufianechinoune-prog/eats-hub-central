@@ -32,6 +32,7 @@ import {
   Tag,
   Building2,
   Plus,
+  Plug,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
