@@ -50,7 +50,7 @@ export function usePOSConnectors() {
 
 /** Connexion POS active de la chaîne sélectionnée (ou null). */
 export function useActiveChainPOSConnection() {
-  const { selectedChainId } = useAnalytics();
+  const { selectedChainId } = useAnalyticsContext();
 
   return useQuery({
     queryKey: ["chain_pos_connection", selectedChainId],
@@ -75,7 +75,7 @@ export function useActiveChainPOSConnection() {
 /** Connecter (ou reconnecter) une caisse à la chaîne active. */
 export function useConnectPOS() {
   const queryClient = useQueryClient();
-  const { selectedChainId } = useAnalytics();
+  const { selectedChainId } = useAnalyticsContext();
 
   return useMutation({
     mutationFn: async (input: {
@@ -118,7 +118,7 @@ export function useConnectPOS() {
 /** Déconnecter la caisse active de la chaîne courante. */
 export function useDisconnectPOS() {
   const queryClient = useQueryClient();
-  const { selectedChainId } = useAnalytics();
+  const { selectedChainId } = useAnalyticsContext();
 
   return useMutation({
     mutationFn: async () => {
