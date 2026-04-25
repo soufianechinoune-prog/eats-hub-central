@@ -78,7 +78,7 @@ import csLogo from "@/assets/cs-logo.jpeg";
 import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
-import { useCanImport } from "@/hooks/useUserRole";
+import { useCanImport, useUserRole } from "@/hooks/useUserRole";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
