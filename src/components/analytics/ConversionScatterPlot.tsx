@@ -373,15 +373,32 @@ export function ConversionScatterPlot({
                 />
 
                 <Tooltip content={<CustomTooltip />} />
-                
+
+                {/* Anonymized competitor points (rendered first so they sit behind brand points) */}
+                {showBenchmark && benchmarkScatter.length > 0 && (
+                  <Scatter data={benchmarkScatter} fill="hsl(var(--muted-foreground))">
+                    {benchmarkScatter.map((_, index) => (
+                      <Cell
+                        key={`bench-cell-${index}`}
+                        fill="hsl(var(--muted-foreground))"
+                        fillOpacity={0.35}
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeOpacity={0.5}
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </Scatter>
+                )}
+
                 <Scatter data={filteredData} fill="hsl(var(--primary))">
                   {filteredData.map((entry, index) => {
                     const isHighlighted = highlightedRestaurants.includes(entry.restaurantId);
+                    const dimByBenchmark = showBenchmark && highlightedRestaurants.length > 0 && !isHighlighted;
                     return (
                       <Cell
                         key={`cell-${index}`}
                         fill={getQuadrantColor(entry.visits, entry.conversionRate)}
-                        fillOpacity={isHighlighted ? 1 : 0.6}
+                        fillOpacity={isHighlighted ? 1 : (dimByBenchmark ? 0.35 : 0.6)}
                         stroke={isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
                         strokeWidth={isHighlighted ? 3 : 1}
                       />
