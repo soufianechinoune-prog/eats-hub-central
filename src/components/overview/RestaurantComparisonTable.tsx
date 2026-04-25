@@ -312,6 +312,13 @@ export function RestaurantComparisonTable({
               {showN1Comparison && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
+              {showCashColumn && (
+                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1 text-cash">
+                    <Store className="h-3 w-3" /> Caisse
+                  </span>
+                </TableHead>
+              )}
               <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
