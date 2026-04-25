@@ -491,36 +491,37 @@ const Overview = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Button
-            onClick={() => {
-              overviewQueryKeys.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
-              queryClient.invalidateQueries({ queryKey: ["all-active-restaurants"] });
-              queryClient.invalidateQueries({ queryKey: ["network-stats"] });
-            }}
-            variant="outline"
-            size="icon"
-            title="Forcer le rafraîchissement"
-          >
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button
-            onClick={handleExportPdf}
-            disabled={isExporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileDown className="h-4 w-4" />
-            PDF
-          </Button>
-          <Button
-            onClick={handleExportExcel}
-            disabled={isExporting}
-            variant="outline"
-            className="gap-2"
-          >
-            <FileSpreadsheet className="h-4 w-4" />
-            Excel
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                disabled={isExporting}
+                className="gap-2"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Export en cours…
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4" />
+                    Télécharger
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={handleExportPdf} disabled={isExporting} className="gap-2">
+                <FileDown className="h-4 w-4" />
+                PDF
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportExcel} disabled={isExporting} className="gap-2">
+                <FileSpreadsheet className="h-4 w-4" />
+                Excel
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <OverviewPeriodSelector
             periodMode={periodMode}
             onPeriodModeChange={setPeriodMode}
