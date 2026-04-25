@@ -192,6 +192,31 @@ export function ConversionScatterPlot({
     const d = payload[0]?.payload;
     if (!d) return null;
 
+    // Anonymized competitor tooltip — no name, no restaurant_id
+    if (d.isCompetitor) {
+      return (
+        <div className="bg-popover border border-border rounded-lg shadow-xl p-3 min-w-[200px]">
+          <p className="font-semibold text-sm mb-2 text-muted-foreground">
+            Concurrent local · {d.city}
+          </p>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span>Visites</span>
+              <span className="font-medium">{d.visits.toLocaleString("fr-FR")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Taux de conversion</span>
+              <span className="font-bold">{d.conversionRate.toFixed(2)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Commandes</span>
+              <span className="font-medium">{d.orders.toLocaleString("fr-FR")}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     const qKey = getQuadrantKey(d.visits, d.conversionRate);
     const quadrantLabel = `${QUADRANT_LABELS[qKey].emoji} ${QUADRANT_LABELS[qKey].label}`;
 
