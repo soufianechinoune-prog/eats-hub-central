@@ -429,13 +429,6 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
           </Button>
         </div>
 
-        {/* Network View Toggle */}
-        <NetworkViewToggle
-          isNetworkView={isNetworkView}
-          onToggle={setIsNetworkView}
-          pinnedCount={pinnedCount}
-          networkCount={networkCount}
-        />
 
 
         {!hidePeriodSelector && <div className="flex items-center gap-2">
