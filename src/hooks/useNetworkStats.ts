@@ -68,8 +68,8 @@ interface UseNetworkStatsParams {
 }
 
 const RETRY_CONFIG = {
-  retry: 3,
-  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  retry: 1,
+  retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 5000),
   staleTime: 5 * 60 * 1000,
 };
 
@@ -127,9 +127,9 @@ export function useNetworkStats({
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
 
-  // Deliveroo sales via RPC
+  // Deliveroo sales via RPC — shared cache key with useOverviewData
   const { data: deliverooSummaryData, isLoading: deliverooLoading } = useQuery({
-    queryKey: ["network-stats-deliveroo", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-deliveroo-sales", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_network_deliveroo_summary", {
@@ -181,16 +181,17 @@ export function useNetworkStats({
   const reviewsData = externalReviewsData || [];
 
   const { data: accuracyData, isLoading: accuracyLoading } = useQuery({
-    queryKey: ["network-stats-accuracy", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-accuracy", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase
         .from("daily_order_accuracy")
-        .select("restaurant_id, incorrect_orders_count")
+        .select("*")
         .eq("period_type", "current")
         .gte("date", startDateStr)
         .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds);
+        .in("restaurant_id", restaurantIds)
+        .range(0, 10000);
       if (error) throw error;
       return data || [];
     },
@@ -198,9 +199,9 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
-  // Orders payout via RPC (also in wave 2 — single call, no dependency on reviews)
+  // Orders payout via RPC — shared cache key with useOverviewData (overview-sales)
   const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
-    queryKey: ["network-stats-orders-payout", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-sales", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_network_orders_summary", {
@@ -230,7 +231,7 @@ export function useNetworkStats({
   // ═══════════════════════════════════════════════
 
   const { data: prepTimeSummaryData, isLoading: historyLoading } = useQuery({
-    queryKey: ["network-stats-history", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-prep-times", restaurantIds, startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_network_prep_time_summary", {
@@ -252,7 +253,7 @@ export function useNetworkStats({
   });
 
   const { data: availabilityData, isLoading: availabilityLoading } = useQuery({
-    queryKey: ["network-stats-availability", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-availability", restaurantIds, startDate.toISOString(), endDate.toISOString()],
     queryFn: async () => {
       if (!hasIds) return [];
       const { data, error } = await supabase.rpc("get_availability_by_restaurant", {
