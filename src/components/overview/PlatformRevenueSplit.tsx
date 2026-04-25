@@ -189,7 +189,7 @@ export function PlatformRevenueSplit({
                 <>
                   <span aria-hidden>·</span>
                   <span className="inline-flex items-center gap-1">
-                    vs période préc.
+                    vs N-1 (même période)
                     {cashVariation >= 0 ? (
                       <TrendingUp className="h-3 w-3 text-emerald-600" />
                     ) : (

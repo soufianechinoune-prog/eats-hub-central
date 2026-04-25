@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { format, differenceInDays, subDays } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
 const CHICKEN_STREET_CHAIN_ID = "110e05b8-5136-45cc-a385-265360104844";
@@ -42,10 +42,14 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Période précédente (même durée, juste avant)
+  // Période précédente : même plage exactement, décalée d'un an en arrière
+  // (N-1). Cohérent avec le toggle "Afficher N-1" du tableau Comparatif et
+  // pertinent pour la saisonnalité (mêmes mois civils).
   const days = Math.max(1, differenceInDays(endDate, startDate) + 1);
-  const prevEnd = subDays(startDate, 1);
-  const prevStart = subDays(prevEnd, days - 1);
+  const prevStart = new Date(startDate);
+  prevStart.setFullYear(prevStart.getFullYear() - 1);
+  const prevEnd = new Date(endDate);
+  prevEnd.setFullYear(prevEnd.getFullYear() - 1);
   const prevStartStr = format(prevStart, "yyyy-MM-dd");
   const prevEndStr = format(prevEnd, "yyyy-MM-dd");
 

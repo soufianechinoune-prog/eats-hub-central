@@ -332,7 +332,14 @@ const Overview = () => {
         }
         break;
     }
-    
+
+    // Clamp endDate to today: when user picks the current year/month, the
+    // raw end date is in the future (e.g. 31 Dec 2026) which would unfairly
+    // skew "vs previous period" and "vs N-1" comparisons (e.g. 4 months of
+    // data compared against 12 months of data). Always cap to today so the
+    // comparison period uses the same number of real days.
+    if (end > now) end = now;
+
     return { startDate: start, endDate: end };
   };
 
