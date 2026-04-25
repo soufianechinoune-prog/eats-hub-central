@@ -4031,6 +4031,16 @@ export type Database = {
         }[]
       }
       is_super_admin: { Args: never; Returns: boolean }
+      normalize_resto_name: { Args: { input: string }; Returns: string }
+      splash360_auto_map_restaurants: {
+        Args: never
+        Returns: {
+          matched_count: number
+          total_count: number
+          unmatched_count: number
+        }[]
+      }
+      unaccent: { Args: { "": string }; Returns: string }
       update_uber_commission_rates: {
         Args: never
         Returns: {
