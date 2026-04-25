@@ -83,6 +83,7 @@ function PlatformSubRow({
   errorRate,
   prepTime,
   downtime,
+  showCashColumn = false,
 }: {
   platform: string;
   data: PlatformBreakdown;
@@ -93,6 +94,7 @@ function PlatformSubRow({
   errorRate?: number | null;
   prepTime?: number | null;
   downtime?: number | null;
+  showCashColumn?: boolean;
 }) {
   if (data.orders === 0 && data.revenue === 0) return null;
 
