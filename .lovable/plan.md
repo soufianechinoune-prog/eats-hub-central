@@ -1,82 +1,71 @@
-# Ajout de la dimension "Caisse" sur la Vue d'ensemble
-
 ## Objectif
 
-Faire apparaître les données de caisse (issues de Splash360) à côté d'Uber Eats et Deliveroo sur la page **Vue d'ensemble**, sans polluer les KPI plateformes existants.
+Retirer la vignette « Caisse » qui prend trop de place et affiche des KPIs non pertinents (`--` sur prépa, rentabilité, etc.). Garder l'information **CA Caisse** au bon endroit : dans la **Répartition du CA réseau**, qui est l'endroit naturel pour comparer les canaux.
 
-## Source des données
+## Ce qui change
 
-Table `splash360_daily_sales` déjà alimentée par l'edge function `sync-splash360`.
+### 1. Suppression de la vignette Caisse
+- Retirer `<CashRevenueCard />` de `src/pages/Overview.tsx`.
+- Repasser la grille de KPIs en **3 colonnes** (Global / Uber Eats / Deliveroo) — comme avant.
+- Supprimer l'import du composant + import de `Store` si plus utilisé.
+- Supprimer le fichier `src/components/overview/CashRevenueCard.tsx` (plus utilisé).
+- **Garder** le hook `useNetworkCashRevenue` (utilisé par la barre de répartition).
 
-État actuel des données disponibles :
-- **Réseau global** (`restaurant_splash_id = 0`) : historique journalier complet de mai 2024 à mars 2026 (2100 lignes, 3 plateformes : `global`, `uber_eats`, `deliveroo`).
-- **Par restaurant** : seul le mapping est fait (104/113), mais l'API HQ ne retourne pas encore le détail individuel — donc pas de CA caisse par restaurant pour le moment.
+### 2. Enrichir la barre « Répartition du CA réseau »
+La barre garde déjà ses 3 segments (Uber / Deliveroo / Caisse) — c'est elle qui devient le seul point d'affichage du CA Caisse.
 
-➜ La caisse = `revenue_ttc` de la ligne `platform = 'global'` **moins** la somme `uber_eats + deliveroo` du même jour. C'est exactement ce qui ne passe ni par Uber Eats ni par Deliveroo : le CA caisse / sur place.
+Ajouter sous la légende existante une **petite ligne discrète** (texte muted, taille xs) :
 
-## Ce qu'on va construire
+```
+ⓘ Caisse Splash360 sur la période : 5 294 420 € — 31 jours de données — vs période précédente : -15.5%
+```
 
-### 1. Nouvelle vignette "Caisse" sur Overview
+Détails :
+- N'apparaît que si `cashTotal > 0`.
+- Affiche : montant Caisse, nombre de jours de données, variation vs période précédente (vert/rouge).
+- Une seconde ligne, encore plus discrète, précise la source : `Source : Splash360 (réseau global). Détail par restaurant indisponible via l'API.`
+- Le tout en `text-xs text-muted-foreground` avec une bordure haute fine `border-t border-border/40 pt-2` pour séparer de la légende, sans casser l'esthétique de la card.
 
-Placée à côté des cartes Global / Uber Eats / Deliveroo (passage de 3 à 4 colonnes en grid lg).
+Pour cela :
+- Étendre les props de `PlatformRevenueSplit` :
+  - `cashDaysWithData?: number`
+  - `cashVariation?: number | null`
+- Les passer depuis `Overview.tsx` à partir de `cashRevenueData`.
 
-Contenu de la carte :
-- Icône caisse (Lucide `Store` ou `ShoppingBag`)
-- **CA TTC** sur la période sélectionnée
-- **Nombre de jours de données** (pour transparence)
-- **Part dans le CA réseau total** (ex : "16% du réseau")
-- Variation vs période précédente (si dispo)
+### 3. Tableau comparatif (bas de page)
+Aucun changement par rapport à l'état actuel : la colonne « CAISSE » reste affichée au niveau réseau global (avec `--` par restaurant), c'est ce que tu avais validé.
 
-⚠️ La carte **Global** reste inchangée : elle agrège uniquement Uber + Deliveroo (comme demandé).
+## Fichiers touchés
 
-### 2. Répartition du CA réseau : passage à 3 segments
+- `src/pages/Overview.tsx` — retirer la card, repasser en 3 colonnes, passer les props enrichies à `PlatformRevenueSplit`.
+- `src/components/overview/PlatformRevenueSplit.tsx` — ajouter la ligne info Caisse sous la légende.
+- `src/components/overview/CashRevenueCard.tsx` — supprimer.
 
-La barre actuelle (Uber Eats vert / Deliveroo bleu) devient une barre à 3 segments :
-- 🟢 Uber Eats
-- 🔵 Deliveroo  
-- 🟣 Caisse (nouvelle couleur, ex : violet ou ambre)
+## Ce qui ne change pas
 
-Le total affiché en haut à droite inclut désormais la caisse.
+- Hook `useNetworkCashRevenue.ts` (toujours utilisé).
+- Tokens couleur `--cash` dans `index.css` / `tailwind.config.ts` (utilisés par la barre + tableau).
+- Modifications de `RestaurantComparisonTable.tsx` (colonne CAISSE conservée).
+- Logique de calcul Caisse = global − uber − deliveroo, scopée Chicken Street.
 
-### 3. Comparatif des restaurants : colonne "CA Caisse"
+## Résultat visuel attendu
 
-Ajout d'une colonne entre `CA` et `VERSEMENT` :
-- **CAISSE** : CA caisse du restaurant sur la période
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Global         │ Uber Eats       │ Deliveroo                    │
+│ (vignette)     │ (vignette)      │ (vignette)                   │
+└─────────────────────────────────────────────────────────────────┘
 
-⚠️ Pour l'instant, comme on n'a pas le détail par restaurant via l'API, cette colonne affichera **"--"** pour chaque restaurant individuel. Une ligne **"TOTAL RÉSEAU"** ou un encart au-dessus du tableau affichera le CA caisse global agrégé (la seule donnée fiable qu'on ait).
+┌─────────────────────────────────────────────────────────────────┐
+│ Répartition du CA réseau              Total : 6 052 721 €       │
+│                                                                  │
+│ [████ Uber 9.4% ████ Deliv 3.1% ███████ Caisse 87.5% ████████] │
+│                                                                  │
+│ 🟢 Uber Eats 571 365 €   🔵 Deliveroo 186 936 €   🟣 Caisse 5 294 420 € │
+│ ───────────────────────────────────────────────────────────────  │
+│ ⓘ Caisse Splash360 : 31j de données · vs période préc. -15.5%   │
+│   Source : réseau global · détail par restaurant indisponible   │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-## Détails techniques
-
-### Hook de données
-
-Création d'un hook `useNetworkCashRevenue(startDate, endDate)` qui :
-1. Lit `splash360_daily_sales` filtrée par dates, `restaurant_splash_id = 0`, `granularity = 'day'`.
-2. Calcule pour chaque jour : `caisse = global_revenue - uber_eats_revenue - deliveroo_revenue`.
-3. Retourne `{ totalCaisse, totalGlobal, totalUber, totalDeliveroo, dailyBreakdown, previousPeriodCaisse }`.
-
-Utilisé par les 3 emplacements (vignette, répartition, comparatif).
-
-### Composants modifiés
-
-- `src/pages/Overview.tsx` : ajout 4ème colonne, passage `grid-cols-3` → `grid-cols-4` sur lg.
-- `src/components/overview/PlatformRevenueSplit.tsx` : 3ème segment + 3ème légende.
-- `src/components/overview/RestaurantComparisonTable.tsx` : colonne CAISSE (--) + ligne agrégée.
-- `src/components/icons/PlatformIcons.tsx` : ajout d'un `CashRegisterIcon` (ou utilisation Lucide).
-- `src/index.css` / `tailwind.config.ts` : ajout d'un token couleur `--cash` (ex : violet `#8B5CF6`).
-- Nouveau hook : `src/hooks/useNetworkCashRevenue.ts`.
-
-### Filtrage par marque
-
-Toutes les données Splash360 actuellement en base concernent **Chicken Street uniquement**. Le hook ne s'activera donc que si la marque active = Chicken Street, sinon retourne `null` et les nouveaux éléments UI sont masqués (pas de pollution pour les autres marques).
-
-## Limitations assumées (à clarifier plus tard)
-
-1. **Pas de CA caisse par restaurant** tant que l'API Splash360 HQ ne retourne pas le détail individuel — la colonne du comparatif restera vide. Quand l'API sera débloquée, il suffira de relancer le sync avec le mapping déjà en place.
-2. **Pas de nb commandes / panier moyen** côté caisse : Splash ne nous renvoie que le `revenue_ttc`.
-3. **Caisse calculée par soustraction** (`global - uber - deliveroo`) : si Splash agrège un jour des sources additionnelles (ex : autre plateforme), le chiffre caisse sera surévalué. À surveiller.
-
-## Ce qui n'est PAS fait dans ce plan
-
-- Page dédiée Caisse / drilldown jour par jour (à voir plus tard).
-- Inclusion de la caisse dans les autres pages (Analytics, Finance, etc.).
-- Sync ou import de données caisse pour d'autres marques que Chicken Street.
+Discret, contextuel, et la grille KPIs retrouve ses respirations.
