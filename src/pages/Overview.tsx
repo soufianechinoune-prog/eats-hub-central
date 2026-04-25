@@ -490,12 +490,6 @@ const Overview = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <NetworkViewToggle
-            isNetworkView={isNetworkView}
-            onToggle={setIsNetworkView}
-            pinnedCount={pinnedRestaurants?.length || 0}
-            networkCount={allActiveRestaurants?.length || 0}
-          />
           <Button
             onClick={() => {
               overviewQueryKeys.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
