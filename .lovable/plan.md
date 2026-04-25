@@ -1,63 +1,39 @@
-# Bug : un compte "client" se comporte comme un super_admin dans l'interface
+## Diagnostic
 
-## Diagnostic confirmé
+Sur le scatter "Visites vs Conversion" de la page Conversion, les bulles libellées **"Restaurant inconnu"** ne sont **pas** des Chicken Street oubliés. Ce sont en réalité les **44 restaurants de la marque TASTY CROUSTY**.
 
-`test-client@test.com` a bien le rôle **client** sur **Chicken Street uniquement** dans la base. Mais dans l'interface, il voit **toutes les marques** (101 restaurants), tous les onglets Analytics, toutes les sections sauf "Données" et "Pilotage".
+**Cause racine** (`src/pages/Analytics.tsx`, lignes 731–758)
+La requête `allUberConversionData` appelle `fetchAllDailyConversion` **sans aucun filtre de marque ni de restaurant**, donc elle ramène les données de conversion de **toutes les marques** (Chicken Street + TASTY CROUSTY).
 
-**Cause racine** : la fonction SQL `get_user_role()` ne retourne un rôle **que si l'utilisateur a une ligne avec `chain_id IS NULL`** (cas réservé aux super_admin). Pour un client (qui a `chain_id = <id de Chicken Street>`), la fonction renvoie `null`. Conséquence : tout le frontend croit qu'il n'a "aucun rôle particulier" et lui montre l'interface complète.
+Ensuite, dans `AnalyticsCharts.tsx` (ligne 3334–3338), pour chaque `restaurant_id` trouvé dans ces données, on fait `restaurants.find(r => r.id === restaurantId)`. Or `restaurants` est la liste **scopée à la marque active** (Chicken Street). Tous les IDs Tasty Crousty ne sont donc pas trouvés et tombent sur le fallback `'Restaurant inconnu'`.
 
-Le RLS Supabase fonctionne correctement (le client ne peut pas lire les données des autres marques en base) — mais l'UI ne le sait pas et affiche les éléments visuels comme si tout était accessible.
+Vérification BDD sur les 90 derniers jours :
+- Chicken Street : 92 restaurants avec données de conversion
+- TASTY CROUSTY : 44 restaurants avec données de conversion
+- Total = 136 ≈ 30 + 17 + 28 + 60 = 135 bulles affichées sur le scatter ✅
 
-## Ce que je vais corriger
+## Plan de correction
 
-### 1. Corriger la fonction SQL `get_user_role()`
-Migration : si l'utilisateur a une ligne `chain_id IS NULL`, on renvoie ce rôle (super_admin). Sinon, on renvoie le rôle le plus "puissant" parmi ses accès marque (`importer` > `client`).
+Filtrer la requête `allUberConversionData` (et la version Deliveroo équivalente) par les restaurants de la marque sélectionnée, exactement comme le reste de la page Analytics le fait déjà via `restaurantFilter`.
 
-### 2. Restreindre le sélecteur de marque dans la sidebar
-Dans `AppSidebar.tsx`, le menu "Toutes les marques / Chicken Street / TASTY CROUSTY" doit afficher uniquement les marques auxquelles l'utilisateur a réellement accès (déjà filtré par RLS côté requête `chains`, mais l'option "Toutes les marques" doit disparaître si l'utilisateur n'a accès qu'à une seule marque).
+### Étape unique — Scoper les requêtes "all conversion" par marque
 
-### 3. Forcer la sélection de marque pour un client
-Si un client n'a accès qu'à une seule marque (cas le plus courant), on auto-sélectionne cette marque et on **masque le sélecteur** (au lieu d'afficher "Toutes les marques" qui n'a pas de sens pour lui).
+**Fichier** : `src/pages/Analytics.tsx`
 
-### 4. Renforcer la garde sur `/admin`
-Déjà OK (vérifié : `useIsSuperAdmin` redirige), mais je vais vérifier que la redirection se fait bien avant tout chargement de données.
+1. Trouver les blocs `allUberConversionData` (≈ ligne 731) et `allDeliverooConversionData` s'il existe (≈ ligne 863 d'après le grep).
+2. Passer `restaurantIds: restaurantFilter` à `fetchAllDailyConversion` (et seulement si `isRestaurantScopeReady` est vrai, pour éviter une fenêtre de race où on fetcherait avant que la liste de restaurants ne soit prête).
+3. Ajouter `restaurantFilter` à la `queryKey` pour que la requête soit ré-exécutée quand l'utilisateur change de marque.
+4. Ajouter `enabled: needsConversion && isRestaurantScopeReady && restaurantFilter && restaurantFilter.length > 0` pour respecter le pattern "analytics-ready guard" déjà utilisé partout ailleurs dans la page.
 
-### 5. Ajouter un badge "Lecture seule" dans la sidebar pour le rôle client
-Petit indicateur visuel pour qu'on sache au premier coup d'œil dans quel mode on est connecté.
+### Effet attendu
 
-## Section technique
+- Les 44 bulles "Restaurant inconnu" disparaissent du scatter Chicken Street.
+- Les compteurs des quadrants (Stars / Opportunités / Niches / À surveiller) reflètent uniquement le périmètre Chicken Street.
+- Idem pour le ranking par étape (composant `ConversionRankingByStage` qui consomme la même donnée).
+- Aucun changement sur les autres marques : si l'utilisateur passe sur TASTY CROUSTY, il verra ses 44 restaurants correctement nommés.
 
-**Fichiers modifiés :**
-- Nouvelle migration SQL : redéfinir `public.get_user_role()` pour gérer les rôles non-globaux
-- `src/components/layout/AppSidebar.tsx` : filtrer le sélecteur de marque + badge rôle
-- `src/contexts/AnalyticsContext.tsx` : si un seul `chain_id` accessible, l'auto-sélectionner et bloquer "Toutes les marques"
-- `src/hooks/useUserRole.ts` : pas de changement nécessaire (le hook lit déjà la fonction SQL corrigée)
+### Hors périmètre
 
-**SQL de la nouvelle `get_user_role()` :**
-```sql
-CREATE OR REPLACE FUNCTION public.get_user_role()
-RETURNS text
-LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path TO 'public'
-AS $$
-  SELECT role FROM public.user_chain_access
-  WHERE user_id = auth.uid()
-  ORDER BY 
-    CASE role
-      WHEN 'super_admin' THEN 1
-      WHEN 'importer' THEN 2
-      WHEN 'client' THEN 3
-      ELSE 4
-    END
-  LIMIT 1;
-$$;
-```
-
-## Test après correction
-
-Une fois appliqué, en se reconnectant avec `test-client@test.com` on doit voir :
-- Une seule marque dans le sélecteur (Chicken Street, sélectionnée par défaut)
-- 106 restaurants Chicken Street uniquement (au lieu de 101 toutes marques confondues)
-- Pas d'option "Toutes les marques"
-- Pas d'accès à `/admin`, `/data-entry`, `/report-import`, etc.
-- Badge "Lecture seule" visible dans la sidebar
+- Pas de changement de schéma BDD.
+- Pas de modification du composant `ConversionScatterPlot` lui-même : la correction est en amont, dans la requête de données.
+- Le fallback `'Restaurant inconnu'` reste en place comme garde-fou défensif au cas où un `restaurant_id` orphelin réapparaîtrait (ex: restaurant supprimé entre l'import et l'affichage).
