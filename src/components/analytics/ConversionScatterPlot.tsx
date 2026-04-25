@@ -42,10 +42,19 @@ interface RestaurantConversionData {
   revenue?: number;
 }
 
+interface BenchmarkPoint {
+  anon_id: string;
+  city: string;
+  visits: number;
+  orders: number;
+  conversion_rate: number;
+}
+
 interface ConversionScatterPlotProps {
   data: RestaurantConversionData[];
   className?: string;
   highlightedRestaurants?: string[];
+  benchmarkData?: BenchmarkPoint[];
 }
 
 const QUADRANT_COLORS = {
