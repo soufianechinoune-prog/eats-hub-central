@@ -701,7 +701,11 @@ const Overview = () => {
 
           {/* Platform Revenue Split */}
           <div className="mt-10">
-            <PlatformRevenueSplit stats={comparisonStats} isLoading={statsLoading} />
+            <PlatformRevenueSplit
+              stats={comparisonStats}
+              isLoading={statsLoading || cashLoading}
+              cashTotal={cashRevenueData?.totalCash ?? 0}
+            />
           </div>
 
           {/* Comprehensive Restaurant Comparison Table */}
