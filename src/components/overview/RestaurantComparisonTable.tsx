@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +22,12 @@ interface RestaurantComparisonTableProps {
   onToggleN1: (value: boolean) => void;
   isLoading: boolean;
   onRestaurantClick?: (restaurantId: string) => void;
+  /**
+   * CA caisse agrégé pour l'ensemble du réseau (Splash360).
+   * Affiché uniquement sur la ligne TOTAL RÉSEAU et sur les lignes restaurants
+   * sous forme "—" tant que le détail par restaurant n'est pas disponible via l'API.
+   */
+  networkCashTotal?: number;
 }
 
 // Format helpers
@@ -165,12 +171,15 @@ export function RestaurantComparisonTable({
   onToggleN1,
   isLoading,
   onRestaurantClick,
+  networkCashTotal = 0,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+
+  const showCashColumn = networkCashTotal > 0;
 
   const toggleRow = useCallback((id: string) => {
     setExpandedRows(prev => {
