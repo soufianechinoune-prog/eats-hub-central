@@ -60,6 +60,7 @@ const SuccessScore = React.lazy(() => import("./pages/SuccessScore"));
 const Reviews = React.lazy(() => import("./pages/Reviews"));
 const Admin = React.lazy(() => import("./pages/Admin"));
 const Account = React.lazy(() => import("./pages/Account"));
+const Integrations = React.lazy(() => import("./pages/Integrations"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
