@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAnalytics } from "@/contexts/AnalyticsContext";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 export type POSConnectorField = {
   key: string;
