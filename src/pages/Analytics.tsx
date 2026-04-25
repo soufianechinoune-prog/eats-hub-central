@@ -61,7 +61,6 @@ export default function Analytics() {
     setSelectedMonth,
     comparisonMode,
     setComparisonMode,
-    isNetworkView,
     selectedChainId,
   } = useAnalyticsContext();
 
@@ -258,20 +257,15 @@ export default function Analytics() {
   const { contextualEvents: schoolHolidayEvents, loading: schoolHolidaysLoading, relevantZones } = useSchoolHolidays(selectedYear, selectedRestaurantsData, showSchoolHolidays);
   const { footballEvents, loading: footballLoading } = useFootballMatches(selectedYear, selectedRestaurantsData, showFootballMatches);
 
-  const pinnedRestaurantIds = useMemo(() =>
-    restaurants?.filter(r => r.is_pinned).map(r => r.id) || []
-  , [restaurants]);
   const chainRestaurantIds = useMemo(() => restaurants?.map(r => r.id) || [], [restaurants]);
 
   const restaurantFilter = useMemo(() => (
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
       selectedChainId,
-      isNetworkView,
       chainRestaurantIds,
-      pinnedRestaurantIds,
     })
-  ), [selectedRestaurants, selectedChainId, isNetworkView, pinnedRestaurantIds, chainRestaurantIds]);
+  ), [selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const isRestaurantScopeReady = !restaurantFilter || 
     restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;

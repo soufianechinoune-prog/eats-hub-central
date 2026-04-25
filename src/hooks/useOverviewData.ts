@@ -35,11 +35,11 @@ function useOverviewRestaurants(chainId: string | null) {
   return useQuery({
     queryKey: ["overview-restaurants", chainId],
     queryFn: async () => {
+      // Charge tous les restaurants actifs de la marque (le filtre is_pinned a été retiré).
       let query = supabase
         .from("restaurants")
         .select("*")
-        .eq("is_active", true)
-        .eq("is_pinned", true);
+        .eq("is_active", true);
       if (chainId) {
         query = query.eq("chain_id", chainId);
       }

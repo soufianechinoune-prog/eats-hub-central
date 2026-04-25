@@ -28,8 +28,6 @@ interface AnalyticsContextType {
   setComparisonMode: (mode: ComparisonMode) => void;
   profitabilityBase: ProfitabilityBase;
   setProfitabilityBase: (base: ProfitabilityBase) => void;
-  isNetworkView: boolean;
-  setIsNetworkView: (value: boolean) => void;
   selectedChainId: string | null;
   setSelectedChainId: (id: string | null) => void;
   isInitialized: boolean;
@@ -99,10 +97,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.profitabilityBase || "gross"
   );
 
-  const [isNetworkView, setIsNetworkView] = useState<boolean>(
-    () => storedState?.isNetworkView || false
-  );
-
   const [selectedChainId, setSelectedChainId] = useState<string | null>(
     () => storedState?.selectedChainId || null
   );
@@ -159,7 +153,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       periodMode,
       comparisonMode,
       profitabilityBase,
-      isNetworkView,
       selectedChainId,
       dateRange: dateRange
         ? {
@@ -180,7 +173,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     dateRange,
     comparisonMode,
     profitabilityBase,
-    isNetworkView,
     selectedChainId,
   ]);
 
@@ -206,8 +198,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setComparisonMode,
     profitabilityBase,
     setProfitabilityBase,
-    isNetworkView,
-    setIsNetworkView,
     selectedChainId,
     setSelectedChainId,
     isInitialized: true,

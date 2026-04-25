@@ -18,7 +18,7 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 
@@ -97,22 +97,18 @@ const Overview = () => {
     return analyticsCtx.dateRange;
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
-  const [isNetworkView, setIsNetworkView] = useState(
-    () => storedState?.isNetworkView ?? false
-  );
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
 
-  // Auto-switch to network view when brand has active restaurants but 0 pinned
-  // Single unified query for all active restaurants (deduplicated), filtered by chain
+  // Single unified query for all active restaurants of the active brand
   const selectedChainId = analyticsCtx.selectedChainId;
   const { data: allActiveRestaurants, error: restaurantsError } = useQuery({
     queryKey: ["all-active-restaurants", selectedChainId],
     queryFn: async () => {
       let query = supabase
         .from("restaurants")
-        .select("id, is_pinned")
+        .select("id")
         .eq("is_active", true);
       if (selectedChainId) {
         query = query.eq("chain_id", selectedChainId);
@@ -125,17 +121,6 @@ const Overview = () => {
     retryDelay: (attemptIndex: number) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Auto-switch to network view when brand has active restaurants but 0 pinned
-  useEffect(() => {
-    if (allActiveRestaurants && selectedChainId) {
-      const hasPinned = allActiveRestaurants.some(r => r.is_pinned);
-      const hasActive = allActiveRestaurants.length > 0;
-      if (hasActive && !hasPinned && !isNetworkView) {
-        setIsNetworkView(true);
-      }
-    }
-  }, [allActiveRestaurants, selectedChainId]);
-
   // Persist state to localStorage (brand-aware)
   useEffect(() => {
     const state = {
@@ -146,17 +131,10 @@ const Overview = () => {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem(getOverviewStorageKey(selectedChainId), JSON.stringify(state));
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, selectedChainId]);
+  }, [periodMode, selectedYear, selectedMonth, dateRange, selectedChainId]);
 
-  // Derive pinned from the single query
-  const pinnedRestaurants = useMemo(
-    () => allActiveRestaurants?.filter((r) => r.is_pinned) || [],
-    [allActiveRestaurants]
-  );
-  
   // Fetch latest Success Score for network overview, filtered by chain
   const activeRestaurantIds = useMemo(() => allActiveRestaurants?.map(r => r.id) || [], [allActiveRestaurants]);
   
@@ -283,15 +261,13 @@ const Overview = () => {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem("ratings-comparison-state", JSON.stringify(ratingsState));
     navigate("/compare/ratings");
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, navigate]);
+  }, [periodMode, selectedYear, selectedMonth, dateRange, navigate]);
 
   // Navigate to Downtime Comparison with period preserved
   const navigateToDowntimeComparison = useCallback(() => {
-    // Sync the period to DowntimeComparison localStorage
     const downtimeState = {
       periodMode,
       selectedYear,
@@ -300,12 +276,11 @@ const Overview = () => {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem("downtime-comparison-state", JSON.stringify(downtimeState));
-    
+
     navigate("/compare/downtime");
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, navigate]);
+  }, [periodMode, selectedYear, selectedMonth, dateRange, navigate]);
 
   const isCustomPeriod = periodMode !== defaultPeriodMode;
 
@@ -368,18 +343,10 @@ const Overview = () => {
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
-  // Derive pinned IDs for the comparison table
-  const pinnedIds = useMemo(
-    () => pinnedRestaurants?.map((r) => r.id) || [],
-    [pinnedRestaurants]
-  );
-
-  // Compute active IDs based on toggle: pinned or all network
+  // All active restaurants of the brand are used (épinglage retiré).
   const activeIds = useMemo(
-    () => isNetworkView
-      ? (allActiveRestaurants?.map(r => r.id) || [])
-      : pinnedIds,
-    [isNetworkView, allActiveRestaurants, pinnedIds]
+    () => allActiveRestaurants?.map(r => r.id) || [],
+    [allActiveRestaurants]
   );
 
   // Use the new decomposed hook instead of the monolithic query
@@ -523,12 +490,6 @@ const Overview = () => {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <NetworkViewToggle
-            isNetworkView={isNetworkView}
-            onToggle={setIsNetworkView}
-            pinnedCount={pinnedRestaurants?.length || 0}
-            networkCount={allActiveRestaurants?.length || 0}
-          />
           <Button
             onClick={() => {
               overviewQueryKeys.forEach(key => queryClient.invalidateQueries({ queryKey: key }));
