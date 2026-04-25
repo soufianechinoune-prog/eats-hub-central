@@ -25,7 +25,12 @@ import {
   ArrowUpDown,
   Maximize2,
   Minimize2,
+  Users,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 interface RestaurantConversionData {
   restaurantId: string;
@@ -37,10 +42,19 @@ interface RestaurantConversionData {
   revenue?: number;
 }
 
+interface BenchmarkPoint {
+  anon_id: string;
+  city: string;
+  visits: number;
+  orders: number;
+  conversion_rate: number;
+}
+
 interface ConversionScatterPlotProps {
   data: RestaurantConversionData[];
   className?: string;
   highlightedRestaurants?: string[];
+  benchmarkData?: BenchmarkPoint[];
 }
 
 const QUADRANT_COLORS = {
@@ -64,12 +78,45 @@ export function ConversionScatterPlot({
   data,
   className,
   highlightedRestaurants = [],
+  benchmarkData = [],
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [showBenchmark, setShowBenchmark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("conversion_scatter_benchmark") === "1";
+  });
+
+  const handleBenchmarkToggle = (next: boolean) => {
+    setShowBenchmark(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("conversion_scatter_benchmark", next ? "1" : "0");
+    }
+  };
+
+  // Anonymized benchmark points formatted for the scatter (gray series)
+  const benchmarkScatter = useMemo(() => {
+    return (benchmarkData || []).map((b) => ({
+      anon_id: b.anon_id,
+      city: b.city,
+      visits: b.visits,
+      orders: b.orders,
+      conversionRate: Number(b.conversion_rate) || 0,
+      // Slightly smaller dot size than brand points
+      bubbleSize: Math.min(Math.max(b.orders * 1.5, 50), 800),
+      isCompetitor: true as const,
+    }));
+  }, [benchmarkData]);
+
+  const benchmarkAvg = useMemo(() => {
+    if (benchmarkScatter.length === 0) return null;
+    const sum = benchmarkScatter.reduce((s, p) => s + p.conversionRate, 0);
+    return sum / benchmarkScatter.length;
+  }, [benchmarkScatter]);
+
 
   const scatterData = useMemo(() => {
     return data.map((r) => ({
@@ -144,6 +191,31 @@ export function ConversionScatterPlot({
     if (!active || !payload?.length) return null;
     const d = payload[0]?.payload;
     if (!d) return null;
+
+    // Anonymized competitor tooltip — no name, no restaurant_id
+    if (d.isCompetitor) {
+      return (
+        <div className="bg-popover border border-border rounded-lg shadow-xl p-3 min-w-[200px]">
+          <p className="font-semibold text-sm mb-2 text-muted-foreground">
+            Concurrent local · {d.city}
+          </p>
+          <div className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span>Visites</span>
+              <span className="font-medium">{d.visits.toLocaleString("fr-FR")}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Taux de conversion</span>
+              <span className="font-bold">{d.conversionRate.toFixed(2)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Commandes</span>
+              <span className="font-medium">{d.orders.toLocaleString("fr-FR")}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     const qKey = getQuadrantKey(d.visits, d.conversionRate);
     const quadrantLabel = `${QUADRANT_LABELS[qKey].emoji} ${QUADRANT_LABELS[qKey].label}`;
@@ -236,6 +308,30 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Benchmark toggle (only shown if data is available) */}
+        {benchmarkScatter.length > 0 && (
+          <div className="flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="benchmark-toggle" className="text-sm cursor-pointer">
+                Benchmark local <span className="text-muted-foreground">(même ville)</span>
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              {showBenchmark && (
+                <span className="text-xs text-muted-foreground">
+                  {benchmarkScatter.length} concurrent{benchmarkScatter.length > 1 ? "s" : ""}
+                </span>
+              )}
+              <Switch
+                id="benchmark-toggle"
+                checked={showBenchmark}
+                onCheckedChange={handleBenchmarkToggle}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Interactive legend / quadrant filter */}
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(QUADRANT_LABELS).map(([key, { label }]) => {
@@ -261,7 +357,45 @@ export function ConversionScatterPlot({
               </button>
             );
           })}
+          {showBenchmark && benchmarkScatter.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-background">
+              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 border border-muted-foreground/60" />
+              <span>Concurrents</span>
+              <span className="text-muted-foreground">({benchmarkScatter.length})</span>
+            </div>
+          )}
         </div>
+
+        {/* Benchmark comparison summary */}
+        {showBenchmark && benchmarkAvg !== null && averages.conversion > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm",
+              averages.conversion >= benchmarkAvg
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-amber-500/30 bg-amber-500/5"
+            )}
+          >
+            {averages.conversion >= benchmarkAvg ? (
+              <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-amber-600 shrink-0" />
+            )}
+            <div className="text-xs">
+              Votre taux de conversion moyen : <span className="font-semibold">{averages.conversion.toFixed(2)}%</span>
+              <span className="text-muted-foreground"> · Concurrents locaux : </span>
+              <span className="font-semibold">{benchmarkAvg.toFixed(2)}%</span>
+              <span className={cn(
+                "ml-2 font-medium",
+                averages.conversion >= benchmarkAvg ? "text-emerald-700" : "text-amber-700"
+              )}>
+                ({averages.conversion >= benchmarkAvg ? "+" : ""}{(averages.conversion - benchmarkAvg).toFixed(2)} pt)
+              </span>
+            </div>
+          </motion.div>
+        )}
 
         {viewMode === "chart" ? (
           <div style={{ height: expanded ? 700 : 500 }} className="transition-all duration-300">
@@ -301,15 +435,32 @@ export function ConversionScatterPlot({
                 />
 
                 <Tooltip content={<CustomTooltip />} />
-                
+
+                {/* Anonymized competitor points (rendered first so they sit behind brand points) */}
+                {showBenchmark && benchmarkScatter.length > 0 && (
+                  <Scatter data={benchmarkScatter} fill="hsl(var(--muted-foreground))">
+                    {benchmarkScatter.map((_, index) => (
+                      <Cell
+                        key={`bench-cell-${index}`}
+                        fill="hsl(var(--muted-foreground))"
+                        fillOpacity={0.35}
+                        stroke="hsl(var(--muted-foreground))"
+                        strokeOpacity={0.5}
+                        strokeWidth={1}
+                      />
+                    ))}
+                  </Scatter>
+                )}
+
                 <Scatter data={filteredData} fill="hsl(var(--primary))">
                   {filteredData.map((entry, index) => {
                     const isHighlighted = highlightedRestaurants.includes(entry.restaurantId);
+                    const dimByBenchmark = showBenchmark && highlightedRestaurants.length > 0 && !isHighlighted;
                     return (
                       <Cell
                         key={`cell-${index}`}
                         fill={getQuadrantColor(entry.visits, entry.conversionRate)}
-                        fillOpacity={isHighlighted ? 1 : 0.6}
+                        fillOpacity={isHighlighted ? 1 : (dimByBenchmark ? 0.35 : 0.6)}
                         stroke={isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
                         strokeWidth={isHighlighted ? 3 : 1}
                       />

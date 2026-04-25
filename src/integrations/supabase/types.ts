@@ -3773,6 +3773,21 @@ export type Database = {
               revenue: number
             }[]
           }
+      get_local_benchmark_conversion: {
+        Args: {
+          p_chain_id: string
+          p_end_date: string
+          p_platform?: string
+          p_start_date: string
+        }
+        Returns: {
+          anon_id: string
+          city: string
+          conversion_rate: number
+          orders: number
+          visits: number
+        }[]
+      }
       get_monthly_payouts_detail: {
         Args: { p_month: number; p_restaurant_ids?: string[]; p_year: number }
         Returns: {

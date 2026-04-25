@@ -253,6 +253,14 @@ interface AnalyticsChartsProps {
   restaurants?: { id: string; name: string; city?: string }[];
   selectedRestaurants?: string[];
   allConversionData?: MonthlyConversion[];
+  // Anonymized competitor benchmark (other brands in same cities)
+  localBenchmarkData?: Array<{
+    anon_id: string;
+    city: string;
+    visits: number;
+    orders: number;
+    conversion_rate: number;
+  }>;
   granularity?: "daily" | "weekly" | "monthly";
   conversionGranularityOverride?: "auto" | "weekly" | "monthly";
   onConversionGranularityOverrideChange?: (value: "auto" | "weekly" | "monthly") => void;
@@ -557,6 +565,7 @@ export function AnalyticsCharts({
   restaurants = [],
   selectedRestaurants = [],
   allConversionData,
+  localBenchmarkData,
   granularity = "monthly",
   conversionGranularityOverride = "auto",
   onConversionGranularityOverrideChange,
@@ -3349,6 +3358,7 @@ export function AnalyticsCharts({
               <ConversionScatterPlot 
                 data={perRestaurantData}
                 highlightedRestaurants={selectedRestaurants}
+                benchmarkData={localBenchmarkData}
               />
               <ConversionRankingByStage 
                 data={perRestaurantData} 
