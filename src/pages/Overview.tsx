@@ -20,6 +20,8 @@ import { RestaurantComparisonTable } from "@/components/overview/RestaurantCompa
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
+import { CashRevenueCard } from "@/components/overview/CashRevenueCard";
+import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -404,6 +406,12 @@ const Overview = () => {
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
     reviewsData: overviewReviewsData,
+  });
+
+  const { data: cashRevenueData, isLoading: cashLoading } = useNetworkCashRevenue({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
   });
 
   const MONTHS_FULL = [
