@@ -688,6 +688,15 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+
+            {/* Cash Card (only shown when Splash360 data exists for the active brand) */}
+            {cashRevenueData && (
+              <CashRevenueCard
+                data={cashRevenueData}
+                isLoading={cashLoading}
+                periodLabel={getPeriodLabel()}
+              />
+            )}
           </div>
 
           {/* Platform Revenue Split */}
