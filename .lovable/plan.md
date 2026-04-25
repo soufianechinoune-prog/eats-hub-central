@@ -1,49 +1,63 @@
-## Problème
+# Bug : un compte "client" se comporte comme un super_admin dans l'interface
 
-Quand on sélectionne **2026** (année en cours) :
-- Période courante : 1er jan → 31 déc 2026, mais on n'a des données que jusqu'à aujourd'hui (~115 jours).
-- Période précédente comparée : **toute l'année 2025 entière** (365 jours).
-- Résultat : la variation `-71.5 %` n'a aucun sens, on compare 4 mois vs 12 mois.
+## Diagnostic confirmé
 
-Le même biais touche deux comparatifs :
-1. **Caisse Splash360 « vs période préc. »** (bandeau du bloc Répartition du CA réseau)
-2. **CA / Commandes « N-1 »** (toggle "Afficher N-1" du tableau Comparatif des restaurants)
+`test-client@test.com` a bien le rôle **client** sur **Chicken Street uniquement** dans la base. Mais dans l'interface, il voit **toutes les marques** (101 restaurants), tous les onglets Analytics, toutes les sections sauf "Données" et "Pilotage".
 
-## Solution
+**Cause racine** : la fonction SQL `get_user_role()` ne retourne un rôle **que si l'utilisateur a une ligne avec `chain_id IS NULL`** (cas réservé aux super_admin). Pour un client (qui a `chain_id = <id de Chicken Street>`), la fonction renvoie `null`. Conséquence : tout le frontend croit qu'il n'a "aucun rôle particulier" et lui montre l'interface complète.
 
-Quand la période sélectionnée s'étend au-delà d'aujourd'hui (typiquement année en cours, mois en cours), **borner `endDate` à aujourd'hui** avant tout calcul, puis baser la période de comparaison sur cette durée réelle.
+Le RLS Supabase fonctionne correctement (le client ne peut pas lire les données des autres marques en base) — mais l'UI ne le sait pas et affiche les éléments visuels comme si tout était accessible.
 
-### Règles précises
+## Ce que je vais corriger
 
-- Si `endDate > aujourd'hui` → `endDate = aujourd'hui`
-- Période précédente :
-  - **Comparaison "période préc."** (caisse) : mêmes nb de jours, juste avant `startDate` *(déjà fait)*. Bornée naturellement.
-  - **Comparaison N-1** : on décale `startDate` et `endDate` (déjà bornée) d'exactement 1 an en arrière. Donc pour 2026 année en cours, on compare **1 jan → aujourd'hui 2026** vs **1 jan → même jour 2025**. ✅
+### 1. Corriger la fonction SQL `get_user_role()`
+Migration : si l'utilisateur a une ligne `chain_id IS NULL`, on renvoie ce rôle (super_admin). Sinon, on renvoie le rôle le plus "puissant" parmi ses accès marque (`importer` > `client`).
 
-## Changements techniques
+### 2. Restreindre le sélecteur de marque dans la sidebar
+Dans `AppSidebar.tsx`, le menu "Toutes les marques / Chicken Street / TASTY CROUSTY" doit afficher uniquement les marques auxquelles l'utilisateur a réellement accès (déjà filtré par RLS côté requête `chains`, mais l'option "Toutes les marques" doit disparaître si l'utilisateur n'a accès qu'à une seule marque).
 
-**`src/pages/Overview.tsx`** (fonction `getDateRangeFromPeriod`) :
-- Après avoir calculé `start` / `end`, ajouter un clamp : `if (end > now) end = now;` pour les modes `year` et `custom_month` (et défensif sur `custom_range`).
-- Cela propagera automatiquement la bonne `endDate` à `useOverviewData`, `useNetworkStats` (qui calcule N-1 en `endDate - 1 an`), et `useNetworkCashRevenue`.
+### 3. Forcer la sélection de marque pour un client
+Si un client n'a accès qu'à une seule marque (cas le plus courant), on auto-sélectionne cette marque et on **masque le sélecteur** (au lieu d'afficher "Toutes les marques" qui n'a pas de sens pour lui).
 
-**`src/components/overview/PlatformRevenueSplit.tsx`** :
-- Dans la ligne info, remplacer `90j de données` par un libellé explicite : `Comparé à la même durée juste avant (X jours)` pour lever toute ambiguïté.
-- Ajouter un mini libellé sous "vs période préc." du type `(1 jan – 25 avr 2026 vs 1 jan – 25 avr 2025)` *(facultatif, à confirmer)*.
+### 4. Renforcer la garde sur `/admin`
+Déjà OK (vérifié : `useIsSuperAdmin` redirige), mais je vais vérifier que la redirection se fait bien avant tout chargement de données.
 
-**Tableau Comparatif des restaurants (toggle "Afficher N-1")** :
-- Aucun changement de code nécessaire : `useNetworkStats` calcule déjà `prevStartDate = startDate - 1 an` et `prevEndDate = endDate - 1 an`. Une fois `endDate` bornée à aujourd'hui en amont, la comparaison devient automatiquement équitable (4 mois 2026 vs 4 mois 2025).
+### 5. Ajouter un badge "Lecture seule" dans la sidebar pour le rôle client
+Petit indicateur visuel pour qu'on sache au premier coup d'œil dans quel mode on est connecté.
 
-## Résultat attendu
+## Section technique
 
-Sur sélection "2026" au 25 avril :
-- KPIs et CA = 1 jan → 25 avr 2026.
-- Comparatif Caisse "vs période préc." = vs sept→déc 2025 (même durée juste avant). 
-- Toggle N-1 = vs 1 jan → 25 avr 2025. Comparatif équitable. ✅
+**Fichiers modifiés :**
+- Nouvelle migration SQL : redéfinir `public.get_user_role()` pour gérer les rôles non-globaux
+- `src/components/layout/AppSidebar.tsx` : filtrer le sélecteur de marque + badge rôle
+- `src/contexts/AnalyticsContext.tsx` : si un seul `chain_id` accessible, l'auto-sélectionner et bloquer "Toutes les marques"
+- `src/hooks/useUserRole.ts` : pas de changement nécessaire (le hook lit déjà la fonction SQL corrigée)
 
-## Question optionnelle
+**SQL de la nouvelle `get_user_role()` :**
+```sql
+CREATE OR REPLACE FUNCTION public.get_user_role()
+RETURNS text
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT role FROM public.user_chain_access
+  WHERE user_id = auth.uid()
+  ORDER BY 
+    CASE role
+      WHEN 'super_admin' THEN 1
+      WHEN 'importer' THEN 2
+      WHEN 'client' THEN 3
+      ELSE 4
+    END
+  LIMIT 1;
+$$;
+```
 
-Pour la comparaison Caisse, deux interprétations possibles de "période précédente" :
-- **(A) Même durée juste avant** *(comportement actuel)* : 1 jan → 25 avr 2026 vs ~7 sept → 31 déc 2025.
-- **(B) Même période N-1** : 1 jan → 25 avr 2026 vs 1 jan → 25 avr 2025. Plus cohérent avec le toggle "Afficher N-1" et plus pertinent métier (saisonnalité).
+## Test après correction
 
-Je recommande **(B)** pour l'aligner sur le toggle N-1. À confirmer avant implémentation.
+Une fois appliqué, en se reconnectant avec `test-client@test.com` on doit voir :
+- Une seule marque dans le sélecteur (Chicken Street, sélectionnée par défaut)
+- 106 restaurants Chicken Street uniquement (au lieu de 101 toutes marques confondues)
+- Pas d'option "Toutes les marques"
+- Pas d'accès à `/admin`, `/data-entry`, `/report-import`, etc.
+- Badge "Lecture seule" visible dans la sidebar
