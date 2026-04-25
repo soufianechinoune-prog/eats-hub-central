@@ -9,9 +9,16 @@ export interface BrandRestaurantScope {
 export interface ResolveBrandScopedRestaurantIdsParams {
   selectedRestaurantIds?: string[] | null;
   selectedChainId: string | null;
-  isNetworkView?: boolean;
   chainRestaurantIds?: string[] | null;
+  /**
+   * @deprecated Le système d'épinglage a été supprimé. Conservé pour compatibilité descendante,
+   * mais ce paramètre n'a plus aucun effet.
+   */
   pinnedRestaurantIds?: string[] | null;
+  /**
+   * @deprecated Idem, pour compatibilité descendante. Le scope = tous les restaurants actifs de la marque.
+   */
+  isNetworkView?: boolean;
 }
 
 export const EMPTY_BRAND_SCOPE_RESTAURANT_IDS = [
@@ -48,12 +55,9 @@ export async function fetchBrandRestaurantScope(
 export function resolveBrandScopedRestaurantIds({
   selectedRestaurantIds,
   selectedChainId,
-  isNetworkView = false,
   chainRestaurantIds,
-  pinnedRestaurantIds,
 }: ResolveBrandScopedRestaurantIdsParams): string[] | null {
   const availableChainIds = chainRestaurantIds ?? [];
-  const availablePinnedIds = pinnedRestaurantIds ?? [];
   const sanitizedSelectedIds = (selectedRestaurantIds ?? []).filter((id) =>
     !selectedChainId || availableChainIds.includes(id),
   );
@@ -66,19 +70,11 @@ export function resolveBrandScopedRestaurantIds({
     if (availableChainIds.length === 0) {
       return EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
     }
-
-    if (isNetworkView) {
-      return availableChainIds;
-    }
-
-    return availablePinnedIds.length > 0 ? availablePinnedIds : availableChainIds;
+    return availableChainIds;
   }
 
-  if (isNetworkView) {
-    return null;
-  }
-
-  return availablePinnedIds.length > 0 ? availablePinnedIds : null;
+  // Pas de marque sélectionnée et pas de filtre explicite : null = pas de filtre.
+  return null;
 }
 
 export function hasBrandScopedRestaurantIds(
