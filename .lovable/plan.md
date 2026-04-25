@@ -1,39 +1,31 @@
-## Diagnostic
+## Problème
 
-Sur le scatter "Visites vs Conversion" de la page Conversion, les bulles libellées **"Restaurant inconnu"** ne sont **pas** des Chicken Street oubliés. Ce sont en réalité les **44 restaurants de la marque TASTY CROUSTY**.
+Sur le dashboard **Conversion**, quand l'utilisateur sélectionne 1 ou 2 ou 3 restaurants dans le filtre, le graphique **« Visites vs Conversion »** disparaît (il ne reste qu'1 ou 2 points, et le composant se masque sous le seuil de 2 points).
 
-**Cause racine** (`src/pages/Analytics.tsx`, lignes 731–758)
-La requête `allUberConversionData` appelle `fetchAllDailyConversion` **sans aucun filtre de marque ni de restaurant**, donc elle ramène les données de conversion de **toutes les marques** (Chicken Street + TASTY CROUSTY).
+Comportement attendu : le graphique doit **rester affiché avec tous les restaurants de la marque**, et les restaurants sélectionnés doivent être **mis en surbrillance** (les autres atténués). Cela permet de voir le positionnement d'un restaurant par rapport au reste du réseau (ex : Chicken Street Athis-Mons par rapport aux 88 autres CS).
 
-Ensuite, dans `AnalyticsCharts.tsx` (ligne 3334–3338), pour chaque `restaurant_id` trouvé dans ces données, on fait `restaurants.find(r => r.id === restaurantId)`. Or `restaurants` est la liste **scopée à la marque active** (Chicken Street). Tous les IDs Tasty Crousty ne sont donc pas trouvés et tombent sur le fallback `'Restaurant inconnu'`.
+## Cause technique
 
-Vérification BDD sur les 90 derniers jours :
-- Chicken Street : 92 restaurants avec données de conversion
-- TASTY CROUSTY : 44 restaurants avec données de conversion
-- Total = 136 ≈ 30 + 17 + 28 + 60 = 135 bulles affichées sur le scatter ✅
+Dans `src/pages/Analytics.tsx`, la requête `allUberConversionData` (qui alimente le scatter plot) est filtrée par `restaurantFilter`. Or `restaurantFilter` se réduit à la sélection courante quand l'utilisateur sélectionne des restaurants. Résultat : le scatter ne reçoit que les points sélectionnés au lieu de tous les restaurants de la marque.
 
-## Plan de correction
+Le composant `ConversionScatterPlot` accepte déjà une prop `highlightedRestaurants` — la logique de surbrillance existe, il manque juste les données complètes.
 
-Filtrer la requête `allUberConversionData` (et la version Deliveroo équivalente) par les restaurants de la marque sélectionnée, exactement comme le reste de la page Analytics le fait déjà via `restaurantFilter`.
+## Correction
 
-### Étape unique — Scoper les requêtes "all conversion" par marque
+**`src/pages/Analytics.tsx`** — la requête `allUberConversionData` doit toujours scoper sur **toute la marque active**, indépendamment de la sélection :
 
-**Fichier** : `src/pages/Analytics.tsx`
+- Remplacer `restaurantIds: restaurantFilter` par `restaurantIds: chainRestaurantIds` (la liste complète des restaurants de la chaîne sélectionnée, déjà calculée ligne 260).
+- Mettre à jour la `queryKey` (`chainRestaurantIds` au lieu de `restaurantFilter`) pour que le cache se rafraîchisse au changement de marque mais pas au changement de sélection.
+- Ajuster la condition `enabled` pour utiliser `chainRestaurantIds.length > 0`.
 
-1. Trouver les blocs `allUberConversionData` (≈ ligne 731) et `allDeliverooConversionData` s'il existe (≈ ligne 863 d'après le grep).
-2. Passer `restaurantIds: restaurantFilter` à `fetchAllDailyConversion` (et seulement si `isRestaurantScopeReady` est vrai, pour éviter une fenêtre de race où on fetcherait avant que la liste de restaurants ne soit prête).
-3. Ajouter `restaurantFilter` à la `queryKey` pour que la requête soit ré-exécutée quand l'utilisateur change de marque.
-4. Ajouter `enabled: needsConversion && isRestaurantScopeReady && restaurantFilter && restaurantFilter.length > 0` pour respecter le pattern "analytics-ready guard" déjà utilisé partout ailleurs dans la page.
+La prop `selectedRestaurants` est déjà passée à `AnalyticsCharts` et transmise comme `highlightedRestaurants` au scatter — aucun changement nécessaire côté UI.
 
-### Effet attendu
+## Résultat attendu
 
-- Les 44 bulles "Restaurant inconnu" disparaissent du scatter Chicken Street.
-- Les compteurs des quadrants (Stars / Opportunités / Niches / À surveiller) reflètent uniquement le périmètre Chicken Street.
-- Idem pour le ranking par étape (composant `ConversionRankingByStage` qui consomme la même donnée).
-- Aucun changement sur les autres marques : si l'utilisateur passe sur TASTY CROUSTY, il verra ses 44 restaurants correctement nommés.
+- Sélection « Tous les restaurants » → comportement actuel inchangé (toute la marque affichée).
+- Sélection de 1 à N restaurants → tous les points de la marque restent visibles ; ceux sélectionnés sont mis en surbrillance, les autres atténués.
+- Les autres graphiques (funnel, KPI, courbes temporelles) continuent de respecter le filtre de sélection — seul le scatter « Visites vs Conversion » et son ranking associé changent de comportement.
 
-### Hors périmètre
+## Note
 
-- Pas de changement de schéma BDD.
-- Pas de modification du composant `ConversionScatterPlot` lui-même : la correction est en amont, dans la requête de données.
-- Le fallback `'Restaurant inconnu'` reste en place comme garde-fou défensif au cas où un `restaurant_id` orphelin réapparaîtrait (ex: restaurant supprimé entre l'import et l'affichage).
+Côté Deliveroo, je vérifierai en parallèle si une requête équivalente existe (`allDeliverooConversionData`). Si oui, j'appliquerai la même correction pour cohérence.
