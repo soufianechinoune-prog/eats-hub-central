@@ -185,6 +185,8 @@ export function AppSidebar() {
   const [newChainName, setNewChainName] = useState("");
   const { data: isSuperAdmin } = useIsSuperAdmin();
   const canImport = useCanImport();
+  const { data: userRole } = useUserRole();
+  const isClientReadOnly = userRole === "client";
 
   // Fetch available chains
   const { data: chains } = useQuery({
