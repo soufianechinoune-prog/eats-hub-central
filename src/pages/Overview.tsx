@@ -261,15 +261,13 @@ const Overview = () => {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem("ratings-comparison-state", JSON.stringify(ratingsState));
     navigate("/compare/ratings");
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, navigate]);
+  }, [periodMode, selectedYear, selectedMonth, dateRange, navigate]);
 
   // Navigate to Downtime Comparison with period preserved
   const navigateToDowntimeComparison = useCallback(() => {
-    // Sync the period to DowntimeComparison localStorage
     const downtimeState = {
       periodMode,
       selectedYear,
@@ -278,12 +276,11 @@ const Overview = () => {
         from: dateRange.from?.toISOString(),
         to: dateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem("downtime-comparison-state", JSON.stringify(downtimeState));
-    
+
     navigate("/compare/downtime");
-  }, [periodMode, selectedYear, selectedMonth, dateRange, isNetworkView, navigate]);
+  }, [periodMode, selectedYear, selectedMonth, dateRange, navigate]);
 
   const isCustomPeriod = periodMode !== defaultPeriodMode;
 
@@ -346,18 +343,10 @@ const Overview = () => {
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
 
-  // Derive pinned IDs for the comparison table
-  const pinnedIds = useMemo(
-    () => pinnedRestaurants?.map((r) => r.id) || [],
-    [pinnedRestaurants]
-  );
-
-  // Compute active IDs based on toggle: pinned or all network
+  // All active restaurants of the brand are used (épinglage retiré).
   const activeIds = useMemo(
-    () => isNetworkView
-      ? (allActiveRestaurants?.map(r => r.id) || [])
-      : pinnedIds,
-    [isNetworkView, allActiveRestaurants, pinnedIds]
+    () => allActiveRestaurants?.map(r => r.id) || [],
+    [allActiveRestaurants]
   );
 
   // Use the new decomposed hook instead of the monolithic query
