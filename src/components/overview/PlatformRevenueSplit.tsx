@@ -1,19 +1,28 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Store } from "lucide-react";
+import { Store, Info, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { AnimatedNumber } from "@/components/ui/animated-number";
+import { cn } from "@/lib/utils";
 import type { RestaurantNetworkStats } from "@/hooks/useNetworkStats";
 
 interface Props {
   stats: RestaurantNetworkStats[];
   isLoading: boolean;
   cashTotal?: number; // Optional — only when Splash360 data is available
+  cashDaysWithData?: number;
+  cashVariation?: number | null;
 }
 
-export function PlatformRevenueSplit({ stats, isLoading, cashTotal = 0 }: Props) {
+export function PlatformRevenueSplit({
+  stats,
+  isLoading,
+  cashTotal = 0,
+  cashDaysWithData,
+  cashVariation = null,
+}: Props) {
   const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
@@ -158,6 +167,52 @@ export function PlatformRevenueSplit({ stats, isLoading, cashTotal = 0 }: Props)
             </div>
           )}
         </div>
+
+        {/* Discrete info line for Cash (Splash360) */}
+        {hasCash && (
+          <div className="pt-2 border-t border-border/40 space-y-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Caisse Splash360 sur la période :{" "}
+                <span className="font-medium text-foreground">
+                  {Math.round(cashTotal).toLocaleString("fr-FR")} €
+                </span>
+              </span>
+              {cashDaysWithData != null && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{cashDaysWithData}j de données</span>
+                </>
+              )}
+              {cashVariation != null && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    vs période préc.
+                    {cashVariation >= 0 ? (
+                      <TrendingUp className="h-3 w-3 text-emerald-600" />
+                    ) : (
+                      <TrendingDown className="h-3 w-3 text-destructive" />
+                    )}
+                    <span
+                      className={cn(
+                        "font-medium",
+                        cashVariation >= 0 ? "text-emerald-600" : "text-destructive",
+                      )}
+                    >
+                      {cashVariation >= 0 ? "+" : ""}
+                      {cashVariation.toFixed(1)}%
+                    </span>
+                  </span>
+                </>
+              )}
+            </div>
+            <p className="text-[11px] text-muted-foreground/80 pl-5">
+              Source : réseau global · détail par restaurant indisponible via l'API.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
