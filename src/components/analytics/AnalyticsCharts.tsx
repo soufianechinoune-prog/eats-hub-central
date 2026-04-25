@@ -3358,6 +3358,7 @@ export function AnalyticsCharts({
               <ConversionScatterPlot 
                 data={perRestaurantData}
                 highlightedRestaurants={selectedRestaurants}
+                benchmarkData={localBenchmarkData}
               />
               <ConversionRankingByStage 
                 data={perRestaurantData} 
