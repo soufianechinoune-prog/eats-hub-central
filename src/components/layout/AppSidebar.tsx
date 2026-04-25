@@ -32,6 +32,7 @@ import {
   Tag,
   Building2,
   Plus,
+  Plug,
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -580,6 +581,20 @@ export function AppSidebar() {
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <ThemeToggle collapsed={collapsed} />
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className={
+                    location.pathname === "/settings/integrations"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : ""
+                  }
+                >
+                  <NavLink to="/settings/integrations">
+                    <Plug className="h-4 w-4" />
+                    {!collapsed && <span>Intégrations</span>}
+                  </NavLink>
+                </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
                 <SidebarMenuButton

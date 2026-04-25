@@ -120,6 +120,63 @@ export type Database = {
           },
         ]
       }
+      chain_pos_connections: {
+        Row: {
+          account_label: string | null
+          chain_id: string
+          connected_at: string
+          connected_by: string | null
+          connector_id: string
+          created_at: string
+          credentials: Json
+          id: string
+          is_active: boolean
+          last_sync_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_label?: string | null
+          chain_id: string
+          connected_at?: string
+          connected_by?: string | null
+          connector_id: string
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_label?: string | null
+          chain_id?: string
+          connected_at?: string
+          connected_by?: string | null
+          connector_id?: string
+          created_at?: string
+          credentials?: Json
+          id?: string
+          is_active?: boolean
+          last_sync_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chain_pos_connections_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chain_pos_connections_connector_id_fkey"
+            columns: ["connector_id"]
+            isOneToOne: false
+            referencedRelation: "pos_connectors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chains: {
         Row: {
           created_at: string
@@ -2252,6 +2309,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pos_connectors: {
+        Row: {
+          auth_type: string
+          created_at: string
+          description: string | null
+          display_order: number
+          id: string
+          logo_url: string | null
+          name: string
+          required_fields: Json
+          status: string
+          updated_at: string
+          website_url: string | null
+        }
+        Insert: {
+          auth_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id: string
+          logo_url?: string | null
+          name: string
+          required_fields?: Json
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Update: {
+          auth_type?: string
+          created_at?: string
+          description?: string | null
+          display_order?: number
+          id?: string
+          logo_url?: string | null
+          name?: string
+          required_fields?: Json
+          status?: string
+          updated_at?: string
+          website_url?: string | null
+        }
+        Relationships: []
       }
       price_history: {
         Row: {
