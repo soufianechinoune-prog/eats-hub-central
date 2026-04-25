@@ -601,7 +601,7 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className={cn("grid gap-8", cashRevenueData ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
             {/* Global Card */}
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
