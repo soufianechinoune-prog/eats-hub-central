@@ -145,14 +145,16 @@ serve(async (req) => {
       // 1. Liste des restos cibles
       let splashIds: number[];
       let restosMeta: { id: number; nom: string }[] = [];
-      if (Array.isArray(restaurant_splash_ids) && restaurant_splash_ids.length > 0) {
+      if (network_only) {
+        splashIds = [];
+      } else if (Array.isArray(restaurant_splash_ids) && restaurant_splash_ids.length > 0) {
         splashIds = restaurant_splash_ids.map(Number);
       } else {
         const profile = await getUserProfile(token);
         restosMeta = profile?.restos ?? [];
         splashIds = restosMeta.map((r: any) => r.id);
       }
-      const allTargets = [0, ...splashIds];
+      const allTargets = network_only ? [0] : [0, ...splashIds];
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
       console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity})...`);
