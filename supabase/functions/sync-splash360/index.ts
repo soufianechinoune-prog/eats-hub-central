@@ -45,12 +45,17 @@ async function fetchTurnover(
   year: number,
   month: number,
   granularity: "day" | "week" | "month" | "year",
-  restaurantId: number
+  restaurantId: number,
+  day: number = 1,
 ) {
-  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=1&granularity=${granularity}&restaurantId=${restaurantId}`;
+  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=${day}&granularity=${granularity}&restaurantId=${restaurantId}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`${endpoint} error (${res.status}): ${await res.text()}`);
   return res.json();
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
 }
 
 const PLATFORM_MAP = {
