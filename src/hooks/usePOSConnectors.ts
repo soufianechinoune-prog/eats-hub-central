@@ -64,7 +64,7 @@ export function useActiveChainPOSConnection() {
         .eq("is_active", true)
         .maybeSingle();
       if (error) throw error;
-      return data as
+      return data as unknown as
         | (ChainPOSConnection & { connector: POSConnector })
         | null;
     },
