@@ -69,8 +69,6 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
     setDateRange,
     comparisonMode,
     setComparisonMode,
-    isNetworkView,
-    setIsNetworkView,
     selectedChainId,
   } = useAnalyticsContext();
 
@@ -117,16 +115,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
     restaurants?.filter(r => r.is_active).length || 0
   , [restaurants]);
 
-  // Auto-switch to network view when brand has active restaurants but 0 pinned
-  useEffect(() => {
-    if (restaurants && selectedChainId) {
-      const activeCount = restaurants.filter(r => r.is_active).length;
-      const pinnedActiveCount = restaurants.filter(r => r.is_pinned && r.is_active).length;
-      if (activeCount > 0 && pinnedActiveCount === 0 && !isNetworkView) {
-        setIsNetworkView(true);
-      }
-    }
-  }, [restaurants, selectedChainId]);
+  // Système d'épinglage retiré : tous les actifs de la marque sont utilisés par défaut.
 
   // Clean up invalid restaurant IDs when restaurants are loaded
   useEffect(() => {

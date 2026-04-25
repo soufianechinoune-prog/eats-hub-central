@@ -32,7 +32,6 @@ export function OffersAnalyticsSection() {
     selectedMonth,
     periodMode,
     dateRange,
-    isNetworkView,
     selectedChainId,
   } = useAnalyticsContext();
 
@@ -40,7 +39,6 @@ export function OffersAnalyticsSection() {
   const [sortAsc, setSortAsc] = useState(false);
 
   const { data: activeRestaurants = [] } = useActiveRestaurants();
-  const { data: pinnedRestaurants = [] } = usePinnedRestaurants();
 
   const restaurants = useMemo(
     () => activeRestaurants.map((restaurant) => ({ id: restaurant.id, name: restaurant.name })),
@@ -50,10 +48,6 @@ export function OffersAnalyticsSection() {
   const chainRestaurantIds = useMemo(
     () => activeRestaurants.map((restaurant) => restaurant.id),
     [activeRestaurants],
-  );
-  const pinnedIds = useMemo(
-    () => pinnedRestaurants.map((restaurant) => restaurant.id),
-    [pinnedRestaurants],
   );
 
   const { startDate, endDate } = useMemo(() => {
@@ -74,11 +68,9 @@ export function OffersAnalyticsSection() {
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
       selectedChainId,
-      isNetworkView,
       chainRestaurantIds,
-      pinnedRestaurantIds: pinnedIds,
     }) ?? []
-  ), [selectedRestaurants, selectedChainId, isNetworkView, chainRestaurantIds, pinnedIds]);
+  ), [selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const { isLoading, isError, errorMessage, kpis, restaurantStats, monthlyStats, heatmapData, anomalies } = useOffersAnalytics(
     restaurantIds,

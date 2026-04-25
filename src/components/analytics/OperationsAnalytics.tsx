@@ -47,7 +47,6 @@ export function OperationsAnalytics() {
     setPeriodMode,
     setSelectedMonth,
     dateRange: contextDateRange,
-    isNetworkView,
     selectedChainId,
   } = useAnalyticsContext();
 
@@ -128,13 +127,13 @@ export function OperationsAnalytics() {
 
   const platformFilter = (selectedPlatform === "uber_eats" || selectedPlatform === "deliveroo") ? selectedPlatform : null;
 
-  // Fetch restaurants for names and pinned status (filtered by active chain)
+  // Fetch restaurants for names (filtered by active chain) — pinned removed.
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants_for_ops", selectedChainId],
     queryFn: async () => {
       let query = supabase
         .from("restaurants")
-        .select("id, name, is_pinned, is_active");
+        .select("id, name, is_active");
       if (selectedChainId) {
         query = query.eq("chain_id", selectedChainId);
       }
@@ -150,9 +149,6 @@ export function OperationsAnalytics() {
     return map;
   }, [restaurants]);
 
-  const pinnedIds = useMemo(() =>
-    restaurants?.filter((restaurant) => restaurant.is_pinned && restaurant.is_active).map((restaurant) => restaurant.id) || []
-  , [restaurants]);
   const chainRestaurantIds = useMemo(() =>
     restaurants?.filter((restaurant) => restaurant.is_active).map((restaurant) => restaurant.id) || []
   , [restaurants]);
@@ -161,11 +157,9 @@ export function OperationsAnalytics() {
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
       selectedChainId,
-      isNetworkView,
       chainRestaurantIds,
-      pinnedRestaurantIds: pinnedIds,
     })
-  ), [selectedRestaurants, selectedChainId, isNetworkView, pinnedIds, chainRestaurantIds]);
+  ), [selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   // Fetch monthly availability via RPC (year view)
   const { data: monthlyRpcData, isLoading: isLoadingMonthly } = useQuery({

@@ -59,7 +59,6 @@ export function UberOneAnalysis() {
     periodMode,
     dateRange: contextDateRange,
     selectedPlatform,
-    isNetworkView,
   } = useAnalyticsContext();
 
   // Use selectedRestaurants for calculations (active chips = dark background)
@@ -121,12 +120,12 @@ export function UberOneAnalysis() {
   }, [periodMode, selectedYear, selectedMonth, contextDateRange]);
 
   const { globalStats, evolution, evolutionByRestaurant, byRestaurant, comparison, isLoading, restaurantMap, effectiveRestaurantIds } = useUberOneStats({
-    restaurantIds: isNetworkView ? [] : restaurantIdsForQuery,
+    restaurantIds: restaurantIdsForQuery,
     startDate,
     endDate,
     periodMode,
     platform: selectedPlatform,
-    useAllActive: isNetworkView,
+    useAllActive: restaurantIdsForQuery.length === 0,
   });
 
   // Determine if we can show detailed view based on effective restaurant count
