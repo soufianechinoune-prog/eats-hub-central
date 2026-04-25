@@ -585,6 +585,20 @@ export function AppSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   className={
+                    location.pathname === "/settings/integrations"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                      : ""
+                  }
+                >
+                  <NavLink to="/settings/integrations">
+                    <Plug className="h-4 w-4" />
+                    {!collapsed && <span>Intégrations</span>}
+                  </NavLink>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  className={
                     location.pathname === "/account"
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
                       : ""
