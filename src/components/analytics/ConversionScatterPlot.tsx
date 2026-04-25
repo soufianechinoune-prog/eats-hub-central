@@ -78,12 +78,45 @@ export function ConversionScatterPlot({
   data,
   className,
   highlightedRestaurants = [],
+  benchmarkData = [],
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [showBenchmark, setShowBenchmark] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem("conversion_scatter_benchmark") === "1";
+  });
+
+  const handleBenchmarkToggle = (next: boolean) => {
+    setShowBenchmark(next);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("conversion_scatter_benchmark", next ? "1" : "0");
+    }
+  };
+
+  // Anonymized benchmark points formatted for the scatter (gray series)
+  const benchmarkScatter = useMemo(() => {
+    return (benchmarkData || []).map((b) => ({
+      anon_id: b.anon_id,
+      city: b.city,
+      visits: b.visits,
+      orders: b.orders,
+      conversionRate: Number(b.conversion_rate) || 0,
+      // Slightly smaller dot size than brand points
+      bubbleSize: Math.min(Math.max(b.orders * 1.5, 50), 800),
+      isCompetitor: true as const,
+    }));
+  }, [benchmarkData]);
+
+  const benchmarkAvg = useMemo(() => {
+    if (benchmarkScatter.length === 0) return null;
+    const sum = benchmarkScatter.reduce((s, p) => s + p.conversionRate, 0);
+    return sum / benchmarkScatter.length;
+  }, [benchmarkScatter]);
+
 
   const scatterData = useMemo(() => {
     return data.map((r) => ({
