@@ -1,0 +1,1 @@
+DELETE FROM public.splash360_daily_sales WHERE granularity = 'day';
