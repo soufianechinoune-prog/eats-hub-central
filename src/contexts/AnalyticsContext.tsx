@@ -153,7 +153,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       periodMode,
       comparisonMode,
       profitabilityBase,
-      isNetworkView,
       selectedChainId,
       dateRange: dateRange
         ? {
@@ -174,7 +173,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     dateRange,
     comparisonMode,
     profitabilityBase,
-    isNetworkView,
     selectedChainId,
   ]);
 
@@ -200,8 +198,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setComparisonMode,
     profitabilityBase,
     setProfitabilityBase,
-    isNetworkView,
-    setIsNetworkView,
     selectedChainId,
     setSelectedChainId,
     isInitialized: true,
