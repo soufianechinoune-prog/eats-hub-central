@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search } from "lucide-react";
+import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
@@ -22,6 +22,12 @@ interface RestaurantComparisonTableProps {
   onToggleN1: (value: boolean) => void;
   isLoading: boolean;
   onRestaurantClick?: (restaurantId: string) => void;
+  /**
+   * CA caisse agrégé pour l'ensemble du réseau (Splash360).
+   * Affiché uniquement sur la ligne TOTAL RÉSEAU et sur les lignes restaurants
+   * sous forme "—" tant que le détail par restaurant n'est pas disponible via l'API.
+   */
+  networkCashTotal?: number;
 }
 
 // Format helpers
@@ -77,6 +83,7 @@ function PlatformSubRow({
   errorRate,
   prepTime,
   downtime,
+  showCashColumn = false,
 }: {
   platform: string;
   data: PlatformBreakdown;
@@ -87,6 +94,7 @@ function PlatformSubRow({
   errorRate?: number | null;
   prepTime?: number | null;
   downtime?: number | null;
+  showCashColumn?: boolean;
 }) {
   if (data.orders === 0 && data.revenue === 0) return null;
 
@@ -120,6 +128,7 @@ function PlatformSubRow({
         {formatCurrency(data.revenue)}
       </TableCell>
       {showN1Comparison && <TableCell></TableCell>}
+      {showCashColumn && <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>}
       <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
         {formatCurrency(data.netPayout)}
       </TableCell>
@@ -165,12 +174,15 @@ export function RestaurantComparisonTable({
   onToggleN1,
   isLoading,
   onRestaurantClick,
+  networkCashTotal = 0,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+
+  const showCashColumn = networkCashTotal > 0;
 
   const toggleRow = useCallback((id: string) => {
     setExpandedRows(prev => {
@@ -303,6 +315,13 @@ export function RestaurantComparisonTable({
               {showN1Comparison && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
+              {showCashColumn && (
+                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">
+                  <span className="inline-flex items-center gap-1 text-cash">
+                    <Store className="h-3 w-3" /> Caisse
+                  </span>
+                </TableHead>
+              )}
               <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
@@ -352,6 +371,9 @@ export function RestaurantComparisonTable({
                       <TableCell className="text-right">
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
+                    )}
+                    {showCashColumn && (
+                      <TableCell className="text-right text-muted-foreground">—</TableCell>
                     )}
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
@@ -427,6 +449,11 @@ export function RestaurantComparisonTable({
               {showN1Comparison && (
                 <TableCell className="text-right">
                   {formatVariation(networkTotals.revenueVariation)}
+                </TableCell>
+              )}
+              {showCashColumn && (
+                <TableCell className="text-right font-bold text-cash whitespace-nowrap">
+                  {formatCurrency(networkCashTotal)}
                 </TableCell>
               )}
               <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">

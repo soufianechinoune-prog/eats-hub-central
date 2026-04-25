@@ -20,6 +20,8 @@ import { RestaurantComparisonTable } from "@/components/overview/RestaurantCompa
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
+import { CashRevenueCard } from "@/components/overview/CashRevenueCard";
+import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -406,6 +408,12 @@ const Overview = () => {
     reviewsData: overviewReviewsData,
   });
 
+  const { data: cashRevenueData, isLoading: cashLoading } = useNetworkCashRevenue({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
+  });
+
   const MONTHS_FULL = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
@@ -593,7 +601,7 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className={cn("grid gap-8", cashRevenueData ? "lg:grid-cols-4" : "lg:grid-cols-3")}>
             {/* Global Card */}
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
@@ -680,11 +688,24 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+
+            {/* Cash Card (only shown when Splash360 data exists for the active brand) */}
+            {cashRevenueData && (
+              <CashRevenueCard
+                data={cashRevenueData}
+                isLoading={cashLoading}
+                periodLabel={getPeriodLabel()}
+              />
+            )}
           </div>
 
           {/* Platform Revenue Split */}
           <div className="mt-10">
-            <PlatformRevenueSplit stats={comparisonStats} isLoading={statsLoading} />
+            <PlatformRevenueSplit
+              stats={comparisonStats}
+              isLoading={statsLoading || cashLoading}
+              cashTotal={cashRevenueData?.totalCash ?? 0}
+            />
           </div>
 
           {/* Comprehensive Restaurant Comparison Table */}

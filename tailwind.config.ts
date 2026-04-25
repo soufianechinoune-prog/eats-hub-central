@@ -65,6 +65,10 @@ export default {
           DEFAULT: "hsl(var(--deliveroo))",
           light: "hsl(var(--deliveroo-light))",
         },
+        cash: {
+          DEFAULT: "hsl(var(--cash))",
+          light: "hsl(var(--cash-light))",
+        },
         whatsapp: {
           DEFAULT: "hsl(var(--whatsapp))",
           light: "hsl(var(--whatsapp-light))",
