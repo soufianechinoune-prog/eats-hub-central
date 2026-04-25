@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
 import type { DateRange } from "react-day-picker";
+import { supabase } from "@/integrations/supabase/client";
 
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
 export type Platform = "uber_eats" | "deliveroo" | "global";
