@@ -308,6 +308,30 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Benchmark toggle (only shown if data is available) */}
+        {benchmarkScatter.length > 0 && (
+          <div className="flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <Label htmlFor="benchmark-toggle" className="text-sm cursor-pointer">
+                Benchmark local <span className="text-muted-foreground">(même ville)</span>
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              {showBenchmark && (
+                <span className="text-xs text-muted-foreground">
+                  {benchmarkScatter.length} concurrent{benchmarkScatter.length > 1 ? "s" : ""}
+                </span>
+              )}
+              <Switch
+                id="benchmark-toggle"
+                checked={showBenchmark}
+                onCheckedChange={handleBenchmarkToggle}
+              />
+            </div>
+          </div>
+        )}
+
         {/* Interactive legend / quadrant filter */}
         <div className="flex flex-wrap gap-2 text-xs">
           {Object.entries(QUADRANT_LABELS).map(([key, { label }]) => {
@@ -333,7 +357,45 @@ export function ConversionScatterPlot({
               </button>
             );
           })}
+          {showBenchmark && benchmarkScatter.length > 0 && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-background">
+              <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 border border-muted-foreground/60" />
+              <span>Concurrents</span>
+              <span className="text-muted-foreground">({benchmarkScatter.length})</span>
+            </div>
+          )}
         </div>
+
+        {/* Benchmark comparison summary */}
+        {showBenchmark && benchmarkAvg !== null && averages.conversion > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={cn(
+              "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm",
+              averages.conversion >= benchmarkAvg
+                ? "border-emerald-500/30 bg-emerald-500/5"
+                : "border-amber-500/30 bg-amber-500/5"
+            )}
+          >
+            {averages.conversion >= benchmarkAvg ? (
+              <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
+            ) : (
+              <TrendingDown className="h-4 w-4 text-amber-600 shrink-0" />
+            )}
+            <div className="text-xs">
+              Votre taux de conversion moyen : <span className="font-semibold">{averages.conversion.toFixed(2)}%</span>
+              <span className="text-muted-foreground"> · Concurrents locaux : </span>
+              <span className="font-semibold">{benchmarkAvg.toFixed(2)}%</span>
+              <span className={cn(
+                "ml-2 font-medium",
+                averages.conversion >= benchmarkAvg ? "text-emerald-700" : "text-amber-700"
+              )}>
+                ({averages.conversion >= benchmarkAvg ? "+" : ""}{(averages.conversion - benchmarkAvg).toFixed(2)} pt)
+              </span>
+            </div>
+          </motion.div>
+        )}
 
         {viewMode === "chart" ? (
           <div style={{ height: expanded ? 700 : 500 }} className="transition-all duration-300">
