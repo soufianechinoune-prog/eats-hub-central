@@ -4,8 +4,8 @@ import { format } from "date-fns";
 
 const PAGE_SIZE = 1000;
 const RETRY_CONFIG = {
-  retry: 3,
-  retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 30000),
+  retry: 1,
+  retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
 };
 
 // Helper: paginated fetch
@@ -67,10 +67,15 @@ function useOverviewSales(
         p_end_date: endDateStr,
       });
       if (error) throw error;
+      // Keep ALL fields from RPC so this cache can be shared with useNetworkStats
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
         revenue_ttc: Number(d.total_sales_incl_vat),
         order_count: Number(d.order_count),
+        total_sales_incl_vat: Number(d.total_sales_incl_vat),
+        total_net_payout: Number(d.total_net_payout),
+        total_item_promo_incl_vat: Number(d.total_item_promo_incl_vat),
+        total_meal_voucher: Number(d.total_meal_voucher),
       }));
     },
     enabled,

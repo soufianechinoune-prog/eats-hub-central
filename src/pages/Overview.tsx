@@ -292,19 +292,20 @@ const Overview = () => {
     setDateRange(undefined);
   };
 
-  // Calculate date range based on selected period
-  const getDateRangeFromPeriod = () => {
+  // Calculate date range based on selected period — memoized so dependent
+  // queries don't re-fetch on every render (huge perf win for full-year views).
+  const { startDate, endDate } = useMemo(() => {
     const now = new Date();
     let start = new Date();
     let end = new Date();
-    
+
     switch (periodMode) {
-      case "previous_week":
-        // Use date-fns for consistent week calculation (Monday to Sunday)
+      case "previous_week": {
         const lastWeek = subWeeks(now, 1);
-        start = startOfWeek(lastWeek, { weekStartsOn: 1 }); // Monday
-        end = endOfWeek(lastWeek, { weekStartsOn: 1 });     // Sunday
+        start = startOfWeek(lastWeek, { weekStartsOn: 1 });
+        end = endOfWeek(lastWeek, { weekStartsOn: 1 });
         break;
+      }
       case "7d":
         start.setDate(now.getDate() - 7);
         end = now;
@@ -323,7 +324,7 @@ const Overview = () => {
         break;
       case "custom_month":
         start = new Date(selectedYear, selectedMonth - 1, 1);
-        end = new Date(selectedYear, selectedMonth, 0); // Last day of month
+        end = new Date(selectedYear, selectedMonth, 0);
         break;
       case "custom_range":
         if (dateRange?.from && dateRange?.to) {
@@ -333,18 +334,12 @@ const Overview = () => {
         break;
     }
 
-    // Clamp endDate to today: when user picks the current year/month, the
-    // raw end date is in the future (e.g. 31 Dec 2026) which would unfairly
-    // skew "vs previous period" and "vs N-1" comparisons (e.g. 4 months of
-    // data compared against 12 months of data). Always cap to today so the
-    // comparison period uses the same number of real days.
+    // Clamp endDate to today: keeps "vs N-1 (same period)" fair when user
+    // selects the current/future year (e.g. 4 months of 2026 vs 12 of 2025).
     if (end > now) end = now;
 
     return { startDate: start, endDate: end };
-  };
-
-
-  const { startDate, endDate } = getDateRangeFromPeriod();
+  }, [periodMode, selectedYear, selectedMonth, dateRange]);
 
   // Format dates for queries (use local calendar date, not UTC date)
   // Using toISOString() can shift the day in France/Europe timezones and create an extra day.
