@@ -1,71 +1,102 @@
-## Objectif
+## Diagnostic
 
-Retirer la vignette « Caisse » qui prend trop de place et affiche des KPIs non pertinents (`--` sur prépa, rentabilité, etc.). Garder l'information **CA Caisse** au bon endroit : dans la **Répartition du CA réseau**, qui est l'endroit naturel pour comparer les canaux.
+La data n'est pas perdue.
 
-## Ce qui change
+Côté base, Chicken Street a bien **101 restaurants actifs**. Le bug vient du frontend : dans `useOverviewData.ts`, la requête interne des restaurants contient encore :
 
-### 1. Suppression de la vignette Caisse
-- Retirer `<CashRevenueCard />` de `src/pages/Overview.tsx`.
-- Repasser la grille de KPIs en **3 colonnes** (Global / Uber Eats / Deliveroo) — comme avant.
-- Supprimer l'import du composant + import de `Store` si plus utilisé.
-- Supprimer le fichier `src/components/overview/CashRevenueCard.tsx` (plus utilisé).
-- **Garder** le hook `useNetworkCashRevenue` (utilisé par la barre de répartition).
-
-### 2. Enrichir la barre « Répartition du CA réseau »
-La barre garde déjà ses 3 segments (Uber / Deliveroo / Caisse) — c'est elle qui devient le seul point d'affichage du CA Caisse.
-
-Ajouter sous la légende existante une **petite ligne discrète** (texte muted, taille xs) :
-
-```
-ⓘ Caisse Splash360 sur la période : 5 294 420 € — 31 jours de données — vs période précédente : -15.5%
+```ts
+.eq("is_pinned", true)
 ```
 
-Détails :
-- N'apparaît que si `cashTotal > 0`.
-- Affiche : montant Caisse, nombre de jours de données, variation vs période précédente (vert/rouge).
-- Une seconde ligne, encore plus discrète, précise la source : `Source : Splash360 (réseau global). Détail par restaurant indisponible via l'API.`
-- Le tout en `text-xs text-muted-foreground` avec une bordure haute fine `border-t border-border/40 pt-2` pour séparer de la légende, sans casser l'esthétique de la card.
+Même quand le toggle est sur **Réseau**, le hook intersecte ensuite les 101 IDs réseau avec cette liste d'épinglés. Comme il n'y a plus d'épinglés, l'intersection donne 0 restaurants → dashboard vide.
 
-Pour cela :
-- Étendre les props de `PlatformRevenueSplit` :
-  - `cashDaysWithData?: number`
-  - `cashVariation?: number | null`
-- Les passer depuis `Overview.tsx` à partir de `cashRevenueData`.
+## Priorité 1 — Correctif immédiat dashboard
 
-### 3. Tableau comparatif (bas de page)
-Aucun changement par rapport à l'état actuel : la colonne « CAISSE » reste affichée au niveau réseau global (avec `--` par restaurant), c'est ce que tu avais validé.
+Corriger `src/hooks/useOverviewData.ts` :
+- Supprimer le filtre `eq("is_pinned", true)`.
+- Charger tous les restaurants actifs de la marque.
+- Renommer/commenter la logique : ce hook ne doit plus être "pinned-first".
 
-## Fichiers touchés
+Résultat : la Vue d'ensemble repasse immédiatement à **101 restaurants actifs** en mode réseau.
 
-- `src/pages/Overview.tsx` — retirer la card, repasser en 3 colonnes, passer les props enrichies à `PlatformRevenueSplit`.
-- `src/components/overview/PlatformRevenueSplit.tsx` — ajouter la ligne info Caisse sous la légende.
-- `src/components/overview/CashRevenueCard.tsx` — supprimer.
+## Priorité 2 — Suppression du système Épinglés/Réseau côté UI
 
-## Ce qui ne change pas
+Conformément à ta décision :
+- Supprimer le toggle **Épinglés / Réseau** partout.
+- Supprimer le bouton étoile pin/unpin sur la page Restaurants.
+- Garder la colonne `is_pinned` en base pour réversibilité, mais ne plus l'utiliser dans l'UI.
 
-- Hook `useNetworkCashRevenue.ts` (toujours utilisé).
-- Tokens couleur `--cash` dans `index.css` / `tailwind.config.ts` (utilisés par la barre + tableau).
-- Modifications de `RestaurantComparisonTable.tsx` (colonne CAISSE conservée).
-- Logique de calcul Caisse = global − uber − deliveroo, scopée Chicken Street.
+## Comportement cible
 
-## Résultat visuel attendu
+| Écran | Après |
+|---|---|
+| Vue d'ensemble | Tous les restaurants actifs de la marque, plus de toggle |
+| Analytics | Tous les actifs sélectionnés par défaut, filtre manuel possible |
+| Pages comparatives | Tout le réseau actif par défaut |
+| Restaurants | Plus d'étoile pin/unpin, tri alphabétique |
+| Reporting WhatsApp | Tous les restaurants actifs pré-cochés |
+| Dialog "Sauvegarder en action" | Aucun restaurant pré-coché |
+| Sélecteurs menu/simulateur | Liste unifiée alphabétique, plus de séparation épinglés/non-épinglés |
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│ Global         │ Uber Eats       │ Deliveroo                    │
-│ (vignette)     │ (vignette)      │ (vignette)                   │
-└─────────────────────────────────────────────────────────────────┘
+## Fichiers principaux à modifier
 
-┌─────────────────────────────────────────────────────────────────┐
-│ Répartition du CA réseau              Total : 6 052 721 €       │
-│                                                                  │
-│ [████ Uber 9.4% ████ Deliv 3.1% ███████ Caisse 87.5% ████████] │
-│                                                                  │
-│ 🟢 Uber Eats 571 365 €   🔵 Deliveroo 186 936 €   🟣 Caisse 5 294 420 € │
-│ ───────────────────────────────────────────────────────────────  │
-│ ⓘ Caisse Splash360 : 31j de données · vs période préc. -15.5%   │
-│   Source : réseau global · détail par restaurant indisponible   │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Vue d'ensemble
+- `src/pages/Overview.tsx`
+  - Retirer `NetworkViewToggle`.
+  - Retirer `isNetworkView`, `pinnedRestaurants`, `pinnedIds`.
+  - Utiliser directement `allActiveRestaurants.map(r => r.id)`.
+  - Compteur = restaurants actifs.
+- `src/hooks/useOverviewData.ts`
+  - Retirer le filtre caché `is_pinned=true`.
 
-Discret, contextuel, et la grille KPIs retrouve ses respirations.
+### Contexte Analytics
+- `src/contexts/AnalyticsContext.tsx`
+  - Retirer `isNetworkView` / `setIsNetworkView` du contexte et du localStorage.
+- `src/components/layout/AppSidebar.tsx`
+  - Retirer `setIsNetworkView(true)` lors du changement de marque.
+
+### Pages comparatives
+- `src/pages/RatingsComparison.tsx`
+- `src/pages/DowntimeComparison.tsx`
+- `src/pages/PrepTimeComparison.tsx`
+- `src/pages/TotalDeliveryTimeComparison.tsx`
+- `src/pages/InaccurateOrdersComparison.tsx`
+
+Pour chacune : remplacer la logique `isNetworkView ? allActiveRestaurants : pinnedRestaurants` par `allActiveRestaurants`, puis retirer le toggle.
+
+### Analytics
+- `src/pages/Analytics.tsx`
+- `src/components/analytics/AnalyticsHeader.tsx`
+- `src/components/analytics/AnalyticsFilters.tsx`
+- `src/components/analytics/OperationsAnalytics.tsx`
+- `src/components/analytics/UberOneAnalysis.tsx`
+- `src/components/analytics/OffersAnalyticsSection.tsx`
+- `src/lib/brandScope.ts`
+
+Objectif : la résolution du scope utilise tous les restaurants actifs de la marque par défaut.
+
+### Restaurants et sélecteurs
+- `src/pages/Restaurants.tsx`
+  - Retirer étoile pin/unpin, fonction `togglePin`, tri pinned-first, compteur pinned.
+- `src/hooks/useChainRestaurants.ts`
+  - `usePinnedRestaurants` devient inutile ou doit être remplacé par `useActiveRestaurants` selon usages restants.
+- `src/components/menu/RestaurantSelector.tsx`
+  - Liste alphabétique unique.
+- `src/hooks/useRestaurantMenuPrices.ts`
+- `src/hooks/useSimulatorRestaurantPrices.ts`
+- `src/components/menu/ProfitabilityComparison.tsx`
+- `src/components/menu/offers/SaveAsActionDialog.tsx`
+- `src/components/messaging/WeeklyReports.tsx`
+- `src/pages/ImportChecklist.tsx`
+
+## Vérifications après implémentation
+
+1. `/overview` affiche **101 restaurants suivis** pour Chicken Street.
+2. Les KPIs ne sont plus à `--` si la période contient des données.
+3. La barre Répartition CA réseau reste visible avec Uber / Deliveroo / Caisse.
+4. Le tableau comparatif liste les restaurants réseau, plus le message "Aucun restaurant épinglé trouvé".
+5. Aucune référence UI à "Épinglés" ne reste dans les dashboards.
+
+## Note importante
+
+Aucune migration base nécessaire : on ne touche pas aux données ni aux accès. C'est un correctif frontend + nettoyage UI.
