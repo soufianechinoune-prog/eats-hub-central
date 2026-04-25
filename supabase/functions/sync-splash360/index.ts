@@ -45,12 +45,17 @@ async function fetchTurnover(
   year: number,
   month: number,
   granularity: "day" | "week" | "month" | "year",
-  restaurantId: number
+  restaurantId: number,
+  day: number = 1,
 ) {
-  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=1&granularity=${granularity}&restaurantId=${restaurantId}`;
+  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=${day}&granularity=${granularity}&restaurantId=${restaurantId}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`${endpoint} error (${res.status}): ${await res.text()}`);
   return res.json();
+}
+
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
 }
 
 const PLATFORM_MAP = {
@@ -95,6 +100,7 @@ serve(async (req) => {
       mode = "test",
       granularity = "month",
       restaurant_splash_ids,
+      network_only = false,
     } = body;
 
     if (!email || !password) {
@@ -139,14 +145,16 @@ serve(async (req) => {
       // 1. Liste des restos cibles
       let splashIds: number[];
       let restosMeta: { id: number; nom: string }[] = [];
-      if (Array.isArray(restaurant_splash_ids) && restaurant_splash_ids.length > 0) {
+      if (network_only) {
+        splashIds = [];
+      } else if (Array.isArray(restaurant_splash_ids) && restaurant_splash_ids.length > 0) {
         splashIds = restaurant_splash_ids.map(Number);
       } else {
         const profile = await getUserProfile(token);
         restosMeta = profile?.restos ?? [];
         splashIds = restosMeta.map((r: any) => r.id);
       }
-      const allTargets = [0, ...splashIds];
+      const allTargets = network_only ? [0] : [0, ...splashIds];
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
       console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity})...`);
@@ -175,18 +183,29 @@ serve(async (req) => {
       const errors: any[] = [];
       const CONCURRENCY = 5;
 
+      // Pour granularity=day, on doit boucler sur chaque jour du mois (l'API renvoie 1 point par appel)
+      const dayList: number[] =
+        granularity === "day"
+          ? Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1)
+          : [1];
+
       for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
         const batch = allTargets.slice(i, i + CONCURRENCY);
         await Promise.all(batch.map(async (splashId) => {
-          for (const endpoint of ["salesturnover", "ubersalesturnover", "deliveroosalesturnover"] as const) {
-            try {
-              const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId);
-              const row: any = buildRow(splashId, dateRef, granularity, PLATFORM_MAP[endpoint], data);
-              const restoUuid = splashToRestaurantId.get(splashId);
-              if (restoUuid) row.restaurant_id = restoUuid;
-              rowsToUpsert.push(row);
-            } catch (e: any) {
-              errors.push({ splashId, endpoint, error: e.message });
+          for (const day of dayList) {
+            const dayDateRef = granularity === "day"
+              ? `${targetYear}-${String(targetMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+              : dateRef;
+            for (const endpoint of ["salesturnover", "ubersalesturnover", "deliveroosalesturnover"] as const) {
+              try {
+                const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId, day);
+                const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+                const restoUuid = splashToRestaurantId.get(splashId);
+                if (restoUuid) row.restaurant_id = restoUuid;
+                rowsToUpsert.push(row);
+              } catch (e: any) {
+                errors.push({ splashId, day, endpoint, error: e.message });
+              }
             }
           }
         }));
