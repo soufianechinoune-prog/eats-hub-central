@@ -100,6 +100,7 @@ serve(async (req) => {
       mode = "test",
       granularity = "month",
       restaurant_splash_ids,
+      network_only = false,
     } = body;
 
     if (!email || !password) {
