@@ -137,6 +137,23 @@ export function ConversionScatterPlot({
     benchmark.competitor_count >= 1 &&
     !!selectedRestaurant;
 
+  // Build benchmark dataset (single anonymized average point) for native scatter tooltip + animation
+  const benchmarkData = useMemo(() => {
+    if (!showBenchmarkPoint) return [];
+    const avgVisits = Number(benchmark!.avg_visits);
+    const avgConv = Number(benchmark!.avg_conversion_rate);
+    return [{
+      isCompetitor: true,
+      visits: avgVisits,
+      conversionRate: avgConv,
+      orders: Math.round((avgVisits * avgConv) / 100),
+      city: benchmark!.match_level === "city" ? benchmark!.city : benchmark!.postal_code,
+      competitorCount: benchmark!.competitor_count,
+      bubbleSize: 250,
+    }];
+  }, [showBenchmarkPoint, benchmark]);
+
+
   const averages = useMemo(() => {
     if (scatterData.length === 0) return { visits: 0, conversion: 0 };
     const avgVisits = scatterData.reduce((sum, r) => sum + r.visits, 0) / scatterData.length;
@@ -457,17 +474,21 @@ export function ConversionScatterPlot({
 
                 {/* Single anonymized benchmark point (avg of local competitors) */}
                 {showBenchmarkPoint && (
-                  <ReferenceDot
-                    x={selectedRestaurant!.visits}
-                    y={benchmark!.avg_conversion_rate}
-                    r={10}
+                  <Scatter
+                    key={`benchmark-${selectedRestaurantId}`}
+                    name="Moyenne concurrents"
+                    data={benchmarkData}
                     fill="hsl(var(--muted-foreground))"
-                    fillOpacity={0.35}
+                    fillOpacity={0.4}
                     stroke="hsl(var(--muted-foreground))"
-                    strokeWidth={1.5}
-                    ifOverflow="extendDomain"
+                    strokeWidth={2}
+                    isAnimationActive
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                    cursor="pointer"
                   />
                 )}
+
 
                 <Scatter
                   data={filteredData}
