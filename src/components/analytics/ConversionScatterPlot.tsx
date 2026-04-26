@@ -605,39 +605,7 @@ export function ConversionScatterPlot({
           </div>
         )}
 
-        {/* Opportunities highlight */}
-        {opportunities.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3"
-          >
-            <div className="flex items-start gap-2">
-              <Lightbulb className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-sm font-medium mb-1">
-                  {opportunities.length} opportunité{opportunities.length > 1 ? "s" : ""} d'amélioration
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  Fort trafic mais conversion sous la moyenne :
-                </p>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {opportunities.slice(0, 5).map((r) => (
-                    <Badge key={r.restaurantId} variant="outline" className="text-xs bg-amber-500/10">
-                      {r.restaurantName}
-                      <span className="ml-1 text-amber-600">{r.conversionRate.toFixed(1)}%</span>
-                    </Badge>
-                  ))}
-                  {opportunities.length > 5 && (
-                    <Badge variant="secondary" className="text-xs">
-                      +{opportunities.length - 5} autres
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+
       </CardContent>
     </Card>
   );
