@@ -399,6 +399,43 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Week selector pills */}
+        {weeklyBreakdown.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSelectedWeek(null)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                !selectedWeek
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+              )}
+            >
+              Toute la période
+            </button>
+            {weeklyBreakdown.map((w) => (
+              <TooltipProvider key={w.key}>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedWeek(selectedWeek === w.key ? null : w.key)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                        selectedWeek === w.key
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      {w.label}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>{w.range}</p></TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            ))}
+          </div>
+        )}
+
         {/* Hint when no restaurant selected */}
         {!selectedRestaurantId && (
           <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
