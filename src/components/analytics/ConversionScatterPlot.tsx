@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
 import {
   ScatterChart,
