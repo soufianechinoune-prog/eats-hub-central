@@ -126,6 +126,17 @@ export function ConversionScatterPlot({
     }));
   }, [data]);
 
+  const selectedRestaurant = useMemo(
+    () => scatterData.find((r) => r.restaurantId === selectedRestaurantId) ?? null,
+    [scatterData, selectedRestaurantId]
+  );
+
+  const showBenchmarkPoint =
+    !!benchmark &&
+    benchmark.match_level !== "none" &&
+    benchmark.competitor_count >= 2 &&
+    !!selectedRestaurant;
+
   const averages = useMemo(() => {
     if (scatterData.length === 0) return { visits: 0, conversion: 0 };
     const avgVisits = scatterData.reduce((sum, r) => sum + r.visits, 0) / scatterData.length;
@@ -308,27 +319,11 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Benchmark toggle (only shown if data is available) */}
-        {benchmarkScatter.length > 0 && (
-          <div className="flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <Label htmlFor="benchmark-toggle" className="text-sm cursor-pointer">
-                Benchmark local <span className="text-muted-foreground">(même ville)</span>
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              {showBenchmark && (
-                <span className="text-xs text-muted-foreground">
-                  {benchmarkScatter.length} concurrent{benchmarkScatter.length > 1 ? "s" : ""}
-                </span>
-              )}
-              <Switch
-                id="benchmark-toggle"
-                checked={showBenchmark}
-                onCheckedChange={handleBenchmarkToggle}
-              />
-            </div>
+        {/* Hint when no restaurant selected */}
+        {!selectedRestaurantId && (
+          <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
+            <Users className="h-4 w-4" />
+            <span>Cliquez sur un restaurant pour voir la moyenne de ses concurrents locaux (même ville).</span>
           </div>
         )}
 
@@ -357,45 +352,69 @@ export function ConversionScatterPlot({
               </button>
             );
           })}
-          {showBenchmark && benchmarkScatter.length > 0 && (
+          {showBenchmarkPoint && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-background">
               <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 border border-muted-foreground/60" />
-              <span>Concurrents</span>
-              <span className="text-muted-foreground">({benchmarkScatter.length})</span>
+              <span>Moyenne concurrents</span>
+              <span className="text-muted-foreground">({benchmark!.competitor_count})</span>
             </div>
           )}
         </div>
 
-        {/* Benchmark comparison summary */}
-        {showBenchmark && benchmarkAvg !== null && averages.conversion > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={cn(
-              "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm",
-              averages.conversion >= benchmarkAvg
-                ? "border-emerald-500/30 bg-emerald-500/5"
-                : "border-amber-500/30 bg-amber-500/5"
-            )}
-          >
-            {averages.conversion >= benchmarkAvg ? (
-              <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-amber-600 shrink-0" />
-            )}
-            <div className="text-xs">
-              Votre taux de conversion moyen : <span className="font-semibold">{averages.conversion.toFixed(2)}%</span>
-              <span className="text-muted-foreground"> · Concurrents locaux : </span>
-              <span className="font-semibold">{benchmarkAvg.toFixed(2)}%</span>
-              <span className={cn(
-                "ml-2 font-medium",
-                averages.conversion >= benchmarkAvg ? "text-emerald-700" : "text-amber-700"
-              )}>
-                ({averages.conversion >= benchmarkAvg ? "+" : ""}{(averages.conversion - benchmarkAvg).toFixed(2)} pt)
-              </span>
-            </div>
-          </motion.div>
-        )}
+        {/* Contextual benchmark summary for selected restaurant */}
+        <AnimatePresence>
+          {selectedRestaurant && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -5 }}
+              className="rounded-lg border border-border bg-muted/20 px-3 py-2"
+            >
+              {benchmarkLoading ? (
+                <div className="text-xs text-muted-foreground">Chargement du benchmark local…</div>
+              ) : showBenchmarkPoint ? (
+                <div className="flex items-center gap-3 text-sm">
+                  {selectedRestaurant.conversionRate >= benchmark!.avg_conversion_rate ? (
+                    <TrendingUp className="h-4 w-4 text-emerald-600 shrink-0" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-amber-600 shrink-0" />
+                  )}
+                  <div className="text-xs flex-1">
+                    <span className="font-medium">{selectedRestaurant.restaurantName}</span>
+                    <span className="text-muted-foreground"> · </span>
+                    {benchmark!.match_level === "city" ? benchmark!.city : benchmark!.postal_code}
+                    <span className="text-muted-foreground"> · {benchmark!.competitor_count} concurrents</span>
+                    <span className="mx-2">|</span>
+                    Vous : <span className="font-semibold">{selectedRestaurant.conversionRate.toFixed(2)}%</span>
+                    <span className="text-muted-foreground"> · Moyenne locale : </span>
+                    <span className="font-semibold">{benchmark!.avg_conversion_rate.toFixed(2)}%</span>
+                    <span className={cn(
+                      "ml-2 font-medium",
+                      selectedRestaurant.conversionRate >= benchmark!.avg_conversion_rate ? "text-emerald-700" : "text-amber-700"
+                    )}>
+                      ({selectedRestaurant.conversionRate >= benchmark!.avg_conversion_rate ? "+" : ""}
+                      {(selectedRestaurant.conversionRate - benchmark!.avg_conversion_rate).toFixed(2)} pt)
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setSelectedRestaurantId(null)}
+                    className="text-muted-foreground hover:text-foreground p-1 rounded"
+                    title="Fermer"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>Aucun concurrent local trouvé pour {selectedRestaurant.restaurantName} (minimum 2 requis).</span>
+                  <button onClick={() => setSelectedRestaurantId(null)} className="hover:text-foreground p-1">
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {viewMode === "chart" ? (
           <div style={{ height: expanded ? 700 : 500 }} className="transition-all duration-300">
@@ -436,33 +455,41 @@ export function ConversionScatterPlot({
 
                 <Tooltip content={<CustomTooltip />} />
 
-                {/* Anonymized competitor points (rendered first so they sit behind brand points) */}
-                {showBenchmark && benchmarkScatter.length > 0 && (
-                  <Scatter data={benchmarkScatter} fill="hsl(var(--muted-foreground))">
-                    {benchmarkScatter.map((_, index) => (
-                      <Cell
-                        key={`bench-cell-${index}`}
-                        fill="hsl(var(--muted-foreground))"
-                        fillOpacity={0.35}
-                        stroke="hsl(var(--muted-foreground))"
-                        strokeOpacity={0.5}
-                        strokeWidth={1}
-                      />
-                    ))}
-                  </Scatter>
+                {/* Single anonymized benchmark point (avg of local competitors) */}
+                {showBenchmarkPoint && (
+                  <ReferenceDot
+                    x={selectedRestaurant!.visits}
+                    y={benchmark!.avg_conversion_rate}
+                    r={10}
+                    fill="hsl(var(--muted-foreground))"
+                    fillOpacity={0.35}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={1.5}
+                    ifOverflow="extendDomain"
+                  />
                 )}
 
-                <Scatter data={filteredData} fill="hsl(var(--primary))">
+                <Scatter
+                  data={filteredData}
+                  fill="hsl(var(--primary))"
+                  onClick={(p: any) => {
+                    const id = p?.restaurantId;
+                    if (!id) return;
+                    setSelectedRestaurantId((cur) => (cur === id ? null : id));
+                  }}
+                  cursor="pointer"
+                >
                   {filteredData.map((entry, index) => {
                     const isHighlighted = highlightedRestaurants.includes(entry.restaurantId);
-                    const dimByBenchmark = showBenchmark && highlightedRestaurants.length > 0 && !isHighlighted;
+                    const isSelected = entry.restaurantId === selectedRestaurantId;
+                    const dim = selectedRestaurantId && !isSelected;
                     return (
                       <Cell
                         key={`cell-${index}`}
                         fill={getQuadrantColor(entry.visits, entry.conversionRate)}
-                        fillOpacity={isHighlighted ? 1 : (dimByBenchmark ? 0.35 : 0.6)}
-                        stroke={isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
-                        strokeWidth={isHighlighted ? 3 : 1}
+                        fillOpacity={isSelected ? 1 : isHighlighted ? 0.9 : dim ? 0.25 : 0.6}
+                        stroke={isSelected || isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
+                        strokeWidth={isSelected ? 3 : isHighlighted ? 2 : 1}
                       />
                     );
                   })}
