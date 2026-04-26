@@ -53,6 +53,7 @@ interface ConversionScatterPlotProps {
   highlightedRestaurants?: string[];
   startDate?: Date;
   endDate?: Date;
+  rawConversionData?: any[];
 }
 
 const QUADRANT_COLORS = {
