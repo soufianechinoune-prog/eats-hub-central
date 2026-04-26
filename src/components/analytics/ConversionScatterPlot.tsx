@@ -83,6 +83,8 @@ export function ConversionScatterPlot({
   data,
   className,
   highlightedRestaurants = [],
+  startDate,
+  endDate,
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
