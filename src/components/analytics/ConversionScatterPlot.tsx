@@ -352,11 +352,11 @@ export function ConversionScatterPlot({
               </button>
             );
           })}
-          {showBenchmark && benchmarkScatter.length > 0 && (
+          {showBenchmarkPoint && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-border bg-background">
               <span className="w-2.5 h-2.5 rounded-full bg-muted-foreground/40 border border-muted-foreground/60" />
-              <span>Concurrents</span>
-              <span className="text-muted-foreground">({benchmarkScatter.length})</span>
+              <span>Moyenne concurrents</span>
+              <span className="text-muted-foreground">({benchmark!.competitor_count})</span>
             </div>
           )}
         </div>
