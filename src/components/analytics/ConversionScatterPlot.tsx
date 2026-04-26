@@ -134,7 +134,7 @@ export function ConversionScatterPlot({
   const showBenchmarkPoint =
     !!benchmark &&
     benchmark.match_level !== "none" &&
-    benchmark.competitor_count >= 2 &&
+    benchmark.competitor_count >= 1 &&
     !!selectedRestaurant;
 
   const averages = useMemo(() => {
