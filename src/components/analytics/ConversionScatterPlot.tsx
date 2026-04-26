@@ -6,7 +6,9 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format } from "date-fns";
+import { format, startOfWeek, endOfWeek, parseISO, isSameMonth } from "date-fns";
+import { fr } from "date-fns/locale";
+import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
 import {
   ScatterChart,
   Scatter,
@@ -51,6 +53,7 @@ interface ConversionScatterPlotProps {
   highlightedRestaurants?: string[];
   startDate?: Date;
   endDate?: Date;
+  rawConversionData?: any[];
 }
 
 const QUADRANT_COLORS = {
@@ -85,6 +88,7 @@ export function ConversionScatterPlot({
   highlightedRestaurants = [],
   startDate,
   endDate,
+  rawConversionData,
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
@@ -92,6 +96,7 @@ export function ConversionScatterPlot({
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+  const [selectedWeek, setSelectedWeek] = useState<string | null>(null);
 
   const startKey = startDate ? format(startDate, "yyyy-MM-dd") : "";
   const endKey = endDate ? format(endDate, "yyyy-MM-dd") : "";
@@ -117,14 +122,72 @@ export function ConversionScatterPlot({
     staleTime: 60_000,
   });
 
+  // Compute available weeks from raw daily data (same logic as ConversionFunnelChart)
+  const weeklyBreakdown = useMemo(() => {
+    if (!rawConversionData || rawConversionData.length === 0) return [];
+    const weeklyMap: Record<string, { weekStart: Date }> = {};
+    const deduped = deduplicateWeeklyConversion(rawConversionData as any[]);
+    deduped.forEach((item: any) => {
+      if (!item.date) return;
+      const ws = startOfWeek(parseISO(item.date), { locale: fr });
+      const key = format(ws, "yyyy-MM-dd");
+      if (!weeklyMap[key]) weeklyMap[key] = { weekStart: ws };
+    });
+    return Object.keys(weeklyMap).sort().map((key) => {
+      const w = weeklyMap[key];
+      const we = endOfWeek(w.weekStart, { locale: fr });
+      return {
+        key,
+        label: isSameMonth(w.weekStart, we)
+          ? `${format(w.weekStart, "d")}-${format(we, "d MMM", { locale: fr })}`
+          : `${format(w.weekStart, "d MMM", { locale: fr })} - ${format(we, "d MMM", { locale: fr })}`,
+        range: `${format(w.weekStart, "dd/MM")} - ${format(we, "dd/MM")}`,
+      };
+    });
+  }, [rawConversionData]);
+
+  // Reset selectedWeek if it no longer exists in the new period
+  if (selectedWeek && weeklyBreakdown.length > 0 && !weeklyBreakdown.find((w) => w.key === selectedWeek)) {
+    setSelectedWeek(null);
+  }
+
+  // Per-restaurant data filtered by selected week (or full period if none)
+  const effectiveData = useMemo<RestaurantConversionData[]>(() => {
+    if (!selectedWeek || !rawConversionData || rawConversionData.length === 0) {
+      return data;
+    }
+    const nameMap = new Map(data.map((r) => [r.restaurantId, r.restaurantName]));
+    const weekStart = parseISO(selectedWeek);
+    const weekEnd = endOfWeek(weekStart, { locale: fr });
+    const map: Record<string, { visits: number; views: number; cart: number; orders: number }> = {};
+    const deduped = deduplicateWeeklyConversion(rawConversionData as any[]);
+    deduped.forEach((item: any) => {
+      if (!item.date || !item.restaurant_id) return;
+      const d = parseISO(item.date);
+      if (d < weekStart || d > weekEnd) return;
+      const id = item.restaurant_id;
+      if (!map[id]) map[id] = { visits: 0, views: 0, cart: 0, orders: 0 };
+      map[id].visits += item.visits || 0;
+      map[id].views += item.menu_views || 0;
+      map[id].cart += item.add_to_cart || 0;
+      map[id].orders += item.orders || 0;
+    });
+    return Object.entries(map)
+      .map(([restaurantId, d]) => ({
+        restaurantId,
+        restaurantName: nameMap.get(restaurantId) || "Restaurant inconnu",
+        ...d,
+      }))
+      .filter((r) => r.visits > 0);
+  }, [selectedWeek, rawConversionData, data]);
 
   const scatterData = useMemo(() => {
-    return data.map((r) => ({
+    return effectiveData.map((r) => ({
       ...r,
       conversionRate: r.visits > 0 ? (r.orders / r.visits) * 100 : 0,
       bubbleSize: Math.min(Math.max(r.orders * 2, 60), 1200),
     }));
-  }, [data]);
+  }, [effectiveData]);
 
   const selectedRestaurant = useMemo(
     () => scatterData.find((r) => r.restaurantId === selectedRestaurantId) ?? null,
@@ -336,6 +399,43 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
+        {/* Week selector pills */}
+        {weeklyBreakdown.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setSelectedWeek(null)}
+              className={cn(
+                "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                !selectedWeek
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+              )}
+            >
+              Toute la période
+            </button>
+            {weeklyBreakdown.map((w) => (
+              <TooltipProvider key={w.key}>
+                <UITooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => setSelectedWeek(selectedWeek === w.key ? null : w.key)}
+                      className={cn(
+                        "px-3 py-1.5 text-xs font-medium rounded-full border transition-all",
+                        selectedWeek === w.key
+                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted hover:text-foreground"
+                      )}
+                    >
+                      {w.label}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>{w.range}</p></TooltipContent>
+                </UITooltip>
+              </TooltipProvider>
+            ))}
+          </div>
+        )}
+
         {/* Hint when no restaurant selected */}
         {!selectedRestaurantId && (
           <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">

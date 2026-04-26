@@ -1,61 +1,37 @@
-## Trois corrections sur le point benchmark
+## Objectif
 
-### 1. Position du point (axe X)
-**Bug** : actuellement `x={selectedRestaurant.visits}` → le benchmark est verticalement aligné avec ton restaurant, ce qui donne l'illusion d'un même axe.
-**Fix** : utiliser `x={benchmark.avg_visits}` → le point se place sur les **vraies visites moyennes** des concurrents (ex. ~85k visites pour Paris, pas 115k comme Tasty Crousty Saint Denis).
+Reproduire le sélecteur de semaines (« Tout le mois », « 26 janv. - 1 févr. », « 2-8 févr. », …) qui existe déjà sur le **Funnel de Conversion** et l'ajouter au-dessus du graphique **Visites vs Conversion**, pour permettre de filtrer ce graphique par semaine sans toucher au reste de la page.
 
-### 2. Tooltip au survol
-**Bug** : le point est rendu via `<ReferenceDot>` qui n'a aucun tooltip Recharts.
-**Fix** : remplacer par un `<Scatter>` dédié avec un dataset à 1 point ayant `isCompetitor: true`. Le `CustomTooltip` existant (lignes 207-229) gère déjà ce cas et affiche :
-- "Concurrent local · PARIS"
-- Visites moyennes
-- Taux de conversion moyen
-- Commandes moyennes
-- Nombre de concurrents agrégés
+Chaque graphique reste indépendant : sélectionner une semaine sur le scatter ne modifie ni le funnel, ni le ranking, ni le leaky bucket, ni les KPIs du haut. C'est cohérent avec ce qui se fait déjà côté funnel.
 
-### 3. Animation de transition
-**Comportement souhaité** : quand tu cliques sur un restaurant, le point benchmark apparaît avec une animation douce depuis ta position vers la position des concurrents.
-**Implémentation** : 
-- Activer `isAnimationActive` sur le `<Scatter>` benchmark avec `animationDuration={800}` et `animationEasing="ease-out"`
-- Le `key` du Scatter inclura `selectedRestaurantId` pour forcer une nouvelle animation à chaque changement
-- Style visuel : cercle gris semi-transparent avec bordure plus marquée pour le distinguer des restaurants
+## Comportement attendu
 
-## Changement technique
+- Une rangée de chips au-dessus du scatter : `Tout le mois` + une chip par semaine de la période (mois) sélectionnée.
+- Chip active = surlignée violet (même style que le funnel).
+- Par défaut : `Tout le mois` (comportement actuel inchangé).
+- Au clic sur une semaine :
+  - Les points du scatter sont recalculés à partir des données de cette semaine uniquement (visites + commandes par restaurant sur les 7 jours).
+  - Le benchmark anonymisé local et la ligne de connexion se mettent à jour automatiquement (ils dépendent du restaurant sélectionné, pas de la semaine — ils continuent de fonctionner).
+  - Animation déjà en place (Recharts `isAnimationActive`) → transition douce.
+- Si une semaine ne contient aucune donnée pour un restaurant, il est filtré du scatter (comme aujourd'hui : `r.visits > 0`).
 
-Un seul fichier : `src/components/analytics/ConversionScatterPlot.tsx`
+## Détails techniques
 
-```tsx
-// 1. Ajouter un dataset benchmark dérivé
-const benchmarkData = useMemo(() => {
-  if (!showBenchmarkPoint) return [];
-  return [{
-    isCompetitor: true,
-    visits: Number(benchmark.avg_visits),
-    conversionRate: Number(benchmark.avg_conversion_rate),
-    orders: Math.round(avg_visits * avg_conversion_rate / 100),
-    city: benchmark.match_level === "city" ? benchmark.city : benchmark.postal_code,
-    bubbleSize: 250,
-  }];
-}, [showBenchmarkPoint, benchmark]);
+**Fichier principal modifié :** `src/components/analytics/ConversionScatterPlot.tsx`
 
-// 2. Remplacer ReferenceDot par un Scatter natif
-{showBenchmarkPoint && (
-  <Scatter
-    key={`benchmark-${selectedRestaurantId}`}
-    data={benchmarkData}
-    fill="hsl(var(--muted-foreground))"
-    fillOpacity={0.4}
-    stroke="hsl(var(--muted-foreground))"
-    strokeWidth={2}
-    isAnimationActive
-    animationDuration={800}
-    animationEasing="ease-out"
-  />
-)}
-```
+1. **Nouvelle prop** : `rawConversionData?: any[]` (les données brutes journalières, déjà disponibles dans `AnalyticsCharts.tsx` sous `conversionData`).
+2. **Nouveau state local** : `selectedWeek: string | null` (clé `yyyy-MM-dd` du lundi de la semaine, `null` = toute la période). Réutilise la même convention que `ConversionFunnelChart`.
+3. **Calcul des semaines disponibles** (`useMemo`) : reprendre la logique exacte de `ConversionFunnelChart.tsx` (lignes ~290-329) — `startOfWeek` / `endOfWeek` avec `locale: fr`, dédupliqué via `deduplicateWeeklyConversion`. Extraire éventuellement dans un helper partagé `src/lib/weeklyBreakdown.ts` pour ne pas dupliquer.
+4. **Recalcul des points du scatter** : si `selectedWeek` est défini, agréger `rawConversionData` filtré sur la semaine choisie par `restaurant_id` ; sinon utiliser la prop `data` actuelle. Ne pas casser le branchement actuel du benchmark (`selectedRestaurantId` reste indépendant).
+5. **Rendu de la barre de chips** : composant inline réutilisant le style des chips du funnel (`rounded-full`, fond violet quand actif). Posé dans le `CardHeader` du scatter, sous le titre.
 
-## Résultat attendu
+**Fichier secondaire :** `src/components/analytics/AnalyticsCharts.tsx`
+- Passer `rawConversionData={conversionData}` au `<ConversionScatterPlot />` (ligne ~3351).
 
-- Tu cliques sur **TASTY CROUSTY SAINT DENIS** (115k visites, 4.15%)
-- Un cercle gris apparaît en glissant vers ses **vraies coordonnées** : ~85k visites (moyenne des 5 concurrents) et 2.58% (moyenne)
-- Au survol : tooltip "Concurrent local · PARIS · 85k visites · 2.58% · ~2 200 commandes"
+## Hors scope (volontaire)
+
+- Pas de synchronisation avec les chips du funnel.
+- Pas de modification des KPIs en haut de page.
+- Pas de comparaison WoW dans le scatter (déjà couverte par le funnel).
+
+Si tu veux plus tard une synchro globale (un seul sélecteur de semaine pour toute la page), on le fera dans une seconde itération.
