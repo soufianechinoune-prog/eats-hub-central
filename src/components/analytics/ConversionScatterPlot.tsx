@@ -472,6 +472,21 @@ export function ConversionScatterPlot({
 
                 <Tooltip content={<CustomTooltip />} />
 
+                {/* Connector line between selected restaurant and benchmark point */}
+                {showBenchmarkPoint && (
+                  <ReferenceLine
+                    segment={[
+                      { x: selectedRestaurant!.visits, y: selectedRestaurant!.conversionRate },
+                      { x: benchmarkData[0].visits, y: benchmarkData[0].conversionRate },
+                    ]}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.6}
+                    strokeWidth={1.5}
+                    ifOverflow="extendDomain"
+                  />
+                )}
+
                 {/* Single anonymized benchmark point (avg of local competitors) */}
                 {showBenchmarkPoint && (
                   <Scatter
@@ -488,6 +503,7 @@ export function ConversionScatterPlot({
                     cursor="pointer"
                   />
                 )}
+
 
 
                 <Scatter
