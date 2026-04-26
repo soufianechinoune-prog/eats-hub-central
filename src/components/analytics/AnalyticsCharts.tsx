@@ -558,7 +558,7 @@ export function AnalyticsCharts({
   restaurants = [],
   selectedRestaurants = [],
   allConversionData,
-  localBenchmarkData,
+  
   granularity = "monthly",
   conversionGranularityOverride = "auto",
   onConversionGranularityOverrideChange,
