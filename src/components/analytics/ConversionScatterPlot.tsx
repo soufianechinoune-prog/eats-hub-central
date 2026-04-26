@@ -84,7 +84,6 @@ export function ConversionScatterPlot({
   className,
   highlightedRestaurants = [],
 }: ConversionScatterPlotProps) {
-  const { startDate, endDate } = useAnalyticsContext();
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
@@ -92,16 +91,14 @@ export function ConversionScatterPlot({
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
 
+  const startKey = startDate ? format(startDate, "yyyy-MM-dd") : "";
+  const endKey = endDate ? format(endDate, "yyyy-MM-dd") : "";
+
   // Fetch contextual benchmark when a restaurant is selected
   const { data: benchmark, isFetching: benchmarkLoading } = useQuery({
-    queryKey: [
-      "scatter_local_benchmark",
-      selectedRestaurantId,
-      format(startDate, "yyyy-MM-dd"),
-      format(endDate, "yyyy-MM-dd"),
-    ],
+    queryKey: ["scatter_local_benchmark", selectedRestaurantId, startKey, endKey],
     queryFn: async (): Promise<BenchmarkResult | null> => {
-      if (!selectedRestaurantId) return null;
+      if (!selectedRestaurantId || !startDate || !endDate) return null;
       const { data, error } = await supabase.rpc("get_restaurant_local_benchmark", {
         p_restaurant_id: selectedRestaurantId,
         p_start_date: format(startDate, "yyyy-MM-dd"),
@@ -114,30 +111,9 @@ export function ConversionScatterPlot({
       const row = Array.isArray(data) ? data[0] : data;
       return row as BenchmarkResult | null;
     },
-    enabled: !!selectedRestaurantId,
+    enabled: !!selectedRestaurantId && !!startDate && !!endDate,
     staleTime: 60_000,
   });
-
-
-  // Anonymized benchmark points formatted for the scatter (gray series)
-  const benchmarkScatter = useMemo(() => {
-    return (benchmarkData || []).map((b) => ({
-      anon_id: b.anon_id,
-      city: b.city,
-      visits: b.visits,
-      orders: b.orders,
-      conversionRate: Number(b.conversion_rate) || 0,
-      // Slightly smaller dot size than brand points
-      bubbleSize: Math.min(Math.max(b.orders * 1.5, 50), 800),
-      isCompetitor: true as const,
-    }));
-  }, [benchmarkData]);
-
-  const benchmarkAvg = useMemo(() => {
-    if (benchmarkScatter.length === 0) return null;
-    const sum = benchmarkScatter.reduce((s, p) => s + p.conversionRate, 0);
-    return sum / benchmarkScatter.length;
-  }, [benchmarkScatter]);
 
 
   const scatterData = useMemo(() => {
