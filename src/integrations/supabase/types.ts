@@ -4044,6 +4044,21 @@ export type Database = {
           sales: number
         }[]
       }
+      get_restaurant_local_benchmark: {
+        Args: {
+          p_end_date: string
+          p_restaurant_id: string
+          p_start_date: string
+        }
+        Returns: {
+          avg_conversion_rate: number
+          avg_visits: number
+          city: string
+          competitor_count: number
+          match_level: string
+          postal_code: string
+        }[]
+      }
       get_reviews_overview_stats: {
         Args: {
           p_date_mode?: string
@@ -4145,6 +4160,7 @@ export type Database = {
         }[]
       }
       is_super_admin: { Args: never; Returns: boolean }
+      normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
       splash360_auto_map_restaurants: {
         Args: never

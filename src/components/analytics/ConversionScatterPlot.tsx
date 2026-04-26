@@ -3,7 +3,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
 import {
   ScatterChart,
   Scatter,
@@ -14,6 +17,7 @@ import {
   ResponsiveContainer,
   ZAxis,
   ReferenceLine,
+  ReferenceDot,
   Cell,
 } from "recharts";
 import {
@@ -28,9 +32,8 @@ import {
   Users,
   TrendingUp,
   TrendingDown,
+  X,
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 
 interface RestaurantConversionData {
   restaurantId: string;
@@ -42,19 +45,12 @@ interface RestaurantConversionData {
   revenue?: number;
 }
 
-interface BenchmarkPoint {
-  anon_id: string;
-  city: string;
-  visits: number;
-  orders: number;
-  conversion_rate: number;
-}
-
 interface ConversionScatterPlotProps {
   data: RestaurantConversionData[];
   className?: string;
   highlightedRestaurants?: string[];
-  benchmarkData?: BenchmarkPoint[];
+  startDate?: Date;
+  endDate?: Date;
 }
 
 const QUADRANT_COLORS = {
@@ -74,48 +70,52 @@ const QUADRANT_LABELS: Record<string, { label: string; emoji: string }> = {
 type SortKey = "restaurantName" | "visits" | "orders" | "conversionRate";
 type SortDir = "asc" | "desc";
 
+interface BenchmarkResult {
+  match_level: "city" | "postal_code" | "none";
+  competitor_count: number;
+  avg_visits: number;
+  avg_conversion_rate: number;
+  city: string | null;
+  postal_code: string | null;
+}
+
 export function ConversionScatterPlot({
   data,
   className,
   highlightedRestaurants = [],
-  benchmarkData = [],
+  startDate,
+  endDate,
 }: ConversionScatterPlotProps) {
   const [viewMode, setViewMode] = useState<"chart" | "table">("chart");
   const [expanded, setExpanded] = useState(false);
   const [activeQuadrants, setActiveQuadrants] = useState<Set<string>>(new Set(Object.keys(QUADRANT_LABELS)));
   const [sortKey, setSortKey] = useState<SortKey>("conversionRate");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
-  const [showBenchmark, setShowBenchmark] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return window.localStorage.getItem("conversion_scatter_benchmark") === "1";
+  const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(null);
+
+  const startKey = startDate ? format(startDate, "yyyy-MM-dd") : "";
+  const endKey = endDate ? format(endDate, "yyyy-MM-dd") : "";
+
+  // Fetch contextual benchmark when a restaurant is selected
+  const { data: benchmark, isFetching: benchmarkLoading } = useQuery({
+    queryKey: ["scatter_local_benchmark", selectedRestaurantId, startKey, endKey],
+    queryFn: async (): Promise<BenchmarkResult | null> => {
+      if (!selectedRestaurantId || !startDate || !endDate) return null;
+      const { data, error } = await supabase.rpc("get_restaurant_local_benchmark", {
+        p_restaurant_id: selectedRestaurantId,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[ConversionScatterPlot] benchmark error", error);
+        return null;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      return row as BenchmarkResult | null;
+    },
+    enabled: !!selectedRestaurantId && !!startDate && !!endDate,
+    staleTime: 60_000,
   });
-
-  const handleBenchmarkToggle = (next: boolean) => {
-    setShowBenchmark(next);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("conversion_scatter_benchmark", next ? "1" : "0");
-    }
-  };
-
-  // Anonymized benchmark points formatted for the scatter (gray series)
-  const benchmarkScatter = useMemo(() => {
-    return (benchmarkData || []).map((b) => ({
-      anon_id: b.anon_id,
-      city: b.city,
-      visits: b.visits,
-      orders: b.orders,
-      conversionRate: Number(b.conversion_rate) || 0,
-      // Slightly smaller dot size than brand points
-      bubbleSize: Math.min(Math.max(b.orders * 1.5, 50), 800),
-      isCompetitor: true as const,
-    }));
-  }, [benchmarkData]);
-
-  const benchmarkAvg = useMemo(() => {
-    if (benchmarkScatter.length === 0) return null;
-    const sum = benchmarkScatter.reduce((s, p) => s + p.conversionRate, 0);
-    return sum / benchmarkScatter.length;
-  }, [benchmarkScatter]);
 
 
   const scatterData = useMemo(() => {
