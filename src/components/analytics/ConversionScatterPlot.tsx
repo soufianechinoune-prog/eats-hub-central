@@ -455,33 +455,41 @@ export function ConversionScatterPlot({
 
                 <Tooltip content={<CustomTooltip />} />
 
-                {/* Anonymized competitor points (rendered first so they sit behind brand points) */}
-                {showBenchmark && benchmarkScatter.length > 0 && (
-                  <Scatter data={benchmarkScatter} fill="hsl(var(--muted-foreground))">
-                    {benchmarkScatter.map((_, index) => (
-                      <Cell
-                        key={`bench-cell-${index}`}
-                        fill="hsl(var(--muted-foreground))"
-                        fillOpacity={0.35}
-                        stroke="hsl(var(--muted-foreground))"
-                        strokeOpacity={0.5}
-                        strokeWidth={1}
-                      />
-                    ))}
-                  </Scatter>
+                {/* Single anonymized benchmark point (avg of local competitors) */}
+                {showBenchmarkPoint && (
+                  <ReferenceDot
+                    x={selectedRestaurant!.visits}
+                    y={benchmark!.avg_conversion_rate}
+                    r={10}
+                    fill="hsl(var(--muted-foreground))"
+                    fillOpacity={0.35}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeWidth={1.5}
+                    ifOverflow="extendDomain"
+                  />
                 )}
 
-                <Scatter data={filteredData} fill="hsl(var(--primary))">
+                <Scatter
+                  data={filteredData}
+                  fill="hsl(var(--primary))"
+                  onClick={(p: any) => {
+                    const id = p?.restaurantId;
+                    if (!id) return;
+                    setSelectedRestaurantId((cur) => (cur === id ? null : id));
+                  }}
+                  cursor="pointer"
+                >
                   {filteredData.map((entry, index) => {
                     const isHighlighted = highlightedRestaurants.includes(entry.restaurantId);
-                    const dimByBenchmark = showBenchmark && highlightedRestaurants.length > 0 && !isHighlighted;
+                    const isSelected = entry.restaurantId === selectedRestaurantId;
+                    const dim = selectedRestaurantId && !isSelected;
                     return (
                       <Cell
                         key={`cell-${index}`}
                         fill={getQuadrantColor(entry.visits, entry.conversionRate)}
-                        fillOpacity={isHighlighted ? 1 : (dimByBenchmark ? 0.35 : 0.6)}
-                        stroke={isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
-                        strokeWidth={isHighlighted ? 3 : 1}
+                        fillOpacity={isSelected ? 1 : isHighlighted ? 0.9 : dim ? 0.25 : 0.6}
+                        stroke={isSelected || isHighlighted ? "hsl(var(--foreground))" : getQuadrantColor(entry.visits, entry.conversionRate)}
+                        strokeWidth={isSelected ? 3 : isHighlighted ? 2 : 1}
                       />
                     );
                   })}
