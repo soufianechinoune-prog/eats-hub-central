@@ -3351,7 +3351,8 @@ export function AnalyticsCharts({
               <ConversionScatterPlot 
                 data={perRestaurantData}
                 highlightedRestaurants={selectedRestaurants}
-                
+                startDate={chartDateRange.startDate}
+                endDate={chartDateRange.endDate}
               />
               <ConversionRankingByStage 
                 data={perRestaurantData} 
