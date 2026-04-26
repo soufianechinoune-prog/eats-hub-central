@@ -3353,6 +3353,7 @@ export function AnalyticsCharts({
                 highlightedRestaurants={selectedRestaurants}
                 startDate={chartDateRange.startDate}
                 endDate={chartDateRange.endDate}
+                rawConversionData={conversionData}
               />
               <ConversionRankingByStage 
                 data={perRestaurantData} 
