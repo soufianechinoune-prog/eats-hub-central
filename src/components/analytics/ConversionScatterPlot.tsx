@@ -474,17 +474,21 @@ export function ConversionScatterPlot({
 
                 {/* Single anonymized benchmark point (avg of local competitors) */}
                 {showBenchmarkPoint && (
-                  <ReferenceDot
-                    x={selectedRestaurant!.visits}
-                    y={benchmark!.avg_conversion_rate}
-                    r={10}
+                  <Scatter
+                    key={`benchmark-${selectedRestaurantId}`}
+                    name="Moyenne concurrents"
+                    data={benchmarkData}
                     fill="hsl(var(--muted-foreground))"
-                    fillOpacity={0.35}
+                    fillOpacity={0.4}
                     stroke="hsl(var(--muted-foreground))"
-                    strokeWidth={1.5}
-                    ifOverflow="extendDomain"
+                    strokeWidth={2}
+                    isAnimationActive
+                    animationDuration={800}
+                    animationEasing="ease-out"
+                    cursor="pointer"
                   />
                 )}
+
 
                 <Scatter
                   data={filteredData}
