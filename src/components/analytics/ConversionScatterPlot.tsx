@@ -126,6 +126,17 @@ export function ConversionScatterPlot({
     }));
   }, [data]);
 
+  const selectedRestaurant = useMemo(
+    () => scatterData.find((r) => r.restaurantId === selectedRestaurantId) ?? null,
+    [scatterData, selectedRestaurantId]
+  );
+
+  const showBenchmarkPoint =
+    !!benchmark &&
+    benchmark.match_level !== "none" &&
+    benchmark.competitor_count >= 2 &&
+    !!selectedRestaurant;
+
   const averages = useMemo(() => {
     if (scatterData.length === 0) return { visits: 0, conversion: 0 };
     const avgVisits = scatterData.reduce((sum, r) => sum + r.visits, 0) / scatterData.length;
