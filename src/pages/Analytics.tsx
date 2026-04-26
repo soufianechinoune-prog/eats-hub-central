@@ -1469,7 +1469,7 @@ export default function Analytics() {
                   restaurants={restaurants}
                   selectedRestaurants={selectedRestaurants}
                   allConversionData={allUberConversionData}
-                  localBenchmarkData={localBenchmarkData}
+                  
                   granularity={granularity}
                   conversionGranularityOverride={conversionGranularityOverride}
                   onConversionGranularityOverrideChange={setConversionGranularityOverride}
