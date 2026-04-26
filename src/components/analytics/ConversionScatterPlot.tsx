@@ -134,7 +134,7 @@ export function ConversionScatterPlot({
   const showBenchmarkPoint =
     !!benchmark &&
     benchmark.match_level !== "none" &&
-    benchmark.competitor_count >= 2 &&
+    benchmark.competitor_count >= 1 &&
     !!selectedRestaurant;
 
   const averages = useMemo(() => {
@@ -406,7 +406,7 @@ export function ConversionScatterPlot({
                 </div>
               ) : (
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Aucun concurrent local trouvé pour {selectedRestaurant.restaurantName} (minimum 2 requis).</span>
+                  <span>Aucun concurrent local trouvé pour {selectedRestaurant.restaurantName}.</span>
                   <button onClick={() => setSelectedRestaurantId(null)} className="hover:text-foreground p-1">
                     <X className="h-3.5 w-3.5" />
                   </button>
