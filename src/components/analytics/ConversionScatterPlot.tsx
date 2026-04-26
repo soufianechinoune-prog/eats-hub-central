@@ -319,27 +319,11 @@ export function ConversionScatterPlot({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        {/* Benchmark toggle (only shown if data is available) */}
-        {benchmarkScatter.length > 0 && (
-          <div className="flex items-center justify-between bg-muted/30 border border-border rounded-lg px-3 py-2">
-            <div className="flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              <Label htmlFor="benchmark-toggle" className="text-sm cursor-pointer">
-                Benchmark local <span className="text-muted-foreground">(même ville)</span>
-              </Label>
-            </div>
-            <div className="flex items-center gap-2">
-              {showBenchmark && (
-                <span className="text-xs text-muted-foreground">
-                  {benchmarkScatter.length} concurrent{benchmarkScatter.length > 1 ? "s" : ""}
-                </span>
-              )}
-              <Switch
-                id="benchmark-toggle"
-                checked={showBenchmark}
-                onCheckedChange={handleBenchmarkToggle}
-              />
-            </div>
+        {/* Hint when no restaurant selected */}
+        {!selectedRestaurantId && (
+          <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-lg px-3 py-2 text-xs text-muted-foreground">
+            <Users className="h-4 w-4" />
+            <span>Cliquez sur un restaurant pour voir la moyenne de ses concurrents locaux (même ville).</span>
           </div>
         )}
 
