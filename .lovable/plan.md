@@ -1,32 +1,56 @@
-Constat : le code appelle maintenant Uber avec le bon scope technique pour la connexion multi-restaurant, `eats.pos_provisioning`. Le log backend confirme que la dernière URL envoyée à Uber contient bien `scope=eats.pos_provisioning`. Donc le message actuel ne vient plus de l’ancien bug `eats.report` ; il signifie probablement que l’application Uber utilisée n’est pas encore autorisée/whitelistée par Uber pour ce scope de provisioning.
+## Contexte
 
-Plan proposé :
+L'erreur `invalid_scope` apparaît **après** que l'utilisateur ait validé son login Uber (donc Uber a accepté d'afficher l'écran d'autorisation, mais refuse à la dernière étape). Cela invalide l'hypothèse "scope non activé sur l'app". Le vrai blocage se trouve soit côté **compte utilisateur** (pas le bon type), soit côté **scope inadapté**, soit côté **type d'application Uber** mal configuré.
 
-1. Rendre le diagnostic explicite dans l’interface
-   - Remplacer le message générique actuel par un message clair : “Uber refuse le scope `eats.pos_provisioning`. Ce scope doit être activé côté Uber Developer / Uber Eats Marketplace pour cette application.”
-   - Afficher l’erreur brute renvoyée par Uber si disponible (`error`, `error_description`) pour éviter de tourner en rond.
+## Plan en 3 étapes
 
-2. Ajouter une page/état de blocage propre
-   - Si Uber renvoie `invalid_scope`, ne pas simplement rediriger en boucle.
-   - Afficher une page avec :
-     - le scope demandé,
-     - le client/app concerné,
-     - l’URL de redirection à vérifier,
-     - la raison probable : scope non activé par Uber.
+### Étape 1 — Diagnostic précis (capturer le vrai message d'Uber)
 
-3. Corriger l’architecture d’auth Uber pour la suite
-   - Garder deux flux séparés :
-     - `authorization_code` + `eats.pos_provisioning` pour découvrir/activer les stores via login marchand ;
-     - `client_credentials` + scopes app (`eats.store`, `eats.order`, `eats.report`, etc.) pour les opérations régulières après activation.
-   - Ne pas mélanger les tokens utilisateur avec les tokens applicatifs.
+Modifier `src/pages/UberCallback.tsx` pour :
+- Afficher en évidence `error_description` (pas juste `error`)
+- Afficher tous les `searchParams` reçus (utile pour voir si Uber renvoie des hints supplémentaires)
+- Logger côté console le payload complet pour debug
 
-4. Ajouter une fonction de test backend
-   - Créer/ajouter un test de génération de token `client_credentials` pour confirmer quels scopes sont réellement disponibles sur l’app Uber.
-   - L’objectif : savoir si Uber autorise au moins `eats.store` / `eats.report`, et isoler précisément le scope refusé.
+Cela permettra en 1 essai de savoir **exactement** pourquoi Uber refuse.
 
-5. Sécuriser le flux multi-restaurant
-   - Continuer à utiliser `GET /v1/eats/stores` pour lister les restaurants avec le token `eats.pos_provisioning`.
-   - Si Uber autorise le scope, rediriger vers la page de mapping multi-restaurants.
-   - Si Uber refuse, afficher la marche à suivre côté Uber plutôt qu’une erreur bloquante incompréhensible.
+### Étape 2 — Essayer le bon scope pour ton cas d'usage
 
-Ce que ça veut dire fonctionnellement : le code est maintenant aligné avec la documentation Uber pour le flux multi-restaurant, mais Uber doit autoriser le scope `eats.pos_provisioning` sur l’application. Je peux maintenant améliorer le diagnostic et séparer proprement les deux types de tokens pour qu’on sache exactement ce qui bloque.
+`eats.pos_provisioning` est conçu pour les **fournisseurs de caisse** (POS providers). Ton cas d'usage est de **lire les données de rapport pour plusieurs restaurants d'un même manager**. Le scope adapté est :
+
+- **`eats.store`** : permet de lister les restaurants du compte connecté
+- **`eats.report`** : déjà obtenu côté server-to-server, peut aussi être obtenu en flow user
+
+Dans `supabase/functions/uber-auth/index.ts`, changer :
+```typescript
+const scopes = "eats.store eats.report";
+```
+
+Si Uber renvoie encore `invalid_scope`, on saura que c'est l'app qui n'est pas habilitée pour ces scopes en flow user.
+
+### Étape 3 — Checklist de vérification côté portail Uber Developer
+
+Te fournir une checklist courte à valider sur https://developer.uber.com/dashboard :
+
+1. **App Type** → vérifier qu'elle supporte "Authorization Code Grant" (pas seulement "Client Credentials")
+2. **Redirect URIs** → vérifier que `https://cs-delivery-performance.com/uber-callback` est listée **exactement** (incluant le `https://`, pas de slash final)
+3. **Scopes** → onglet "Authorizations" → vérifier la colonne "User-authorized scopes" et noter lesquels sont `Active`
+4. **Sandbox vs Production** → vérifier que le client_id `wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX` n'est pas un client Sandbox tentant un flow Production
+5. **Type de compte testeur** → confirmer que le compte Uber utilisé pour le login a bien le rôle "Manager" sur au moins un restaurant Uber Eats
+
+## Plan B si ça ne marche toujours pas
+
+Si après les étapes 1–3 Uber refuse toujours, on bascule sur l'**approche manuelle** : tu (super_admin) ajoutes les UUIDs des restaurants directement dans l'UI sans flow OAuth utilisateur. On a déjà tout le code côté `client_credentials` qui marche pour récupérer les rapports. Ça prend 1h à brancher pour 50 restaurants et c'est 100% fiable.
+
+## Fichiers impactés (étapes 1 & 2)
+
+- `src/pages/UberCallback.tsx` — afficher error_description complète
+- `supabase/functions/uber-auth/index.ts` — changer le scope vers `eats.store eats.report`
+
+## Ce que tu vas devoir me dire après le prochain test
+
+Une fois le code mis à jour et un nouveau test effectué :
+1. Le **`error_description` complet** affiché à l'écran
+2. La capture d'écran de l'écran Uber **juste avant** le clic "Autoriser" (s'il y a une liste de permissions affichée, je veux la voir)
+3. Le résultat de la checklist Uber Developer (étape 3)
+
+Avec ces 3 infos, on saura à 99% quelle est la vraie cause et on pourra la fixer en 1 itération.
