@@ -116,6 +116,18 @@ export const exchangeCodeForToken = async (code: string) => {
   return await response.json();
 };
 
+export const testUberScopes = async () => {
+  const { data, error } = await supabase.functions.invoke("test-uber-scopes", {
+    body: {},
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return data;
+};
+
 /**
  * Refresh an expired access token
  */

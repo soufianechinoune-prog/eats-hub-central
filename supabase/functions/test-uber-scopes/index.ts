@@ -1,72 +1,73 @@
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
-const CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
+const UBER_TOKEN_URL = "https://login.uber.com/oauth/v2/token";
+const CLIENT_CREDENTIAL_SCOPES = [
+  "eats.store",
+  "eats.store.status.write",
+  "eats.order",
+  "eats.store.orders.read",
+  "eats.report",
+];
+
+const jsonResponse = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body, null, 2), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const { client_secret, store_uuid, start_date, end_date, report_type } = await req.json();
-    if (!client_secret) {
-      return new Response(JSON.stringify({ error: "client_secret required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
+    const clientSecret = Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
 
-    // 1. Get token
-    const tokenResp = await fetch("https://login.uber.com/oauth/v2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        client_id: CLIENT_ID,
-        client_secret,
+    if (!clientId) return jsonResponse({ error: "VITE_UBER_CLIENT_ID is not configured" }, 500);
+    if (!clientSecret) return jsonResponse({ error: "VITE_UBER_CLIENT_SECRET is not configured" }, 500);
+
+    const results = [];
+    for (const scope of CLIENT_CREDENTIAL_SCOPES) {
+      const tokenResp = await fetch(UBER_TOKEN_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          grant_type: "client_credentials",
+          scope,
+        }),
+      });
+
+      const text = await tokenResp.text();
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch (_) {
+        body = { raw: text };
+      }
+
+      results.push({
+        scope,
         grant_type: "client_credentials",
-        scope: "eats.report",
-      }),
-    });
-    const tokenJson = await tokenResp.json();
-    if (!tokenResp.ok) {
-      return new Response(JSON.stringify({ step: "token", status: tokenResp.status, body: tokenJson }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: tokenResp.status,
+        available: tokenResp.ok,
+        response_scope: typeof body === "object" && body && "scope" in body ? (body as any).scope : null,
+        error: tokenResp.ok ? null : body,
       });
     }
-    const accessToken = tokenJson.access_token;
 
-    // 2. POST /v1/eats/report
-    const body = {
-      report_type: report_type || "PAYMENT_DETAIL_V2",
-      store_uuids: [store_uuid],
-      start_date,
-      end_date,
-    };
-    const reportResp = await fetch("https://api.uber.com/v1/eats/report", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-        Accept: "application/json",
+    return jsonResponse({
+      authorization_code_scope: {
+        scope: "eats.pos_provisioning",
+        grant_type: "authorization_code",
+        testable_without_merchant_login: false,
+        note: "Ce scope est testé par la redirection OAuth marchand. Un retour invalid_scope signifie qu'il n'est pas activé sur l'app Uber.",
       },
-      body: JSON.stringify(body),
-    });
-    const reportText = await reportResp.text();
-    let reportBody: unknown = reportText;
-    try { reportBody = JSON.parse(reportText); } catch {}
-
-    return new Response(JSON.stringify({
-      token_status: tokenResp.status,
-      token_scope: tokenJson.scope,
-      request: { url: "https://api.uber.com/v1/eats/report", body },
-      report_status: reportResp.status,
-      report_headers: Object.fromEntries(reportResp.headers.entries()),
-      report_body: reportBody,
-    }, null, 2), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      client_credentials_scopes: results,
     });
   } catch (e) {
-    return new Response(JSON.stringify({ error: String(e) }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("test-uber-scopes error:", e);
+    return jsonResponse({ error: e instanceof Error ? e.message : String(e) }, 500);
   }
 });

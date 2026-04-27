@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Link as LinkIcon, RefreshCw } from "lucide-react";
+import { AlertTriangle, Link as LinkIcon, RefreshCw, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,13 +30,15 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
+import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus, testUberScopes } from "@/services/uberService";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const UberConnections = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
+  const [scopeTest, setScopeTest] = useState<any>(null);
+  const [isTestingScopes, setIsTestingScopes] = useState(false);
   const redirectUri = `${window.location.origin}/uber-callback`;
 
   const { data: connections, refetch } = useQuery({
@@ -117,6 +120,27 @@ const UberConnections = () => {
     }
   };
 
+  const handleTestScopes = async () => {
+    setIsTestingScopes(true);
+    try {
+      const result = await testUberScopes();
+      setScopeTest(result);
+      const availableCount = result?.client_credentials_scopes?.filter((s: any) => s.available).length ?? 0;
+      toast({
+        title: "Test Uber terminé",
+        description: `${availableCount} scope(s) applicatifs disponibles. Le scope marchand eats.pos_provisioning reste validé par OAuth.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur de test Uber",
+        description: error?.message ?? "Impossible de tester les scopes Uber",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingScopes(false);
+    }
+  };
+
   const { data: storeStatuses } = useQuery({
     queryKey: ["store-statuses", connections],
     queryFn: async () => {
@@ -159,6 +183,11 @@ const UberConnections = () => {
             Gérez les connexions OAuth de vos restaurants
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleTestScopes} disabled={isTestingScopes}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            {isTestingScopes ? "Test..." : "Tester les scopes"}
+          </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -195,7 +224,50 @@ const UberConnections = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Connexion multi-restaurant Uber</AlertTitle>
+        <AlertDescription>
+          Le mapping multi-restaurant nécessite le scope marchand <code className="rounded bg-muted px-1 py-0.5">eats.pos_provisioning</code>. Si Uber renvoie <code className="rounded bg-muted px-1 py-0.5">invalid_scope</code>, ce scope doit être activé côté Uber Eats Marketplace pour l'application, indépendamment du restaurant choisi.
+        </AlertDescription>
+      </Alert>
+
+      {scopeTest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Diagnostic des scopes Uber</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Scope marchand OAuth :</span>
+                <Badge variant="outline">eats.pos_provisioning</Badge>
+                <span className="text-muted-foreground">testé uniquement via la connexion Uber</span>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {scopeTest.client_credentials_scopes?.map((item: any) => (
+                <div key={item.scope} className="rounded-md border p-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="break-all">{item.scope}</code>
+                    <Badge variant={item.available ? "default" : "destructive"}>
+                      {item.available ? "OK" : `Refusé ${item.status}`}
+                    </Badge>
+                  </div>
+                  {!item.available && (
+                    <p className="text-xs text-muted-foreground break-words">
+                      {JSON.stringify(item.error)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

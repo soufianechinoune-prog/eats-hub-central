@@ -4,32 +4,46 @@ import { exchangeCodeForToken, parseUberOAuthState } from "@/services/uberServic
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+
+const UBER_POS_PROVISIONING_SCOPE = "eats.pos_provisioning";
+const UBER_CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
 
 const UberCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [status, setStatus] = useState<"processing" | "success" | "error">("processing");
+  const [errorDetails, setErrorDetails] = useState<{
+    error: string;
+    description: string;
+    returnPath: string;
+  } | null>(null);
 
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get("code");
       const state = searchParams.get("state");
       const error = searchParams.get("error");
+      const errorDescription = searchParams.get("error_description") || searchParams.get("error_message") || "";
       const parsedState = parseUberOAuthState(state);
       const returnPath = parsedState?.returnPath || "/uber-connections";
 
       if (error) {
         const isInvalidScope = error === "invalid_scope";
+        const description = isInvalidScope
+          ? `Uber refuse le scope ${UBER_POS_PROVISIONING_SCOPE}. Ce scope doit être activé côté Uber Eats Marketplace pour cette application.`
+          : `Uber a refusé l'autorisation: ${error}${errorDescription ? ` — ${errorDescription}` : ""}`;
+        setErrorDetails({ error, description, returnPath });
         toast({
           title: "Erreur d'autorisation",
-          description: isInvalidScope
-            ? "Uber refuse l'autorisation demandée avant connexion. Le scope demandé n'est probablement pas activé pour une connexion utilisateur."
-            : `Uber a refusé l'autorisation: ${error}`,
+          description,
           variant: "destructive",
         });
         setStatus("error");
-        setTimeout(() => navigate(returnPath), 4000);
+        if (!isInvalidScope) {
+          setTimeout(() => navigate(returnPath), 4000);
+        }
         return;
       }
 
@@ -146,10 +160,41 @@ const UberCallback = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-2xl font-semibold">Une erreur est survenue</h2>
-            <p className="text-muted-foreground">
-              Redirection vers la page des connexions...
-            </p>
+            <h2 className="text-2xl font-semibold">Autorisation Uber bloquée</h2>
+            {errorDetails?.error === "invalid_scope" ? (
+              <div className="mx-auto max-w-2xl space-y-4 text-left">
+                <p className="text-center text-muted-foreground">
+                  Uber refuse le scope nécessaire au mapping multi-restaurant.
+                </p>
+                <div className="rounded-md border bg-card p-4 text-sm shadow-sm space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
+                    <span className="font-medium text-muted-foreground">Scope demandé</span>
+                    <code className="break-all rounded bg-muted px-2 py-1">{UBER_POS_PROVISIONING_SCOPE}</code>
+                    <span className="font-medium text-muted-foreground">Client Uber</span>
+                    <code className="break-all rounded bg-muted px-2 py-1">{UBER_CLIENT_ID}</code>
+                    <span className="font-medium text-muted-foreground">URL de redirection</span>
+                    <code className="break-all rounded bg-muted px-2 py-1">{window.location.origin}/uber-callback</code>
+                    <span className="font-medium text-muted-foreground">Erreur brute</span>
+                    <code className="break-all rounded bg-muted px-2 py-1">{errorDetails.error}</code>
+                  </div>
+                  <p className="text-muted-foreground">
+                    Ce n'est pas lié au restaurant sélectionné : l'application Uber doit être whitelistée pour
+                    <code className="mx-1 rounded bg-muted px-1 py-0.5">{UBER_POS_PROVISIONING_SCOPE}</code>
+                    avant que la page de connexion Uber puisse s'ouvrir.
+                  </p>
+                </div>
+                <div className="flex justify-center gap-3">
+                  <Button variant="outline" onClick={() => navigate(errorDetails.returnPath)}>
+                    Retour
+                  </Button>
+                  <Button onClick={() => navigate("/uber-connections")}>Connexions Uber</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-muted-foreground">
+                Redirection vers la page des connexions...
+              </p>
+            )}
           </>
         )}
       </div>
