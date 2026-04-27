@@ -249,7 +249,7 @@ export const getValidAccessToken = async (restaurantId: string): Promise<string>
  * Fetch stores from Uber Eats API (correct endpoint)
  */
 export const fetchStores = async (accessToken: string) => {
-  const response = await fetch(`${UBER_API_BASE}/v1/delivery/stores`, {
+  const response = await fetch(`${UBER_API_BASE}/v1/eats/stores`, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
