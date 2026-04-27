@@ -19,6 +19,7 @@ const UberCallback = () => {
     description: string;
     returnPath: string;
   } | null>(null);
+  const [rawParams, setRawParams] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const handleCallback = async () => {
