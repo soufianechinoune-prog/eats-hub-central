@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { client_secret, scopes } = await req.json();
+    const { client_secret, scope, urls, method } = await req.json();
     if (!client_secret) {
       return new Response(JSON.stringify({ error: "Missing client_secret" }), {
         status: 400,
@@ -19,28 +19,67 @@ Deno.serve(async (req) => {
       });
     }
 
-    const scopesToTest: string[] = scopes ?? ["eats.store", "eats.order", "eats.report"];
-    const results: Record<string, any> = {};
+    const useScope = scope ?? "eats.report";
 
-    for (const scope of scopesToTest) {
-      const tokenResp = await fetch("https://login.uber.com/oauth/v2/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: CLIENT_ID,
-          client_secret,
-          grant_type: "client_credentials",
-          scope,
-        }),
+    // 1. Get token
+    const tokenResp = await fetch("https://login.uber.com/oauth/v2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: CLIENT_ID,
+        client_secret,
+        grant_type: "client_credentials",
+        scope: useScope,
+      }),
+    });
+    const tokenJson = await tokenResp.json();
+    if (!tokenResp.ok) {
+      return new Response(JSON.stringify({ step: "token", status: tokenResp.status, response: tokenJson }), {
+        status: 200,
+        headers: { ...corsHeaders, "content-type": "application/json" },
       });
-      const tokenJson = await tokenResp.json();
-      results[scope] = {
-        token_status: tokenResp.status,
-        token_response: tokenJson,
-      };
+    }
+    const accessToken = tokenJson.access_token;
+
+    // 2. Test URLs
+    const urlsToTest: string[] = urls ?? [
+      "https://api.uber.com/v1/eats/reports",
+      "https://api.uber.com/v1/eats/report",
+      "https://api.uber.com/v2/eats/reports",
+      "https://api.uber.com/v1/eats/report/list",
+      "https://api.uber.com/v1/delivery/reports",
+    ];
+    const httpMethod = method ?? "GET";
+
+    const results: Record<string, any> = {};
+    for (const url of urlsToTest) {
+      try {
+        const resp = await fetch(url, {
+          method: httpMethod,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: "application/json",
+            "Content-Type": "application/json",
+          },
+        });
+        const text = await resp.text();
+        let body: any;
+        try { body = JSON.parse(text); } catch { body = text.slice(0, 2000); }
+        results[url] = {
+          status: resp.status,
+          headers: Object.fromEntries(resp.headers.entries()),
+          body,
+        };
+      } catch (e) {
+        results[url] = { error: String(e) };
+      }
     }
 
-    return new Response(JSON.stringify(results, null, 2), {
+    return new Response(JSON.stringify({
+      token: { scope: tokenJson.scope, expires_in: tokenJson.expires_in },
+      method: httpMethod,
+      endpoints: results,
+    }, null, 2), {
       status: 200,
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
