@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { exchangeCodeForToken, fetchStores, activateStoreIntegration } from "@/services/uberService";
+import { exchangeCodeForToken, fetchStores, activateStoreIntegration, parseUberOAuthState } from "@/services/uberService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -16,15 +16,20 @@ const UberCallback = () => {
       const code = searchParams.get("code");
       const state = searchParams.get("state"); // restaurant_id
       const error = searchParams.get("error");
+      const parsedState = parseUberOAuthState(state);
+      const returnPath = parsedState?.returnPath || "/uber-connections";
 
       if (error) {
+        const isInvalidScope = error === "invalid_scope";
         toast({
           title: "Erreur d'autorisation",
-          description: `Uber a refusé l'autorisation: ${error}`,
+          description: isInvalidScope
+            ? "Uber refuse l'autorisation demandée avant connexion. Ce n'est pas lié au restaurant sélectionné : le scope demandé n'est probablement pas activé pour une connexion utilisateur."
+            : `Uber a refusé l'autorisation: ${error}`,
           variant: "destructive",
         });
         setStatus("error");
-        setTimeout(() => navigate("/uber-connections"), 3000);
+        setTimeout(() => navigate(returnPath), 4000);
         return;
       }
 
@@ -35,7 +40,7 @@ const UberCallback = () => {
           variant: "destructive",
         });
         setStatus("error");
-        setTimeout(() => navigate("/uber-connections"), 3000);
+        setTimeout(() => navigate(returnPath), 3000);
         return;
       }
 
@@ -48,8 +53,7 @@ const UberCallback = () => {
 
         // If state is a valid UUID (came from a restaurant detail page),
         // assign the connection directly to that restaurant.
-        const stateRestaurantId =
-          state && /^[0-9a-f-]{36}$/i.test(state) ? state : null;
+        const stateRestaurantId = parsedState?.restaurantId || null;
 
         const { data: newConnection, error: insertError } = await supabase
           .from("uber_connections")
@@ -90,8 +94,8 @@ const UberCallback = () => {
         // If we already know the restaurant, go back to its detail page.
         // Otherwise, route to the naming page so the user can pick one.
         setTimeout(() => {
-          if (state && /^[0-9a-f-]{36}$/i.test(state)) {
-            navigate(`/restaurants/${state}`);
+          if (stateRestaurantId) {
+            navigate(`/restaurants/${stateRestaurantId}`);
           } else {
             navigate(`/uber-naming?connection=${newConnection.id}`);
           }
@@ -104,7 +108,7 @@ const UberCallback = () => {
           description: "Impossible de finaliser la connexion à Uber Eats",
           variant: "destructive",
         });
-        setTimeout(() => navigate("/uber-connections"), 3000);
+        setTimeout(() => navigate(returnPath), 3000);
       }
     };
 
