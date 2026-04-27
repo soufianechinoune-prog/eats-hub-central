@@ -183,6 +183,11 @@ const UberConnections = () => {
             Gérez les connexions OAuth de vos restaurants
           </p>
         </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={handleTestScopes} disabled={isTestingScopes}>
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            {isTestingScopes ? "Test..." : "Tester les scopes"}
+          </Button>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -219,7 +224,50 @@ const UberConnections = () => {
             </div>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
+
+      <Alert>
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>Connexion multi-restaurant Uber</AlertTitle>
+        <AlertDescription>
+          Le mapping multi-restaurant nécessite le scope marchand <code className="rounded bg-muted px-1 py-0.5">eats.pos_provisioning</code>. Si Uber renvoie <code className="rounded bg-muted px-1 py-0.5">invalid_scope</code>, ce scope doit être activé côté Uber Eats Marketplace pour l'application, indépendamment du restaurant choisi.
+        </AlertDescription>
+      </Alert>
+
+      {scopeTest && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">Diagnostic des scopes Uber</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-md border p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Scope marchand OAuth :</span>
+                <Badge variant="outline">eats.pos_provisioning</Badge>
+                <span className="text-muted-foreground">testé uniquement via la connexion Uber</span>
+              </div>
+            </div>
+            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+              {scopeTest.client_credentials_scopes?.map((item: any) => (
+                <div key={item.scope} className="rounded-md border p-3 text-sm space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <code className="break-all">{item.scope}</code>
+                    <Badge variant={item.available ? "default" : "destructive"}>
+                      {item.available ? "OK" : `Refusé ${item.status}`}
+                    </Badge>
+                  </div>
+                  {!item.available && (
+                    <p className="text-xs text-muted-foreground break-words">
+                      {JSON.stringify(item.error)}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
