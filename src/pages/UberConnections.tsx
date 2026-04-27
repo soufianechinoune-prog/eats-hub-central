@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
+import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const UberConnections = () => {
@@ -56,7 +56,7 @@ const UberConnections = () => {
 
   const handleConnectUber = () => {
     // Nouveau processus : on se connecte d'abord à Uber, puis on nommera la connexion
-    const authUrl = getUberAuthUrl("temp"); // ID temporaire
+    const authUrl = getUberAuthUrl(createUberOAuthState({ source: "global", returnPath: "/uber-connections" }));
     
     // Tente d'ouvrir dans l'onglet principal; si bloqué, fallback onglet courant puis nouvel onglet
     try {
