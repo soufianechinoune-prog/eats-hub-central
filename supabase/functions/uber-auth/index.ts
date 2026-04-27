@@ -10,12 +10,7 @@ Deno.serve((req) => {
 
   console.log("Uber Auth - clientId exists:", !!clientId, "redirectUri:", redirectUri);
 
-  // Standard scopes for store access, orders and reports
-  const scopes = [
-    "eats.store",
-    "eats.store.orders.read",
-    "eats.report",
-  ].join(" ");
+  const scopes = "eats.report";
 
   if (!clientId || !redirectUri) {
     console.error("Missing Uber config:", { clientId: !!clientId, redirectUri: !!redirectUri });
