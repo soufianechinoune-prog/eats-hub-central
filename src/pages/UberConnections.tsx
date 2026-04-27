@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Table,
   TableBody,
@@ -12,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Link as LinkIcon, RefreshCw } from "lucide-react";
+import { AlertTriangle, Link as LinkIcon, RefreshCw, ShieldCheck } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,13 +30,15 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus } from "@/services/uberService";
+import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus, testUberScopes } from "@/services/uberService";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const UberConnections = () => {
   const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
+  const [scopeTest, setScopeTest] = useState<any>(null);
+  const [isTestingScopes, setIsTestingScopes] = useState(false);
   const redirectUri = `${window.location.origin}/uber-callback`;
 
   const { data: connections, refetch } = useQuery({
@@ -114,6 +117,27 @@ const UberConnections = () => {
         description: "Impossible de changer le statut",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleTestScopes = async () => {
+    setIsTestingScopes(true);
+    try {
+      const result = await testUberScopes();
+      setScopeTest(result);
+      const availableCount = result?.client_credentials_scopes?.filter((s: any) => s.available).length ?? 0;
+      toast({
+        title: "Test Uber terminé",
+        description: `${availableCount} scope(s) applicatifs disponibles. Le scope marchand eats.pos_provisioning reste validé par OAuth.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erreur de test Uber",
+        description: error?.message ?? "Impossible de tester les scopes Uber",
+        variant: "destructive",
+      });
+    } finally {
+      setIsTestingScopes(false);
     }
   };
 
