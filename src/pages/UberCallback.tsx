@@ -46,11 +46,15 @@ const UberCallback = () => {
         // Calculate expiration date
         const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-        // Create new connection without restaurant_id (will be assigned later)
+        // If state is a valid UUID (came from a restaurant detail page),
+        // assign the connection directly to that restaurant.
+        const stateRestaurantId =
+          state && /^[0-9a-f-]{36}$/i.test(state) ? state : null;
+
         const { data: newConnection, error: insertError } = await supabase
           .from("uber_connections")
           .insert({
-            restaurant_id: null, // Sera assigné plus tard
+            restaurant_id: stateRestaurantId,
             access_token: tokenData.access_token,
             refresh_token: tokenData.refresh_token,
             token_type: tokenData.token_type,
@@ -83,9 +87,14 @@ const UberCallback = () => {
           description: "Vous allez maintenant nommer cette connexion",
         });
 
-        // Redirect to naming page with connection ID
+        // If we already know the restaurant, go back to its detail page.
+        // Otherwise, route to the naming page so the user can pick one.
         setTimeout(() => {
-          navigate(`/uber-naming?connection=${newConnection.id}`);
+          if (state && /^[0-9a-f-]{36}$/i.test(state)) {
+            navigate(`/restaurants/${state}`);
+          } else {
+            navigate(`/uber-naming?connection=${newConnection.id}`);
+          }
         }, 2000);
       } catch (error) {
         console.error("Error handling Uber callback:", error);

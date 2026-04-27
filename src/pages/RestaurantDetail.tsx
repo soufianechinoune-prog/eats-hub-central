@@ -15,6 +15,7 @@ import { RestaurantDocuments } from "@/components/restaurants/RestaurantDocument
 import { SiretValidation, type SiretAutoFillData } from "@/components/restaurants/SiretValidation";
 import { BodaccAlerts } from "@/components/restaurants/BodaccAlerts";
 import { CoManagersSection } from "@/components/restaurants/CoManagersSection";
+import { UberConnectionSection } from "@/components/restaurants/UberConnectionSection";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -684,6 +685,9 @@ const RestaurantDetail = () => {
           </CardContent>
         </Card>
       </div>
+
+      {/* Connexion Uber Eats */}
+      <UberConnectionSection restaurantId={id!} />
 
       {/* Documents */}
       <RestaurantDocuments restaurantId={id!} />
