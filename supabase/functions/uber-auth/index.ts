@@ -30,6 +30,7 @@ Deno.serve((req) => {
     redirect_uri: redirectUri,
     scope: scopes,
     state,
+    prompt: "login",
   });
 
   const authUrl = `${UBER_AUTH_URL}?${params.toString()}`;
