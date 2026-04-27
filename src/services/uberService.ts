@@ -129,6 +129,24 @@ export const testUberScopes = async () => {
 };
 
 /**
+ * Validate an Uber Store UUID via the server-side client_credentials token.
+ * Returns { valid, name?, warning?, error? }.
+ */
+export const validateUberStoreId = async (
+  storeId: string
+): Promise<{ valid: boolean; name?: string | null; warning?: string; error?: string }> => {
+  const { data, error } = await supabase.functions.invoke("uber-validate-store", {
+    body: { store_id: storeId },
+  });
+
+  if (error) {
+    return { valid: false, error: error.message ?? "Erreur inconnue" };
+  }
+
+  return data;
+};
+
+/**
  * Refresh an expired access token
  */
 export const refreshAccessToken = async (restaurantId: string) => {
