@@ -1,37 +1,37 @@
 ## Objectif
 
-Reproduire le sélecteur de semaines (« Tout le mois », « 26 janv. - 1 févr. », « 2-8 févr. », …) qui existe déjà sur le **Funnel de Conversion** et l'ajouter au-dessus du graphique **Visites vs Conversion**, pour permettre de filtrer ce graphique par semaine sans toucher au reste de la page.
+Remettre les 3 scopes Uber d'origine dans le flux OAuth Authorization Code afin de tester ce que le portail Uber autorise réellement à l'écran de consentement marchand.
 
-Chaque graphique reste indépendant : sélectionner une semaine sur le scatter ne modifie ni le funnel, ni le ranking, ni le leaky bucket, ni les KPIs du haut. C'est cohérent avec ce qui se fait déjà côté funnel.
+## Changement
 
-## Comportement attendu
+**Fichier** : `src/components/restaurants/UberConnectionSection.tsx`
 
-- Une rangée de chips au-dessus du scatter : `Tout le mois` + une chip par semaine de la période (mois) sélectionnée.
-- Chip active = surlignée violet (même style que le funnel).
-- Par défaut : `Tout le mois` (comportement actuel inchangé).
-- Au clic sur une semaine :
-  - Les points du scatter sont recalculés à partir des données de cette semaine uniquement (visites + commandes par restaurant sur les 7 jours).
-  - Le benchmark anonymisé local et la ligne de connexion se mettent à jour automatiquement (ils dépendent du restaurant sélectionné, pas de la semaine — ils continuent de fonctionner).
-  - Animation déjà en place (Recharts `isAnimationActive`) → transition douce.
-- Si une semaine ne contient aucune donnée pour un restaurant, il est filtré du scatter (comme aujourd'hui : `r.visits > 0`).
+**Modification unique** :
 
-## Détails techniques
+```ts
+// Avant (état actuel)
+const UBER_SCOPES = "eats.report";
 
-**Fichier principal modifié :** `src/components/analytics/ConversionScatterPlot.tsx`
+// Après
+const UBER_SCOPES = "eats.store eats.store.orders.read eats.report";
+```
 
-1. **Nouvelle prop** : `rawConversionData?: any[]` (les données brutes journalières, déjà disponibles dans `AnalyticsCharts.tsx` sous `conversionData`).
-2. **Nouveau state local** : `selectedWeek: string | null` (clé `yyyy-MM-dd` du lundi de la semaine, `null` = toute la période). Réutilise la même convention que `ConversionFunnelChart`.
-3. **Calcul des semaines disponibles** (`useMemo`) : reprendre la logique exacte de `ConversionFunnelChart.tsx` (lignes ~290-329) — `startOfWeek` / `endOfWeek` avec `locale: fr`, dédupliqué via `deduplicateWeeklyConversion`. Extraire éventuellement dans un helper partagé `src/lib/weeklyBreakdown.ts` pour ne pas dupliquer.
-4. **Recalcul des points du scatter** : si `selectedWeek` est défini, agréger `rawConversionData` filtré sur la semaine choisie par `restaurant_id` ; sinon utiliser la prop `data` actuelle. Ne pas casser le branchement actuel du benchmark (`selectedRestaurantId` reste indépendant).
-5. **Rendu de la barre de chips** : composant inline réutilisant le style des chips du funnel (`rounded-full`, fond violet quand actif). Posé dans le `CardHeader` du scatter, sous le titre.
+Aucun autre changement nécessaire — le reste du flux OAuth (redirect URI, state, callback handling) reste identique.
 
-**Fichier secondaire :** `src/components/analytics/AnalyticsCharts.tsx`
-- Passer `rawConversionData={conversionData}` au `<ConversionScatterPlot />` (ligne ~3351).
+## Procédure de test (après déploiement)
 
-## Hors scope (volontaire)
+1. Aller sur la fiche d'un restaurant en **production** (`https://cs-delivery-performance.com/restaurants/...`)
+2. Cliquer "Connecter Uber Eats"
+3. Observer l'écran de consentement Uber :
+   - **Cas A** — Les 3 permissions s'affichent et l'acceptation fonctionne → callback OK → on garde les 3 scopes ✅
+   - **Cas B** — Uber affiche une erreur `invalid_scope` ou redirige avec `error=invalid_scope&error_description=...` → on retire le(s) scope(s) refusé(s) et on retombe progressivement (d'abord retirer `eats.store`, puis `eats.store.orders.read` si nécessaire)
+4. Vérifier dans la table `uber_connections` que la colonne `scope` contient bien ce qui a été accordé par Uber (Uber peut renvoyer un sous-ensemble des scopes demandés dans la réponse token)
 
-- Pas de synchronisation avec les chips du funnel.
-- Pas de modification des KPIs en haut de page.
-- Pas de comparaison WoW dans le scatter (déjà couverte par le funnel).
+## Point de vigilance
 
-Si tu veux plus tard une synchro globale (un seul sélecteur de semaine pour toute la page), on le fera dans une seconde itération.
+Uber peut accepter le consentement mais ne renvoyer qu'un **sous-ensemble** des scopes dans la réponse `/oauth/v2/token` (champ `scope`). Le `UberCallback.tsx` actuel stocke bien ce champ tel que retourné, donc on aura la vérité terrain dans la base après le test.
+
+## Suite logique selon résultat
+
+- Si les 3 passent → on pourra commencer à exploiter `eats.store.orders.read` pour du tracking de commandes en temps réel (vs les CSV actuels)
+- Si seul `eats.report` passe → on remet la valeur réduite et on reste sur le modèle CSV/reports actuel
