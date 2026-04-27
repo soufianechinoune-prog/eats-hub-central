@@ -686,6 +686,9 @@ const RestaurantDetail = () => {
         </Card>
       </div>
 
+      {/* Connexion Uber Eats */}
+      <UberConnectionSection restaurantId={id!} />
+
       {/* Documents */}
       <RestaurantDocuments restaurantId={id!} />
 
