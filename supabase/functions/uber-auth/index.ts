@@ -1,11 +1,12 @@
 // Redirect to Uber OAuth with server-side client_id from secrets
 const UBER_AUTH_URL = "https://login.uber.com/oauth/v2/authorize";
+const UBER_CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
 
 Deno.serve((req) => {
   const url = new URL(req.url);
   const state = url.searchParams.get("state") ?? "";
 
-  const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
+  const clientId = UBER_CLIENT_ID;
   const redirectUri = Deno.env.get("VITE_UBER_REDIRECT_URI") ?? "";
 
   console.log("Uber Auth - clientId exists:", !!clientId, "redirectUri:", redirectUri);
