@@ -4,7 +4,7 @@ const corsHeaders = {
 };
 
 const CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
-const SCOPE = "eats.store eats.store.orders.read eats.report";
+const SCOPE = "eats.store eats.order eats.report";
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
