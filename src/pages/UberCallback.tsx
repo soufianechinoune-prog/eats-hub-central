@@ -29,6 +29,7 @@ const UberCallback = () => {
       const errorDescription = searchParams.get("error_description") || searchParams.get("error_message") || "";
       const allParams: Record<string, string> = {};
       searchParams.forEach((value, key) => { allParams[key] = value; });
+      setRawParams(allParams);
       const parsedState = parseUberOAuthState(state);
       const returnPath = parsedState?.returnPath || "/uber-connections";
 
