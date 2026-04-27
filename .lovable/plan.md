@@ -1,56 +1,55 @@
-## Contexte
+## Constat
 
-L'erreur `invalid_scope` apparaît **après** que l'utilisateur ait validé son login Uber (donc Uber a accepté d'afficher l'écran d'autorisation, mais refuse à la dernière étape). Cela invalide l'hypothèse "scope non activé sur l'app". Le vrai blocage se trouve soit côté **compte utilisateur** (pas le bon type), soit côté **scope inadapté**, soit côté **type d'application Uber** mal configuré.
+Uber refuse `invalid_scope` **avant le login**, que ce soit pour `eats.pos_provisioning` ou `eats.store eats.report`. Cela prouve que ton app Uber n'a **aucun scope activé en "User-authorized"** sur le portail Developer. Seul `client_credentials` est habilité (et il marche déjà pour récupérer les rapports).
 
-## Plan en 3 étapes
+Continuer à itérer sur le flow OAuth utilisateur est une impasse tant qu'Uber n'active pas manuellement les scopes côté portail (process opaque, 1-3 semaines, souvent refusé pour les non-POS).
 
-### Étape 1 — Diagnostic précis (capturer le vrai message d'Uber)
+## Solution : connexion manuelle par UUID
 
-Modifier `src/pages/UberCallback.tsx` pour :
-- Afficher en évidence `error_description` (pas juste `error`)
-- Afficher tous les `searchParams` reçus (utile pour voir si Uber renvoie des hints supplémentaires)
-- Logger côté console le payload complet pour debug
+Tu (super_admin) saisis directement le Store UUID Uber de chaque restaurant. Les rapports sont ensuite générés automatiquement via le token serveur qui fonctionne déjà.
 
-Cela permettra en 1 essai de savoir **exactement** pourquoi Uber refuse.
+## Changements
 
-### Étape 2 — Essayer le bon scope pour ton cas d'usage
+### 1. UI super_admin — Saisie du Store UUID
+Dans `src/components/restaurants/UberConnectionSection.tsx` (ou page dédiée) :
+- Champ "Store UUID Uber" éditable (visible uniquement super_admin)
+- Bouton "Tester" qui appelle `eats/v1/stores/{uuid}` via le token client_credentials pour valider que l'UUID existe et récupérer le nom du store
+- Sauvegarde dans `restaurants.uber_store_id` (colonne déjà existante d'après la table)
 
-`eats.pos_provisioning` est conçu pour les **fournisseurs de caisse** (POS providers). Ton cas d'usage est de **lire les données de rapport pour plusieurs restaurants d'un même manager**. Le scope adapté est :
+### 2. Page bulk de mapping (optionnel mais utile pour 50 restos)
+Nouvelle page `/uber-store-mapping-bulk` :
+- Liste tous les restaurants sans `uber_store_id`
+- Une colonne input par ligne pour coller l'UUID
+- Bouton "Valider tous" qui teste chaque UUID en parallèle et sauvegarde
 
-- **`eats.store`** : permet de lister les restaurants du compte connecté
-- **`eats.report`** : déjà obtenu côté server-to-server, peut aussi être obtenu en flow user
+### 3. Nettoyer le flow OAuth cassé
+- Masquer le bouton "Connecter via login Uber" (ou le mettre derrière un flag `feature_uber_oauth_user_flow = false`)
+- Garder le code (`uber-auth`, `UberCallback`) au cas où Uber active les scopes plus tard, mais ne plus le proposer dans l'UI
 
-Dans `supabase/functions/uber-auth/index.ts`, changer :
-```typescript
-const scopes = "eats.store eats.report";
-```
+### 4. Documentation interne
+Petite note dans `UberConnections.tsx` expliquant pourquoi on est en mode manuel :
+> "Uber n'a pas activé les scopes utilisateur sur notre application. Saisissez directement les Store UUIDs depuis le dashboard Uber Eats Manager."
 
-Si Uber renvoie encore `invalid_scope`, on saura que c'est l'app qui n'est pas habilitée pour ces scopes en flow user.
+## Comment trouver un Store UUID Uber (pour toi)
 
-### Étape 3 — Checklist de vérification côté portail Uber Developer
+1. Connecte-toi à https://merchants.ubereats.com/
+2. Sélectionne un restaurant
+3. L'URL contient l'UUID : `.../store/<UUID>/...`
+4. Copie-le → colle-le dans l'UI
 
-Te fournir une checklist courte à valider sur https://developer.uber.com/dashboard :
+## Détails techniques
 
-1. **App Type** → vérifier qu'elle supporte "Authorization Code Grant" (pas seulement "Client Credentials")
-2. **Redirect URIs** → vérifier que `https://cs-delivery-performance.com/uber-callback` est listée **exactement** (incluant le `https://`, pas de slash final)
-3. **Scopes** → onglet "Authorizations" → vérifier la colonne "User-authorized scopes" et noter lesquels sont `Active`
-4. **Sandbox vs Production** → vérifier que le client_id `wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX` n'est pas un client Sandbox tentant un flow Production
-5. **Type de compte testeur** → confirmer que le compte Uber utilisé pour le login a bien le rôle "Manager" sur au moins un restaurant Uber Eats
+- **Pas de migration DB** : `restaurants.uber_store_id` existe déjà
+- **Edge function réutilisée** : `uber-token` (client_credentials) + un nouveau `uber-validate-store` (1 GET sur l'API Uber)
+- **Sécurité** : seul le super_admin peut éditer le champ (RLS + check `is_super_admin()` côté UI)
 
-## Plan B si ça ne marche toujours pas
+## Plan B si tu veux quand même tenter l'OAuth utilisateur
 
-Si après les étapes 1–3 Uber refuse toujours, on bascule sur l'**approche manuelle** : tu (super_admin) ajoutes les UUIDs des restaurants directement dans l'UI sans flow OAuth utilisateur. On a déjà tout le code côté `client_credentials` qui marche pour récupérer les rapports. Ça prend 1h à brancher pour 50 restaurants et c'est 100% fiable.
+Je peux te rédiger un email-type à envoyer à `developers@uber.com` pour demander l'activation des scopes `eats.store` et `eats.report` en "User-authorized" sur ton app `wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX`. À envoyer en parallèle, sans bloquer sur la réponse.
 
-## Fichiers impactés (étapes 1 & 2)
+## Ce que tu obtiens
 
-- `src/pages/UberCallback.tsx` — afficher error_description complète
-- `supabase/functions/uber-auth/index.ts` — changer le scope vers `eats.store eats.report`
-
-## Ce que tu vas devoir me dire après le prochain test
-
-Une fois le code mis à jour et un nouveau test effectué :
-1. Le **`error_description` complet** affiché à l'écran
-2. La capture d'écran de l'écran Uber **juste avant** le clic "Autoriser" (s'il y a une liste de permissions affichée, je veux la voir)
-3. Le résultat de la checklist Uber Developer (étape 3)
-
-Avec ces 3 infos, on saura à 99% quelle est la vraie cause et on pourra la fixer en 1 itération.
+- ✅ 50 restaurants branchés en 1h (au lieu d'attendre Uber 3 semaines)
+- ✅ Rapports automatiques (le token serveur marche déjà)
+- ✅ Architecture multi-tenant respectée (chaque resto reste isolé par `chain_id`)
+- ✅ Possibilité de réactiver l'OAuth user plus tard sans rien casser

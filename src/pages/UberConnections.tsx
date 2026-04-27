@@ -1,364 +1,208 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { AlertTriangle, Link as LinkIcon, RefreshCw, ShieldCheck } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Info, Loader2, ShieldAlert, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { createUberOAuthState, getUberAuthUrl, refreshAccessToken, getStoreStatus, setStoreStatus, testUberScopes } from "@/services/uberService";
-import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
+import { validateUberStoreId } from "@/services/uberService";
+import { Link } from "react-router-dom";
 
 const UberConnections = () => {
   const { toast } = useToast();
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [selectedRestaurant, setSelectedRestaurant] = useState<string>("");
-  const [scopeTest, setScopeTest] = useState<any>(null);
-  const [isTestingScopes, setIsTestingScopes] = useState(false);
-  const redirectUri = `${window.location.origin}/uber-callback`;
+  const queryClient = useQueryClient();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Record<string, string>>({});
 
-  const { data: connections, refetch } = useQuery({
-    queryKey: ["uber-connections"],
+  const { data: restaurants, isLoading } = useQuery({
+    queryKey: ["uber-connections-restaurants"],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("uber_connections")
-        .select(`
-          *,
-          restaurants (name, city, uber_store_id)
-        `)
-        .order("created_at", { ascending: false });
-      return data || [];
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, city, uber_store_id, chain_id")
+        .order("name", { ascending: true });
+      if (error) throw error;
+      return data ?? [];
     },
   });
 
-  const { data: availableRestaurants } = useActiveRestaurants();
-
-  const handleConnectUber = () => {
-    // Nouveau processus : on se connecte d'abord à Uber, puis on nommera la connexion
-    const authUrl = getUberAuthUrl(createUberOAuthState({ source: "global", returnPath: "/uber-connections" }));
-    
-    // Tente d'ouvrir dans l'onglet principal; si bloqué, fallback onglet courant puis nouvel onglet
+  const handleSave = async (restaurantId: string, uuid: string) => {
+    const trimmed = uuid.trim();
+    if (!trimmed) return;
+    setSavingId(restaurantId);
     try {
-      if (window.top && window.top !== window) {
-        (window.top as Window).location.assign(authUrl);
+      const result = await validateUberStoreId(trimmed);
+      if (!result.valid) {
+        toast({ title: "UUID refusé", description: result.error, variant: "destructive" });
         return;
       }
-      window.location.assign(authUrl);
-    } catch (err) {
-      const w = window.open(authUrl, "_blank", "noopener,noreferrer");
-      if (!w) {
-        toast({
-          title: "Redirection bloquée",
-          description: "Autorisez les pop-ups puis réessayez.",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Ouverture dans un nouvel onglet",
-          description: "Terminez l'autorisation Uber puis revenez ici.",
-        });
-      }
-    }
-  };
-
-  const handleRefreshToken = async (restaurantId: string) => {
-    try {
-      await refreshAccessToken(restaurantId);
+      const { error } = await supabase
+        .from("restaurants")
+        .update({ uber_store_id: trimmed })
+        .eq("id", restaurantId);
+      if (error) throw error;
       toast({
-        title: "Succès",
-        description: "Token rafraîchi avec succès",
+        title: "Connecté",
+        description: result.name ? `Store: ${result.name}` : "Store UUID enregistré.",
       });
-      refetch();
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de rafraîchir le token",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleToggleStatus = async (restaurantId: string, currentStatus: string) => {
-    try {
-      const newStatus = currentStatus === "ONLINE" ? "OFFLINE" : "ONLINE";
-      await setStoreStatus(restaurantId, newStatus);
-      toast({
-        title: "Succès",
-        description: `Restaurant ${newStatus === "ONLINE" ? "en ligne" : "hors ligne"}`,
-      });
-      refetch();
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de changer le statut",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleTestScopes = async () => {
-    setIsTestingScopes(true);
-    try {
-      const result = await testUberScopes();
-      setScopeTest(result);
-      const availableCount = result?.client_credentials_scopes?.filter((s: any) => s.available).length ?? 0;
-      toast({
-        title: "Test Uber terminé",
-        description: `${availableCount} scope(s) applicatifs disponibles. Le scope marchand eats.pos_provisioning reste validé par OAuth.`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Erreur de test Uber",
-        description: error?.message ?? "Impossible de tester les scopes Uber",
-        variant: "destructive",
-      });
+      setDraft((p) => ({ ...p, [restaurantId]: "" }));
+      queryClient.invalidateQueries({ queryKey: ["uber-connections-restaurants"] });
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e?.message ?? String(e), variant: "destructive" });
     } finally {
-      setIsTestingScopes(false);
+      setSavingId(null);
     }
   };
 
-  const { data: storeStatuses } = useQuery({
-    queryKey: ["store-statuses", connections],
-    queryFn: async () => {
-      if (!connections) return {};
-      const statuses: Record<string, any> = {};
-      for (const conn of connections) {
-        try {
-          const status = await getStoreStatus(conn.restaurant_id);
-          statuses[conn.restaurant_id] = status;
-        } catch (error) {
-          console.error(`Failed to fetch status for ${conn.restaurant_id}:`, error);
-        }
-      }
-      return statuses;
-    },
-    enabled: !!connections && connections.length > 0,
-  });
-
-  const isTokenExpired = (expiresAt: string | null) => {
-    if (!expiresAt) return true;
-    return new Date(expiresAt) <= new Date();
-  };
-
-  const formatDate = (date: string) => {
-    return new Intl.DateTimeFormat("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(new Date(date));
-  };
+  const connected = (restaurants ?? []).filter((r) => r.uber_store_id);
+  const pending = (restaurants ?? []).filter((r) => !r.uber_store_id);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Connexions Uber Eats</h2>
           <p className="text-muted-foreground">
-            Gérez les connexions OAuth de vos restaurants
+            Brancher chaque restaurant aux rapports Uber via son Store UUID.
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={handleTestScopes} disabled={isTestingScopes}>
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            {isTestingScopes ? "Test..." : "Tester les scopes"}
+        {isSuperAdmin && pending.length > 1 && (
+          <Button asChild>
+            <Link to="/uber-store-bulk">Connexion en masse ({pending.length})</Link>
           </Button>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <LinkIcon className="mr-2 h-4 w-4" />
-              Connecter un restaurant
-            </Button>
-          </DialogTrigger>
-          <DialogContent aria-describedby="uber-connect-description">
-            <DialogHeader>
-              <DialogTitle>Connecter à Uber Eats</DialogTitle>
-            </DialogHeader>
-            <p id="uber-connect-description" className="text-sm text-muted-foreground pb-2">
-              Vous allez être redirigé vers Uber Eats pour autoriser l'accès. Une fois connecté, vous pourrez nommer cette connexion.
-            </p>
-            <div className="space-y-4 py-4">
-              <Button onClick={handleConnectUber} className="w-full">
-                Continuer vers Uber Eats
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Après autorisation, vous reviendrez ici pour associer la connexion à un restaurant.
-              </p>
-              <p className="text-xs text-muted-foreground break-all">
-                URL de redirection utilisée: <code>{redirectUri}</code>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2 h-6 px-2"
-                  onClick={() => {
-                    navigator.clipboard.writeText(redirectUri);
-                    toast({ title: "Copié", description: "URL de redirection copiée" });
-                  }}
-                >Copier</Button>
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
-        </div>
+        )}
       </div>
 
       <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Connexion multi-restaurant Uber</AlertTitle>
-        <AlertDescription>
-          Le mapping multi-restaurant nécessite le scope marchand <code className="rounded bg-muted px-1 py-0.5">eats.pos_provisioning</code>. Si Uber renvoie <code className="rounded bg-muted px-1 py-0.5">invalid_scope</code>, ce scope doit être activé côté Uber Eats Marketplace pour l'application, indépendamment du restaurant choisi.
+        <ShieldAlert className="h-4 w-4" />
+        <AlertTitle>Mode de connexion : Store UUID</AlertTitle>
+        <AlertDescription className="space-y-2">
+          <p>
+            Le flow OAuth utilisateur Uber (login marchand) renvoie <code>invalid_scope</code> car notre
+            application n'est pas autorisée pour les scopes utilisateur (Authorization Code Grant). Ces
+            scopes sont réservés aux POS providers certifiés.
+          </p>
+          <p>
+            En attendant l'éventuelle activation par Uber, nous utilisons la méthode officielle pour les
+            non-POS : enregistrer manuellement le <strong>Store UUID</strong> de chaque restaurant.
+            Les rapports financiers et de ventes sont ensuite synchronisés automatiquement par notre serveur.
+          </p>
+          <p className="text-sm">
+            <strong>Trouver un Store UUID :</strong>{" "}
+            <a
+              href="https://merchants.ubereats.com/"
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 underline"
+            >
+              merchants.ubereats.com <ExternalLink className="h-3 w-3" />
+            </a>{" "}
+            → choisir un restaurant → copier l'UUID dans l'URL (<code>.../store/&lt;UUID&gt;/...</code>).
+          </p>
         </AlertDescription>
       </Alert>
 
-      {scopeTest && (
+      <Card>
+        <CardHeader>
+          <CardTitle>Restaurants connectés ({connected.length})</CardTitle>
+          <CardDescription>Synchronisation automatique des rapports activée.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="flex h-32 items-center justify-center">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : connected.length === 0 ? (
+            <p className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant connecté.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Restaurant</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead>Store UUID</TableHead>
+                  <TableHead>Statut</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {connected.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{r.uber_store_id}</TableCell>
+                    <TableCell>
+                      <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Connecté</Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {isSuperAdmin && pending.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Diagnostic des scopes Uber</CardTitle>
+            <CardTitle>À connecter ({pending.length})</CardTitle>
+            <CardDescription>Saisissez le Store UUID Uber pour activer la synchronisation.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="rounded-md border p-3 text-sm">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">Scope marchand OAuth :</span>
-                <Badge variant="outline">eats.pos_provisioning</Badge>
-                <span className="text-muted-foreground">testé uniquement via la connexion Uber</span>
-              </div>
-            </div>
-            <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
-              {scopeTest.client_credentials_scopes?.map((item: any) => (
-                <div key={item.scope} className="rounded-md border p-3 text-sm space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <code className="break-all">{item.scope}</code>
-                    <Badge variant={item.available ? "default" : "destructive"}>
-                      {item.available ? "OK" : `Refusé ${item.status}`}
-                    </Badge>
-                  </div>
-                  {!item.available && (
-                    <p className="text-xs text-muted-foreground break-words">
-                      {JSON.stringify(item.error)}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Restaurant</TableHead>
+                  <TableHead>Ville</TableHead>
+                  <TableHead className="w-[400px]">Store UUID Uber</TableHead>
+                  <TableHead className="text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pending.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                        value={draft[r.id] ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, [r.id]: e.target.value }))}
+                        className="font-mono text-xs"
+                      />
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        disabled={!draft[r.id]?.trim() || savingId === r.id}
+                        onClick={() => handleSave(r.id, draft[r.id] ?? "")}
+                      >
+                        {savingId === r.id && <Loader2 className="mr-2 h-3 w-3 animate-spin" />}
+                        Tester &amp; connecter
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </CardContent>
         </Card>
       )}
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Connexions actives</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Restaurant</TableHead>
-                <TableHead>Ville</TableHead>
-                <TableHead>Store ID</TableHead>
-                <TableHead>Statut Store</TableHead>
-                <TableHead>Scopes</TableHead>
-                <TableHead>Date de création</TableHead>
-                <TableHead className="text-center">Statut Token</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {connections?.map((connection) => {
-                const storeStatus = storeStatuses?.[connection.restaurant_id];
-                return (
-                  <TableRow key={connection.id}>
-                    <TableCell className="font-medium">
-                      {connection.restaurants?.name}
-                    </TableCell>
-                    <TableCell>{connection.restaurants?.city}</TableCell>
-                    <TableCell>
-                      <span className="text-xs font-mono">
-                        {connection.restaurants?.uber_store_id || "N/A"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {storeStatus ? (
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant={storeStatus.status === "ONLINE" ? "default" : "secondary"}
-                          >
-                            {storeStatus.status === "ONLINE" ? "En ligne" : "Hors ligne"}
-                          </Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleToggleStatus(connection.restaurant_id, storeStatus.status)}
-                          >
-                            {storeStatus.status === "ONLINE" ? "Mettre hors ligne" : "Mettre en ligne"}
-                          </Button>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Chargement...</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {connection.scopes || "N/A"}
-                      </span>
-                    </TableCell>
-                    <TableCell>{formatDate(connection.created_at)}</TableCell>
-                    <TableCell className="text-center">
-                      {isTokenExpired(connection.expires_at) ? (
-                        <Badge variant="destructive">Expiré</Badge>
-                      ) : (
-                        <Badge className="bg-accent">Valide</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          handleRefreshToken(connection.restaurant_id)
-                        }
-                      >
-                        <RefreshCw className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-              {(!connections || connections.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground">
-                    Aucune connexion pour le moment
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      {!isSuperAdmin && pending.length > 0 && (
+        <Alert>
+          <Info className="h-4 w-4" />
+          <AlertDescription>
+            {pending.length} restaurant(s) en attente de connexion. Contactez un super-administrateur pour
+            renseigner les Store UUIDs.
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   );
 };
