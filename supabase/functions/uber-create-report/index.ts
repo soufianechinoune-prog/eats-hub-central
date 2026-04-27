@@ -12,6 +12,72 @@ interface CreateReportRequest {
   endDate: string;
 }
 
+// Returns a valid Uber access token. Tries user OAuth first (uber_connections),
+// then falls back to client_credentials (server-to-server) if no user connection.
+async function getAccessToken(supabase: any, restaurantId: string): Promise<string> {
+  const { data: connection } = await supabase
+    .from('uber_connections')
+    .select('access_token, refresh_token, expires_at')
+    .eq('restaurant_id', restaurantId)
+    .maybeSingle();
+
+  const clientId = Deno.env.get('VITE_UBER_CLIENT_ID')!;
+  const clientSecret = Deno.env.get('VITE_UBER_CLIENT_SECRET')!;
+
+  // Path 1: user OAuth available
+  if (connection?.access_token) {
+    const expiresAt = new Date(connection.expires_at);
+    if (expiresAt > new Date()) {
+      console.log('Using existing user OAuth token');
+      return connection.access_token;
+    }
+    console.log('User token expired, refreshing...');
+    const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: connection.refresh_token,
+        client_id: clientId,
+        client_secret: clientSecret,
+      }),
+    });
+    if (tokenResponse.ok) {
+      const tokenData = await tokenResponse.json();
+      await supabase
+        .from('uber_connections')
+        .update({
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
+        })
+        .eq('restaurant_id', restaurantId);
+      return tokenData.access_token;
+    }
+    console.warn('Refresh token failed, falling back to client_credentials');
+  }
+
+  // Path 2: fallback to client_credentials (server-to-server)
+  console.log('Using client_credentials fallback');
+  const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: clientId,
+      client_secret: clientSecret,
+      scope: 'eats.report',
+    }),
+  });
+
+  if (!tokenResponse.ok) {
+    const errText = await tokenResponse.text();
+    throw new Error(`Failed to get client_credentials token: ${errText}`);
+  }
+  const tokenData = await tokenResponse.json();
+  return tokenData.access_token;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -28,7 +94,7 @@ Deno.serve(async (req) => {
     
     console.log('Report request:', { restaurantId, reportType, startDate, endDate });
 
-    // Fetch restaurant and connection details
+    // Fetch restaurant
     const { data: restaurant, error: restaurantError } = await supabase
       .from('restaurants')
       .select('uber_store_id')
@@ -38,55 +104,12 @@ Deno.serve(async (req) => {
     if (restaurantError || !restaurant) {
       throw new Error('Restaurant not found');
     }
-
-    const { data: connection, error: connectionError } = await supabase
-      .from('uber_connections')
-      .select('access_token, refresh_token, expires_at')
-      .eq('restaurant_id', restaurantId)
-      .single();
-
-    if (connectionError || !connection) {
-      throw new Error('Uber connection not found for this restaurant');
+    if (!restaurant.uber_store_id) {
+      throw new Error('Restaurant has no uber_store_id configured');
     }
 
-    // Check if token needs refresh
-    let accessToken = connection.access_token;
-    const expiresAt = new Date(connection.expires_at);
-    const now = new Date();
-
-    if (expiresAt <= now) {
-      console.log('Token expired, refreshing...');
-      
-      const clientId = Deno.env.get('VITE_UBER_CLIENT_ID')!;
-      const clientSecret = Deno.env.get('VITE_UBER_CLIENT_SECRET')!;
-      
-      const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          grant_type: 'refresh_token',
-          refresh_token: connection.refresh_token,
-          client_id: clientId,
-          client_secret: clientSecret,
-        }),
-      });
-
-      if (!tokenResponse.ok) {
-        throw new Error('Failed to refresh access token');
-      }
-
-      const tokenData = await tokenResponse.json();
-      accessToken = tokenData.access_token;
-
-      await supabase
-        .from('uber_connections')
-        .update({
-          access_token: tokenData.access_token,
-          refresh_token: tokenData.refresh_token,
-          expires_at: new Date(Date.now() + tokenData.expires_in * 1000).toISOString(),
-        })
-        .eq('restaurant_id', restaurantId);
-    }
+    // Get access token (user OAuth or client_credentials fallback)
+    const accessToken = await getAccessToken(supabase, restaurantId);
 
     // Create report via Uber API
     const reportPayload = {
