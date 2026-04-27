@@ -26,24 +26,24 @@ const UberCallback = () => {
       const state = searchParams.get("state");
       const error = searchParams.get("error");
       const errorDescription = searchParams.get("error_description") || searchParams.get("error_message") || "";
+      const allParams: Record<string, string> = {};
+      searchParams.forEach((value, key) => { allParams[key] = value; });
       const parsedState = parseUberOAuthState(state);
       const returnPath = parsedState?.returnPath || "/uber-connections";
 
       if (error) {
-        const isInvalidScope = error === "invalid_scope";
-        const description = isInvalidScope
-          ? `Uber refuse le scope ${UBER_POS_PROVISIONING_SCOPE}. Ce scope doit être activé côté Uber Eats Marketplace pour cette application.`
-          : `Uber a refusé l'autorisation: ${error}${errorDescription ? ` — ${errorDescription}` : ""}`;
+        console.error("Uber OAuth error - full payload:", allParams);
+        const description = errorDescription
+          ? `${error} — ${errorDescription}`
+          : `Uber a refusé l'autorisation: ${error}`;
         setErrorDetails({ error, description, returnPath });
         toast({
-          title: "Erreur d'autorisation",
+          title: "Erreur d'autorisation Uber",
           description,
           variant: "destructive",
         });
         setStatus("error");
-        if (!isInvalidScope) {
-          setTimeout(() => navigate(returnPath), 4000);
-        }
+        // Don't auto-redirect on errors so the user can read the details
         return;
       }
 
