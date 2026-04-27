@@ -190,7 +190,7 @@ export const bulkLinkStores = async ({
             address: action.newRestaurantAddress ?? store.address ?? null,
             chain_id: action.chainId,
             uber_store_id: store.id,
-            status: "actif",
+            is_active: true,
           } as any)
           .select("id")
           .single();
