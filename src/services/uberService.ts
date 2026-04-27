@@ -4,6 +4,83 @@ const UBER_AUTH_URL = "https://login.uber.com/oauth/v2/authorize";
 const UBER_TOKEN_URL = "https://login.uber.com/oauth/v2/token";
 const UBER_API_BASE = "https://api.uber.com";
 
+export type UberOAuthState = {
+  restaurantId?: string | null;
+  source: "restaurant" | "global" | "legacy";
+  attemptId: string;
+  ts: number;
+  returnPath?: string;
+};
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export const createUberOAuthState = ({
+  restaurantId,
+  source = restaurantId ? "restaurant" : "global",
+  returnPath,
+}: {
+  restaurantId?: string | null;
+  source?: "restaurant" | "global";
+  returnPath?: string;
+} = {}): string => {
+  const payload: UberOAuthState = {
+    restaurantId: restaurantId || null,
+    source,
+    attemptId: crypto.randomUUID(),
+    ts: Date.now(),
+    returnPath: returnPath || (restaurantId ? `/restaurants/${restaurantId}` : "/uber-connections"),
+  };
+
+  return btoa(encodeURIComponent(JSON.stringify(payload)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+};
+
+export const parseUberOAuthState = (state: string | null): UberOAuthState | null => {
+  if (!state) return null;
+
+  if (UUID_REGEX.test(state)) {
+    return {
+      restaurantId: state,
+      source: "legacy",
+      attemptId: "legacy",
+      ts: 0,
+      returnPath: `/restaurants/${state}`,
+    };
+  }
+
+  if (state === "temp") {
+    return {
+      restaurantId: null,
+      source: "legacy",
+      attemptId: "legacy-temp",
+      ts: 0,
+      returnPath: "/uber-connections",
+    };
+  }
+
+  try {
+    const normalized = state.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = decodeURIComponent(atob(normalized));
+    const parsed = JSON.parse(decoded) as Partial<UberOAuthState>;
+
+    if (!parsed || typeof parsed !== "object" || typeof parsed.attemptId !== "string") {
+      return null;
+    }
+
+    return {
+      restaurantId: parsed.restaurantId || null,
+      source: parsed.source === "restaurant" || parsed.source === "global" ? parsed.source : "legacy",
+      attemptId: parsed.attemptId,
+      ts: typeof parsed.ts === "number" ? parsed.ts : 0,
+      returnPath: typeof parsed.returnPath === "string" ? parsed.returnPath : "/uber-connections",
+    };
+  } catch (_) {
+    return null;
+  }
+};
+
 // Note: These should be set as environment variables or secrets
 const getUberConfig = () => ({
   clientId: import.meta.env.VITE_UBER_CLIENT_ID || "",
