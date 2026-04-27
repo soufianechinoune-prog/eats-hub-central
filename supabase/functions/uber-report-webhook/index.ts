@@ -130,7 +130,31 @@ Deno.serve(async (req) => {
           'DOWNTIME_REPORT',
         ];
         
-        if (parseableReports.includes(body.report_type)) {
+        // Route PAYMENT_DETAILS_REPORT to parse-payment-report
+        if (body.report_type === 'PAYMENT_DETAILS_REPORT') {
+          console.log('Routing PAYMENT_DETAILS_REPORT to parse-payment-report');
+          const { data: reportData } = await supabase
+            .from('reports')
+            .select('restaurant_id')
+            .eq('id', report.id)
+            .maybeSingle();
+
+          if (reportData && body.report_metadata.sections.length > 0) {
+            const section = body.report_metadata.sections[0];
+            try {
+              await supabase.functions.invoke('parse-payment-report', {
+                body: {
+                  reportId: report.id,
+                  downloadUrl: section.download_url,
+                  restaurantId: reportData.restaurant_id,
+                },
+              });
+              console.log('Payment report parsed successfully');
+            } catch (parseError) {
+              console.error('Failed to parse payment report:', parseError);
+            }
+          }
+        } else if (parseableReports.includes(body.report_type)) {
           console.log('Auto-parsing report:', body.report_type);
           
           // Get restaurant_id from report
