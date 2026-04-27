@@ -8,10 +8,7 @@ import { UberEatsIcon } from "@/components/icons/PlatformIcons";
 import { CheckCircle2, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-
-const UBER_CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
-const UBER_REDIRECT_URI = "https://cs-delivery-performance.com/uber-callback";
-const UBER_SCOPES = "eats.report";
+import { createUberOAuthState, getUberAuthUrl } from "@/services/uberService";
 
 interface UberConnectionSectionProps {
   restaurantId: string;
@@ -35,14 +32,12 @@ export const UberConnectionSection = ({ restaurantId }: UberConnectionSectionPro
   });
 
   const startOAuth = () => {
-    const params = new URLSearchParams({
-      client_id: UBER_CLIENT_ID,
-      response_type: "code",
-      scope: UBER_SCOPES,
-      redirect_uri: UBER_REDIRECT_URI,
-      state: restaurantId,
+    const state = createUberOAuthState({
+      restaurantId,
+      source: "restaurant",
+      returnPath: `/restaurants/${restaurantId}`,
     });
-    window.location.href = `https://login.uber.com/oauth/v2/authorize?${params.toString()}`;
+    window.location.assign(getUberAuthUrl(state));
   };
 
   return (
@@ -78,7 +73,7 @@ export const UberConnectionSection = ({ restaurantId }: UberConnectionSectionPro
             </div>
             <Button variant="outline" onClick={startOAuth}>
               <Link2 className="h-4 w-4 mr-2" />
-              Reconnecter
+              Réessayer avec un autre compte Uber
             </Button>
           </div>
         ) : (

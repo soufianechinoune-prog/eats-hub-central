@@ -1,37 +1,45 @@
-## Objectif
+Plan de correction du flux “Connecter Uber Eats”
 
-Remettre les 3 scopes Uber d'origine dans le flux OAuth Authorization Code afin de tester ce que le portail Uber autorise réellement à l'écran de consentement marchand.
+Objectif : quand tu cliques sur “Connecter Uber Eats”, tu dois pouvoir lancer une nouvelle tentative propre, idéalement arriver à l’écran Uber pour saisir/changer le compte, et ne plus rester bloqué par une ancienne tentative ou une URL OAuth incohérente.
 
-## Changement
+1. Centraliser la redirection Uber
+- Modifier le bouton restaurant pour ne plus construire directement l’URL `login.uber.com` dans le frontend.
+- Utiliser systématiquement la fonction backend `uber-auth`, comme la page globale “Uber Connections”.
+- Résultat : un seul endroit contrôle le `client_id`, le `redirect_uri`, le `scope` et le `state`.
 
-**Fichier** : `src/components/restaurants/UberConnectionSection.tsx`
+2. Rendre chaque tentative unique
+- Envoyer un `state` plus robuste, contenant :
+  - le restaurant concerné,
+  - un identifiant unique de tentative,
+  - le timestamp.
+- Objectif : éviter qu’une tentative précédente, par exemple Argenteuil, puisse être confondue avec une nouvelle tentative sur un autre restaurant.
 
-**Modification unique** :
+3. Forcer une reconnexion / sélection de compte Uber quand possible
+- Ajouter des paramètres OAuth de type `prompt=login` ou équivalent si Uber les accepte.
+- Objectif : éviter que Uber réutilise silencieusement une session navigateur précédente.
+- Si Uber ignore ce paramètre, le flux restera quand même propre côté application.
 
-```ts
-// Avant (état actuel)
-const UBER_SCOPES = "eats.report";
+4. Adapter le callback Uber
+- Le callback devra comprendre le nouveau `state` enrichi.
+- Si le `state` contient un restaurant valide, enregistrer la connexion pour ce restaurant.
+- Si le `state` est temporaire/global, conserver le comportement actuel vers la page de nomination.
 
-// Après
-const UBER_SCOPES = "eats.store eats.store.orders.read eats.report";
-```
+5. Améliorer le message d’erreur
+- Si Uber renvoie `invalid_scope`, afficher un message clair dans l’app :
+  “Uber refuse l’autorisation demandée avant connexion. Ce n’est pas lié au restaurant sélectionné. Le scope demandé n’est probablement pas activé pour la connexion utilisateur.”
+- Rediriger vers le restaurant d’origine plutôt que vers une page générique, quand on connaît le restaurant.
 
-Aucun autre changement nécessaire — le reste du flux OAuth (redirect URI, state, callback handling) reste identique.
+6. Ajouter une option de retentative claire
+- Sur la carte “Connexion Uber Eats”, ajouter un bouton ou texte du type :
+  “Réessayer avec un autre compte Uber”.
+- Ce bouton relance une tentative fraîche, sans dépendre de l’état précédent.
 
-## Procédure de test (après déploiement)
-
-1. Aller sur la fiche d'un restaurant en **production** (`https://cs-delivery-performance.com/restaurants/...`)
-2. Cliquer "Connecter Uber Eats"
-3. Observer l'écran de consentement Uber :
-   - **Cas A** — Les 3 permissions s'affichent et l'acceptation fonctionne → callback OK → on garde les 3 scopes ✅
-   - **Cas B** — Uber affiche une erreur `invalid_scope` ou redirige avec `error=invalid_scope&error_description=...` → on retire le(s) scope(s) refusé(s) et on retombe progressivement (d'abord retirer `eats.store`, puis `eats.store.orders.read` si nécessaire)
-4. Vérifier dans la table `uber_connections` que la colonne `scope` contient bien ce qui a été accordé par Uber (Uber peut renvoyer un sous-ensemble des scopes demandés dans la réponse token)
-
-## Point de vigilance
-
-Uber peut accepter le consentement mais ne renvoyer qu'un **sous-ensemble** des scopes dans la réponse `/oauth/v2/token` (champ `scope`). Le `UberCallback.tsx` actuel stocke bien ce champ tel que retourné, donc on aura la vérité terrain dans la base après le test.
-
-## Suite logique selon résultat
-
-- Si les 3 passent → on pourra commencer à exploiter `eats.store.orders.read` pour du tracking de commandes en temps réel (vs les CSV actuels)
-- Si seul `eats.report` passe → on remet la valeur réduite et on reste sur le modèle CSV/reports actuel
+Détails techniques
+- Fichiers concernés :
+  - `src/components/restaurants/UberConnectionSection.tsx`
+  - `src/services/uberService.ts`
+  - `src/pages/UberCallback.tsx`
+  - `supabase/functions/uber-auth/index.ts`
+- Pas de changement de structure de base de données nécessaire.
+- Aucun token existant à nettoyer : la table `uber_connections` est actuellement vide.
+- Le correctif ne garantit pas qu’Uber acceptera le scope `eats.report` en login utilisateur, mais il garantit un flux propre, retentable, non lié à Argenteuil, et avec des messages compréhensibles.
