@@ -162,41 +162,45 @@ const UberCallback = () => {
                 />
               </svg>
             </div>
-            <h2 className="text-2xl font-semibold">Autorisation Uber bloquée</h2>
-            {errorDetails?.error === "invalid_scope" ? (
-              <div className="mx-auto max-w-2xl space-y-4 text-left">
-                <p className="text-center text-muted-foreground">
-                  Uber refuse le scope nécessaire au mapping multi-restaurant.
-                </p>
-                <div className="rounded-md border bg-card p-4 text-sm shadow-sm space-y-3">
-                  <div className="grid gap-2 sm:grid-cols-[180px_1fr]">
-                    <span className="font-medium text-muted-foreground">Scope demandé</span>
-                    <code className="break-all rounded bg-muted px-2 py-1">{UBER_POS_PROVISIONING_SCOPE}</code>
-                    <span className="font-medium text-muted-foreground">Client Uber</span>
-                    <code className="break-all rounded bg-muted px-2 py-1">{UBER_CLIENT_ID}</code>
-                    <span className="font-medium text-muted-foreground">URL de redirection</span>
-                    <code className="break-all rounded bg-muted px-2 py-1">{window.location.origin}/uber-callback</code>
-                    <span className="font-medium text-muted-foreground">Erreur brute</span>
-                    <code className="break-all rounded bg-muted px-2 py-1">{errorDetails.error}</code>
-                  </div>
-                  <p className="text-muted-foreground">
-                    Ce n'est pas lié au restaurant sélectionné : l'application Uber doit être whitelistée pour
-                    <code className="mx-1 rounded bg-muted px-1 py-0.5">{UBER_POS_PROVISIONING_SCOPE}</code>
-                    avant que la page de connexion Uber puisse s'ouvrir.
-                  </p>
-                </div>
-                <div className="flex justify-center gap-3">
-                  <Button variant="outline" onClick={() => navigate(errorDetails.returnPath)}>
-                    Retour
-                  </Button>
-                  <Button onClick={() => navigate("/uber-connections")}>Connexions Uber</Button>
-                </div>
-              </div>
-            ) : (
-              <p className="text-muted-foreground">
-                Redirection vers la page des connexions...
+            <h2 className="text-2xl font-semibold">Autorisation Uber refusée</h2>
+            <div className="mx-auto max-w-3xl space-y-4 text-left">
+              <p className="text-center text-muted-foreground">
+                {errorDetails?.description || "Uber n'a pas autorisé la connexion."}
               </p>
-            )}
+              <div className="rounded-md border bg-card p-4 text-sm shadow-sm space-y-3">
+                <div className="font-medium text-foreground">Détails techniques renvoyés par Uber</div>
+                <div className="grid gap-2 sm:grid-cols-[200px_1fr]">
+                  <span className="font-medium text-muted-foreground">Erreur</span>
+                  <code className="break-all rounded bg-muted px-2 py-1">{errorDetails?.error || "—"}</code>
+                  <span className="font-medium text-muted-foreground">Description complète</span>
+                  <code className="break-all rounded bg-muted px-2 py-1 whitespace-pre-wrap">
+                    {rawParams.error_description || rawParams.error_message || "(aucune description fournie par Uber)"}
+                  </code>
+                  <span className="font-medium text-muted-foreground">Scopes demandés</span>
+                  <code className="break-all rounded bg-muted px-2 py-1">eats.store eats.report</code>
+                  <span className="font-medium text-muted-foreground">Client Uber</span>
+                  <code className="break-all rounded bg-muted px-2 py-1">{UBER_CLIENT_ID}</code>
+                  <span className="font-medium text-muted-foreground">URL de redirection</span>
+                  <code className="break-all rounded bg-muted px-2 py-1">{window.location.origin}/uber-callback</code>
+                </div>
+                {Object.keys(rawParams).length > 0 && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
+                      Voir tous les paramètres bruts ({Object.keys(rawParams).length})
+                    </summary>
+                    <pre className="mt-2 overflow-auto rounded bg-muted p-2">
+                      {JSON.stringify(rawParams, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+              <div className="flex justify-center gap-3">
+                <Button variant="outline" onClick={() => navigate(errorDetails?.returnPath || "/uber-connections")}>
+                  Retour
+                </Button>
+                <Button onClick={() => navigate("/uber-connections")}>Connexions Uber</Button>
+              </div>
+            </div>
           </>
         )}
       </div>
