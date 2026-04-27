@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { exchangeCodeForToken, fetchStores, activateStoreIntegration, parseUberOAuthState } from "@/services/uberService";
+import { exchangeCodeForToken, parseUberOAuthState } from "@/services/uberService";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -14,7 +14,7 @@ const UberCallback = () => {
   useEffect(() => {
     const handleCallback = async () => {
       const code = searchParams.get("code");
-      const state = searchParams.get("state"); // restaurant_id
+      const state = searchParams.get("state");
       const error = searchParams.get("error");
       const parsedState = parseUberOAuthState(state);
       const returnPath = parsedState?.returnPath || "/uber-connections";
@@ -24,7 +24,7 @@ const UberCallback = () => {
         toast({
           title: "Erreur d'autorisation",
           description: isInvalidScope
-            ? "Uber refuse l'autorisation demandée avant connexion. Ce n'est pas lié au restaurant sélectionné : le scope demandé n'est probablement pas activé pour une connexion utilisateur."
+            ? "Uber refuse l'autorisation demandée avant connexion. Le scope demandé n'est probablement pas activé pour une connexion utilisateur."
             : `Uber a refusé l'autorisation: ${error}`,
           variant: "destructive",
         });
@@ -47,59 +47,38 @@ const UberCallback = () => {
       try {
         // Exchange code for token
         const tokenData = await exchangeCodeForToken(code);
-
-        // Calculate expiration date
         const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-        // If state is a valid UUID (came from a restaurant detail page),
-        // assign the connection directly to that restaurant.
-        const stateRestaurantId = parsedState?.restaurantId || null;
-
+        // Always create a "master" connection (restaurant_id NULL, is_master=true).
+        // The user will assign stores → restaurants on the next page.
         const { data: newConnection, error: insertError } = await supabase
           .from("uber_connections")
           .insert({
-            restaurant_id: stateRestaurantId,
+            restaurant_id: null,
+            is_master: true,
+            account_label: `Compte Uber Manager (${new Date().toLocaleDateString("fr-FR")})`,
             access_token: tokenData.access_token,
             refresh_token: tokenData.refresh_token,
             token_type: tokenData.token_type,
             expires_at: expiresAt,
             scopes: tokenData.scope,
             raw_payload: tokenData,
-          })
+          } as any)
           .select("id")
           .single();
 
         if (insertError) throw insertError;
 
-        // Fetch stores and activate integration
-        try {
-          const storesData = await fetchStores(tokenData.access_token);
-          
-          if (storesData.stores && storesData.stores.length > 0) {
-            const firstStore = storesData.stores[0];
-            // Activate integration for the first store
-            await activateStoreIntegration(tokenData.access_token, firstStore.id);
-          }
-        } catch (storeError) {
-          console.error("Error fetching/activating stores:", storeError);
-          // Continue anyway, we can fetch stores later
-        }
-
         setStatus("success");
         toast({
-          title: "Connexion réussie",
-          description: "Vous allez maintenant nommer cette connexion",
+          title: "Connexion Uber réussie",
+          description: "Récupération de la liste de vos restaurants...",
         });
 
-        // If we already know the restaurant, go back to its detail page.
-        // Otherwise, route to the naming page so the user can pick one.
+        // Redirect to the multi-store linking page
         setTimeout(() => {
-          if (stateRestaurantId) {
-            navigate(`/restaurants/${stateRestaurantId}`);
-          } else {
-            navigate(`/uber-naming?connection=${newConnection.id}`);
-          }
-        }, 2000);
+          navigate(`/uber-link-stores?connection=${newConnection.id}`);
+        }, 1200);
       } catch (error) {
         console.error("Error handling Uber callback:", error);
         setStatus("error");

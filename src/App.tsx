@@ -32,6 +32,7 @@ const Exports = React.lazy(() => import("./pages/Exports"));
 const Reports = React.lazy(() => import("./pages/Reports"));
 const Disputes = React.lazy(() => import("./pages/Disputes"));
 const UberNaming = React.lazy(() => import("./pages/UberNaming"));
+const UberLinkStores = React.lazy(() => import("./pages/UberLinkStores"));
 const MenuEditor = React.lazy(() => import("./pages/MenuEditor"));
 const DataEntry = React.lazy(() => import("./pages/DataEntry"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
@@ -139,6 +140,7 @@ const App = () => {
                     <Route path="/restaurants/:restaurantId/menu" element={<P><RestaurantMenu /></P>} />
                     <Route path="/uber-connections" element={<P><AppLayout><UberConnections /></AppLayout></P>} />
                     <Route path="/uber-naming" element={<P><AppLayout><UberNaming /></AppLayout></P>} />
+                    <Route path="/uber-link-stores" element={<P><AppLayout><UberLinkStores /></AppLayout></P>} />
                     <Route path="/exports" element={<P><AppLayout><Exports /></AppLayout></P>} />
                     <Route path="/reports" element={<P><Reports /></P>} />
                     <Route path="/menu-editor" element={<P><MenuEditor /></P>} />

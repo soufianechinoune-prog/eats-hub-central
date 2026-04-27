@@ -3415,12 +3415,71 @@ export type Database = {
           },
         ]
       }
+      uber_connection_stores: {
+        Row: {
+          activated_at: string | null
+          connection_id: string
+          created_at: string
+          id: string
+          pos_activation_error: string | null
+          pos_activation_status: string
+          restaurant_id: string
+          store_address: string | null
+          store_name: string | null
+          uber_store_id: string
+          updated_at: string
+        }
+        Insert: {
+          activated_at?: string | null
+          connection_id: string
+          created_at?: string
+          id?: string
+          pos_activation_error?: string | null
+          pos_activation_status?: string
+          restaurant_id: string
+          store_address?: string | null
+          store_name?: string | null
+          uber_store_id: string
+          updated_at?: string
+        }
+        Update: {
+          activated_at?: string | null
+          connection_id?: string
+          created_at?: string
+          id?: string
+          pos_activation_error?: string | null
+          pos_activation_status?: string
+          restaurant_id?: string
+          store_address?: string | null
+          store_name?: string | null
+          uber_store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_connection_stores_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "uber_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_connection_stores_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uber_connections: {
         Row: {
           access_token: string | null
+          account_label: string | null
           created_at: string
           expires_at: string | null
           id: string
+          is_master: boolean
           raw_payload: Json | null
           refresh_token: string | null
           restaurant_id: string | null
@@ -3429,9 +3488,11 @@ export type Database = {
         }
         Insert: {
           access_token?: string | null
+          account_label?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          is_master?: boolean
           raw_payload?: Json | null
           refresh_token?: string | null
           restaurant_id?: string | null
@@ -3440,9 +3501,11 @@ export type Database = {
         }
         Update: {
           access_token?: string | null
+          account_label?: string | null
           created_at?: string
           expires_at?: string | null
           id?: string
+          is_master?: boolean
           raw_payload?: Json | null
           refresh_token?: string | null
           restaurant_id?: string | null
@@ -3453,7 +3516,7 @@ export type Database = {
           {
             foreignKeyName: "uber_connections_restaurant_id_fkey"
             columns: ["restaurant_id"]
-            isOneToOne: true
+            isOneToOne: false
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
