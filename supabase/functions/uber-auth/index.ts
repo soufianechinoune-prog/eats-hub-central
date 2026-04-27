@@ -11,7 +11,9 @@ Deno.serve((req) => {
 
   console.log("Uber Auth - clientId exists:", !!clientId, "redirectUri:", redirectUri);
 
-  const scopes = "eats.report";
+  // User OAuth flow used to authorize merchant stores for POS provisioning.
+  // Uber rejects report/client-credential scopes in this authorization-code flow.
+  const scopes = "eats.pos_provisioning";
 
   if (!clientId || !redirectUri) {
     console.error("Missing Uber config:", { clientId: !!clientId, redirectUri: !!redirectUri });
