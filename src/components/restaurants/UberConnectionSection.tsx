@@ -11,7 +11,7 @@ import { fr } from "date-fns/locale";
 
 const UBER_CLIENT_ID = "wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX";
 const UBER_REDIRECT_URI = "https://cs-delivery-performance.com/uber-callback";
-const UBER_SCOPES = "eats.store eats.store.orders.read eats.report";
+const UBER_SCOPES = "eats.report";
 
 interface UberConnectionSectionProps {
   restaurantId: string;
