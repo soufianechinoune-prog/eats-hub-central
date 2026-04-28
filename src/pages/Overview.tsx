@@ -22,6 +22,7 @@ import { useNetworkStats } from "@/hooks/useNetworkStats";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
