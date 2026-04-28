@@ -295,6 +295,83 @@ serve(async (req) => {
       );
     }
 
+    // ─── MODE BACKFILL ────────────────────────────────────────────────────
+    // Boucle sur N mois en arrière (par défaut 24) en granularité "day".
+    if (mode === "backfill") {
+      if (!resolvedChainId) {
+        return new Response(
+          JSON.stringify({ error: "chain_connection_id requis" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const chainId = resolvedChainId;
+      const monthsBack = Math.max(1, Math.min(48, Number(body.months_back ?? 24)));
+
+      // Récupérer les restos & populer le mapping
+      const profile = await getUserProfile(token);
+      const restosMeta: { id: number; nom: string }[] = profile?.restos ?? [];
+      const splashIds = restosMeta.map((r: any) => r.id);
+      if (restosMeta.length > 0) {
+        await supabaseAdmin
+          .from("splash360_restaurant_mapping")
+          .upsert(
+            restosMeta.map((r: any) => ({
+              restaurant_splash_id: r.id,
+              splash_name: r.nom,
+              chain_id: chainId,
+            })),
+            { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
+          );
+      }
+
+      const now = new Date();
+      const months: { year: number; month: number }[] = [];
+      for (let i = 0; i < monthsBack; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+      }
+
+      let totalInserted = 0;
+      const perMonth: any[] = [];
+      for (const { year: y, month: m } of months) {
+        try {
+          const inserted = await runSync({
+            supabase: supabaseAdmin,
+            token,
+            year: y,
+            month: m,
+            granularity: "day",
+            splashIds,
+            networkOnly: false,
+            chainId,
+          });
+          totalInserted += inserted;
+          perMonth.push({ period: `${y}-${String(m).padStart(2, "0")}`, inserted });
+          console.log(`[Splash360] Backfill ${y}-${String(m).padStart(2, "0")} → ${inserted} rows`);
+        } catch (e: any) {
+          perMonth.push({ period: `${y}-${String(m).padStart(2, "0")}`, error: e.message });
+        }
+      }
+
+      if (chain_connection_id) {
+        await supabaseAdmin
+          .from("chain_pos_connections")
+          .update({ last_sync_at: new Date().toISOString() })
+          .eq("id", chain_connection_id);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: "backfill",
+          months_back: monthsBack,
+          total_rows: totalInserted,
+          per_month: perMonth,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ─── MODE SYNC ────────────────────────────────────────────────────────
     if (mode === "sync") {
       const supabase = createClient(

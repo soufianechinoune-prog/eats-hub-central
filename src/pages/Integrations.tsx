@@ -8,6 +8,7 @@ import {
   useConnectPOS,
   useDisconnectPOS,
   useSyncPOS,
+  useBackfillPOS,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -47,6 +48,7 @@ export default function Integrations() {
   const connect = useConnectPOS();
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
+  const backfill = useBackfillPOS();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
@@ -142,6 +144,31 @@ export default function Integrations() {
       toast({
         title: "Erreur de synchronisation",
         description: e?.message || "Impossible de synchroniser.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleBackfill = async () => {
+    if (!activeConnection) return;
+    toast({
+      title: "Backfill lancé",
+      description: "Import des 24 derniers mois en cours… (peut prendre 2-5 min)",
+    });
+    try {
+      const result = await backfill.mutateAsync({
+        connectionId: activeConnection.id,
+        connectorId: activeConnection.connector_id,
+        monthsBack: 24,
+      });
+      toast({
+        title: "Backfill terminé ✓",
+        description: `${result.total_rows ?? 0} lignes importées sur ${result.months_back} mois.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erreur de backfill",
+        description: e?.message || "Impossible de faire le backfill.",
         variant: "destructive",
       });
     }
@@ -285,14 +312,29 @@ export default function Integrations() {
                           size="sm"
                           className="flex-1 gap-2"
                           onClick={handleSync}
-                          disabled={sync.isPending}
+                          disabled={sync.isPending || backfill.isPending}
                         >
                           {sync.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <RefreshCw className="h-4 w-4" />
                           )}
-                          Synchroniser
+                          Synchroniser (mois en cours)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="gap-2"
+                          onClick={handleBackfill}
+                          disabled={sync.isPending || backfill.isPending}
+                          title="Importe les 24 derniers mois en granularité jour"
+                        >
+                          {backfill.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Backfill 24 mois
                         </Button>
                         <Button
                           variant="outline"

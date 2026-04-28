@@ -99,6 +99,32 @@ export function useSyncPOS() {
   });
 }
 
+/** Lance un backfill historique (24 mois par défaut) pour une connexion POS. */
+export function useBackfillPOS() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { connectionId: string; connectorId: string; monthsBack?: number }) => {
+      if (input.connectorId !== "splash360") {
+        throw new Error(`Connecteur ${input.connectorId} non supporté pour le backfill`);
+      }
+      const { data, error } = await supabase.functions.invoke("sync-splash360", {
+        body: {
+          mode: "backfill",
+          chain_connection_id: input.connectionId,
+          months_back: input.monthsBack ?? 24,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { total_rows: number; months_back: number; per_month: any[] };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+    },
+  });
+}
+
 /** Connecter (ou reconnecter) une caisse à la chaîne active. */
 export function useConnectPOS() {
   const queryClient = useQueryClient();
