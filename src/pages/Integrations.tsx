@@ -149,6 +149,31 @@ export default function Integrations() {
     }
   };
 
+  const handleBackfill = async () => {
+    if (!activeConnection) return;
+    toast({
+      title: "Backfill lancé",
+      description: "Import des 24 derniers mois en cours… (peut prendre 2-5 min)",
+    });
+    try {
+      const result = await backfill.mutateAsync({
+        connectionId: activeConnection.id,
+        connectorId: activeConnection.connector_id,
+        monthsBack: 24,
+      });
+      toast({
+        title: "Backfill terminé ✓",
+        description: `${result.total_rows ?? 0} lignes importées sur ${result.months_back} mois.`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erreur de backfill",
+        description: e?.message || "Impossible de faire le backfill.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const sortedConnectors = useMemo(
     () =>
       [...connectors].sort((a, b) => {
