@@ -340,7 +340,9 @@ export default function Integrations() {
                           ) : (
                             <RefreshCw className="h-4 w-4" />
                           )}
-                          Backfill 24 mois
+                          {backfill.isPending && backfillProgress
+                            ? `Backfill ${backfillProgress.done}/${backfillProgress.total}`
+                            : "Backfill 24 mois"}
                         </Button>
                         <Button
                           variant="outline"
