@@ -216,6 +216,21 @@ export function PlatformRevenueSplit({
             </p>
           </div>
         )}
+
+        {/* Fallback : caisse connectée mais aucune donnée sur la période */}
+        {!hasCash && cashConnected && (
+          <div className="pt-2 border-t border-border/40">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+              <Info className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                Caisse Splash360 : <span className="font-medium text-foreground">aucune donnée</span> sur la période sélectionnée.
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground/80 pl-5 mt-1">
+              Vérifie la couverture en lançant un backfill depuis la page Intégrations.
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
