@@ -22,6 +22,7 @@ import { useNetworkStats } from "@/hooks/useNetworkStats";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -382,6 +383,8 @@ const Overview = () => {
     endDate,
     chainId: analyticsCtx.selectedChainId,
   });
+  const { data: activePosConnection } = useActiveChainPOSConnection();
+  const cashConnected = !!activePosConnection && activePosConnection.is_active;
 
   const MONTHS_FULL = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -663,6 +666,7 @@ const Overview = () => {
               cashTotal={cashRevenueData?.totalCash ?? 0}
               cashDaysWithData={cashRevenueData?.daysWithData}
               cashVariation={cashRevenueData?.cashVariation ?? null}
+              cashConnected={cashConnected}
             />
           </div>
 

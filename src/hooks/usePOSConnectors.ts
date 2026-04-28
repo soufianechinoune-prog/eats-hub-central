@@ -95,6 +95,12 @@ export function useSyncPOS() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      // Forcer le refresh de tout ce qui consomme la donnée caisse Splash360
+      queryClient.invalidateQueries({ queryKey: ["network-cash-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["network-stats-restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["network-stats-sales-prev"] });
     },
   });
 }
@@ -159,6 +165,13 @@ export function useBackfillPOS() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      // Refresh complet du dashboard après un backfill
+      queryClient.invalidateQueries({ queryKey: ["network-cash-revenue"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["overview-payouts"] });
+      queryClient.invalidateQueries({ queryKey: ["network-stats-restaurants"] });
+      queryClient.invalidateQueries({ queryKey: ["network-stats-sales-prev"] });
     },
   });
 }

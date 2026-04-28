@@ -164,10 +164,17 @@ export default function Integrations() {
         monthsBack: 24,
         onProgress: ({ done, total }) => setBackfillProgress({ done, total }),
       });
-      const errorsCount = (result.per_month ?? []).filter((m: any) => m.error).length;
+      const errorMonths = (result.per_month ?? []).filter((m: any) => m.error);
+      const okMonths = (result.per_month ?? []).filter((m: any) => !m.error);
+      const errorsCount = errorMonths.length;
       toast({
-        title: "Backfill terminé ✓",
-        description: `${result.total_rows ?? 0} lignes importées sur ${result.months_back} mois${errorsCount ? ` (${errorsCount} mois en erreur)` : ""}.`,
+        title: errorsCount === 0 ? "Backfill terminé ✓" : `Backfill terminé avec ${errorsCount} erreur(s)`,
+        description:
+          `${result.total_rows ?? 0} lignes importées sur ${okMonths.length}/${result.months_back} mois.` +
+          (errorsCount > 0
+            ? ` Mois en erreur : ${errorMonths.slice(0, 6).map((m: any) => m.period).join(", ")}${errorsCount > 6 ? "…" : ""}`
+            : ""),
+        variant: errorsCount > 0 ? "destructive" : "default",
       });
     } catch (e: any) {
       toast({
