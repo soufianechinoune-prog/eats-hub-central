@@ -302,6 +302,14 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
 
+      if (!resolvedChainId) {
+        return new Response(
+          JSON.stringify({ error: "chain_connection_id requis (chain_id introuvable)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const chainId = resolvedChainId;
+
       // 1. Liste des restos cibles
       let splashIds: number[];
       let restosMeta: { id: number; nom: string }[] = [];
@@ -317,12 +325,13 @@ serve(async (req) => {
       const allTargets = network_only ? [0] : [0, ...splashIds];
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
-      console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity})...`);
+      console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity}) chain=${chainId}`);
 
-      // 2. Charger le mapping splash_id → restaurant_id
+      // 2. Charger le mapping splash_id → restaurant_id (scopé à la chain)
       const { data: mappingRows } = await supabase
         .from("splash360_restaurant_mapping")
-        .select("restaurant_splash_id, restaurant_id");
+        .select("restaurant_splash_id, restaurant_id")
+        .eq("chain_id", chainId);
       const splashToRestaurantId = new Map<number, string>();
       for (const m of mappingRows ?? []) {
         if (m.restaurant_id) splashToRestaurantId.set(m.restaurant_splash_id, m.restaurant_id);
@@ -333,6 +342,7 @@ serve(async (req) => {
         const mappingUpsert = restosMeta.map((r) => ({
           restaurant_splash_id: r.id,
           splash_name: r.nom,
+          chain_id: chainId,
         }));
         await supabase
           .from("splash360_restaurant_mapping")
@@ -360,6 +370,7 @@ serve(async (req) => {
               try {
                 const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId, day);
                 const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+                row.chain_id = chainId;
                 const restoUuid = splashToRestaurantId.get(splashId);
                 if (restoUuid) row.restaurant_id = restoUuid;
                 rowsToUpsert.push(row);
@@ -376,7 +387,7 @@ serve(async (req) => {
         const chunk = rowsToUpsert.slice(i, i + 500);
         const { error } = await supabase
           .from("splash360_daily_sales")
-          .upsert(chunk, { onConflict: "restaurant_splash_id,date,granularity,platform" });
+          .upsert(chunk, { onConflict: "chain_id,restaurant_splash_id,date,granularity,platform" });
         if (error) {
           errors.push({ batch_start: i, error: error.message });
         } else {
