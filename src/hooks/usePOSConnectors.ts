@@ -72,6 +72,33 @@ export function useActiveChainPOSConnection() {
   });
 }
 
+/** Lance une synchronisation pour une connexion POS donnée. */
+export function useSyncPOS() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: { connectionId: string; connectorId: string }) => {
+      // Pour l'instant, seul Splash360 est supporté
+      if (input.connectorId !== "splash360") {
+        throw new Error(`Connecteur ${input.connectorId} non supporté pour la synchro`);
+      }
+      const { data, error } = await supabase.functions.invoke("sync-splash360", {
+        body: {
+          mode: "sync",
+          granularity: "day",
+          chain_connection_id: input.connectionId,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { rows_upserted: number; errors_count: number; period: string };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+    },
+  });
+}
+
 /** Connecter (ou reconnecter) une caisse à la chaîne active. */
 export function useConnectPOS() {
   const queryClient = useQueryClient();
