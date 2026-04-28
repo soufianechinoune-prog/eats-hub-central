@@ -129,6 +129,7 @@ async function runSync(opts: {
           try {
             const data = await fetchTurnover(token, endpoint, year, month, granularity, splashId, day);
             const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+            row.chain_id = chainId;
             const restoUuid = splashToRestaurantId.get(splashId);
             if (restoUuid) row.restaurant_id = restoUuid;
             rowsToUpsert.push(row);
@@ -145,7 +146,7 @@ async function runSync(opts: {
     const chunk = rowsToUpsert.slice(i, i + 500);
     const { error } = await supabase
       .from("splash360_daily_sales")
-      .upsert(chunk, { onConflict: "restaurant_splash_id,date,granularity,platform" });
+      .upsert(chunk, { onConflict: "chain_id,restaurant_splash_id,date,granularity,platform" });
     if (!error) inserted += chunk.length;
   }
   return inserted;
