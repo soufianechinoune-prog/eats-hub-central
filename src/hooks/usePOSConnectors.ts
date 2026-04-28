@@ -99,25 +99,63 @@ export function useSyncPOS() {
   });
 }
 
-/** Lance un backfill historique (24 mois par défaut) pour une connexion POS. */
+/**
+ * Lance un backfill historique en orchestrant N appels `sync` ciblés (un par mois)
+ * côté client, pour éviter le `CPU Time exceeded` de l'edge function.
+ */
 export function useBackfillPOS() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (input: { connectionId: string; connectorId: string; monthsBack?: number }) => {
+    mutationFn: async (input: {
+      connectionId: string;
+      connectorId: string;
+      monthsBack?: number;
+      onProgress?: (info: { done: number; total: number; period: string; inserted: number; error?: string }) => void;
+    }) => {
       if (input.connectorId !== "splash360") {
         throw new Error(`Connecteur ${input.connectorId} non supporté pour le backfill`);
       }
-      const { data, error } = await supabase.functions.invoke("sync-splash360", {
-        body: {
-          mode: "backfill",
-          chain_connection_id: input.connectionId,
-          months_back: input.monthsBack ?? 24,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      return data as { total_rows: number; months_back: number; per_month: any[] };
+      const monthsBack = Math.max(1, Math.min(48, input.monthsBack ?? 24));
+      const now = new Date();
+      const months: { year: number; month: number }[] = [];
+      for (let i = 0; i < monthsBack; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
+      }
+
+      let totalRows = 0;
+      const perMonth: { period: string; inserted: number; error?: string }[] = [];
+
+      for (let i = 0; i < months.length; i++) {
+        const { year, month } = months[i];
+        const period = `${year}-${String(month).padStart(2, "0")}`;
+        try {
+          const { data, error } = await supabase.functions.invoke("sync-splash360", {
+            body: {
+              mode: "sync",
+              granularity: "day",
+              chain_connection_id: input.connectionId,
+              year,
+              month,
+            },
+          });
+          if (error) throw error;
+          if (data?.error) throw new Error(data.error);
+          const inserted = Number(data?.rows_upserted ?? 0);
+          totalRows += inserted;
+          perMonth.push({ period, inserted });
+          input.onProgress?.({ done: i + 1, total: months.length, period, inserted });
+        } catch (e: any) {
+          const errMsg = e?.message ?? String(e);
+          perMonth.push({ period, inserted: 0, error: errMsg });
+          input.onProgress?.({ done: i + 1, total: months.length, period, inserted: 0, error: errMsg });
+        }
+        // Petit délai entre les appels pour ménager l'API Splash360
+        if (i < months.length - 1) await new Promise((r) => setTimeout(r, 200));
+      }
+
+      return { total_rows: totalRows, months_back: monthsBack, per_month: perMonth };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
