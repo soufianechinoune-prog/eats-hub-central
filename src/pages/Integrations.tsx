@@ -1,10 +1,13 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDistanceToNow } from "date-fns";
+import { fr } from "date-fns/locale";
 import {
   usePOSConnectors,
   useActiveChainPOSConnection,
   useConnectPOS,
   useDisconnectPOS,
+  useSyncPOS,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
