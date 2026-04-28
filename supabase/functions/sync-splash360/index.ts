@@ -209,6 +209,7 @@ serve(async (req) => {
                 restosMeta.map((r: any) => ({
                   restaurant_splash_id: r.id,
                   splash_name: r.nom,
+                  chain_id: conn.chain_id,
                 })),
                 { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
               );
@@ -222,6 +223,7 @@ serve(async (req) => {
             granularity: "day",
             splashIds,
             networkOnly: false,
+            chainId: conn.chain_id,
           });
 
           await supabaseAdmin
