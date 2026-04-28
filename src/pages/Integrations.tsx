@@ -8,6 +8,7 @@ import {
   useConnectPOS,
   useDisconnectPOS,
   useSyncPOS,
+  useBackfillPOS,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
