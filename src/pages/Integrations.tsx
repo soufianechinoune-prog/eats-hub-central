@@ -48,6 +48,7 @@ export default function Integrations() {
   const connect = useConnectPOS();
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
+  const backfill = useBackfillPOS();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
