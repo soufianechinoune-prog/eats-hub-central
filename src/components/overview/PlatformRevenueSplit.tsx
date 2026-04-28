@@ -14,6 +14,8 @@ interface Props {
   cashTotal?: number; // Optional — only when Splash360 data is available
   cashDaysWithData?: number;
   cashVariation?: number | null;
+  /** True si une caisse est connectée pour la marque active (même si 0 donnée sur la période). */
+  cashConnected?: boolean;
 }
 
 export function PlatformRevenueSplit({
@@ -22,6 +24,7 @@ export function PlatformRevenueSplit({
   cashTotal = 0,
   cashDaysWithData,
   cashVariation = null,
+  cashConnected = false,
 }: Props) {
   const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
     let uber = 0;
