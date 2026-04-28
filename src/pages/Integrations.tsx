@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell } from "lucide-react";
+import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export default function Integrations() {
