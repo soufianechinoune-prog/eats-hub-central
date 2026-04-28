@@ -243,18 +243,20 @@ serve(async (req) => {
     }
 
     // ─── Si chain_connection_id fourni, charger les credentials ─────────
-    if (chain_connection_id && (!email || !password)) {
+    let resolvedChainId: string | null = null;
+    if (chain_connection_id) {
       const { data: conn, error: cErr } = await supabaseAdmin
         .from("chain_pos_connections")
-        .select("credentials")
+        .select("credentials, chain_id")
         .eq("id", chain_connection_id)
         .eq("is_active", true)
         .maybeSingle();
       if (cErr) throw new Error(`Connection lookup failed: ${cErr.message}`);
       if (!conn) throw new Error("Connection introuvable ou inactive");
       const creds = (conn.credentials ?? {}) as Record<string, string>;
-      email = creds.email;
-      password = creds.password;
+      if (!email) email = creds.email;
+      if (!password) password = creds.password;
+      resolvedChainId = conn.chain_id;
     }
 
     // Fallback sur les secrets globaux
