@@ -312,14 +312,29 @@ export default function Integrations() {
                           size="sm"
                           className="flex-1 gap-2"
                           onClick={handleSync}
-                          disabled={sync.isPending}
+                          disabled={sync.isPending || backfill.isPending}
                         >
                           {sync.isPending ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <RefreshCw className="h-4 w-4" />
                           )}
-                          Synchroniser
+                          Synchroniser (mois en cours)
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          className="gap-2"
+                          onClick={handleBackfill}
+                          disabled={sync.isPending || backfill.isPending}
+                          title="Importe les 24 derniers mois en granularité jour"
+                        >
+                          {backfill.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Backfill 24 mois
                         </Button>
                         <Button
                           variant="outline"
