@@ -1,55 +1,40 @@
-## Constat
+# Nettoyage du connecteur Splash360 + multi-tenant
 
-Uber refuse `invalid_scope` **avant le login**, que ce soit pour `eats.pos_provisioning` ou `eats.store eats.report`. Cela prouve que ton app Uber n'a **aucun scope activé en "User-authorized"** sur le portail Developer. Seul `client_credentials` est habilité (et il marche déjà pour récupérer les rapports).
+## Contexte
 
-Continuer à itérer sur le flow OAuth utilisateur est une impasse tant qu'Uber n'active pas manuellement les scopes côté portail (process opaque, 1-3 semaines, souvent refusé pour les non-POS).
+L'authentification Splash360 fonctionne en 2 niveaux :
+- **App credentials** (`client_id` / `client_secret`) : stockés en dur dans la Edge Function, identifient notre app Lovable. Mêmes pour toutes les chaînes.
+- **User credentials** (email + password) : propres à chaque compte client Splash. C'est ce que l'utilisateur saisit lors de la connexion.
 
-## Solution : connexion manuelle par UUID
-
-Tu (super_admin) saisis directement le Store UUID Uber de chaque restaurant. Les rapports sont ensuite générés automatiquement via le token serveur qui fonctionne déjà.
+Le champ "Identifiant compte" actuellement demandé dans le formulaire est inutile (jamais lu par la sync). On le retire pour simplifier l'UX.
 
 ## Changements
 
-### 1. UI super_admin — Saisie du Store UUID
-Dans `src/components/restaurants/UberConnectionSection.tsx` (ou page dédiée) :
-- Champ "Store UUID Uber" éditable (visible uniquement super_admin)
-- Bouton "Tester" qui appelle `eats/v1/stores/{uuid}` via le token client_credentials pour valider que l'UUID existe et récupérer le nom du store
-- Sauvegarde dans `restaurants.uber_store_id` (colonne déjà existante d'après la table)
+### 1. Migration SQL
+Mettre à jour la définition du connecteur `splash360` dans `pos_connectors` :
+- Retirer `account_id` de `required_fields`
+- Garder uniquement : `email`, `password`
 
-### 2. Page bulk de mapping (optionnel mais utile pour 50 restos)
-Nouvelle page `/uber-store-mapping-bulk` :
-- Liste tous les restaurants sans `uber_store_id`
-- Une colonne input par ligne pour coller l'UUID
-- Bouton "Valider tous" qui teste chaque UUID en parallèle et sauvegarde
+### 2. Frontend (`src/pages/Integrations.tsx` ou composant équivalent)
+- Le formulaire dynamique se basant déjà sur `required_fields`, aucun changement de code n'est normalement nécessaire — le champ disparaîtra automatiquement.
+- Vérifier qu'aucune validation côté UI ne force encore `account_id`.
 
-### 3. Nettoyer le flow OAuth cassé
-- Masquer le bouton "Connecter via login Uber" (ou le mettre derrière un flag `feature_uber_oauth_user_flow = false`)
-- Garder le code (`uber-auth`, `UberCallback`) au cas où Uber active les scopes plus tard, mais ne plus le proposer dans l'UI
+### 3. Documentation pour l'utilisateur final
+Ajouter dans le formulaire un petit texte d'aide :
+> "Saisis l'email et le mot de passe du compte Splash360 du client. Chaque chaîne utilise ses propres identifiants."
 
-### 4. Documentation interne
-Petite note dans `UberConnections.tsx` expliquant pourquoi on est en mode manuel :
-> "Uber n'a pas activé les scopes utilisateur sur notre application. Saisissez directement les Store UUIDs depuis le dashboard Uber Eats Manager."
+## Multi-tenant : à valider avec Splash
 
-## Comment trouver un Store UUID Uber (pour toi)
+Avant de proposer la connexion à un autre client, **envoyer un mail à Splash** pour confirmer :
+1. Notre `client_id` (`4194_...`) est-il autorisé à s'authentifier sur **n'importe quel compte client Splash360** ?
+2. Si non : faut-il une app par client, ou peuvent-ils whitelister nos credentials sur d'autres comptes ?
 
-1. Connecte-toi à https://merchants.ubereats.com/
-2. Sélectionne un restaurant
-3. L'URL contient l'UUID : `.../store/<UUID>/...`
-4. Copie-le → colle-le dans l'UI
+Si la réponse est "multi-tenant OK" → rien d'autre à faire, le système marche tel quel pour toute nouvelle chaîne.
 
-## Détails techniques
+Si la réponse est "scopé à Chicken Street" → il faudra prévoir un mécanisme pour stocker un `client_id`/`client_secret` **par chaîne** dans `chain_pos_connections.credentials` (jsonb déjà prévu pour ça).
 
-- **Pas de migration DB** : `restaurants.uber_store_id` existe déjà
-- **Edge function réutilisée** : `uber-token` (client_credentials) + un nouveau `uber-validate-store` (1 GET sur l'API Uber)
-- **Sécurité** : seul le super_admin peut éditer le champ (RLS + check `is_super_admin()` côté UI)
-
-## Plan B si tu veux quand même tenter l'OAuth utilisateur
-
-Je peux te rédiger un email-type à envoyer à `developers@uber.com` pour demander l'activation des scopes `eats.store` et `eats.report` en "User-authorized" sur ton app `wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX`. À envoyer en parallèle, sans bloquer sur la réponse.
-
-## Ce que tu obtiens
-
-- ✅ 50 restaurants branchés en 1h (au lieu d'attendre Uber 3 semaines)
-- ✅ Rapports automatiques (le token serveur marche déjà)
-- ✅ Architecture multi-tenant respectée (chaque resto reste isolé par `chain_id`)
-- ✅ Possibilité de réactiver l'OAuth user plus tard sans rien casser
+## Ordre d'exécution
+1. Migration SQL pour retirer `account_id`
+2. Tester en preview que le formulaire affiche uniquement email/password
+3. (En parallèle) Tu envoies le mail à Splash pour confirmer le multi-tenant
+4. Selon réponse Splash → éventuelle évolution future pour credentials par chaîne
