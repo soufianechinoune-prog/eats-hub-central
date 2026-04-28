@@ -92,20 +92,111 @@ serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const {
-      email = Deno.env.get("SPLASH_EMAIL"),
-      password = Deno.env.get("SPLASH_PASSWORD"),
+    let {
+      email,
+      password,
       year,
       month,
       mode = "test",
       granularity = "month",
       restaurant_splash_ids,
       network_only = false,
+      chain_connection_id,
+      sync_all_active = false,
     } = body;
+
+    const supabaseAdmin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+    );
+
+    // ─── MODE: sync_all_active (cron) ─────────────────────────────────────
+    // Boucle sur toutes les connexions Splash360 actives et lance une sync
+    // de niveau "month" pour le mois en cours.
+    if (sync_all_active) {
+      const { data: connections, error: connErr } = await supabaseAdmin
+        .from("chain_pos_connections")
+        .select("id, chain_id, credentials, account_label")
+        .eq("connector_id", "splash360")
+        .eq("is_active", true);
+      if (connErr) throw new Error(`Failed to list active connections: ${connErr.message}`);
+
+      const results: any[] = [];
+      for (const conn of connections ?? []) {
+        const creds = (conn.credentials ?? {}) as Record<string, string>;
+        if (!creds.email || !creds.password) {
+          results.push({ chain_id: conn.chain_id, skipped: true, reason: "missing creds" });
+          continue;
+        }
+        try {
+          const token = await getAccessToken(creds.email, creds.password);
+          const profile = await getUserProfile(token);
+          const restosMeta = profile?.restos ?? [];
+          const splashIds = restosMeta.map((r: any) => r.id);
+          const targetYearC = new Date().getFullYear();
+          const targetMonthC = new Date().getMonth() + 1;
+
+          // Auto-populate mapping
+          if (restosMeta.length > 0) {
+            await supabaseAdmin
+              .from("splash360_restaurant_mapping")
+              .upsert(
+                restosMeta.map((r: any) => ({
+                  restaurant_splash_id: r.id,
+                  splash_name: r.nom,
+                })),
+                { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
+              );
+          }
+
+          const inserted = await runSync({
+            supabase: supabaseAdmin,
+            token,
+            year: targetYearC,
+            month: targetMonthC,
+            granularity: "day",
+            splashIds,
+            networkOnly: false,
+          });
+
+          await supabaseAdmin
+            .from("chain_pos_connections")
+            .update({ last_sync_at: new Date().toISOString() })
+            .eq("id", conn.id);
+
+          results.push({ chain_id: conn.chain_id, inserted });
+        } catch (e: any) {
+          results.push({ chain_id: conn.chain_id, error: e.message });
+        }
+      }
+      return new Response(
+        JSON.stringify({ success: true, processed: results.length, results }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // ─── Si chain_connection_id fourni, charger les credentials ─────────
+    if (chain_connection_id && (!email || !password)) {
+      const { data: conn, error: cErr } = await supabaseAdmin
+        .from("chain_pos_connections")
+        .select("credentials")
+        .eq("id", chain_connection_id)
+        .eq("is_active", true)
+        .maybeSingle();
+      if (cErr) throw new Error(`Connection lookup failed: ${cErr.message}`);
+      if (!conn) throw new Error("Connection introuvable ou inactive");
+      const creds = (conn.credentials ?? {}) as Record<string, string>;
+      email = creds.email;
+      password = creds.password;
+    }
+
+    // Fallback sur les secrets globaux
+    email = email || Deno.env.get("SPLASH_EMAIL");
+    password = password || Deno.env.get("SPLASH_PASSWORD");
 
     if (!email || !password) {
       return new Response(
-        JSON.stringify({ error: "email/password manquants (body ou secrets SPLASH_EMAIL/SPLASH_PASSWORD)" }),
+        JSON.stringify({ error: "email/password manquants (body, chain_connection_id ou secrets SPLASH_EMAIL/SPLASH_PASSWORD)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
