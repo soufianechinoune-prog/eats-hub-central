@@ -1,40 +1,34 @@
-# Nettoyage du connecteur Splash360 + multi-tenant
+## Problème confirmé
 
-## Contexte
+Les logs Edge Function montrent : `CPU Time exceeded` après seulement 1 mois traité (avril, 5130 lignes).
 
-L'authentification Splash360 fonctionne en 2 niveaux :
-- **App credentials** (`client_id` / `client_secret`) : stockés en dur dans la Edge Function, identifient notre app Lovable. Mêmes pour toutes les chaînes.
-- **User credentials** (email + password) : propres à chaque compte client Splash. C'est ce que l'utilisateur saisit lors de la connexion.
+Les fonctions edge Supabase ont une limite CPU stricte (~150s). Faire 24 mois × ~30 appels API Splash360 + upserts dans **un seul appel** dépasse largement cette limite, surtout pour Tasty Crousty (58 restaurants × 30 jours × 3 plateformes = ~5000 lignes/mois).
 
-Le champ "Identifiant compte" actuellement demandé dans le formulaire est inutile (jamais lu par la sync). On le retire pour simplifier l'UX.
+## Solution : orchestration côté client
 
-## Changements
+Au lieu d'une boucle de 24 mois dans l'edge function, on lance **24 appels séparés** (un par mois) depuis le frontend. Chaque appel reste dans la limite CPU.
 
-### 1. Migration SQL
-Mettre à jour la définition du connecteur `splash360` dans `pos_connectors` :
-- Retirer `account_id` de `required_fields`
-- Garder uniquement : `email`, `password`
+### Changements
 
-### 2. Frontend (`src/pages/Integrations.tsx` ou composant équivalent)
-- Le formulaire dynamique se basant déjà sur `required_fields`, aucun changement de code n'est normalement nécessaire — le champ disparaîtra automatiquement.
-- Vérifier qu'aucune validation côté UI ne force encore `account_id`.
+**1. Edge Function `sync-splash360`**
+- Garder le mode `sync` mais le rendre paramétrable : accepter `year` et `month` optionnels dans le body pour cibler un mois spécifique (au lieu du mois courant uniquement).
+- Supprimer / désactiver le mode `backfill` interne (cause du timeout).
 
-### 3. Documentation pour l'utilisateur final
-Ajouter dans le formulaire un petit texte d'aide :
-> "Saisis l'email et le mot de passe du compte Splash360 du client. Chaque chaîne utilise ses propres identifiants."
+**2. Hook `useBackfillPOS` (`src/hooks/usePOSConnectors.ts`)**
+- Réécrire pour faire une **boucle séquentielle côté client** : pour chaque mois des N derniers mois, appeler `sync-splash360` avec `{ mode: "sync", year, month }`.
+- Renvoyer un callback de progression (`onProgress`) pour afficher l'état au fur et à mesure.
+- Ajouter un petit délai (200ms) entre les appels pour ménager l'API Splash360.
 
-## Multi-tenant : à valider avec Splash
+**3. UI Backfill (`src/pages/Integrations.tsx`)**
+- Afficher une barre de progression "Mois X/24 importé" pendant le backfill.
+- Toast final récapitulatif (lignes totales, erreurs éventuelles).
 
-Avant de proposer la connexion à un autre client, **envoyer un mail à Splash** pour confirmer :
-1. Notre `client_id` (`4194_...`) est-il autorisé à s'authentifier sur **n'importe quel compte client Splash360** ?
-2. Si non : faut-il une app par client, ou peuvent-ils whitelister nos credentials sur d'autres comptes ?
+### Résultat attendu
 
-Si la réponse est "multi-tenant OK" → rien d'autre à faire, le système marche tel quel pour toute nouvelle chaîne.
+- Backfill Tasty Crousty : ~24 appels × ~30s = ~12 min, sans timeout.
+- Données mensuelles disponibles de mai 2024 à avril 2026.
+- L'utilisateur voit la progression en temps réel.
 
-Si la réponse est "scopé à Chicken Street" → il faudra prévoir un mécanisme pour stocker un `client_id`/`client_secret` **par chaîne** dans `chain_pos_connections.credentials` (jsonb déjà prévu pour ça).
+### Action après déploiement
 
-## Ordre d'exécution
-1. Migration SQL pour retirer `account_id`
-2. Tester en preview que le formulaire affiche uniquement email/password
-3. (En parallèle) Tu envoies le mail à Splash pour confirmer le multi-tenant
-4. Selon réponse Splash → éventuelle évolution future pour credentials par chaîne
+Relancer "Backfill 24 mois" depuis la page Intégrations pour Tasty Crousty.
