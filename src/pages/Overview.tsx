@@ -666,6 +666,7 @@ const Overview = () => {
               cashTotal={cashRevenueData?.totalCash ?? 0}
               cashDaysWithData={cashRevenueData?.daysWithData}
               cashVariation={cashRevenueData?.cashVariation ?? null}
+              cashConnected={cashConnected}
             />
           </div>
 
