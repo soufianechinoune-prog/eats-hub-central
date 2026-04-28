@@ -152,19 +152,22 @@ export default function Integrations() {
 
   const handleBackfill = async () => {
     if (!activeConnection) return;
+    setBackfillProgress({ done: 0, total: 24 });
     toast({
       title: "Backfill lancé",
-      description: "Import des 24 derniers mois en cours… (peut prendre 2-5 min)",
+      description: "Import des 24 derniers mois en cours… (≈ 8-12 min)",
     });
     try {
       const result = await backfill.mutateAsync({
         connectionId: activeConnection.id,
         connectorId: activeConnection.connector_id,
         monthsBack: 24,
+        onProgress: ({ done, total }) => setBackfillProgress({ done, total }),
       });
+      const errorsCount = (result.per_month ?? []).filter((m: any) => m.error).length;
       toast({
         title: "Backfill terminé ✓",
-        description: `${result.total_rows ?? 0} lignes importées sur ${result.months_back} mois.`,
+        description: `${result.total_rows ?? 0} lignes importées sur ${result.months_back} mois${errorsCount ? ` (${errorsCount} mois en erreur)` : ""}.`,
       });
     } catch (e: any) {
       toast({
@@ -172,6 +175,8 @@ export default function Integrations() {
         description: e?.message || "Impossible de faire le backfill.",
         variant: "destructive",
       });
+    } finally {
+      setBackfillProgress(null);
     }
   };
 
