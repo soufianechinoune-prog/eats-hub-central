@@ -377,6 +377,14 @@ serve(async (req) => {
         }
       }
 
+      // Mettre à jour last_sync_at si on a un chain_connection_id
+      if (chain_connection_id) {
+        await supabaseAdmin
+          .from("chain_pos_connections")
+          .update({ last_sync_at: new Date().toISOString() })
+          .eq("id", chain_connection_id);
+      }
+
       return new Response(
         JSON.stringify({
           success: true,
