@@ -87,6 +87,68 @@ function buildRow(
   };
 }
 
+// Helper extrait pour réutilisation par sync_all_active
+async function runSync(opts: {
+  supabase: any;
+  token: string;
+  year: number;
+  month: number;
+  granularity: "day" | "week" | "month" | "year";
+  splashIds: number[];
+  networkOnly: boolean;
+}): Promise<number> {
+  const { supabase, token, year, month, granularity, splashIds, networkOnly } = opts;
+  const allTargets = networkOnly ? [0] : [0, ...splashIds];
+
+  const { data: mappingRows } = await supabase
+    .from("splash360_restaurant_mapping")
+    .select("restaurant_splash_id, restaurant_id");
+  const splashToRestaurantId = new Map<number, string>();
+  for (const m of mappingRows ?? []) {
+    if (m.restaurant_id) splashToRestaurantId.set(m.restaurant_splash_id, m.restaurant_id);
+  }
+
+  const dateRef = `${year}-${String(month).padStart(2, "0")}-01`;
+  const rowsToUpsert: any[] = [];
+  const CONCURRENCY = 5;
+  const dayList: number[] =
+    granularity === "day"
+      ? Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1)
+      : [1];
+
+  for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
+    const batch = allTargets.slice(i, i + CONCURRENCY);
+    await Promise.all(batch.map(async (splashId) => {
+      for (const day of dayList) {
+        const dayDateRef = granularity === "day"
+          ? `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+          : dateRef;
+        for (const endpoint of ["salesturnover", "ubersalesturnover", "deliveroosalesturnover"] as const) {
+          try {
+            const data = await fetchTurnover(token, endpoint, year, month, granularity, splashId, day);
+            const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+            const restoUuid = splashToRestaurantId.get(splashId);
+            if (restoUuid) row.restaurant_id = restoUuid;
+            rowsToUpsert.push(row);
+          } catch (_e) {
+            // skip
+          }
+        }
+      }
+    }));
+  }
+
+  let inserted = 0;
+  for (let i = 0; i < rowsToUpsert.length; i += 500) {
+    const chunk = rowsToUpsert.slice(i, i + 500);
+    const { error } = await supabase
+      .from("splash360_daily_sales")
+      .upsert(chunk, { onConflict: "restaurant_splash_id,date,granularity,platform" });
+    if (!error) inserted += chunk.length;
+  }
+  return inserted;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
