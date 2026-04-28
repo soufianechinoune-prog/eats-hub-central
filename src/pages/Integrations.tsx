@@ -75,16 +75,35 @@ export default function Integrations() {
       return;
     }
     try {
-      await connect.mutateAsync({
+      const inserted = await connect.mutateAsync({
         connectorId: openConnector.id,
         accountLabel,
         credentials: credentialsForm,
       });
       toast({
         title: "Caisse connectée ✓",
-        description: `${openConnector.name} est maintenant lié à cette chaîne.`,
+        description: `${openConnector.name} est maintenant lié. Synchronisation en cours…`,
       });
       setOpenConnector(null);
+
+      // Déclencher la première synchro (mois en cours, granularité jour)
+      try {
+        const result = await sync.mutateAsync({
+          connectionId: inserted.id,
+          connectorId: openConnector.id,
+        });
+        toast({
+          title: "Synchronisation terminée ✓",
+          description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
+        });
+      } catch (syncErr: any) {
+        toast({
+          title: "Connexion OK mais synchro échouée",
+          description: syncErr?.message || "Tu peux relancer depuis le bouton Synchroniser.",
+          variant: "destructive",
+        });
+      }
+
       navigate("/overview");
     } catch (e: any) {
       toast({
@@ -103,6 +122,26 @@ export default function Integrations() {
       toast({
         title: "Erreur",
         description: e?.message || "Impossible de déconnecter.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleSync = async () => {
+    if (!activeConnection) return;
+    try {
+      const result = await sync.mutateAsync({
+        connectionId: activeConnection.id,
+        connectorId: activeConnection.connector_id,
+      });
+      toast({
+        title: "Synchronisation terminée ✓",
+        description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Erreur de synchronisation",
+        description: e?.message || "Impossible de synchroniser.",
         variant: "destructive",
       });
     }
