@@ -96,13 +96,15 @@ async function runSync(opts: {
   granularity: "day" | "week" | "month" | "year";
   splashIds: number[];
   networkOnly: boolean;
+  chainId: string;
 }): Promise<number> {
-  const { supabase, token, year, month, granularity, splashIds, networkOnly } = opts;
+  const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId } = opts;
   const allTargets = networkOnly ? [0] : [0, ...splashIds];
 
   const { data: mappingRows } = await supabase
     .from("splash360_restaurant_mapping")
-    .select("restaurant_splash_id, restaurant_id");
+    .select("restaurant_splash_id, restaurant_id")
+    .eq("chain_id", chainId);
   const splashToRestaurantId = new Map<number, string>();
   for (const m of mappingRows ?? []) {
     if (m.restaurant_id) splashToRestaurantId.set(m.restaurant_splash_id, m.restaurant_id);
