@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import { format, differenceInDays } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
-const CHICKEN_STREET_CHAIN_ID = "110e05b8-5136-45cc-a385-265360104844";
 
 interface DailyRow {
   date: string;
