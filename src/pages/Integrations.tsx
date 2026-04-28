@@ -264,12 +264,39 @@ export default function Integrations() {
                     <CardDescription className="min-h-[40px]">
                       {c.description}
                     </CardDescription>
+                    {isActive && activeConnection?.last_sync_at && (
+                      <p className="text-xs text-muted-foreground">
+                        Dernière synchro :{" "}
+                        {formatDistanceToNow(new Date(activeConnection.last_sync_at), {
+                          addSuffix: true,
+                          locale: fr,
+                        })}
+                      </p>
+                    )}
+                    {isActive && !activeConnection?.last_sync_at && (
+                      <p className="text-xs text-amber-600 dark:text-amber-400">
+                        Jamais synchronisée — clique sur "Synchroniser" pour importer les
+                        données.
+                      </p>
+                    )}
                     {isActive ? (
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          size="sm"
+                          className="flex-1 gap-2"
+                          onClick={handleSync}
+                          disabled={sync.isPending}
+                        >
+                          {sync.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Synchroniser
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
-                          className="flex-1"
                           onClick={() => handleOpenConnect(c)}
                         >
                           Modifier
