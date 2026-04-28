@@ -96,13 +96,15 @@ async function runSync(opts: {
   granularity: "day" | "week" | "month" | "year";
   splashIds: number[];
   networkOnly: boolean;
+  chainId: string;
 }): Promise<number> {
-  const { supabase, token, year, month, granularity, splashIds, networkOnly } = opts;
+  const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId } = opts;
   const allTargets = networkOnly ? [0] : [0, ...splashIds];
 
   const { data: mappingRows } = await supabase
     .from("splash360_restaurant_mapping")
-    .select("restaurant_splash_id, restaurant_id");
+    .select("restaurant_splash_id, restaurant_id")
+    .eq("chain_id", chainId);
   const splashToRestaurantId = new Map<number, string>();
   for (const m of mappingRows ?? []) {
     if (m.restaurant_id) splashToRestaurantId.set(m.restaurant_splash_id, m.restaurant_id);
@@ -127,6 +129,7 @@ async function runSync(opts: {
           try {
             const data = await fetchTurnover(token, endpoint, year, month, granularity, splashId, day);
             const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+            row.chain_id = chainId;
             const restoUuid = splashToRestaurantId.get(splashId);
             if (restoUuid) row.restaurant_id = restoUuid;
             rowsToUpsert.push(row);
@@ -143,7 +146,7 @@ async function runSync(opts: {
     const chunk = rowsToUpsert.slice(i, i + 500);
     const { error } = await supabase
       .from("splash360_daily_sales")
-      .upsert(chunk, { onConflict: "restaurant_splash_id,date,granularity,platform" });
+      .upsert(chunk, { onConflict: "chain_id,restaurant_splash_id,date,granularity,platform" });
     if (!error) inserted += chunk.length;
   }
   return inserted;
@@ -206,6 +209,7 @@ serve(async (req) => {
                 restosMeta.map((r: any) => ({
                   restaurant_splash_id: r.id,
                   splash_name: r.nom,
+                  chain_id: conn.chain_id,
                 })),
                 { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
               );
@@ -219,6 +223,7 @@ serve(async (req) => {
             granularity: "day",
             splashIds,
             networkOnly: false,
+            chainId: conn.chain_id,
           });
 
           await supabaseAdmin
@@ -238,18 +243,20 @@ serve(async (req) => {
     }
 
     // ─── Si chain_connection_id fourni, charger les credentials ─────────
-    if (chain_connection_id && (!email || !password)) {
+    let resolvedChainId: string | null = null;
+    if (chain_connection_id) {
       const { data: conn, error: cErr } = await supabaseAdmin
         .from("chain_pos_connections")
-        .select("credentials")
+        .select("credentials, chain_id")
         .eq("id", chain_connection_id)
         .eq("is_active", true)
         .maybeSingle();
       if (cErr) throw new Error(`Connection lookup failed: ${cErr.message}`);
       if (!conn) throw new Error("Connection introuvable ou inactive");
       const creds = (conn.credentials ?? {}) as Record<string, string>;
-      email = creds.email;
-      password = creds.password;
+      if (!email) email = creds.email;
+      if (!password) password = creds.password;
+      resolvedChainId = conn.chain_id;
     }
 
     // Fallback sur les secrets globaux
@@ -295,6 +302,14 @@ serve(async (req) => {
         Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
       );
 
+      if (!resolvedChainId) {
+        return new Response(
+          JSON.stringify({ error: "chain_connection_id requis (chain_id introuvable)" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const chainId = resolvedChainId;
+
       // 1. Liste des restos cibles
       let splashIds: number[];
       let restosMeta: { id: number; nom: string }[] = [];
@@ -310,12 +325,13 @@ serve(async (req) => {
       const allTargets = network_only ? [0] : [0, ...splashIds];
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
-      console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity})...`);
+      console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity}) chain=${chainId}`);
 
-      // 2. Charger le mapping splash_id → restaurant_id
+      // 2. Charger le mapping splash_id → restaurant_id (scopé à la chain)
       const { data: mappingRows } = await supabase
         .from("splash360_restaurant_mapping")
-        .select("restaurant_splash_id, restaurant_id");
+        .select("restaurant_splash_id, restaurant_id")
+        .eq("chain_id", chainId);
       const splashToRestaurantId = new Map<number, string>();
       for (const m of mappingRows ?? []) {
         if (m.restaurant_id) splashToRestaurantId.set(m.restaurant_splash_id, m.restaurant_id);
@@ -326,6 +342,7 @@ serve(async (req) => {
         const mappingUpsert = restosMeta.map((r) => ({
           restaurant_splash_id: r.id,
           splash_name: r.nom,
+          chain_id: chainId,
         }));
         await supabase
           .from("splash360_restaurant_mapping")
@@ -353,6 +370,7 @@ serve(async (req) => {
               try {
                 const data = await fetchTurnover(token, endpoint, targetYear, targetMonth, granularity, splashId, day);
                 const row: any = buildRow(splashId, dayDateRef, granularity, PLATFORM_MAP[endpoint], data);
+                row.chain_id = chainId;
                 const restoUuid = splashToRestaurantId.get(splashId);
                 if (restoUuid) row.restaurant_id = restoUuid;
                 rowsToUpsert.push(row);
@@ -369,7 +387,7 @@ serve(async (req) => {
         const chunk = rowsToUpsert.slice(i, i + 500);
         const { error } = await supabase
           .from("splash360_daily_sales")
-          .upsert(chunk, { onConflict: "restaurant_splash_id,date,granularity,platform" });
+          .upsert(chunk, { onConflict: "chain_id,restaurant_splash_id,date,granularity,platform" });
         if (error) {
           errors.push({ batch_start: i, error: error.message });
         } else {

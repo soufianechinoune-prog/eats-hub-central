@@ -3218,6 +3218,7 @@ export type Database = {
       splash360_daily_sales: {
         Row: {
           average_basket: number
+          chain_id: string
           created_at: string
           date: string
           granularity: string
@@ -3235,6 +3236,7 @@ export type Database = {
         }
         Insert: {
           average_basket?: number
+          chain_id: string
           created_at?: string
           date: string
           granularity: string
@@ -3252,6 +3254,7 @@ export type Database = {
         }
         Update: {
           average_basket?: number
+          chain_id?: string
           created_at?: string
           date?: string
           granularity?: string
@@ -3279,18 +3282,21 @@ export type Database = {
       }
       splash360_restaurant_mapping: {
         Row: {
+          chain_id: string | null
           matched_at: string
           restaurant_id: string | null
           restaurant_splash_id: number
           splash_name: string | null
         }
         Insert: {
+          chain_id?: string | null
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id: number
           splash_name?: string | null
         }
         Update: {
+          chain_id?: string | null
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id?: number
