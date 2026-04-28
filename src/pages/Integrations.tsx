@@ -53,6 +53,7 @@ export default function Integrations() {
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
   const [credentialsForm, setCredentialsForm] = useState<Record<string, string>>({});
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
 
   const activeConnectorId = activeConnection?.connector_id ?? null;
 
