@@ -46,6 +46,7 @@ export default function Integrations() {
     useActiveChainPOSConnection();
   const connect = useConnectPOS();
   const disconnect = useDisconnectPOS();
+  const sync = useSyncPOS();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
