@@ -37,7 +37,6 @@ interface Params {
  * pour laquelle Splash360 est branché actuellement).
  */
 export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
-  const isChickenStreet = chainId === CHICKEN_STREET_CHAIN_ID;
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
@@ -54,13 +53,15 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
 
   return useQuery({
     queryKey: ["network-cash-revenue", chainId, startStr, endStr],
-    enabled: isChickenStreet,
+    enabled: !!chainId,
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<NetworkCashRevenueData | null> => {
+      if (!chainId) return null;
       // Période courante
       const { data: currentRows, error } = await supabase
         .from("splash360_daily_sales")
         .select("date, platform, revenue_ttc")
+        .eq("chain_id", chainId)
         .eq("restaurant_splash_id", 0)
         .eq("granularity", "day")
         .gte("date", startStr)
@@ -74,6 +75,7 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
       const { data: prevRows } = await supabase
         .from("splash360_daily_sales")
         .select("date, platform, revenue_ttc")
+        .eq("chain_id", chainId)
         .eq("restaurant_splash_id", 0)
         .eq("granularity", "day")
         .gte("date", prevStartStr)
