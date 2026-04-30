@@ -73,10 +73,16 @@ export function EcoContributionSection({
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
 
-  // When selectedRestaurants is empty but restaurants list is also empty (empty brand), keep []
+  // Resolve effective restaurant IDs:
+  // - If user picked specific restos → use that selection
+  // - Else if brand has loaded restos → use them all (fallback all-of-brand)
+  // - Else (brand restos not yet loaded) → pass undefined so the hook relies on RLS
+  //   instead of incorrectly treating an empty array as "no scope" and disabling queries.
   const restaurantIds = selectedRestaurants.length > 0
     ? selectedRestaurants
-    : restaurants.map(r => r.id); // Will be [] if brand has no restaurants → hook returns empty
+    : restaurants.length > 0
+      ? restaurants.map(r => r.id)
+      : undefined;
 
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
