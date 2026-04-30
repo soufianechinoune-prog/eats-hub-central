@@ -73,12 +73,14 @@ export function EcoContributionSection({
   const isHistorique = localYear === null;
   const effectiveYear = localYear ?? selectedYear;
 
-  // Resolve effective restaurant IDs:
-  // - If user picked specific restos → use that selection
-  // - Else if brand has loaded restos → use them all (fallback all-of-brand)
-  // - Else (brand restos not yet loaded) → pass undefined so the hook relies on RLS
-  //   instead of incorrectly treating an empty array as "no scope" and disabling queries.
+  // Resolve effective restaurant IDs (always an array — never empty unless brand truly has 0 restos).
+  // The hook receives `restaurantIdsForFetch` which is `undefined` while we wait for the brand's restos
+  // to load, so RLS still scopes the query instead of treating an empty array as "no scope".
   const restaurantIds = selectedRestaurants.length > 0
+    ? selectedRestaurants
+    : restaurants.map(r => r.id);
+
+  const restaurantIdsForFetch = selectedRestaurants.length > 0
     ? selectedRestaurants
     : restaurants.length > 0
       ? restaurants.map(r => r.id)
