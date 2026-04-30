@@ -140,7 +140,7 @@ export function EcoContributionSection({
   }, [selectedChainId]);
 
   const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
-    restaurantIds,
+    restaurantIds: restaurantIdsForFetch,
     year: isHistorique ? null : effectiveYear,
     month: isHistorique ? null : selectedMonth,
     platform: selectedPlatform,
