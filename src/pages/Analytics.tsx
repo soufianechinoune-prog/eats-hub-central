@@ -1421,7 +1421,7 @@ export default function Analytics() {
                   restaurants={restaurants || []}
                   selectedRestaurants={[]}
                   selectedYear={selectedYear}
-                  selectedMonth={drillDownMonth}
+                  selectedMonth={null}
                   selectedPlatform={selectedPlatform}
                   selectedChainId={selectedChainId}
                 />
