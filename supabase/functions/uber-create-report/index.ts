@@ -32,7 +32,7 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
       return connection.access_token;
     }
     console.log('User token expired, refreshing...');
-    const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
+    const tokenResponse = await fetch('https://login.uber.com/oauth/v2/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -59,7 +59,7 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
 
   // Path 2: fallback to client_credentials (server-to-server)
   console.log('Using client_credentials fallback');
-  const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
+  const tokenResponse = await fetch('https://login.uber.com/oauth/v2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
