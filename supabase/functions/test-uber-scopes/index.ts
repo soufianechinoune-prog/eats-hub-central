@@ -1,10 +1,11 @@
 import { corsHeaders } from "https://esm.sh/@supabase/supabase-js@2.95.0/cors";
 
 const UBER_TOKEN_URL = "https://login.uber.com/oauth/v2/token";
+// Only the 3 scopes confirmed activated by Uber on prod client ID
+// wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX (Sanjay confirmation).
+// `eats.store.status.write` and `eats.order` are NOT granted.
 const CLIENT_CREDENTIAL_SCOPES = [
   "eats.store",
-  "eats.store.status.write",
-  "eats.order",
   "eats.store.orders.read",
   "eats.report",
 ];
