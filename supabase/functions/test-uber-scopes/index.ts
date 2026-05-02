@@ -21,11 +21,11 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
 
   try {
-    const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
-    const clientSecret = Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
+    const clientId = Deno.env.get("UBER_CLIENT_ID") ?? Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
+    const clientSecret = Deno.env.get("UBER_CLIENT_SECRET") ?? Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
 
-    if (!clientId) return jsonResponse({ error: "VITE_UBER_CLIENT_ID is not configured" }, 500);
-    if (!clientSecret) return jsonResponse({ error: "VITE_UBER_CLIENT_SECRET is not configured" }, 500);
+    if (!clientId) return jsonResponse({ error: "UBER_CLIENT_ID is not configured" }, 500);
+    if (!clientSecret) return jsonResponse({ error: "UBER_CLIENT_SECRET is not configured" }, 500);
 
     const results: any[] = [];
 
