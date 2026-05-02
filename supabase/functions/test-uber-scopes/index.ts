@@ -27,36 +27,59 @@ Deno.serve(async (req) => {
     if (!clientId) return jsonResponse({ error: "VITE_UBER_CLIENT_ID is not configured" }, 500);
     if (!clientSecret) return jsonResponse({ error: "VITE_UBER_CLIENT_SECRET is not configured" }, 500);
 
-    const results = [];
-    for (const scope of CLIENT_CREDENTIAL_SCOPES) {
+    const results: any[] = [];
+
+    const tryToken = async (label: string, params: Record<string, string>) => {
       const tokenResp = await fetch(UBER_TOKEN_URL, {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          client_id: clientId,
-          client_secret: clientSecret,
-          grant_type: "client_credentials",
-          scope,
-        }),
+        body: new URLSearchParams(params),
       });
-
       const text = await tokenResp.text();
       let body: unknown = text;
-      try {
-        body = JSON.parse(text);
-      } catch (_) {
-        body = { raw: text };
-      }
-
+      try { body = JSON.parse(text); } catch (_) { body = { raw: text }; }
       results.push({
-        scope,
-        grant_type: "client_credentials",
+        test: label,
         status: tokenResp.status,
         available: tokenResp.ok,
         response_scope: typeof body === "object" && body && "scope" in body ? (body as any).scope : null,
         error: tokenResp.ok ? null : body,
       });
+    };
+
+    for (const scope of CLIENT_CREDENTIAL_SCOPES) {
+      await tryToken(`single:${scope}`, {
+        client_id: clientId, client_secret: clientSecret,
+        grant_type: "client_credentials", scope,
+      });
     }
+
+    // TEST A: 3 scopes combined in one request
+    await tryToken("combined:all_3", {
+      client_id: clientId, client_secret: clientSecret,
+      grant_type: "client_credentials",
+      scope: CLIENT_CREDENTIAL_SCOPES.join(" "),
+    });
+
+    // TEST B: deliberately wrong secret
+    await tryToken("wrong_secret:eats.report", {
+      client_id: clientId, client_secret: "definitely_invalid_secret_xxx",
+      grant_type: "client_credentials", scope: "eats.report",
+    });
+
+    // TEST C: no scope at all
+    await tryToken("no_scope", {
+      client_id: clientId, client_secret: clientSecret,
+      grant_type: "client_credentials",
+    });
+
+    // TEST D: client_id sanity check (no secret leak)
+    results.push({
+      test: "client_id_sanity",
+      client_id_prefix: clientId.slice(0, 12),
+      client_id_length: clientId.length,
+      secret_length: clientSecret.length,
+    });
 
     return jsonResponse({
       authorization_code_scope: {
