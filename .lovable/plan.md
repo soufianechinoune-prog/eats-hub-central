@@ -1,70 +1,56 @@
-## Diagnostic
+# Plan — Aligner le code sur les scopes Uber confirmés
 
-Tu vois deux écrans complètement différents pour la même page `/analytics/eco-contribution` :
+## Contexte
 
-| Capture | Marque active | Bandeau | Lignes affichées |
-|---|---|---|---|
-| #3 | Réseau (toutes marques) | **566 lignes · 99 restaurants · -7304,68 €** | données présentes ✅ |
-| #1 et #2 | **Chicken Street** uniquement | **0 lignes · 0 restaurants · 0,00 €** | tout vide ❌ |
+Uber (Sanjay) confirme officiellement que **seuls 3 scopes sont activés** sur le client ID prod `wnqg3HLjT98yB25bWtPhB9njQ-ZpKSHX` :
 
-Pourtant en bas de la capture #1, on voit bien **106 restaurants Chicken Street** listés avec leurs SIRET et statut REP (donc la liste resto est OK). C'est uniquement le bloc "Prélèvements & Remboursements" (les lignes `payout_adjustments` + `deliveroo_orders`) qui retourne vide.
+- `eats.report`
+- `eats.store`
+- `eats.store.orders.read`
 
-### Cause racine probable
+Les scopes `eats.store.status.write` et `eats.order` ne sont **pas** activés → c'est ce qui causait `invalid_scope` dans nos tests.
 
-Dans `useEcoContribution.ts`, les requêtes filtrent sur `restaurant_id IN (...)` avec les IDs de la marque Chicken Street active. Or **les lignes éco-contribution en base ne sont pas reliées au bon `restaurant_id`** pour cette marque, ou bien le `chain_id` des restos affichés ≠ celui des lignes payout.
+## Diagnostic des fichiers actuels
 
-Trois hypothèses à vérifier en SQL avant de toucher le code :
+| Fichier | Scopes demandés | État |
+|---|---|---|
+| `uber-create-report/index.ts` | `eats.report` (client_credentials) | ✅ Correct, devrait marcher |
+| `test-uber-scopes/index.ts` | Les 5 scopes (incluant les 2 non activés) | ⚠️ À nettoyer |
+| `uber-auth/index.ts` (OAuth user) | `eats.store eats.report` | ✅ OK |
+| `uber-validate-store/index.ts` | `eats.report` | ✅ OK |
 
-1. **Mismatch d'IDs** : les `payout_adjustments.restaurant_id` pour `category='eco_contribution'` pointent vers des UUIDs qui ne sont **pas dans `restaurants` filtrés par `chain_id = chicken_street`** (ex: anciens IDs avant succession, ou rattachés à une autre chaîne).
-2. **`chain_id` NULL ou différent** sur les `restaurants` qui ont reçu les imports payout.
-3. **Filtre marque trop strict** dans le hook parent : `selectedRestaurants` contient bien les 106 IDs Chicken Street mais aucun ne matche les lignes en base (les imports auraient été faits sous une autre marque/chaîne).
+Note technique : `test-uber-scopes` utilise `login.uber.com`, `uber-create-report` utilise `auth.uber.com`. Les deux sont des alias officiels Uber, on garde tel quel.
 
-L'écart entre **99 restaurants ayant des lignes** (vue Réseau) et **106 restaurants Chicken Street** (vue marque) est suspect : si 99/106 sont bien Chicken Street, on devrait voir ~99 restos avec lignes en vue marque, pas 0.
+## Modifications
 
-## Étapes du plan
+### 1. `supabase/functions/test-uber-scopes/index.ts`
+Réduire `CLIENT_CREDENTIAL_SCOPES` aux 3 scopes confirmés activés :
+```ts
+const CLIENT_CREDENTIAL_SCOPES = [
+  "eats.store",
+  "eats.store.orders.read",
+  "eats.report",
+];
+```
+Et retirer les 2 scopes non activés (`eats.store.status.write`, `eats.order`).
 
-### 1. Investigation SQL (read-only, sans modifier le code)
+→ Le test renverra désormais `available: true` pour les 3, sans pollution `invalid_scope`.
 
-Exécuter via `supabase--read_query` :
+### 2. Aucune modification à `uber-create-report`
+Le code actuel demande déjà uniquement `eats.report` → il devrait fonctionner.
 
-- Lister les distinct `restaurant_id` dans `payout_adjustments WHERE category='eco_contribution' AND payout_date >= '2026-01-01'` et vérifier combien appartiennent au `chain_id` Chicken Street.
-- Comparer avec `restaurants WHERE chain_id = <chicken_street_uuid>`.
-- Idem pour `deliveroo_orders WHERE history_type LIKE 'Eco-contribution%'`.
-- Vérifier si certaines lignes ont `restaurant_id IS NULL` ou pointent vers des restos avec `chain_id` différent / NULL.
+## Étapes d'exécution (après approbation)
 
-### 2. Identifier le type de défaut
+1. Modifier `test-uber-scopes/index.ts` (scopes réduits à 3).
+2. Déployer `test-uber-scopes` + `uber-create-report` (si pas déjà à jour).
+3. Lancer `test-uber-scopes` → vérifier que les 3 scopes renvoient `200 / available: true`.
+4. Lancer `uber-create-report` avec **Chicken Street Montreuil + février 2026** (`PAYMENT_DETAILS_REPORT`, `start_date=2026-02-01`, `end_date=2026-02-28`).
+5. Lire les logs `uber-create-report` et te montrer :
+   - Le token obtenu (status)
+   - La réponse Uber `/v1/eats/report` (workflow_id ou erreur)
+6. Si succès → on aura le `workflow_id` et le webhook livrera le CSV.
+7. Si échec → on saura précisément à quelle étape ça bloque (token vs API report).
 
-Selon le résultat :
+## Réponse à donner à Uber
 
-- **Cas A — IDs orphelins / chain_id manquant sur les restos** : créer une migration pour ré-assigner le bon `chain_id` aux restaurants concernés (à valider avec l'utilisateur avant exécution).
-- **Cas B — restaurant_id obsolète sur les lignes payout** (succession de SIRET, ID resto changé) : créer une migration de remappage des `payout_adjustments.restaurant_id` via un mapping ancien_id → nouvel_id.
-- **Cas C — bug de filtrage côté hook** (peu probable vu le code) : ajuster `useEcoContribution.ts`.
-
-### 3. UX defensive (en complément)
-
-Quand `restaurantIds.length > 0` mais `totals.lineCount === 0` :
-- Afficher un message explicite : *"Aucune ligne éco-contribution rattachée à ces restaurants pour 2026. Vérifier le rattachement chain_id ou consulter la vue Réseau."*
-- Afficher un mini-debug (en mode super_admin uniquement) listant `restaurantIds.length` + `byRestaurant.length` pour faciliter le diagnostic.
-
-### 4. Validation post-fix
-
-Recharger `/analytics/eco-contribution` avec marque Chicken Street et vérifier :
-- Bandeau affiche un nombre de lignes proche de 566 (en filtrant par chain).
-- Les 99 restaurants avec données apparaissent dans le tableau.
-- Les drilldowns (RestaurantRow → EcoContributionDetail) montrent les lignes individuelles par mois.
-
-## Détails techniques
-
-- Hook concerné : `src/hooks/useEcoContribution.ts` — pas de bug évident, le filtre `.in("restaurant_id", restaurantIds)` est correct.
-- Composant : `src/components/analytics/EcoContributionSection.tsx` ligne 77-79 → `restaurantIds = selectedRestaurants` (déjà filtré par chain via `useActiveRestaurants`).
-- Tables impactées : `payout_adjustments`, `deliveroo_orders`, `restaurants` (colonne `chain_id`).
-- Memory à respecter : isolation multi-tenant par `chain_id` (Core rule), donc toute migration doit préserver l'intégrité multi-marque.
-
-## Ce que je ferai dès l'approbation
-
-1. Lancer 3-4 requêtes SQL diagnostiques (read-only).
-2. Te présenter les chiffres (combien d'IDs orphelins, combien de chain_id NULL, etc.).
-3. Te proposer la migration ciblée correspondante avant de l'exécuter.
-4. Ajouter le message d'erreur defensive dans l'UI.
-
-Aucune modif destructive ne sera faite sans ton OK explicite sur les chiffres trouvés.
+Pas besoin de leur répondre côté scopes : on confirme juste qu'on n'utilisera plus que les 3 activés. Si on a besoin un jour de `eats.order` ou `eats.store.status.write` (commandes / pause magasin), on pourra leur redemander à ce moment-là.
