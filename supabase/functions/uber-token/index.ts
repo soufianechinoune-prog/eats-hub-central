@@ -34,8 +34,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
+  const clientId = Deno.env.get("UBER_CLIENT_ID") ?? Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
+  const clientSecret = Deno.env.get("UBER_CLIENT_SECRET") ?? Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
   const redirectUri = Deno.env.get("VITE_UBER_REDIRECT_URI") ?? "";
 
   console.log("Token Exchange - Config check:", { 

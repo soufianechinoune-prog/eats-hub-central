@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
     console.log('Signature present:', !!signature);
     
     if (signature) {
-      const clientSecret = Deno.env.get('VITE_UBER_CLIENT_SECRET');
+      const clientSecret = Deno.env.get('UBER_CLIENT_SECRET') ?? Deno.env.get('VITE_UBER_CLIENT_SECRET');
       if (!clientSecret) {
         console.error('Client secret not configured');
         return new Response('Server configuration error', { status: 500, headers: corsHeaders });

@@ -10,8 +10,8 @@ const corsHeaders = {
 };
 
 async function getClientCredentialsToken(): Promise<string> {
-  const clientId = Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
-  const clientSecret = Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
+  const clientId = Deno.env.get("UBER_CLIENT_ID") ?? Deno.env.get("VITE_UBER_CLIENT_ID") ?? "";
+  const clientSecret = Deno.env.get("UBER_CLIENT_SECRET") ?? Deno.env.get("VITE_UBER_CLIENT_SECRET") ?? "";
   if (!clientId || !clientSecret) throw new Error("Missing Uber credentials");
 
   const form = new URLSearchParams({
