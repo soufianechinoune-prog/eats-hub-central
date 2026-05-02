@@ -65,8 +65,8 @@ Deno.serve(async (req) => {
           },
           body: new URLSearchParams({
             grant_type: 'refresh_token',
-            client_id: Deno.env.get('VITE_UBER_CLIENT_ID') ?? '',
-            client_secret: Deno.env.get('VITE_UBER_CLIENT_SECRET') ?? '',
+            client_id: Deno.env.get('UBER_CLIENT_ID') ?? Deno.env.get('VITE_UBER_CLIENT_ID') ?? '',
+            client_secret: Deno.env.get('UBER_CLIENT_SECRET') ?? Deno.env.get('VITE_UBER_CLIENT_SECRET') ?? '',
             refresh_token: connection.refresh_token!,
           }),
         });

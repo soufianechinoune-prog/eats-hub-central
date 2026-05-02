@@ -21,8 +21,8 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
     .eq('restaurant_id', restaurantId)
     .maybeSingle();
 
-  const clientId = Deno.env.get('VITE_UBER_CLIENT_ID')!;
-  const clientSecret = Deno.env.get('VITE_UBER_CLIENT_SECRET')!;
+  const clientId = Deno.env.get('UBER_CLIENT_ID') ?? Deno.env.get('VITE_UBER_CLIENT_ID')!;
+  const clientSecret = Deno.env.get('UBER_CLIENT_SECRET') ?? Deno.env.get('VITE_UBER_CLIENT_SECRET')!;
 
   // Path 1: user OAuth available
   if (connection?.access_token) {
