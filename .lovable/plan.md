@@ -1,30 +1,25 @@
-# Plan — Tests diagnostiques Uber OAuth
-
 ## Objectif
+Mettre à jour les UUID Uber des Tasty Crousty depuis le fichier Excel.
 
-Trancher entre 3 hypothèses pour le `invalid_scope` persistant :
-1. Bug Uber côté provisioning (mail à Sanjay justifié)
-2. Mauvais format de requête (scopes individuels au lieu de combinés)
-3. Mauvais `client_secret` configuré côté Lovable Cloud
+## Étape 1 — Créer 6 nouveaux restaurants
+INSERT dans `restaurants` (chain_id Tasty Crousty, is_active=true, uber_store_id renseigné dès l'insertion) :
 
-## Modification
+| Nom | UUID Uber |
+|---|---|
+| TASTY CROUSTY ANNEMASSE | c3887927-26d2-514e-b2da-421a00dd6626 |
+| TASTY CROUSTY CACHAN | 3608d3a0-1560-5a22-8e96-4e6edc44092a |
+| TASTY CROUSTY CHAMPS SUR MARNE | 857a9a83-81a1-5f8f-9c85-1e41017b50b4 |
+| TASTY CROUSTY LENS | 73743b00-959f-5be7-a5d3-c492c4bdabc0 |
+| TASTY CROUSTY PARIS 20 | 584a1128-a1aa-5dfd-8da1-17e4275926a8 |
+| TASTY CROUSTY REPUBLIQUE | 6db1e4dc-e05f-509c-ab90-7ec8b9ae5d6e |
 
-Étendre `supabase/functions/test-uber-scopes/index.ts` avec 4 tests supplémentaires en plus des 3 scopes individuels déjà testés :
+## Étape 2 — Mapper 52 UUIDs aux restos existants
+Une migration avec 52 `UPDATE restaurants SET uber_store_id = ... WHERE id = ...` (matchs déjà identifiés : Le Mans, Aix, Amiens, Angers, Argenteuil, Athis-Mons, Aubervilliers, Aulnay, Auxerre, Avignon, Bobigny, Boulogne, Bruxelles, Bussy, Caen, Cergy, Chalon, Champigny, Châtelet, Chevilly, Conflans, Creil, Créteil, Créteil 2, Evry, Grenoble, Ivry, Kremlin-Bicêtre, La Rochelle, Le Havre, Les Mureaux, Lyon, Marseille La Pomme, Marseille St-Antoine, Meaux, Melun, Montigny, Montreuil, Nanterre, Nantes, Orléans, Paris 18, Paris 19, Pontault, Reims, Saint-Denis, Saint Etienne, Sainte Geneviève, Strasbourg, Toulouse Capitole, Troyes, Villeurbanne).
 
-- **TEST A** — Demander les 3 scopes **combinés** dans une seule requête (`scope=eats.store eats.store.orders.read eats.report`)
-- **TEST B** — Requête avec un `client_secret` volontairement **invalide** + scope `eats.report` → si Uber renvoie `invalid_client` au lieu de `invalid_scope`, ça prouve que notre secret est bon
-- **TEST C** — Requête `client_credentials` **sans aucun scope** → voir le comportement par défaut
-- **TEST D** — Sortir le préfixe + longueur du `client_id` configuré (sanity check pour vérifier qu'on utilise bien le bon ID prod, sans dévoiler le secret)
+## Étape 3 — Vérification
+SELECT de contrôle pour confirmer que 58 Tasty Crousty ont bien un `uber_store_id`.
 
-## Étapes
-
-1. Modifier `test-uber-scopes/index.ts` (ajout de la helper `tryToken` et des 4 tests).
-2. Déployer la fonction.
-3. L'appeler via curl_edge_functions et te montrer le résultat brut des 7 tests.
-4. Conclure :
-   - Si TEST A passe → on doit demander les scopes combinés, pas isolés (fix code).
-   - Si TEST B renvoie `invalid_client` → secret OK, c'est bien Uber.
-   - Si TEST B renvoie `invalid_scope` → secret peut-être faux OU Uber renvoie ce code à tort.
-5. Sur la base de ces résultats, soit on corrige le code de `uber-create-report`, soit on envoie le mail à Sanjay avec preuves.
-
-Aucun code applicatif (UI, RPC, DB) n'est touché, uniquement la fonction de diagnostic.
+## Reportés (à faire après)
+- Mapping de "Marseille" (UUID `8bdc3bd0…`) → Garibaldi ?
+- "Toulouse" (UUID `4ec2ed0e…`) → créer un nouveau resto ?
+- 5 restos sans UUID Uber : Lyon Pardieu, Mulhouse, Nîmes, Paris 11, Pavillons sous Bois.
