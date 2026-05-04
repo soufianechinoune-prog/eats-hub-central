@@ -309,9 +309,11 @@ export default function UberBackfill() {
             <div className="flex-1">
               <p className="text-sm">
                 <strong>{targetRestaurants.length}</strong> resto(s) × <strong>{months.length}</strong> mois
-                = <strong>{targetRestaurants.length * months.length}</strong> rapports
+                → <strong>{totalWindows}</strong> fenêtre(s)
               </p>
-              <p className="text-xs text-muted-foreground">Type : {reportType}</p>
+              <p className="text-xs text-muted-foreground">
+                Type : {reportType} · Les mois de 31 jours sont splittés en 2 (limite Uber 30j/req)
+              </p>
             </div>
             <Button variant="outline" onClick={() => launchBackfill(true)} disabled={launching}>
               {launching ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
