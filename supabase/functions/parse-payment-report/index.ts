@@ -361,6 +361,14 @@ function mapStatus(status: string): string {
     'Remboursement': 'refunded',
     'Échec': 'failed',
     'En cours': 'in_progress',
+    // English (Uber Reports API)
+    'Completed': 'completed',
+    'Cancelled': 'cancelled',
+    'Canceled': 'cancelled',
+    'Refund': 'refunded',
+    'Refunded': 'refunded',
+    'Unfulfilled': 'failed',
+    'Failed': 'failed',
   };
   return statusMap[status] || status || 'unknown';
 }
