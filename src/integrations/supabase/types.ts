@@ -3478,6 +3478,27 @@ export type Database = {
           },
         ]
       }
+      uber_app_token: {
+        Row: {
+          access_token: string
+          expires_at: string
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       uber_connection_stores: {
         Row: {
           activated_at: string | null

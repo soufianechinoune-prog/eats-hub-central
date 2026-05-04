@@ -57,8 +57,22 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
     console.warn('Refresh token failed, falling back to client_credentials');
   }
 
-  // Path 2: fallback to client_credentials (server-to-server)
-  console.log('Using client_credentials fallback');
+  // Path 2: fallback to client_credentials (server-to-server) — CACHED in DB
+  // The token is valid ~30 days. We cache it to avoid Uber's OAuth rate-limit
+  // ("too_many_requests for grant type") when running batch backfills.
+  const { data: cached } = await supabase
+    .from('uber_app_token')
+    .select('access_token, expires_at')
+    .eq('id', true)
+    .maybeSingle();
+
+  // Re-use if still valid for at least 5 more minutes
+  if (cached?.access_token && new Date(cached.expires_at).getTime() > Date.now() + 5 * 60 * 1000) {
+    console.log('Using cached client_credentials token (expires', cached.expires_at, ')');
+    return cached.access_token;
+  }
+
+  console.log('Cached token missing/expired, requesting new client_credentials token');
   const tokenResponse = await fetch('https://auth.uber.com/oauth/v2/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -72,9 +86,28 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
 
   if (!tokenResponse.ok) {
     const errText = await tokenResponse.text();
+    // If we got rate-limited but have a stale-ish cached token, fall back to it
+    if (cached?.access_token && new Date(cached.expires_at).getTime() > Date.now()) {
+      console.warn('Uber OAuth rate-limited, falling back to cached token still valid:', errText);
+      return cached.access_token;
+    }
     throw new Error(`Failed to get client_credentials token: ${errText}`);
   }
   const tokenData = await tokenResponse.json();
+
+  // Persist the new token (upsert on the singleton row id=true)
+  const newExpiresAt = new Date(Date.now() + (tokenData.expires_in ?? 2592000) * 1000).toISOString();
+  const { error: upsertErr } = await supabase
+    .from('uber_app_token')
+    .upsert({
+      id: true,
+      access_token: tokenData.access_token,
+      expires_at: newExpiresAt,
+      updated_at: new Date().toISOString(),
+    });
+  if (upsertErr) console.error('Failed to cache token:', upsertErr);
+  else console.log('New token cached, expires at', newExpiresAt);
+
   return tokenData.access_token;
 }
 
