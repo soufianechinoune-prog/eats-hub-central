@@ -25,7 +25,7 @@ const UberConnections = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, uber_store_id, chain_id")
+        .select("id, name, city, uber_store_id, chain_id, uber_pos_activated_at")
         .order("name", { ascending: true });
       if (error) throw error;
       return data ?? [];
