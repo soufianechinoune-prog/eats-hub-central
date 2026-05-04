@@ -85,6 +85,57 @@ export type Database = {
           },
         ]
       }
+      backfill_jobs: {
+        Row: {
+          attempts: number
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          month_end: string
+          month_start: string
+          report_id: string | null
+          restaurant_id: string
+          restaurant_name: string
+          started_at: string | null
+          status: string
+          uber_store_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          month_end: string
+          month_start: string
+          report_id?: string | null
+          restaurant_id: string
+          restaurant_name: string
+          started_at?: string | null
+          status?: string
+          uber_store_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          month_end?: string
+          month_start?: string
+          report_id?: string | null
+          restaurant_id?: string
+          restaurant_name?: string
+          started_at?: string | null
+          status?: string
+          uber_store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       backfill_runs: {
         Row: {
           created_at: string
@@ -3711,6 +3762,19 @@ export type Database = {
       }
     }
     Views: {
+      backfill_jobs_stats: {
+        Row: {
+          done: number | null
+          failed: number | null
+          last_completed_at: string | null
+          pending: number | null
+          running: number | null
+          skipped: number | null
+          started_at: string | null
+          total: number | null
+        }
+        Relationships: []
+      }
       daily_sales_uber_deduped: {
         Row: {
           average_basket: number | null
@@ -4309,6 +4373,30 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
+      pick_next_backfill_job: {
+        Args: never
+        Returns: {
+          attempts: number
+          job_id: string
+          month_end: string
+          month_start: string
+          restaurant_id: string
+          restaurant_name: string
+          uber_store_id: string
+        }[]
+      }
+      reset_stale_backfill_jobs: { Args: never; Returns: number }
+      seed_backfill_jobs: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          inserted_count: number
+          skipped_count: number
+        }[]
+      }
       splash360_auto_map_restaurants: {
         Args: never
         Returns: {
