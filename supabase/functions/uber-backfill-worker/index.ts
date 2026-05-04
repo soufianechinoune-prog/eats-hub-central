@@ -65,7 +65,9 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             restaurantId: job.restaurant_id,
-            reportType: 'ORDERS_AND_ITEMS_REPORT',
+            // PAYMENT_DETAILS_REPORT alimente la table `orders` via parse-payment-report
+            // (même type que les backfills V2/V3/V4 précédents).
+            reportType: 'PAYMENT_DETAILS_REPORT',
             startDate,
             endDate,
           }),
