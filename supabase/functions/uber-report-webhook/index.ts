@@ -149,14 +149,28 @@ Deno.serve(async (req) => {
           if (reportData && body.report_metadata.sections.length > 0) {
             const section = body.report_metadata.sections[0];
             try {
-              await supabase.functions.invoke('parse-payment-report', {
+              console.log('Downloading CSV from Uber:', section.download_url.substring(0, 100));
+              const csvResp = await fetch(section.download_url);
+              if (!csvResp.ok) {
+                throw new Error(`CSV download failed: ${csvResp.status} ${csvResp.statusText}`);
+              }
+              const csvContent = await csvResp.text();
+              console.log('CSV downloaded, length:', csvContent.length);
+
+              const { data: parseData, error: parseInvokeError } = await supabase.functions.invoke('parse-payment-report', {
                 body: {
+                  csvContent,
+                  reportType: 'payment_order_level',
+                  dryRun: false,
                   reportId: report.id,
-                  downloadUrl: section.download_url,
                   restaurantId: reportData.restaurant_id,
                 },
               });
-              console.log('Payment report parsed successfully');
+              if (parseInvokeError) {
+                console.error('parse-payment-report invoke error:', parseInvokeError);
+              } else {
+                console.log('Payment report parsed successfully:', JSON.stringify(parseData)?.substring(0, 500));
+              }
             } catch (parseError) {
               console.error('Failed to parse payment report:', parseError);
             }
