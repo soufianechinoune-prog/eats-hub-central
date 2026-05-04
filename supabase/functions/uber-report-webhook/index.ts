@@ -88,16 +88,23 @@ Deno.serve(async (req) => {
       return new Response(null, { status: 200, headers: corsHeaders });
     }
     
-    // Find the report by job_id or workflow_id
+    // Uber returns composite IDs <workflow_root>_<job_suffix>; the suffix from the
+    // POST response can differ from the suffix in the webhook. Match on the shared root.
+    const workflowRoot = body.job_id.split('_')[0];
+    console.log('Looking up report. job_id:', body.job_id, 'workflow_root:', workflowRoot);
+
     const { data: report, error: reportError } = await supabase
       .from('reports')
-      .select('id')
-      .or(`workflow_id.eq.${body.job_id},job_id.eq.${body.job_id}`)
-      .single();
-    
-    if (reportError && reportError.code !== 'PGRST116') {
+      .select('id, restaurant_id')
+      .or(`workflow_id.eq.${body.job_id},job_id.eq.${body.job_id},workflow_id.like.${workflowRoot}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (reportError) {
       console.error('Error finding report:', reportError);
     }
+    console.log('Matched report id:', report?.id ?? 'NONE');
     
     if (report) {
       console.log('Updating report:', report.id);
