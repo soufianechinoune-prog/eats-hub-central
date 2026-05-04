@@ -194,21 +194,31 @@ export default function UberBackfillHistorique() {
 
   // ============= Actions =============
   const handleSeed = async () => {
+    if (selectedReportTypes.length === 0) {
+      toast({
+        title: "Aucune vague sélectionnée",
+        description: "Coche au moins une vague à générer.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSeeding(true);
     try {
       const { data, error } = await supabase.rpc("seed_backfill_jobs", {
         p_start_date: startDate,
         p_end_date: endDate,
         p_restaurant_ids: undefined,
+        p_report_types: selectedReportTypes,
       });
       if (error) throw error;
       const result = (data as Array<{ inserted_count: number; skipped_count: number }>)?.[0];
       toast({
         title: "Seed terminé",
-        description: `${result?.inserted_count ?? 0} jobs créés, ${result?.skipped_count ?? 0} déjà existants.`,
+        description: `${result?.inserted_count ?? 0} jobs créés, ${result?.skipped_count ?? 0} déjà existants (${selectedReportTypes.length} vague(s)).`,
       });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur seed", description: err.message, variant: "destructive" });
     } finally {
