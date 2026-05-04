@@ -85,6 +85,60 @@ export type Database = {
           },
         ]
       }
+      backfill_runs: {
+        Row: {
+          created_at: string
+          end_date: string
+          failed: number
+          finished_at: string | null
+          id: string
+          ok: number
+          report_type: string
+          restaurant_ids: string[]
+          results: Json | null
+          start_date: string
+          started_at: string
+          status: string
+          total: number
+          triggered_by: string | null
+          vague: string
+        }
+        Insert: {
+          created_at?: string
+          end_date: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          ok?: number
+          report_type: string
+          restaurant_ids?: string[]
+          results?: Json | null
+          start_date: string
+          started_at?: string
+          status?: string
+          total?: number
+          triggered_by?: string | null
+          vague: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string
+          failed?: number
+          finished_at?: string | null
+          id?: string
+          ok?: number
+          report_type?: string
+          restaurant_ids?: string[]
+          results?: Json | null
+          start_date?: string
+          started_at?: string
+          status?: string
+          total?: number
+          triggered_by?: string | null
+          vague?: string
+        }
+        Relationships: []
+      }
       bodacc_dismissed_alerts: {
         Row: {
           annonce_key: string
