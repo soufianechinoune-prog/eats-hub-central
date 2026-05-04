@@ -126,6 +126,8 @@ Deno.serve(async (req) => {
       headers: {
         'Authorization': `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
+        'Accept-Language': 'fr-FR',
+        'X-Uber-Locale': 'fr_FR',
       },
       body: JSON.stringify(reportPayload),
     });
