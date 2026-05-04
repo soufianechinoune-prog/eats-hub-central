@@ -219,6 +219,7 @@ export default function UberBackfillHistorique() {
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur seed", description: err.message, variant: "destructive" });
     } finally {
@@ -243,6 +244,7 @@ export default function UberBackfillHistorique() {
       });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur worker", description: err.message, variant: "destructive" });
     } finally {
@@ -260,6 +262,7 @@ export default function UberBackfillHistorique() {
       toast({ title: "Failed → Pending", description: "Les échecs ont été remis dans la queue." });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     }
@@ -275,6 +278,7 @@ export default function UberBackfillHistorique() {
       toast({ title: "Queue vidée" });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     }
