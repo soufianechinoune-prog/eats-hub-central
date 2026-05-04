@@ -379,12 +379,18 @@ Deno.serve(async (req) => {
     
     console.log('Total parsed rows:', rows.length);
     
-    // Find header row - look for known column headers
+    // Find header row - support both French (Uber Manager export) and English (Uber Reports API)
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(20, rows.length); i++) {
       const rowText = rows[i].join(' ');
-      if (rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') || 
-          rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande')) {
+      if (
+        // FR (Uber Eats Manager export)
+        rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') ||
+        rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande') ||
+        // EN (Uber Reports API direct delivery)
+        (rowText.includes('Order ID') && rowText.includes('Workflow ID')) ||
+        (rowText.includes('Order ID') && rowText.includes('Store Name'))
+      ) {
         headerRowIndex = i;
         console.log('Found header at row', i, ':', rows[i].slice(0, 5).join(', '));
         break;
@@ -392,9 +398,8 @@ Deno.serve(async (req) => {
     }
 
     if (headerRowIndex === -1) {
-      // Log first few rows for debugging
       console.log('Could not find header. First 5 rows:', JSON.stringify(rows.slice(0, 5)));
-      throw new Error('Could not find header row in CSV. Expected columns like "Id. de la commande", "Nom du restaurant"');
+      throw new Error('Could not find header row in CSV. Expected FR ("Id. de la commande") or EN ("Order ID") columns');
     }
     
     // Check if there are data rows after header
