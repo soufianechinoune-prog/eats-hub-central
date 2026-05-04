@@ -127,7 +127,8 @@ const UberConnections = () => {
                   <TableHead>Restaurant</TableHead>
                   <TableHead>Ville</TableHead>
                   <TableHead>Store UUID</TableHead>
-                  <TableHead>Statut</TableHead>
+                  <TableHead>Mapping</TableHead>
+                  <TableHead>POS Reporting Uber</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -138,6 +139,13 @@ const UberConnections = () => {
                     <TableCell className="font-mono text-xs">{r.uber_store_id}</TableCell>
                     <TableCell>
                       <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">Connecté</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {r.uber_pos_activated_at ? (
+                        <Badge className="bg-emerald-600 text-white hover:bg-emerald-600">POS activé</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-muted-foreground">En attente POS</Badge>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
