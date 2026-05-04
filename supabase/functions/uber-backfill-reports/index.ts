@@ -6,20 +6,27 @@ const corsHeaders = {
 };
 
 interface BackfillRequest {
-  reportType?: string;        // default: PAYMENT_DETAILS_REPORT
-  restaurantIds?: string[];   // if omitted: all restos with uber_store_id
+  reportType?: string;
+  restaurantIds?: string[];
   months: { year: number; month: number }[];
-  vague?: string;             // free-text label, e.g. 'v1', 'v2', 'v3-2024-01'
-  testMode?: boolean;         // if true: limit to 1 restaurant
-  dryRun?: boolean;           // if true: no Uber call, just count
-  triggeredBy?: string;       // user id of super admin who launched
+  vague?: string;
+  testMode?: boolean;
+  dryRun?: boolean;
+  triggeredBy?: string;
 }
 
-function monthRange(year: number, month: number) {
-  const start = new Date(Date.UTC(year, month - 1, 1));
-  const end = new Date(Date.UTC(year, month, 0));
-  const fmt = (d: Date) => d.toISOString().slice(0, 10);
-  return { start: fmt(start), end: fmt(end) };
+const pad = (n: number) => String(n).padStart(2, '0');
+
+// Uber API refuses any window > 30 days. Split 31-day months into 2 windows.
+function splitInto30DayWindows(year: number, month: number) {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate(); // 28..31
+  if (lastDay <= 30) {
+    return [{ start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` }];
+  }
+  return [
+    { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-30` },
+    { start: `${year}-${pad(month)}-31`, end: `${year}-${pad(month)}-31` },
+  ];
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -47,7 +54,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Resolve target restaurants
     let restaurantIds = body.restaurantIds || [];
     if (restaurantIds.length === 0) {
       const { data: restos, error } = await supabase
@@ -61,10 +67,17 @@ Deno.serve(async (req) => {
 
     if (testMode) restaurantIds = restaurantIds.slice(0, 1);
 
-    const totalPlanned = restaurantIds.length * months.length;
-    console.log(`Backfill (${vague}): ${restaurantIds.length} restos × ${months.length} mois = ${totalPlanned} (${reportType})${dryRun ? ' [DRY RUN]' : ''}`);
+    // Pre-compute all windows (per month, splitting 31-day months)
+    const allWindows: { year: number; month: number; start: string; end: string }[] = [];
+    for (const m of months) {
+      for (const w of splitInto30DayWindows(m.year, m.month)) {
+        allWindows.push({ year: m.year, month: m.month, ...w });
+      }
+    }
 
-    // Dry run: just return the count without doing anything
+    const totalPlanned = restaurantIds.length * allWindows.length;
+    console.log(`Backfill (${vague}): ${restaurantIds.length} restos × ${allWindows.length} fenêtres = ${totalPlanned} (${reportType})${dryRun ? ' [DRY RUN]' : ''}`);
+
     if (dryRun) {
       return new Response(JSON.stringify({
         success: true,
@@ -72,24 +85,24 @@ Deno.serve(async (req) => {
         totalPlanned,
         restaurantCount: restaurantIds.length,
         monthCount: months.length,
+        windowCount: allWindows.length,
         reportType,
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
     }
 
-    // Earliest start / latest end for the run record
-    const sortedMonths = [...months].sort((a, b) => a.year - b.year || a.month - b.month);
-    const firstRange = monthRange(sortedMonths[0].year, sortedMonths[0].month);
-    const lastRange = monthRange(sortedMonths[sortedMonths.length - 1].year, sortedMonths[sortedMonths.length - 1].month);
+    // Earliest start / latest end across all windows
+    const sortedWindows = [...allWindows].sort((a, b) => a.start.localeCompare(b.start));
+    const firstStart = sortedWindows[0].start;
+    const lastEnd = sortedWindows[sortedWindows.length - 1].end;
 
-    // Create the run record
     const { data: runRow, error: runErr } = await supabase
       .from('backfill_runs')
       .insert({
         vague,
         report_type: reportType,
         restaurant_ids: restaurantIds,
-        start_date: firstRange.start,
-        end_date: lastRange.end,
+        start_date: firstStart,
+        end_date: lastEnd,
         status: 'running',
         total: totalPlanned,
         triggered_by: body.triggeredBy ?? null,
@@ -105,41 +118,43 @@ Deno.serve(async (req) => {
     let failed = 0;
 
     for (const restaurantId of restaurantIds) {
-      for (const m of months) {
-        const { start, end } = monthRange(m.year, m.month);
-        let attempt = 0;
-        let lastError: string | null = null;
+      for (const w of allWindows) {
         let okThisJob = false;
+        let lastError: string | null = null;
+        let workflowId: string | undefined;
 
-        while (attempt < 2 && !okThisJob) {
-          attempt++;
+        for (let attempt = 1; attempt <= 2 && !okThisJob; attempt++) {
           try {
             const { data, error } = await supabase.functions.invoke('uber-create-report', {
-              body: { restaurantId, reportType, startDate: start, endDate: end },
+              body: { restaurantId, reportType, startDate: w.start, endDate: w.end },
             });
             if (error) throw error;
-            results.push({ restaurantId, month: `${m.year}-${m.month}`, ok: true, workflow_id: data?.workflow_id });
-            success++;
             okThisJob = true;
+            workflowId = data?.workflow_id;
           } catch (e: any) {
             lastError = e?.message ?? String(e);
-            // Retry once on rate-limit-ish errors
+            // Retry only on rate-limit-ish errors
             if (attempt < 2 && /429|rate|limit/i.test(lastError ?? '')) {
-              console.warn(`Rate limit hit on ${restaurantId} ${m.year}-${m.month}, retrying in 5s`);
+              console.warn(`Rate limit on ${restaurantId} ${w.start}, retry in 5s`);
               await sleep(5000);
               continue;
             }
-            results.push({ restaurantId, month: `${m.year}-${m.month}`, ok: false, error: lastError });
-            failed++;
+            break;
           }
         }
 
-        // Throttle to stay safe with Uber API
+        if (okThisJob) {
+          success++;
+          results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: true, workflow_id: workflowId });
+        } else {
+          failed++;
+          results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: false, error: lastError });
+        }
+
         await sleep(500);
       }
     }
 
-    // Update run record
     if (runId) {
       await supabase
         .from('backfill_runs')

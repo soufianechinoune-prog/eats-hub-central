@@ -1,99 +1,106 @@
+## Diagnostic de la Vague 1
 
-# Backfill historique Uber — stratégie en 3 vagues
+Les "8 failed / 6 rapports" sont dûs à **2 bugs** dans `uber-backfill-reports` :
 
-## Pourquoi pas tout d'un coup
+### Bug 1 — Limite Uber 30 jours ignorée
+L'API Uber refuse tout rapport > 30 jours :
+```
+"time range requested must not exceed 30 days"
+```
+Or on demande des **mois calendaires entiers** : juillet (31j), août (31j), octobre (31j), décembre (31j) → **4 mois sur 6 cassés**. Septembre et novembre (30j) passent.
 
-- **169 restaurants** ont un `uber_store_id` configuré
-- Janvier 2024 → aujourd'hui = **23 mois** → **~3 887 rapports** à générer pour le seul `PAYMENT_DETAILS_REPORT`
-- Le pipeline n'a jamais traité plus de quelques rapports en parallèle (5 completed à date)
-- Risques concrets d'un backfill massif :
-  - Rate limit Uber (limite réelle inconnue, le throttle 300ms est arbitraire)
-  - Webhooks asynchrones qui reviennent en désordre sur plusieurs jours
-  - Beaucoup de restos pas connectés en 2024 → rapports vides massifs
-  - Si ça plante, distinguer "Uber n'a pas de data" vs "webhook perdu" sur 4 000 jobs = ingérable
+### Bug 2 — Compteur de failed gonflé
+La logique de retry incrémente `failed++` à chaque tentative ratée, même quand on retry. Résultat : 4 échecs réels comptés 2 fois = **8 failed** affichés (et `total=6` mais `results.length=10`).
 
-## Approche : 3 vagues avec checkpoint après chacune
+**Côté webhook tout fonctionne** : les 6 jobs `2025-09`, `2025-11` (réussis) + les retries qui ont quand même atterri sont en `completed` dans la table `reports` (visible dans la capture).
 
-### Vague 1 — Validation pipeline (1 resto, 6 mois)
-- **Cible** : Chicken Street Besançon, juillet → décembre 2025
-- **Volume** : 6 rapports `PAYMENT_DETAILS_REPORT`
-- **Durée** : ~30 min (génération Uber + webhook + parsing)
-- **Checkpoint** :
-  - 6/6 rapports en `completed` ?
-  - Commandes bien insérées dans `orders` (volume cohérent) ?
-  - Pas de doublons ?
-- **Si KO** → on corrige avant d'aller plus loin
+---
 
-### Vague 2 — Validation multi-restaurant (10 restos, 3 mois)
-- **Cible** : 10 restos clairement actifs (sélection sur volume de commandes récent), octobre → décembre 2025
-- **Volume** : 30 rapports
-- **Durée** : ~1-2h
-- **Checkpoint** :
-  - Taux de complétion (objectif >95%)
-  - Détection des restos qui retournent du vide (à exclure de la vague 3)
-  - Stress du webhook (10 webhooks en parallèle ≈ pic du backfill final)
-- **Si KO** → on ajuste throttling ou retry logic
+## Plan de correction
 
-### Vague 3 — Backfill complet, mois par mois
-- **Cible** : 169 restos × 23 mois (janv. 2024 → mars 2026), **un mois à la fois**
-- **Volume** : ~169 rapports par batch, 23 batches
-- **Durée** : étalé sur 2-3 jours, batch par batch avec contrôle entre chaque
-- **Checkpoint après chaque mois** :
-  - Vue tableau : restos completed / pending / failed
-  - Bouton "rejouer les failed du mois X"
-  - On ne lance le mois suivant que si le mois courant est >90% completed
+### 1. Edge function `uber-backfill-reports`
 
-## Ce qu'il faut construire
+**a) Découper chaque mois en fenêtres ≤ 30 jours**
+Au lieu d'envoyer `2025-07-01 → 2025-07-31`, on envoie 2 fenêtres :
+- `2025-07-01 → 2025-07-30`
+- `2025-07-31 → 2025-07-31`
 
-### 1. Page admin `/admin/uber-backfill`
-Tableau de bord pour piloter les 3 vagues (réservé super_admin) :
-- Sélecteur de mode : **Vague 1** / **Vague 2** / **Vague 3 (mois X)**
-- Sélecteur de restos (auto-rempli selon la vague, modifiable)
-- Sélecteur de période (preset par vague, modifiable)
-- Sélecteur de type de rapport (défaut `PAYMENT_DETAILS_REPORT`)
-- Bouton "Lancer la vague"
-- Tableau live de l'état des `reports` créés : status (pending/completed/failed), nb commandes parsées, durée
+Une petite fonction `splitInto30DayWindows(year, month)` qui retourne 1 ou 2 segments selon la longueur du mois (28/29/30 → 1 segment, 31 → 2 segments).
 
-### 2. Édition de l'edge function `uber-backfill-reports`
-- Ajouter le paramètre `dryRun` pour estimer le volume sans appeler Uber
-- Logger chaque batch dans une nouvelle table `backfill_runs` (id, vague, started_at, finished_at, total, ok, failed, params)
-- Réduire le throttle à 500ms entre appels (plus safe que 300ms sur du gros volume)
-- Retry automatique 1 fois sur erreur 429 (rate limit) avec backoff de 5s
+**b) Corriger le compteur**
+Bouger `failed++` **hors** de la boucle while, après que les retries soient épuisés. Même chose pour le `results.push` d'erreur (un seul push final par job, pas un par tentative).
 
-### 3. Vue "rapports orphelins"
-Sur la même page admin, tableau des rapports `pending` depuis >2h avec :
-- Bouton "rejouer le webhook" (pour rapports où Uber a répondu mais qu'on a perdu)
-- Bouton "marquer failed" (pour ceux qu'Uber n'a jamais générés)
+**c) Supprimer le double-comptage existant** : `total` doit refléter le **nombre de fenêtres réellement envoyées** (pas `restos × mois`), donc on calcule `totalPlanned` après le découpage.
 
-### 4. Détection automatique des restos inactifs (optionnel mais utile)
-Avant la vague 3, fonction qui pour chaque resto identifie le **mois de première activité Uber** (premier rapport non-vide), et qui exclut automatiquement les mois antérieurs des batches suivants. Évite de générer ~1000 rapports vides.
+### 2. UI `UberBackfill.tsx`
+
+**a) Afficher le nombre de fenêtres** dans la zone d'estimation :
+> "1 resto × 6 mois → **8 fenêtres** (les mois de 31j sont splittés en 2)"
+
+**b) Petit fix cosmétique** : afficher `ok / total` même quand le run est `completed_with_errors`, en mettant le badge orange plutôt que rouge si `ok > 0`.
+
+### 3. Validation après fix
+
+1. Relancer la **Vague 1** (Besançon, juil→déc 2025) → on doit voir **8/8 OK**, 0 failed
+2. Vérifier que les 4 nouveaux mois (juillet, août, octobre, décembre) apparaissent en `completed` dans `reports` et que les commandes/payouts s'insèrent bien en base
+3. Si OK → on passe à la **Vague 2** (10 restos × 3 mois = 30 → 35 fenêtres)
+
+---
 
 ## Détails techniques
 
-```text
-backfill_runs (nouvelle table)
-├── id uuid pk
-├── vague text                  -- 'v1' | 'v2' | 'v3-2024-01' | ...
-├── report_type text
-├── restaurant_ids uuid[]
-├── start_date / end_date date
-├── status text                 -- 'running' | 'completed' | 'failed'
-├── total / ok / failed int
-├── started_at / finished_at timestamptz
-└── triggered_by uuid           -- super_admin user_id
+```ts
+// Nouvelle fonction de découpage
+function splitInto30DayWindows(year: number, month: number) {
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate(); // 28..31
+  if (lastDay <= 30) {
+    return [{ start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-${pad(lastDay)}` }];
+  }
+  // Mois de 31 jours : split en 2
+  return [
+    { start: `${year}-${pad(month)}-01`, end: `${year}-${pad(month)}-30` },
+    { start: `${year}-${pad(month)}-31`, end: `${year}-${pad(month)}-31` },
+  ];
+}
 ```
 
-Ordre d'implémentation :
-1. Table `backfill_runs` (migration)
-2. Édition de `uber-backfill-reports` (logging + retry + dryRun)
-3. Page `/admin/uber-backfill` (UI pilotage + tableau live)
-4. **Lancement vague 1** → on regarde ensemble le résultat avant de coder la suite
-5. Si vague 1 OK → vague 2
-6. Si vague 2 OK → on ajoute la détection auto restos inactifs + on lance la vague 3 mois par mois
+```ts
+// Boucle corrigée
+for (const restaurantId of restaurantIds) {
+  for (const m of months) {
+    for (const window of splitInto30DayWindows(m.year, m.month)) {
+      let okThisJob = false;
+      let lastError: string | null = null;
+      for (let attempt = 1; attempt <= 2 && !okThisJob; attempt++) {
+        try {
+          const { data, error } = await supabase.functions.invoke('uber-create-report', {
+            body: { restaurantId, reportType, startDate: window.start, endDate: window.end },
+          });
+          if (error) throw error;
+          okThisJob = true;
+          results.push({ restaurantId, window, ok: true, workflow_id: data?.workflow_id });
+        } catch (e: any) {
+          lastError = e?.message ?? String(e);
+          if (attempt < 2 && /429|rate|limit/i.test(lastError)) {
+            await sleep(5000);
+            continue;
+          }
+          break; // on sort, on comptera failed après
+        }
+      }
+      if (okThisJob) success++;
+      else { failed++; results.push({ restaurantId, window, ok: false, error: lastError }); }
+      await sleep(500);
+    }
+  }
+}
+```
 
-## Ce qu'on ne fait PAS dans ce plan
-- On reste sur `PAYMENT_DETAILS_REPORT` uniquement. Les 4 autres types (`ORDER_HISTORY`, `DOWNTIME`, `CUSTOMER_FEEDBACK`, `MENU_ITEM_FEEDBACK`) seront testés dans un second temps, une fois le backfill financier validé. Sinon on multiplie le volume par 5.
-- Pas de déduplication transverse pour l'instant : on s'appuie sur les contraintes uniques existantes des tables `orders` / `payouts`.
+---
 
-## Question pour toi
-Est-ce que je pars sur ce plan, ou tu veux ajuster le découpage des vagues (ex: démarrer plus large dès la vague 1) ?
+## Fichiers modifiés
+
+- `supabase/functions/uber-backfill-reports/index.ts` (logique split + compteurs)
+- `src/pages/UberBackfill.tsx` (affichage estimation + badges)
+
+Aucune migration DB nécessaire (la table `backfill_runs` est déjà bien faite).
