@@ -299,21 +299,53 @@ function parseNumber(value: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+// Detect US-style M/D/YY (English Uber API CSV) vs FR DD/MM/YYYY (Manager export)
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr === '') return null;
   const parts = dateStr.split('/');
   if (parts.length !== 3) return null;
-  const [day, month, year] = parts;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  let [a, b, y] = parts;
+  // 2-digit year → assume 20XX
+  if (y.length === 2) y = '20' + y;
+  // Heuristic: if year part is 4 digits (FR DD/MM/YYYY) keep order; if 2 digits → US M/D/YY
+  // FR format: DD/MM/YYYY (a=day, b=month). US format: M/D/YY (a=month, b=day).
+  let day: string, month: string;
+  if (parts[2].length === 4) {
+    // FR
+    day = a; month = b;
+  } else {
+    // US (English Uber Reports API)
+    month = a; day = b;
+  }
+  return `${y}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+// Convert "11:57 AM" / "9:01 PM" → "11:57:00" / "21:01:00"; pass-through "HH:MM[:SS]"
+function normalizeTime(timeStr: string): string | null {
+  if (!timeStr) return null;
+  const trimmed = timeStr.trim();
+  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    let h = parseInt(ampmMatch[1], 10);
+    const m = ampmMatch[2];
+    const s = ampmMatch[3] ?? '00';
+    const period = ampmMatch[4].toUpperCase();
+    if (period === 'PM' && h < 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${m}:${s}`;
+  }
+  const hmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hmMatch) {
+    return `${hmMatch[1].padStart(2, '0')}:${hmMatch[2]}:${hmMatch[3] ?? '00'}`;
+  }
+  return null;
 }
 
 function parseDateTime(dateStr: string, timeStr: string): string | null {
   const date = parseDate(dateStr);
   if (!date) return null;
-  if (timeStr && timeStr.includes(':')) {
-    return `${date}T${timeStr}:00`;
-  }
-  return `${date}T00:00:00`;
+  const time = normalizeTime(timeStr);
+  return time ? `${date}T${time}` : `${date}T00:00:00`;
 }
 
 function cleanUrl(url: string): string | null {
