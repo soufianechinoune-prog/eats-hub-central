@@ -103,6 +103,87 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Statut de la commande': 'status',
   'Identifiant du programme de fidélité du commerçant': 'loyalty_id',
   'Id. de référence du versement': 'payout_reference_id',
+
+  // ============ MAPPING ANGLAIS (CSV livré par l'API Uber Reports) ============
+  'Order ID': 'uber_order_id',
+  'Workflow ID': 'uber_flow_id',
+  'Store Name': 'restaurant_name',
+  'Store ID': 'uber_store_id',
+  'Order Date': 'order_date',
+  'Order Accept Time': 'order_datetime',
+  'Dining Mode': 'fulfillment_type',
+  'Payment Mode': 'payment_method',
+  'Order Channel': 'order_channel',
+  'Customer Uber-Membership Status': 'uber_one_status',
+
+  'Sales (excl. VAT)': 'sales_excl_vat',
+  'VAT1 on Sales': 'vat_1_sales',
+  'VAT2 on Sales': 'vat_2_sales',
+  'VAT3 on Sales': 'vat_3_sales',
+  'Sales (incl. VAT)': 'sales_incl_vat',
+
+  'Order Error Adjustments (excl. VAT)': 'refund_excl_vat',
+  'VAT 1 on order error adjustments': 'vat_1_refund',
+  'VAT 2 on order error adjustments': 'vat_2_refund',
+  'VAT 3 on order error adjustments': 'vat_3_refund',
+  // 'Order Error Adjustments (incl. VAT)' déjà mappé ci-dessus (refund_incl_vat)
+
+  'Offers on items (excl. VAT)': 'item_promo_excl_vat',
+  'VAT 1 on offers on items': 'vat_1_item_promo',
+  'VAT 2 on offers on items': 'vat_2_item_promo',
+  'VAT 3 on offers on items': 'vat_3_item_promo',
+  'Offers on items (incl. VAT)': 'item_promo_incl_vat',
+
+  'Offer Redemption Fee': 'offer_usage_fee',
+  'VAT On Offer Redemption Fee': 'vat_offer_usage_fee',
+  'Marketing Adjustment (incl. VAT)': 'marketing_fee_adjustment',
+
+  'Meal Voucher': 'meal_voucher_amount',
+  'Meal Voucher provider': 'meal_voucher_provider',
+
+  'Price Adjustments (excl. VAT)': 'price_adjustment_excl_vat',
+  'VAT on Price Adjustments': 'vat_price_adjustment',
+  'Price Adjustments (incl. VAT)': 'price_adjustment_incl_vat',
+
+  'Delivery Fee (excl VAT)': 'merchant_delivery_fee_excl_vat',
+  'VAT1 on Delivery Fee': 'vat_1_merchant_delivery',
+  'VAT2 on Delivery Fee': 'vat_2_merchant_delivery',
+  'VAT3 on Delivery Fee': 'vat_3_merchant_delivery',
+  'Delivery Fee (incl VAT)': 'merchant_delivery_fee_incl_vat',
+
+  'Pick and Pack Fee': 'packaging_fee',
+  'VAT On Pick And Pack Fee': 'vat_packaging_fee',
+  'Bag Fee': 'bag_fee',
+
+  'Delivery Offer Redemptions (excl. VAT)': 'delivery_promo_excl_vat',
+  'VAT on Delivery Offer Redemptions': 'vat_delivery_promo',
+  'Delivery Offer Redemptions (incl. VAT)': 'delivery_promo_incl_vat',
+
+  'Total Order (incl VAT)': 'order_total_incl_vat',
+  'Merchant to Customer Invoice Link': 'customer_invoice_url',
+
+  'Cost of Delivery (excl VAT)': 'delivery_cost_excl_vat',
+  'VAT on cost of delivery': 'vat_delivery_cost',
+  'Cost of Delivery (incl VAT)': 'delivery_cost_incl_vat',
+  'Courier to Merchant Invoice Link': 'courier_invoice_url',
+
+  'Marketplace Fee before discount (excl VAT)': 'uber_fee_before_promo_excl_vat',
+  'Marketplace Fee discount (excl VAT)': 'uber_fee_promo_excl_vat',
+  'Marketplace Fee after discount (excl VAT)': 'uber_fee_after_promo_excl_vat',
+  'VAT on Marketplace fee after discount': 'vat_uber_fee',
+  'Marketplace Fee after discount (incl VAT)': 'uber_fee_after_promo_incl_vat',
+  'Uber to Merchant Invoice Link': 'uber_invoice_url',
+
+  'VAT Adjustment': 'vat_adjustment',
+  'Profit on Delivery Fee': 'delivery_fee_gain',
+  'Tips': 'tip_amount',
+  'Other payments description': 'other_payments_description',
+  'Other payments (incl VAT)': 'other_payments_incl_vat',
+  'Total payout': 'net_payout',
+  'Payout Date': 'payout_date',
+  'Order Status': 'status',
+  'Retailer Loyalty ID': 'loyalty_id',
+  'Payout reference ID': 'payout_reference_id',
 };
 
 // Normalize restaurant name for alias/fuzzy matching
@@ -218,21 +299,53 @@ function parseNumber(value: string): number {
   return isNaN(num) ? 0 : num;
 }
 
+// Detect US-style M/D/YY (English Uber API CSV) vs FR DD/MM/YYYY (Manager export)
 function parseDate(dateStr: string): string | null {
   if (!dateStr || dateStr === '') return null;
   const parts = dateStr.split('/');
   if (parts.length !== 3) return null;
-  const [day, month, year] = parts;
-  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+  let [a, b, y] = parts;
+  // 2-digit year → assume 20XX
+  if (y.length === 2) y = '20' + y;
+  // Heuristic: if year part is 4 digits (FR DD/MM/YYYY) keep order; if 2 digits → US M/D/YY
+  // FR format: DD/MM/YYYY (a=day, b=month). US format: M/D/YY (a=month, b=day).
+  let day: string, month: string;
+  if (parts[2].length === 4) {
+    // FR
+    day = a; month = b;
+  } else {
+    // US (English Uber Reports API)
+    month = a; day = b;
+  }
+  return `${y}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+// Convert "11:57 AM" / "9:01 PM" → "11:57:00" / "21:01:00"; pass-through "HH:MM[:SS]"
+function normalizeTime(timeStr: string): string | null {
+  if (!timeStr) return null;
+  const trimmed = timeStr.trim();
+  const ampmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (ampmMatch) {
+    let h = parseInt(ampmMatch[1], 10);
+    const m = ampmMatch[2];
+    const s = ampmMatch[3] ?? '00';
+    const period = ampmMatch[4].toUpperCase();
+    if (period === 'PM' && h < 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${m}:${s}`;
+  }
+  const hmMatch = trimmed.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (hmMatch) {
+    return `${hmMatch[1].padStart(2, '0')}:${hmMatch[2]}:${hmMatch[3] ?? '00'}`;
+  }
+  return null;
 }
 
 function parseDateTime(dateStr: string, timeStr: string): string | null {
   const date = parseDate(dateStr);
   if (!date) return null;
-  if (timeStr && timeStr.includes(':')) {
-    return `${date}T${timeStr}:00`;
-  }
-  return `${date}T00:00:00`;
+  const time = normalizeTime(timeStr);
+  return time ? `${date}T${time}` : `${date}T00:00:00`;
 }
 
 function cleanUrl(url: string): string | null {
@@ -248,6 +361,14 @@ function mapStatus(status: string): string {
     'Remboursement': 'refunded',
     'Échec': 'failed',
     'En cours': 'in_progress',
+    // English (Uber Reports API)
+    'Completed': 'completed',
+    'Cancelled': 'cancelled',
+    'Canceled': 'cancelled',
+    'Refund': 'refunded',
+    'Refunded': 'refunded',
+    'Unfulfilled': 'failed',
+    'Failed': 'failed',
   };
   return statusMap[status] || status || 'unknown';
 }
@@ -298,12 +419,18 @@ Deno.serve(async (req) => {
     
     console.log('Total parsed rows:', rows.length);
     
-    // Find header row - look for known column headers
+    // Find header row - support both French (Uber Manager export) and English (Uber Reports API)
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(20, rows.length); i++) {
       const rowText = rows[i].join(' ');
-      if (rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') || 
-          rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande')) {
+      if (
+        // FR (Uber Eats Manager export)
+        rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') ||
+        rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande') ||
+        // EN (Uber Reports API direct delivery)
+        (rowText.includes('Order ID') && rowText.includes('Workflow ID')) ||
+        (rowText.includes('Order ID') && rowText.includes('Store Name'))
+      ) {
         headerRowIndex = i;
         console.log('Found header at row', i, ':', rows[i].slice(0, 5).join(', '));
         break;
@@ -311,9 +438,8 @@ Deno.serve(async (req) => {
     }
 
     if (headerRowIndex === -1) {
-      // Log first few rows for debugging
       console.log('Could not find header. First 5 rows:', JSON.stringify(rows.slice(0, 5)));
-      throw new Error('Could not find header row in CSV. Expected columns like "Id. de la commande", "Nom du restaurant"');
+      throw new Error('Could not find header row in CSV. Expected FR ("Id. de la commande") or EN ("Order ID") columns');
     }
     
     // Check if there are data rows after header
