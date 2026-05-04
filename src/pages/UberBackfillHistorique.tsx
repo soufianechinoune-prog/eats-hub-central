@@ -298,8 +298,8 @@ export default function UberBackfillHistorique() {
   const pending = stats?.pending ?? 0;
   const progressPct = total > 0 ? Math.round(((done + failed) / total) * 100) : 0;
 
-  // ETA basée sur 1 job toutes les 2 min
-  const etaMinutes = pending * 2;
+  // ETA basée sur 1 job par minute (cron */1 * * * *)
+  const etaMinutes = pending * 1;
   const etaText = etaMinutes > 60 * 24
     ? `${Math.round(etaMinutes / 60 / 24)} jours`
     : etaMinutes > 60
@@ -362,12 +362,118 @@ export default function UberBackfillHistorique() {
               </Button>
             </div>
           </div>
+
+          {/* ============= Sélecteur de vagues ============= */}
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Layers className="h-4 w-4" /> Vagues à générer (séquentielles)
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedReportTypes(VAGUES.map((v) => v.type) as ReportType[])}
+                >
+                  Tout
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedReportTypes([])}
+                >
+                  Aucun
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {VAGUES.map((v) => {
+                const checked = selectedReportTypes.includes(v.type);
+                return (
+                  <label
+                    key={v.type}
+                    className="flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleReportType(v.type)}
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">V{v.vague}</span>
+                    <span className="text-sm flex-1">{v.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            Estimation : 169 restos × ~28 mois (Jan 2024 → today) = <strong>~4 700 jobs</strong>.
-            Un cron tourne toutes les 2 min et lance 1 job à la fois → durée estimée <strong>~6,5 jours en arrière-plan</strong>.
+            Estimation : 169 restos × ~28 mois × {selectedReportTypes.length} vague(s) ={" "}
+            <strong>
+              ~{(169 * 28 * selectedReportTypes.length).toLocaleString("fr-FR")} jobs
+            </strong>
+            . Cron <strong>1 job/min</strong> → durée estimée{" "}
+            <strong>
+              ~{Math.round((169 * 28 * selectedReportTypes.length) / 60 / 24)} jours
+            </strong>{" "}
+            en arrière-plan. Vague 1 prête en ~{Math.round((169 * 28) / 60 / 24)} jours.
           </p>
         </CardContent>
       </Card>
+
+      {/* ============= STATS PAR VAGUE ============= */}
+      {vagueStats && vagueStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Layers className="h-5 w-5" /> Avancement par vague
+            </CardTitle>
+            <CardDescription>
+              Les vagues sont traitées dans l'ordre : la vague 1 se termine avant que la 2 ne commence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {vagueStats.map((vs) => {
+              const conf = VAGUES.find((v) => v.type === vs.report_type);
+              const pct = vs.total > 0 ? Math.round(((vs.done + vs.failed) / vs.total) * 100) : 0;
+              const isActive = vagueFilter === vs.vague;
+              return (
+                <div
+                  key={vs.vague}
+                  className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                    isActive ? "border-primary bg-primary/5" : "hover:bg-muted/30"
+                  }`}
+                  onClick={() => setVagueFilter(isActive ? "all" : vs.vague)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono">V{vs.vague}</Badge>
+                      <span className="font-medium text-sm">{conf?.label ?? vs.report_type}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{vs.done.toLocaleString("fr-FR")} / {vs.total.toLocaleString("fr-FR")}</span>
+                      {vs.running > 0 && (
+                        <span className="flex items-center gap-1 text-blue-600">
+                          <Loader2 className="h-3 w-3 animate-spin" /> {vs.running}
+                        </span>
+                      )}
+                      {vs.failed > 0 && (
+                        <span className="text-destructive">⚠ {vs.failed}</span>
+                      )}
+                      <span className="font-semibold text-foreground">{pct}%</span>
+                    </div>
+                  </div>
+                  <Progress value={pct} className="h-1.5" />
+                </div>
+              );
+            })}
+            {vagueFilter !== "all" && (
+              <Button size="sm" variant="ghost" onClick={() => setVagueFilter("all")}>
+                Voir toutes les vagues
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ============= STATS GLOBALES ============= */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
