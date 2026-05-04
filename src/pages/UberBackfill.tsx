@@ -166,6 +166,13 @@ export default function UberBackfill() {
       ? restaurants.slice(0, 10)
       : restaurants;
 
+  // Uber API limite à 30 jours → mois de 31j splittés en 2 fenêtres
+  const windowsPerMonth = months.reduce((acc, m) => {
+    const lastDay = new Date(Date.UTC(m.year, m.month, 0)).getUTCDate();
+    return acc + (lastDay <= 30 ? 1 : 2);
+  }, 0);
+  const totalWindows = targetRestaurants.length * windowsPerMonth;
+
   const launchBackfill = async (dryRun: boolean) => {
     setLaunching(true);
     try {
