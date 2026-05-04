@@ -88,17 +88,14 @@ Deno.serve(async (req) => {
       return new Response(null, { status: 200, headers: corsHeaders });
     }
     
-    // Uber returns composite IDs <workflow_root>_<job_suffix>; the suffix from the
-    // POST response can differ from the suffix in the webhook. Match on the shared root.
-    const workflowRoot = body.job_id.split('_')[0];
-    console.log('Looking up report. job_id:', body.job_id, 'workflow_root:', workflowRoot);
+    // Strict match: Uber returns the SAME composite job_id as the workflow_id stored at POST.
+    // The previous LIKE prefix fallback caused races (multiple reports share the same root).
+    console.log('Looking up report by strict workflow_id =', body.job_id);
 
     const { data: report, error: reportError } = await supabase
       .from('reports')
       .select('id, restaurant_id')
-      .or(`workflow_id.eq.${body.job_id},job_id.eq.${body.job_id},workflow_id.like.${workflowRoot}%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .eq('workflow_id', body.job_id)
       .maybeSingle();
 
     if (reportError) {
