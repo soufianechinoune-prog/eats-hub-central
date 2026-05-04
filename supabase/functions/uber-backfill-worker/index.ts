@@ -51,8 +51,16 @@ Deno.serve(async (req) => {
     console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start} [vague ${job.vague}/${reportType}]`);
 
     // 3. Lancer uber-create-report
+    // ⚠️ L'API Uber refuse toute plage > 30 jours.
+    // On borne donc end_date à start_date + 30 jours max (= 31 jours inclusifs côté Uber).
+    // Pour les mois de 31 jours, on perd le 31 — sera rattrapé plus tard si besoin.
     const startDate = job.month_start;
-    const endDate = job.month_end;
+    const monthEndDate = new Date(job.month_end + 'T00:00:00Z');
+    const startDateObj = new Date(job.month_start + 'T00:00:00Z');
+    const maxEndDate = new Date(startDateObj);
+    maxEndDate.setUTCDate(maxEndDate.getUTCDate() + 30);
+    const cappedEnd = monthEndDate < maxEndDate ? monthEndDate : maxEndDate;
+    const endDate = cappedEnd.toISOString().slice(0, 10);
 
     try {
       const createResponse = await fetch(
