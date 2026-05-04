@@ -104,8 +104,18 @@ export default function UberBackfillHistorique() {
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [restaurantFilter, setRestaurantFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [vagueFilter, setVagueFilter] = useState<number | "all">("all");
+  const [selectedReportTypes, setSelectedReportTypes] = useState<ReportType[]>(
+    VAGUES.map((v) => v.type) as ReportType[]
+  );
   const [seeding, setSeeding] = useState(false);
   const [triggering, setTriggering] = useState(false);
+
+  const toggleReportType = (t: ReportType) => {
+    setSelectedReportTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+    );
+  };
 
   // ============= Stats globales (auto-refresh 10s) =============
   const { data: stats } = useQuery<Stats>({
@@ -122,18 +132,37 @@ export default function UberBackfillHistorique() {
     refetchInterval: 10000,
   });
 
+  // ============= Stats par vague =============
+  const { data: vagueStats } = useQuery<VagueStats[]>({
+    queryKey: ["backfill-stats-by-vague"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("backfill_jobs_stats_by_vague")
+        .select("*")
+        .order("vague", { ascending: true });
+      if (error) throw error;
+      return (data || []) as VagueStats[];
+    },
+    enabled: !!isSuperAdmin,
+    refetchInterval: 10000,
+  });
+
   // ============= Liste des jobs (paginée client-side) =============
   const { data: jobs, isLoading: jobsLoading } = useQuery<JobRow[]>({
-    queryKey: ["backfill-jobs", statusFilter],
+    queryKey: ["backfill-jobs", statusFilter, vagueFilter],
     queryFn: async () => {
       let q = supabase
         .from("backfill_jobs")
         .select("*")
+        .order("vague", { ascending: true })
         .order("restaurant_name", { ascending: true })
         .order("month_start", { ascending: true })
-        .limit(2000);
+        .limit(3000);
       if (statusFilter !== "all") {
         q = q.eq("status", statusFilter);
+      }
+      if (vagueFilter !== "all") {
+        q = q.eq("vague", vagueFilter);
       }
       const { data, error } = await q;
       if (error) throw error;
