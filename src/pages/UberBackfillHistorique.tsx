@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,11 +19,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Play, AlertTriangle, CheckCircle2, RefreshCw, Trash2, Clock,
-  History, Database, Zap,
+  History, Database, Zap, Layers,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+
+// ============= Configuration des 5 vagues =============
+const VAGUES = [
+  { vague: 1, type: "PAYMENT_DETAILS_REPORT", label: "Commandes & Finance", color: "emerald" },
+  { vague: 2, type: "MENU_ITEM_FEEDBACK_REPORT", label: "Items / Produits vendus", color: "blue" },
+  { vague: 3, type: "CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT", label: "Avis clients", color: "purple" },
+  { vague: 4, type: "ORDER_ERRORS_TRANSACTION_REPORT", label: "Erreurs commandes", color: "amber" },
+  { vague: 5, type: "DOWNTIME_REPORT", label: "Downtime / Disponibilité", color: "rose" },
+] as const;
+
+type ReportType = typeof VAGUES[number]["type"];
 
 interface JobRow {
   id: string;
@@ -38,6 +50,30 @@ interface JobRow {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  report_type: ReportType;
+  vague: number;
+}
+
+interface Stats {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  started_at: string | null;
+  last_completed_at: string | null;
+}
+
+interface VagueStats {
+  vague: number;
+  report_type: ReportType;
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  total: number;
 }
 
 interface Stats {
@@ -68,8 +104,18 @@ export default function UberBackfillHistorique() {
   const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [restaurantFilter, setRestaurantFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [vagueFilter, setVagueFilter] = useState<number | "all">("all");
+  const [selectedReportTypes, setSelectedReportTypes] = useState<ReportType[]>(
+    VAGUES.map((v) => v.type) as ReportType[]
+  );
   const [seeding, setSeeding] = useState(false);
   const [triggering, setTriggering] = useState(false);
+
+  const toggleReportType = (t: ReportType) => {
+    setSelectedReportTypes((prev) =>
+      prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]
+    );
+  };
 
   // ============= Stats globales (auto-refresh 10s) =============
   const { data: stats } = useQuery<Stats>({
@@ -86,18 +132,37 @@ export default function UberBackfillHistorique() {
     refetchInterval: 10000,
   });
 
+  // ============= Stats par vague =============
+  const { data: vagueStats } = useQuery<VagueStats[]>({
+    queryKey: ["backfill-stats-by-vague"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("backfill_jobs_stats_by_vague")
+        .select("*")
+        .order("vague", { ascending: true });
+      if (error) throw error;
+      return (data || []) as VagueStats[];
+    },
+    enabled: !!isSuperAdmin,
+    refetchInterval: 10000,
+  });
+
   // ============= Liste des jobs (paginée client-side) =============
   const { data: jobs, isLoading: jobsLoading } = useQuery<JobRow[]>({
-    queryKey: ["backfill-jobs", statusFilter],
+    queryKey: ["backfill-jobs", statusFilter, vagueFilter],
     queryFn: async () => {
       let q = supabase
         .from("backfill_jobs")
         .select("*")
+        .order("vague", { ascending: true })
         .order("restaurant_name", { ascending: true })
         .order("month_start", { ascending: true })
-        .limit(2000);
+        .limit(3000);
       if (statusFilter !== "all") {
         q = q.eq("status", statusFilter);
+      }
+      if (vagueFilter !== "all") {
+        q = q.eq("vague", vagueFilter);
       }
       const { data, error } = await q;
       if (error) throw error;
@@ -129,21 +194,32 @@ export default function UberBackfillHistorique() {
 
   // ============= Actions =============
   const handleSeed = async () => {
+    if (selectedReportTypes.length === 0) {
+      toast({
+        title: "Aucune vague sélectionnée",
+        description: "Coche au moins une vague à générer.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSeeding(true);
     try {
       const { data, error } = await supabase.rpc("seed_backfill_jobs", {
         p_start_date: startDate,
         p_end_date: endDate,
         p_restaurant_ids: undefined,
+        p_report_types: selectedReportTypes,
       });
       if (error) throw error;
       const result = (data as Array<{ inserted_count: number; skipped_count: number }>)?.[0];
       toast({
         title: "Seed terminé",
-        description: `${result?.inserted_count ?? 0} jobs créés, ${result?.skipped_count ?? 0} déjà existants.`,
+        description: `${result?.inserted_count ?? 0} jobs créés, ${result?.skipped_count ?? 0} déjà existants (${selectedReportTypes.length} vague(s)).`,
       });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur seed", description: err.message, variant: "destructive" });
     } finally {
@@ -168,6 +244,7 @@ export default function UberBackfillHistorique() {
       });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur worker", description: err.message, variant: "destructive" });
     } finally {
@@ -185,6 +262,7 @@ export default function UberBackfillHistorique() {
       toast({ title: "Failed → Pending", description: "Les échecs ont été remis dans la queue." });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     }
@@ -200,6 +278,7 @@ export default function UberBackfillHistorique() {
       toast({ title: "Queue vidée" });
       queryClient.invalidateQueries({ queryKey: ["backfill-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["backfill-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["backfill-stats-by-vague"] });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
     }
@@ -223,8 +302,8 @@ export default function UberBackfillHistorique() {
   const pending = stats?.pending ?? 0;
   const progressPct = total > 0 ? Math.round(((done + failed) / total) * 100) : 0;
 
-  // ETA basée sur 1 job toutes les 2 min
-  const etaMinutes = pending * 2;
+  // ETA basée sur 1 job par minute (cron */1 * * * *)
+  const etaMinutes = pending * 1;
   const etaText = etaMinutes > 60 * 24
     ? `${Math.round(etaMinutes / 60 / 24)} jours`
     : etaMinutes > 60
@@ -287,12 +366,118 @@ export default function UberBackfillHistorique() {
               </Button>
             </div>
           </div>
+
+          {/* ============= Sélecteur de vagues ============= */}
+          <div className="border rounded-lg p-4 bg-muted/30">
+            <div className="flex items-center justify-between mb-3">
+              <label className="text-sm font-medium flex items-center gap-2">
+                <Layers className="h-4 w-4" /> Vagues à générer (séquentielles)
+              </label>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedReportTypes(VAGUES.map((v) => v.type) as ReportType[])}
+                >
+                  Tout
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setSelectedReportTypes([])}
+                >
+                  Aucun
+                </Button>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              {VAGUES.map((v) => {
+                const checked = selectedReportTypes.includes(v.type);
+                return (
+                  <label
+                    key={v.type}
+                    className="flex items-center gap-2 p-2 rounded-md border bg-background hover:bg-muted/50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={() => toggleReportType(v.type)}
+                    />
+                    <span className="text-xs font-mono text-muted-foreground">V{v.vague}</span>
+                    <span className="text-sm flex-1">{v.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground">
-            Estimation : 169 restos × ~28 mois (Jan 2024 → today) = <strong>~4 700 jobs</strong>.
-            Un cron tourne toutes les 2 min et lance 1 job à la fois → durée estimée <strong>~6,5 jours en arrière-plan</strong>.
+            Estimation : 169 restos × ~28 mois × {selectedReportTypes.length} vague(s) ={" "}
+            <strong>
+              ~{(169 * 28 * selectedReportTypes.length).toLocaleString("fr-FR")} jobs
+            </strong>
+            . Cron <strong>1 job/min</strong> → durée estimée{" "}
+            <strong>
+              ~{Math.round((169 * 28 * selectedReportTypes.length) / 60 / 24)} jours
+            </strong>{" "}
+            en arrière-plan. Vague 1 prête en ~{Math.round((169 * 28) / 60 / 24)} jours.
           </p>
         </CardContent>
       </Card>
+
+      {/* ============= STATS PAR VAGUE ============= */}
+      {vagueStats && vagueStats.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Layers className="h-5 w-5" /> Avancement par vague
+            </CardTitle>
+            <CardDescription>
+              Les vagues sont traitées dans l'ordre : la vague 1 se termine avant que la 2 ne commence.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {vagueStats.map((vs) => {
+              const conf = VAGUES.find((v) => v.type === vs.report_type);
+              const pct = vs.total > 0 ? Math.round(((vs.done + vs.failed) / vs.total) * 100) : 0;
+              const isActive = vagueFilter === vs.vague;
+              return (
+                <div
+                  key={vs.vague}
+                  className={`border rounded-lg p-3 cursor-pointer transition-all ${
+                    isActive ? "border-primary bg-primary/5" : "hover:bg-muted/30"
+                  }`}
+                  onClick={() => setVagueFilter(isActive ? "all" : vs.vague)}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className="font-mono">V{vs.vague}</Badge>
+                      <span className="font-medium text-sm">{conf?.label ?? vs.report_type}</span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>{vs.done.toLocaleString("fr-FR")} / {vs.total.toLocaleString("fr-FR")}</span>
+                      {vs.running > 0 && (
+                        <span className="flex items-center gap-1 text-blue-600">
+                          <Loader2 className="h-3 w-3 animate-spin" /> {vs.running}
+                        </span>
+                      )}
+                      {vs.failed > 0 && (
+                        <span className="text-destructive">⚠ {vs.failed}</span>
+                      )}
+                      <span className="font-semibold text-foreground">{pct}%</span>
+                    </div>
+                  </div>
+                  <Progress value={pct} className="h-1.5" />
+                </div>
+              );
+            })}
+            {vagueFilter !== "all" && (
+              <Button size="sm" variant="ghost" onClick={() => setVagueFilter("all")}>
+                Voir toutes les vagues
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ============= STATS GLOBALES ============= */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

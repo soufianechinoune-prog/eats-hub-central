@@ -47,7 +47,8 @@ Deno.serve(async (req) => {
     }
 
     const job = jobs[0];
-    console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start}`);
+    const reportType = job.report_type || 'PAYMENT_DETAILS_REPORT';
+    console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start} [vague ${job.vague}/${reportType}]`);
 
     // 3. Lancer uber-create-report
     const startDate = job.month_start;
@@ -65,9 +66,13 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             restaurantId: job.restaurant_id,
-            // PAYMENT_DETAILS_REPORT alimente la table `orders` via parse-payment-report
-            // (même type que les backfills V2/V3/V4 précédents).
-            reportType: 'PAYMENT_DETAILS_REPORT',
+            // reportType vient du job (1 vague = 1 type de rapport)
+            // Vague 1: PAYMENT_DETAILS_REPORT (commandes + finance)
+            // Vague 2: MENU_ITEM_FEEDBACK_REPORT (items)
+            // Vague 3: CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT (avis)
+            // Vague 4: ORDER_ERRORS_TRANSACTION_REPORT (erreurs)
+            // Vague 5: DOWNTIME_REPORT (disponibilité)
+            reportType,
             startDate,
             endDate,
           }),

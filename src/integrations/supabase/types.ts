@@ -95,12 +95,14 @@ export type Database = {
           month_end: string
           month_start: string
           report_id: string | null
+          report_type: string
           restaurant_id: string
           restaurant_name: string
           started_at: string | null
           status: string
           uber_store_id: string
           updated_at: string
+          vague: number
         }
         Insert: {
           attempts?: number
@@ -111,12 +113,14 @@ export type Database = {
           month_end: string
           month_start: string
           report_id?: string | null
+          report_type?: string
           restaurant_id: string
           restaurant_name: string
           started_at?: string | null
           status?: string
           uber_store_id: string
           updated_at?: string
+          vague?: number
         }
         Update: {
           attempts?: number
@@ -127,12 +131,14 @@ export type Database = {
           month_end?: string
           month_start?: string
           report_id?: string | null
+          report_type?: string
           restaurant_id?: string
           restaurant_name?: string
           started_at?: string | null
           status?: string
           uber_store_id?: string
           updated_at?: string
+          vague?: number
         }
         Relationships: []
       }
@@ -3775,6 +3781,19 @@ export type Database = {
         }
         Relationships: []
       }
+      backfill_jobs_stats_by_vague: {
+        Row: {
+          done: number | null
+          failed: number | null
+          pending: number | null
+          report_type: string | null
+          running: number | null
+          skipped: number | null
+          total: number | null
+          vague: number | null
+        }
+        Relationships: []
+      }
       daily_sales_uber_deduped: {
         Row: {
           average_basket: number | null
@@ -4380,15 +4399,18 @@ export type Database = {
           job_id: string
           month_end: string
           month_start: string
+          report_type: string
           restaurant_id: string
           restaurant_name: string
           uber_store_id: string
+          vague: number
         }[]
       }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
       seed_backfill_jobs: {
         Args: {
           p_end_date: string
+          p_report_types?: string[]
           p_restaurant_ids?: string[]
           p_start_date: string
         }
