@@ -63,6 +63,7 @@ const Reviews = React.lazy(() => import("./pages/Reviews"));
 const Admin = React.lazy(() => import("./pages/Admin"));
 const Account = React.lazy(() => import("./pages/Account"));
 const Integrations = React.lazy(() => import("./pages/Integrations"));
+const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -178,6 +179,7 @@ const App = () => {
                     <Route path="/account" element={<P><AppLayout><Account /></AppLayout></P>} />
                     <Route path="/reviews" element={<P><AppLayout><Reviews /></AppLayout></P>} />
                     <Route path="/settings/integrations" element={<P><AppLayout><Integrations /></AppLayout></P>} />
+                    <Route path="/admin/uber-backfill" element={<P><AppLayout><UberBackfill /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
