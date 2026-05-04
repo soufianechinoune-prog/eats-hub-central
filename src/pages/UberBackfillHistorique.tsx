@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -18,11 +19,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import {
   Loader2, Play, AlertTriangle, CheckCircle2, RefreshCw, Trash2, Clock,
-  History, Database, Zap,
+  History, Database, Zap, Layers,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+
+// ============= Configuration des 5 vagues =============
+const VAGUES = [
+  { vague: 1, type: "PAYMENT_DETAILS_REPORT", label: "Commandes & Finance", color: "emerald" },
+  { vague: 2, type: "MENU_ITEM_FEEDBACK_REPORT", label: "Items / Produits vendus", color: "blue" },
+  { vague: 3, type: "CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT", label: "Avis clients", color: "purple" },
+  { vague: 4, type: "ORDER_ERRORS_TRANSACTION_REPORT", label: "Erreurs commandes", color: "amber" },
+  { vague: 5, type: "DOWNTIME_REPORT", label: "Downtime / Disponibilité", color: "rose" },
+] as const;
+
+type ReportType = typeof VAGUES[number]["type"];
 
 interface JobRow {
   id: string;
@@ -38,6 +50,30 @@ interface JobRow {
   started_at: string | null;
   completed_at: string | null;
   created_at: string;
+  report_type: ReportType;
+  vague: number;
+}
+
+interface Stats {
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  total: number;
+  started_at: string | null;
+  last_completed_at: string | null;
+}
+
+interface VagueStats {
+  vague: number;
+  report_type: ReportType;
+  pending: number;
+  running: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  total: number;
 }
 
 interface Stats {
