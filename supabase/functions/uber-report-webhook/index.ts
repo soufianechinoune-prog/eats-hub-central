@@ -205,7 +205,36 @@ Deno.serve(async (req) => {
     } else {
       console.warn('No matching report found for job_id', body.job_id, '— skipping insert (restaurant_id unknown).');
     }
-    
+
+    // ============================================================
+    // Backfill historique : marquer le job correspondant comme "done"
+    // (le worker a stocké workflow_id dans backfill_jobs.report_id)
+    // ============================================================
+    try {
+      const { data: bfJob, error: bfErr } = await supabase
+        .from('backfill_jobs')
+        .select('id, status, restaurant_name, month_start')
+        .eq('report_id', body.job_id)
+        .maybeSingle();
+
+      if (bfErr) {
+        console.error('Backfill job lookup error:', bfErr);
+      } else if (bfJob) {
+        await supabase
+          .from('backfill_jobs')
+          .update({
+            status: 'done',
+            completed_at: new Date().toISOString(),
+            last_error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', bfJob.id);
+        console.log(`Backfill job ${bfJob.id} marked as done (${bfJob.restaurant_name} ${bfJob.month_start})`);
+      }
+    } catch (bfErr) {
+      console.error('Failed to update backfill job:', bfErr);
+    }
+
     // Log webhook event
     await supabase.from('webhook_logs').insert({
       event_type: body.event_type,
