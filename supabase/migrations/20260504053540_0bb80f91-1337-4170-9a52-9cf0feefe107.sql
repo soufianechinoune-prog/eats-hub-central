@@ -1,0 +1,3 @@
+ALTER TABLE public.restaurants ADD COLUMN IF NOT EXISTS uber_pos_activated_at timestamptz;
+COMMENT ON COLUMN public.restaurants.uber_pos_activated_at IS 'Timestamp when Uber GTS confirmed POS provisioning for this store UUID. NULL = not yet activated.';
+CREATE INDEX IF NOT EXISTS idx_restaurants_uber_pos_activated ON public.restaurants(uber_pos_activated_at) WHERE uber_pos_activated_at IS NOT NULL;

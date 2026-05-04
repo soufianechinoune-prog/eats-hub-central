@@ -3059,6 +3059,7 @@ export type Database = {
           uber_closing_date: string | null
           uber_commission_rate: number | null
           uber_opening_date: string | null
+          uber_pos_activated_at: string | null
           uber_store_id: string | null
         }
         Insert: {
@@ -3104,6 +3105,7 @@ export type Database = {
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
           uber_opening_date?: string | null
+          uber_pos_activated_at?: string | null
           uber_store_id?: string | null
         }
         Update: {
@@ -3149,6 +3151,7 @@ export type Database = {
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
           uber_opening_date?: string | null
+          uber_pos_activated_at?: string | null
           uber_store_id?: string | null
         }
         Relationships: [
