@@ -103,6 +103,87 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Statut de la commande': 'status',
   'Identifiant du programme de fidélité du commerçant': 'loyalty_id',
   'Id. de référence du versement': 'payout_reference_id',
+
+  // ============ MAPPING ANGLAIS (CSV livré par l'API Uber Reports) ============
+  'Order ID': 'uber_order_id',
+  'Workflow ID': 'uber_flow_id',
+  'Store Name': 'restaurant_name',
+  'Store ID': 'uber_store_id',
+  'Order Date': 'order_date',
+  'Order Accept Time': 'order_datetime',
+  'Dining Mode': 'fulfillment_type',
+  'Payment Mode': 'payment_method',
+  'Order Channel': 'order_channel',
+  'Customer Uber-Membership Status': 'uber_one_status',
+
+  'Sales (excl. VAT)': 'sales_excl_vat',
+  'VAT1 on Sales': 'vat_1_sales',
+  'VAT2 on Sales': 'vat_2_sales',
+  'VAT3 on Sales': 'vat_3_sales',
+  'Sales (incl. VAT)': 'sales_incl_vat',
+
+  'Order Error Adjustments (excl. VAT)': 'refund_excl_vat',
+  'VAT 1 on order error adjustments': 'vat_1_refund',
+  'VAT 2 on order error adjustments': 'vat_2_refund',
+  'VAT 3 on order error adjustments': 'vat_3_refund',
+  // 'Order Error Adjustments (incl. VAT)' déjà mappé ci-dessus (refund_incl_vat)
+
+  'Offers on items (excl. VAT)': 'item_promo_excl_vat',
+  'VAT 1 on offers on items': 'vat_1_item_promo',
+  'VAT 2 on offers on items': 'vat_2_item_promo',
+  'VAT 3 on offers on items': 'vat_3_item_promo',
+  'Offers on items (incl. VAT)': 'item_promo_incl_vat',
+
+  'Offer Redemption Fee': 'offer_usage_fee',
+  'VAT On Offer Redemption Fee': 'vat_offer_usage_fee',
+  'Marketing Adjustment (incl. VAT)': 'marketing_fee_adjustment',
+
+  'Meal Voucher': 'meal_voucher_amount',
+  'Meal Voucher provider': 'meal_voucher_provider',
+
+  'Price Adjustments (excl. VAT)': 'price_adjustment_excl_vat',
+  'VAT on Price Adjustments': 'vat_price_adjustment',
+  'Price Adjustments (incl. VAT)': 'price_adjustment_incl_vat',
+
+  'Delivery Fee (excl VAT)': 'merchant_delivery_fee_excl_vat',
+  'VAT1 on Delivery Fee': 'vat_1_merchant_delivery',
+  'VAT2 on Delivery Fee': 'vat_2_merchant_delivery',
+  'VAT3 on Delivery Fee': 'vat_3_merchant_delivery',
+  'Delivery Fee (incl VAT)': 'merchant_delivery_fee_incl_vat',
+
+  'Pick and Pack Fee': 'packaging_fee',
+  'VAT On Pick And Pack Fee': 'vat_packaging_fee',
+  'Bag Fee': 'bag_fee',
+
+  'Delivery Offer Redemptions (excl. VAT)': 'delivery_promo_excl_vat',
+  'VAT on Delivery Offer Redemptions': 'vat_delivery_promo',
+  'Delivery Offer Redemptions (incl. VAT)': 'delivery_promo_incl_vat',
+
+  'Total Order (incl VAT)': 'order_total_incl_vat',
+  'Merchant to Customer Invoice Link': 'customer_invoice_url',
+
+  'Cost of Delivery (excl VAT)': 'delivery_cost_excl_vat',
+  'VAT on cost of delivery': 'vat_delivery_cost',
+  'Cost of Delivery (incl VAT)': 'delivery_cost_incl_vat',
+  'Courier to Merchant Invoice Link': 'courier_invoice_url',
+
+  'Marketplace Fee before discount (excl VAT)': 'uber_fee_before_promo_excl_vat',
+  'Marketplace Fee discount (excl VAT)': 'uber_fee_promo_excl_vat',
+  'Marketplace Fee after discount (excl VAT)': 'uber_fee_after_promo_excl_vat',
+  'VAT on Marketplace fee after discount': 'vat_uber_fee',
+  'Marketplace Fee after discount (incl VAT)': 'uber_fee_after_promo_incl_vat',
+  'Uber to Merchant Invoice Link': 'uber_invoice_url',
+
+  'VAT Adjustment': 'vat_adjustment',
+  'Profit on Delivery Fee': 'delivery_fee_gain',
+  'Tips': 'tip_amount',
+  'Other payments description': 'other_payments_description',
+  'Other payments (incl VAT)': 'other_payments_incl_vat',
+  'Total payout': 'net_payout',
+  'Payout Date': 'payout_date',
+  'Order Status': 'status',
+  'Retailer Loyalty ID': 'loyalty_id',
+  'Payout reference ID': 'payout_reference_id',
 };
 
 // Normalize restaurant name for alias/fuzzy matching
