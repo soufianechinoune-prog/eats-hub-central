@@ -1,8 +1,8 @@
 // Worker de backfill historique Uber Eats.
-// Appelé par cron toutes les 2 min. Picke 1 job pending, lance la création
-// du rapport Uber (POST async), et sort. Le webhook uber-report-webhook
-// existant ingère les commandes et marquera le job comme done via le
-// workflow_id stocké.
+// Appelé par cron toutes les minutes. Picke jusqu'à PARALLEL jobs pending,
+// lance la création de rapports Uber en parallèle (POST async), et sort.
+// Le webhook uber-report-webhook ingère les commandes et marquera les jobs
+// comme "done" via le workflow_id stocké.
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -10,6 +10,123 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Combien de jobs traiter en parallèle par tick.
+// L'API Uber tient largement la charge ; le polling étant async côté Uber
+// (webhook), on ne fait QUE le POST de création ici → très peu coûteux.
+const PARALLEL = 5;
+
+// Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
+const MAX_DAYS_PER_REPORT = 30;
+
+interface JobRow {
+  job_id: string;
+  restaurant_id: string;
+  restaurant_name: string;
+  uber_store_id: string;
+  month_start: string; // YYYY-MM-DD
+  month_end: string;   // YYYY-MM-DD
+  attempts: number;
+  report_type: string | null;
+  vague: number;
+}
+
+/**
+ * Découpe une plage de dates en sous-plages de max N jours (inclusif).
+ * Ex: 2024-07-01 → 2024-07-31 (31 jours) avec maxDays=30
+ *  → [["2024-07-01","2024-07-30"], ["2024-07-31","2024-07-31"]]
+ */
+function splitDateRange(start: string, end: string, maxDays: number): Array<[string, string]> {
+  const ranges: Array<[string, string]> = [];
+  const startDate = new Date(start + 'T00:00:00Z');
+  const endDate = new Date(end + 'T00:00:00Z');
+
+  let cursor = new Date(startDate);
+  while (cursor <= endDate) {
+    const chunkEnd = new Date(cursor);
+    // maxDays inclusif → on ajoute (maxDays - 1) jours
+    chunkEnd.setUTCDate(chunkEnd.getUTCDate() + (maxDays - 1));
+    const finalEnd = chunkEnd > endDate ? endDate : chunkEnd;
+    ranges.push([
+      cursor.toISOString().slice(0, 10),
+      finalEnd.toISOString().slice(0, 10),
+    ]);
+    cursor = new Date(finalEnd);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return ranges;
+}
+
+async function processJob(
+  job: JobRow,
+  supabase: ReturnType<typeof createClient>,
+  supabaseUrl: string,
+  supabaseServiceKey: string,
+): Promise<{ status: string; job_id: string; detail?: string }> {
+  const reportType = job.report_type || 'PAYMENT_DETAILS_REPORT';
+  console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start} [vague ${job.vague}/${reportType}]`);
+
+  try {
+    const ranges = splitDateRange(job.month_start, job.month_end, MAX_DAYS_PER_REPORT);
+    const workflowIds: string[] = [];
+
+    // Lance les créations de rapports séquentiellement pour CE job
+    // (sinon l'API Uber pourrait dédupliquer 2 requêtes identiques),
+    // mais plusieurs JOBS sont traités en parallèle au niveau supérieur.
+    for (const [startDate, endDate] of ranges) {
+      const createResponse = await fetch(
+        `${supabaseUrl}/functions/v1/uber-create-report`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${supabaseServiceKey}`,
+            'Content-Type': 'application/json',
+            'apikey': supabaseServiceKey,
+          },
+          body: JSON.stringify({
+            restaurantId: job.restaurant_id,
+            reportType,
+            startDate,
+            endDate,
+          }),
+        }
+      );
+
+      const createData = await createResponse.json();
+      if (!createResponse.ok || !createData.workflow_id) {
+        const errMsg = createData.error || `HTTP ${createResponse.status}`;
+        throw new Error(String(errMsg));
+      }
+      workflowIds.push(createData.workflow_id);
+    }
+
+    // Stocker les workflow_id (concaténés si plusieurs) sur le job.
+    // Le job reste "running" jusqu'au webhook (qui matche le 1er workflow_id reçu).
+    await supabase
+      .from('backfill_jobs')
+      .update({
+        report_id: workflowIds.join(','),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.job_id);
+
+    console.log(`Job ${job.job_id} dispatched → ${workflowIds.length} workflow(s): ${workflowIds.join(',')}`);
+    return { status: 'dispatched', job_id: job.job_id, detail: workflowIds.join(',') };
+  } catch (err: any) {
+    const errMsg = String(err.message || err);
+    console.error(`Job ${job.job_id} failed: ${errMsg}`);
+    const newStatus = job.attempts >= 3 ? 'failed' : 'pending';
+    await supabase
+      .from('backfill_jobs')
+      .update({
+        status: newStatus,
+        last_error: errMsg.slice(0, 500),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', job.job_id);
+    return { status: 'job_failed', job_id: job.job_id, detail: errMsg };
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -27,11 +144,11 @@ Deno.serve(async (req) => {
       console.log(`Reset ${resetCount} stale running job(s)`);
     }
 
-    // 2. Pick 1 job atomiquement
-    const { data: jobs, error: pickErr } = await supabase.rpc('pick_next_backfill_job');
+    // 2. Pick jusqu'à PARALLEL jobs atomiquement
+    const { data: jobs, error: pickErr } = await supabase.rpc('pick_next_backfill_job', { p_limit: PARALLEL });
 
     if (pickErr) {
-      console.error('Failed to pick job:', pickErr);
+      console.error('Failed to pick jobs:', pickErr);
       return new Response(
         JSON.stringify({ error: 'pick_failed', detail: pickErr.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -46,108 +163,22 @@ Deno.serve(async (req) => {
       );
     }
 
-    const job = jobs[0];
-    const reportType = job.report_type || 'PAYMENT_DETAILS_REPORT';
-    console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start} [vague ${job.vague}/${reportType}]`);
+    console.log(`Picked ${jobs.length} job(s) for parallel processing`);
 
-    // 3. Lancer uber-create-report
-    // ⚠️ L'API Uber refuse toute plage > 30 jours.
-    // On borne donc end_date à start_date + 30 jours max (= 31 jours inclusifs côté Uber).
-    // Pour les mois de 31 jours, on perd le 31 — sera rattrapé plus tard si besoin.
-    const startDate = job.month_start;
-    const monthEndDate = new Date(job.month_end + 'T00:00:00Z');
-    const startDateObj = new Date(job.month_start + 'T00:00:00Z');
-    const maxEndDate = new Date(startDateObj);
-    maxEndDate.setUTCDate(maxEndDate.getUTCDate() + 30);
-    const cappedEnd = monthEndDate < maxEndDate ? monthEndDate : maxEndDate;
-    const endDate = cappedEnd.toISOString().slice(0, 10);
+    // 3. Traiter tous les jobs en parallèle
+    const results = await Promise.allSettled(
+      (jobs as JobRow[]).map((j) => processJob(j, supabase, supabaseUrl, supabaseServiceKey))
+    );
 
-    try {
-      const createResponse = await fetch(
-        `${supabaseUrl}/functions/v1/uber-create-report`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-            'Content-Type': 'application/json',
-            'apikey': supabaseServiceKey,
-          },
-          body: JSON.stringify({
-            restaurantId: job.restaurant_id,
-            // reportType vient du job (1 vague = 1 type de rapport)
-            // Vague 1: PAYMENT_DETAILS_REPORT (commandes + finance)
-            // Vague 2: MENU_ITEM_FEEDBACK_REPORT (items)
-            // Vague 3: CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT (avis)
-            // Vague 4: ORDER_ERRORS_TRANSACTION_REPORT (erreurs)
-            // Vague 5: DOWNTIME_REPORT (disponibilité)
-            reportType,
-            startDate,
-            endDate,
-          }),
-        }
-      );
+    const summary = results.map((r, i) => {
+      if (r.status === 'fulfilled') return r.value;
+      return { status: 'rejected', job_id: (jobs as JobRow[])[i].job_id, detail: String(r.reason) };
+    });
 
-      const createData = await createResponse.json();
-
-      if (!createResponse.ok || !createData.workflow_id) {
-        const errMsg = createData.error || `HTTP ${createResponse.status}`;
-        console.error(`Job ${job.job_id} failed: ${errMsg}`);
-
-        // Si max retries → failed, sinon on remet en pending
-        const newStatus = job.attempts >= 3 ? 'failed' : 'pending';
-        await supabase
-          .from('backfill_jobs')
-          .update({
-            status: newStatus,
-            last_error: String(errMsg).slice(0, 500),
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', job.job_id);
-
-        return new Response(
-          JSON.stringify({ status: 'job_failed', job_id: job.job_id, error: errMsg, retry: newStatus === 'pending' }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      // 4. Stocker le workflow_id sur le job (pour que le webhook le retrouve)
-      // Le job reste en "running" jusqu'à ce que le webhook le passe en "done"
-      await supabase
-        .from('backfill_jobs')
-        .update({
-          report_id: createData.workflow_id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', job.job_id);
-
-      console.log(`Job ${job.job_id} dispatched → workflow ${createData.workflow_id}`);
-
-      return new Response(
-        JSON.stringify({
-          status: 'dispatched',
-          job_id: job.job_id,
-          restaurant: job.restaurant_name,
-          month: job.month_start,
-          workflow_id: createData.workflow_id,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    } catch (err: any) {
-      console.error(`Job ${job.job_id} threw:`, err);
-      const newStatus = job.attempts >= 3 ? 'failed' : 'pending';
-      await supabase
-        .from('backfill_jobs')
-        .update({
-          status: newStatus,
-          last_error: String(err.message || err).slice(0, 500),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', job.job_id);
-      return new Response(
-        JSON.stringify({ status: 'job_failed', job_id: job.job_id, error: String(err.message || err) }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    return new Response(
+      JSON.stringify({ status: 'ok', processed: jobs.length, results: summary }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   } catch (err: any) {
     console.error('Worker fatal error:', err);
     return new Response(
