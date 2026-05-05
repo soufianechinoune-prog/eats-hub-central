@@ -335,7 +335,9 @@ serve(async (req) => {
         restosMeta = profile?.restos ?? [];
         splashIds = restosMeta.map((r: any) => r.id);
       }
-      const allTargets = network_only ? [0] : [0, ...splashIds];
+      const allTargets = network_only
+        ? [0]
+        : (skip_network ? splashIds : [0, ...splashIds]);
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
       console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity}) chain=${chainId}`);
