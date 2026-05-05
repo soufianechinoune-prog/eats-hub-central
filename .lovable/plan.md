@@ -1,55 +1,93 @@
-## Contexte
+## Pourquoi tu ne vois pas la Caisse Splash360
 
-Splash a confirmé que le bon paramètre query est `restaurant=` (et non `restaurantId=`). Avec le mauvais paramètre, l'API ignorait silencieusement le filtre et renvoyait systématiquement les chiffres du réseau global, ce qui rendait inutiles toutes les lignes par restaurant déjà stockées.
+La data Splash existe bien pour mai, juin, novembre 2024, mais l’affichage lit au mauvais endroit.
 
-## Ce qu'on va faire
+### Ce que j’ai vérifié en base
 
-### 1. Fix de l'URL dans `sync-splash360`
+Pour les restaurants individuels, les montants existent :
 
-Dans `supabase/functions/sync-splash360/index.ts`, fonction `fetchTurnover` (ligne 51), remplacer :
-```
-?year=...&month=...&day=...&granularity=...&restaurantId=${restaurantId}
-```
-par :
-```
-?year=...&month=...&day=...&granularity=...&restaurant=${restaurantId}
-```
+| Mois 2024 | Global Splash TTC | Uber Splash TTC | Deliveroo Splash TTC | Caisse calculée |
+|---|---:|---:|---:|---:|
+| Mai | 5 899 992 € | 1 485 927 € | 44 265 € | 4 369 800 € |
+| Juin | 5 854 415 € | 1 420 314 € | 35 738 € | 4 398 363 € |
+| Novembre | 5 872 589 € | 1 697 128 € | 54 262 € | 4 121 199 € |
 
-C'est une modification d'une ligne. Tous les modes (`test`, `sync`, `sync_all_active`) utilisent ce helper, donc le fix est global.
+Donc le backfill a bien ramené la donnée restaurant par restaurant.
 
-### 2. Nettoyage des données erronées
+### Le bug actuel
 
-Les lignes existantes dans `splash360_daily_sales` avec `restaurant_splash_id != 0` contiennent les chiffres du réseau global (dupliqués). On les supprime via une migration SQL :
+Le composant Vue d’ensemble utilise `useNetworkCashRevenue.ts`, et ce hook filtre actuellement :
 
-```sql
-DELETE FROM public.splash360_daily_sales
-WHERE restaurant_splash_id <> 0;
+```ts
+restaurant_splash_id = 0
 ```
 
-On conserve les lignes `restaurant_splash_id = 0` (réseau global) qui sont correctes et utilisées par `useNetworkCashRevenue`.
+Or le backfill résilient a surtout rempli :
 
-### 3. Re-sync via le cron existant
+```ts
+restaurant_splash_id != 0
+```
 
-Le cron `sync_all_active` tourne déjà sur le mois courant en granularité `day`. Une fois le fix déployé, il alimentera correctement les données du mois courant par restaurant au prochain tick.
+Donc l’écran regarde la ligne réseau Splash `id = 0`, mais les vraies données backfillées sont dans les lignes restaurants. Résultat : l’interface conclut à tort qu’il n’y a pas de Caisse Splash360.
 
-Pour rattraper l'historique (ex. depuis janvier 2024), on déclenche manuellement plusieurs appels `mode=sync` (un par mois) depuis l'UI Settings/Integrations existante, ou via un petit script côté front. Pas besoin de nouvelle infra : la mécanique de boucle mois-par-mois est déjà prévue dans le code.
+La bonne logique doit être :
 
-### 4. Vérification
+```text
+Caisse Splash360 = somme(Global Splash restos) - somme(Uber Splash restos) - somme(Deliveroo Splash restos)
+```
 
-Après le fix, appeler `mode=test` avec un `restaurant=63` (Colombes) pour confirmer qu'on a bien des chiffres différents du réseau global. Logs disponibles via les edge function logs.
+et non pas lire uniquement la ligne réseau `0`.
 
-## Détails techniques
+## Pourquoi la différence entre Lovable et le navigateur
 
-- Pas de changement de schéma DB.
-- Pas de changement côté UI (les hooks `useNetworkCashRevenue` et autres consommateurs lisent déjà la table avec scoping par `restaurant_splash_id`).
-- Le mapping `splash360_restaurant_mapping` reste inchangé (il rattache déjà `restaurant_splash_id` → `restaurant_id` UUID interne).
-- Une fois validé, on pourra activer la consommation par restaurant individuel dans les vues analytics qui aujourd'hui se contentent du réseau global.
+Sur tes captures, le contexte n’est pas le même :
 
-## Fichiers touchés
+- navigateur : `Chicken Street`, environ `104 restaurants suivis`, le message Splash apparaît ;
+- preview Lovable : `Toutes les marques`, environ `169 restaurants suivis`, le message Splash n’apparaît pas.
 
-- `supabase/functions/sync-splash360/index.ts` (1 ligne)
-- Nouvelle migration SQL pour purger les lignes erronées
+Le message “Caisse Splash360 : aucune donnée…” ne s’affiche que si une connexion Splash est détectée pour la marque active. En mode `Toutes les marques`, la connexion POS de Chicken Street n’est pas considérée comme active pour ce scope, donc le fallback n’apparaît pas.
 
-## Suite (hors périmètre immédiat)
+Il faut donc aussi rendre l’affichage cohérent en mode multi-marques / scope réseau.
 
-Une fois les données par restaurant correctement remplies, on pourra brancher le CA Caisse par restaurant dans les pages Overview / Finances multi-restaurants. À planifier après validation du fix.
+## Plan de correction
+
+1. Modifier `src/hooks/useNetworkCashRevenue.ts`
+   - Ne plus filtrer uniquement `restaurant_splash_id = 0`.
+   - Lire les lignes `restaurant_splash_id != 0`.
+   - Agréger par jour et plateforme.
+   - Calculer la caisse par jour :
+
+   ```text
+   max(0, global - uber_eats - deliveroo)
+   ```
+
+   puis sommer sur la période.
+
+2. Ajouter la pagination Supabase dans ce hook
+   - La table dépasse 1000 lignes sur les périodes historiques.
+   - Utiliser une boucle `.range()` avec `PAGE_SIZE = 1000`, conformément au standard projet.
+
+3. Corriger la période N-1
+   - Appliquer la même logique agrégée aux restaurants individuels pour la comparaison N-1.
+
+4. Clarifier le texte source
+   - Remplacer “Source : réseau global · détail par restaurant indisponible via l’API.”
+   - Par quelque chose du type :
+
+   ```text
+   Source : Splash360 restaurants · Caisse = Global - Uber Eats - Deliveroo.
+   ```
+
+5. Rendre le fallback plus cohérent
+   - En mode Chicken Street : afficher le message si aucune donnée.
+   - En mode Toutes les marques : éviter de masquer silencieusement l’info si la connexion Splash existe sur une des marques accessibles, ou afficher un message de scope clair.
+
+## Résultat attendu après correction
+
+Sur mai, juin, novembre 2024, la barre “Répartition du CA réseau” affichera aussi un segment Caisse avec environ :
+
+- Mai 2024 : 4,37 M€
+- Juin 2024 : 4,40 M€
+- Novembre 2024 : 4,12 M€
+
+Aucun nouveau backfill n’est nécessaire.

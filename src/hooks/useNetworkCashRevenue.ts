@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { format, differenceInDays } from "date-fns";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -26,24 +26,55 @@ interface Params {
   chainId: string | null;
 }
 
+const PAGE_SIZE = 1000;
+
+/**
+ * Charge toutes les lignes Splash360 (granularité jour) sur une période donnée,
+ * scopées à la chain, en excluant la ligne réseau agrégée (restaurant_splash_id = 0).
+ *
+ * On préfère agréger nous-mêmes à partir des restaurants individuels car le backfill
+ * historique a été fait resto par resto — la ligne réseau (id=0) n'est peuplée que
+ * pour le mois en cours via la sync standard.
+ */
+async function fetchSplashRows(
+  chainId: string,
+  startStr: string,
+  endStr: string,
+): Promise<DailyRow[]> {
+  const all: DailyRow[] = [];
+  let from = 0;
+  while (true) {
+    const { data, error } = await supabase
+      .from("splash360_daily_sales")
+      .select("date, platform, revenue_ttc")
+      .eq("chain_id", chainId)
+      .neq("restaurant_splash_id", 0)
+      .eq("granularity", "day")
+      .gte("date", startStr)
+      .lte("date", endStr)
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as DailyRow[];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+    from += PAGE_SIZE;
+  }
+  return all;
+}
+
 /**
  * Calcule le CA "Caisse" (sur place / hors plateformes de livraison)
- * pour le réseau Chicken Street à partir des données Splash360.
+ * pour le réseau à partir des données Splash360.
  *
- * Formule : caisse = global - uber_eats - deliveroo (par jour, sommé sur la période).
- * Source : table splash360_daily_sales, restaurant_splash_id = 0 (réseau global).
- *
- * Retourne null si la marque active n'est pas Chicken Street (seule marque
- * pour laquelle Splash360 est branché actuellement).
+ * Formule par jour : caisse = max(0, global - uber_eats - deliveroo)
+ * Sources : table splash360_daily_sales, agrégée à partir de tous les restaurants
+ * de la marque (restaurant_splash_id != 0).
  */
 export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Période précédente : même plage exactement, décalée d'un an en arrière
-  // (N-1). Cohérent avec le toggle "Afficher N-1" du tableau Comparatif et
-  // pertinent pour la saisonnalité (mêmes mois civils).
-  const days = Math.max(1, differenceInDays(endDate, startDate) + 1);
+  // Période N-1 : même plage exactement, décalée d'un an.
   const prevStart = new Date(startDate);
   prevStart.setFullYear(prevStart.getFullYear() - 1);
   const prevEnd = new Date(endDate);
@@ -57,31 +88,15 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<NetworkCashRevenueData | null> => {
       if (!chainId) return null;
-      // Période courante
-      const { data: currentRows, error } = await supabase
-        .from("splash360_daily_sales")
-        .select("date, platform, revenue_ttc")
-        .eq("chain_id", chainId)
-        .eq("restaurant_splash_id", 0)
-        .eq("granularity", "day")
-        .gte("date", startStr)
-        .lte("date", endStr);
 
-      if (error) throw error;
+      const [currentRows, prevRows] = await Promise.all([
+        fetchSplashRows(chainId, startStr, endStr),
+        fetchSplashRows(chainId, prevStartStr, prevEndStr),
+      ]);
 
-      const aggregated = aggregate(currentRows ?? []);
+      const aggregated = aggregate(currentRows);
+      const prev = aggregate(prevRows);
 
-      // Période précédente (caisse uniquement)
-      const { data: prevRows } = await supabase
-        .from("splash360_daily_sales")
-        .select("date, platform, revenue_ttc")
-        .eq("chain_id", chainId)
-        .eq("restaurant_splash_id", 0)
-        .eq("granularity", "day")
-        .gte("date", prevStartStr)
-        .lte("date", prevEndStr);
-
-      const prev = aggregate(prevRows ?? []);
       const previousPeriodCash = prev.daysWithData > 0 ? prev.totalCash : null;
 
       const cashVariation =
@@ -105,12 +120,14 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
 }
 
 function aggregate(rows: DailyRow[]) {
+  // Somme par (date, platform) à travers tous les restaurants, puis on dérive la caisse jour par jour.
   const byDay = new Map<string, { global: number; uber: number; deliveroo: number }>();
   for (const r of rows) {
     const entry = byDay.get(r.date) ?? { global: 0, uber: 0, deliveroo: 0 };
-    if (r.platform === "global") entry.global += Number(r.revenue_ttc) || 0;
-    else if (r.platform === "uber_eats") entry.uber += Number(r.revenue_ttc) || 0;
-    else if (r.platform === "deliveroo") entry.deliveroo += Number(r.revenue_ttc) || 0;
+    const v = Number(r.revenue_ttc) || 0;
+    if (r.platform === "global") entry.global += v;
+    else if (r.platform === "uber_eats") entry.uber += v;
+    else if (r.platform === "deliveroo") entry.deliveroo += v;
     byDay.set(r.date, entry);
   }
 
@@ -118,13 +135,13 @@ function aggregate(rows: DailyRow[]) {
   let totalUber = 0;
   let totalDeliveroo = 0;
   let totalCash = 0;
+  let daysWithData = 0;
   for (const v of byDay.values()) {
     totalGlobal += v.global;
     totalUber += v.uber;
     totalDeliveroo += v.deliveroo;
-    // La caisse = global - uber - deliveroo (par jour, pour éviter les
-    // jours où un canal manque).
     totalCash += Math.max(0, v.global - v.uber - v.deliveroo);
+    if (v.global > 0 || v.uber > 0 || v.deliveroo > 0) daysWithData++;
   }
 
   return {
@@ -132,6 +149,6 @@ function aggregate(rows: DailyRow[]) {
     totalUber,
     totalDeliveroo,
     totalCash,
-    daysWithData: byDay.size,
+    daysWithData,
   };
 }
