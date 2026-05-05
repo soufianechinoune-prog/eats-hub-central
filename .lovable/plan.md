@@ -1,66 +1,55 @@
-## Problème
+## Contexte
 
-Deux soucis identifiés sur le backfill historique Uber :
+Splash a confirmé que le bon paramètre query est `restaurant=` (et non `restaurantId=`). Avec le mauvais paramètre, l'API ignorait silencieusement le filtre et renvoyait systématiquement les chiffres du réseau global, ce qui rendait inutiles toutes les lignes par restaurant déjà stockées.
 
-### 1. Jobs `failed` sur les mois de 31 jours
-L'API Uber `PAYMENT_DETAILS_REPORT` refuse les plages > 30 jours. Or pour les mois de 31 jours (jan, mars, mai, juil, août, oct, déc) on envoie `month_start` → `month_end` = 31 jours → erreur `bad_request: time range requested must not exceed 30 days`.
+## Ce qu'on va faire
 
-Conséquence : ~7 mois sur 12 cassent systématiquement, soit potentiellement **~14 000 jobs voués à l'échec** sur les 24 500 pending.
+### 1. Fix de l'URL dans `sync-splash360`
 
-### 2. Throughput trop lent
-Worker = 1 job/minute = ~30 jobs/heure → **~35 jours** pour terminer 24 500 jobs. Trop long.
-
----
-
-## Correctifs
-
-### Fix 1 — Découper les mois de 31 jours en 2 plages
-Dans l'edge function `uber-backfill-worker` (création du rapport Uber) :
-- Si `month_end - month_start > 30 jours` → faire **2 appels API** :
-  - Plage A : `month_start` → `month_start + 29j`
-  - Plage B : `month_start + 30j` → `month_end`
-- Télécharger les 2 CSV, les concaténer (ou les parser séquentiellement) avant l'insertion en DB.
-- Le job reste 1 ligne en DB, mais consomme 2 rapports Uber côté worker.
-
-Alternative plus simple : forcer `month_end = month_start + 29j` pour tous les jobs (perte d'1 jour par mois sur les mois de 31j). **Moins propre — à éviter**.
-
-### Fix 2 — Réinitialiser les jobs `failed` à `pending`
-Migration SQL one-shot :
-```sql
-UPDATE backfill_jobs 
-SET status='pending', attempts=0, last_error=NULL 
-WHERE status='failed';
+Dans `supabase/functions/sync-splash360/index.ts`, fonction `fetchTurnover` (ligne 51), remplacer :
+```
+?year=...&month=...&day=...&granularity=...&restaurantId=${restaurantId}
+```
+par :
+```
+?year=...&month=...&day=...&granularity=...&restaurant=${restaurantId}
 ```
 
-### Fix 3 — Augmenter le parallélisme du worker
-Deux options :
+C'est une modification d'une ligne. Tous les modes (`test`, `sync`, `sync_all_active`) utilisent ce helper, donc le fix est global.
 
-**Option A (rapide)** : passer le cron de 1 min à **20 secondes** (3 jobs/min) → ~12j de backfill.
+### 2. Nettoyage des données erronées
 
-**Option B (robuste)** : faire traiter **3 à 5 jobs en parallèle** par tick via `Promise.all` dans la fonction worker (nécessite que `pick_next_backfill_job` accepte un paramètre `limit` et fasse `LIMIT N FOR UPDATE SKIP LOCKED`). → ~5 à 8j de backfill.
+Les lignes existantes dans `splash360_daily_sales` avec `restaurant_splash_id != 0` contiennent les chiffres du réseau global (dupliqués). On les supprime via une migration SQL :
 
-Recommandation : **Option B avec 5 jobs en parallèle**. L'API Uber tient largement la charge et le polling (qui représente 80% du temps d'un job) est I/O-bound.
+```sql
+DELETE FROM public.splash360_daily_sales
+WHERE restaurant_splash_id <> 0;
+```
 
----
+On conserve les lignes `restaurant_splash_id = 0` (réseau global) qui sont correctes et utilisées par `useNetworkCashRevenue`.
 
-## Détail technique
+### 3. Re-sync via le cron existant
 
-**Fichiers à modifier** :
-1. `supabase/functions/uber-backfill-worker/index.ts` :
-   - Ajouter helper `splitDateRange(start, end, maxDays=30)` qui retourne `[[s1,e1], [s2,e2]]`
-   - Boucler sur les plages pour `createReport` + `pollReport` + `downloadCsv` + parser
-   - Wrapper la logique de traitement d'un job dans `processJob(jobId)` puis appeler `Promise.allSettled(jobs.map(processJob))`
+Le cron `sync_all_active` tourne déjà sur le mois courant en granularité `day`. Une fois le fix déployé, il alimentera correctement les données du mois courant par restaurant au prochain tick.
 
-2. **Nouvelle migration SQL** :
-   - Modifier `pick_next_backfill_job(p_limit int default 1)` → renvoie un `SETOF backfill_jobs` au lieu d'1 ligne, avec `LIMIT p_limit FOR UPDATE SKIP LOCKED`
-   - `UPDATE backfill_jobs SET status='pending', attempts=0, last_error=NULL WHERE status='failed'` (reset des 3 actuels + ceux à venir)
+Pour rattraper l'historique (ex. depuis janvier 2024), on déclenche manuellement plusieurs appels `mode=sync` (un par mois) depuis l'UI Settings/Integrations existante, ou via un petit script côté front. Pas besoin de nouvelle infra : la mécanique de boucle mois-par-mois est déjà prévue dans le code.
 
-3. Le cron pg_cron actuel reste à **1 min** mais chaque tick traite 5 jobs → throughput x5.
+### 4. Vérification
 
----
+Après le fix, appeler `mode=test` avec un `restaurant=63` (Colombes) pour confirmer qu'on a bien des chiffres différents du réseau global. Logs disponibles via les edge function logs.
 
-## Résultat attendu
+## Détails techniques
 
-- 0 job `failed` lié à la limite 30j
-- Throughput : ~150 jobs/min → 24 500 jobs en **~3 à 5 jours** au lieu de 35
-- Aucun changement UI nécessaire (la page `/admin/uber-backfill-historique` reflète automatiquement les nouveaux statuts)
+- Pas de changement de schéma DB.
+- Pas de changement côté UI (les hooks `useNetworkCashRevenue` et autres consommateurs lisent déjà la table avec scoping par `restaurant_splash_id`).
+- Le mapping `splash360_restaurant_mapping` reste inchangé (il rattache déjà `restaurant_splash_id` → `restaurant_id` UUID interne).
+- Une fois validé, on pourra activer la consommation par restaurant individuel dans les vues analytics qui aujourd'hui se contentent du réseau global.
+
+## Fichiers touchés
+
+- `supabase/functions/sync-splash360/index.ts` (1 ligne)
+- Nouvelle migration SQL pour purger les lignes erronées
+
+## Suite (hors périmètre immédiat)
+
+Une fois les données par restaurant correctement remplies, on pourra brancher le CA Caisse par restaurant dans les pages Overview / Finances multi-restaurants. À planifier après validation du fix.

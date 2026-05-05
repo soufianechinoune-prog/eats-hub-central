@@ -48,7 +48,7 @@ async function fetchTurnover(
   restaurantId: number,
   day: number = 1,
 ) {
-  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=${day}&granularity=${granularity}&restaurantId=${restaurantId}`;
+  const url = `${SPLASH_BASE_URL}/api/v2/statistics/${endpoint}?year=${year}&month=${month}&day=${day}&granularity=${granularity}&restaurant=${restaurantId}`;
   const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error(`${endpoint} error (${res.status}): ${await res.text()}`);
   return res.json();
