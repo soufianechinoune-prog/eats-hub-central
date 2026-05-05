@@ -38,6 +38,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { SplashResilientBackfillCard } from "@/components/integrations/SplashResilientBackfillCard";
+import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 export default function Integrations() {
   const navigate = useNavigate();
@@ -49,6 +51,7 @@ export default function Integrations() {
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
   const backfill = useBackfillPOS();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
@@ -412,6 +415,14 @@ export default function Integrations() {
           </div>
         )}
       </section>
+
+      {/* Backfill résilient (super admin uniquement) */}
+      {isSuperAdmin && activeConnection?.connector_id === "splash360" && (
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Outils avancés</h2>
+          <SplashResilientBackfillCard />
+        </section>
+      )}
 
       {/* Dialog de connexion */}
       <Dialog open={!!openConnector} onOpenChange={(o) => !o && setOpenConnector(null)}>

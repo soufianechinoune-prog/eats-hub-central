@@ -166,6 +166,7 @@ serve(async (req) => {
       granularity = "month",
       restaurant_splash_ids,
       network_only = false,
+      skip_network = false,
       chain_connection_id,
       sync_all_active = false,
     } = body;
@@ -334,7 +335,9 @@ serve(async (req) => {
         restosMeta = profile?.restos ?? [];
         splashIds = restosMeta.map((r: any) => r.id);
       }
-      const allTargets = network_only ? [0] : [0, ...splashIds];
+      const allTargets = network_only
+        ? [0]
+        : (skip_network ? splashIds : [0, ...splashIds]);
 
       const dateRef = `${targetYear}-${String(targetMonth).padStart(2, "0")}-01`;
       console.log(`[Splash360] Sync ${allTargets.length} restos pour ${dateRef} (${granularity}) chain=${chainId}`);
