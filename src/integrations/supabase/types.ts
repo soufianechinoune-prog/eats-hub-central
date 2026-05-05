@@ -3873,6 +3873,16 @@ export type Database = {
       }
     }
     Functions: {
+      enqueue_splash_backfill_for_chain: {
+        Args: {
+          p_chain_id: string
+          p_end_month: number
+          p_end_year: number
+          p_start_month: number
+          p_start_year: number
+        }
+        Returns: number
+      }
       get_active_hours_summary:
         | {
             Args: {
@@ -4473,6 +4483,19 @@ export type Database = {
           skipped_count: number
         }[]
       }
+      splash_backfill_pick_batch: {
+        Args: { p_batch_size?: number }
+        Returns: {
+          attempts: number
+          chain_id: string
+          connection_id: string
+          id: string
+          month: number
+          restaurant_name: string
+          restaurant_splash_id: number
+          year: number
+        }[]
+      }
       splash_backfill_progress: {
         Args: { p_chain_id: string }
         Returns: {
@@ -4485,6 +4508,7 @@ export type Database = {
           total: number
         }[]
       }
+      splash_backfill_reset_stuck: { Args: never; Returns: number }
       splash360_auto_map_restaurants: {
         Args: never
         Returns: {
