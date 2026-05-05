@@ -166,6 +166,7 @@ serve(async (req) => {
       granularity = "month",
       restaurant_splash_ids,
       network_only = false,
+      skip_network = false,
       chain_connection_id,
       sync_all_active = false,
     } = body;
