@@ -41,10 +41,13 @@ function formatRow(r: any): RestaurantExportRow {
     uber_opening_date: uberDate,
     status: getStatus(r),
     type: r.is_succursale ? "Succursale" : "Franchise",
+    denomination_sociale: r.denomination_sociale || "-",
+    siren: r.siren || "-",
+    siret: r.siret || "-",
   };
 }
 
-const HEADERS = ["Nom", "Ville", "Contact", "Gérant", "Ouverture Uber", "Statut", "Type"];
+const HEADERS = ["Nom", "Ville", "Contact", "Gérant", "Ouverture Uber", "Statut", "Type", "Dénomination sociale", "SIREN", "SIRET"];
 
 export function useRestaurantsExport() {
   const exportCSV = useCallback((restaurants: any[]) => {
