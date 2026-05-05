@@ -211,11 +211,14 @@ Deno.serve(async (req) => {
     // (le worker a stocké workflow_id dans backfill_jobs.report_id)
     // ============================================================
     try {
-      const { data: bfJob, error: bfErr } = await supabase
+      // Match exact OR substring (un job peut avoir plusieurs workflow_id séparés par ',' quand
+      // la plage > 30j a été découpée en sous-rapports par le worker).
+      const { data: bfJobs, error: bfErr } = await supabase
         .from('backfill_jobs')
-        .select('id, status, restaurant_name, month_start')
-        .eq('report_id', body.job_id)
-        .maybeSingle();
+        .select('id, status, restaurant_name, month_start, report_id')
+        .or(`report_id.eq.${body.job_id},report_id.ilike.%${body.job_id}%`)
+        .limit(1);
+      const bfJob = bfJobs && bfJobs.length > 0 ? bfJobs[0] : null;
 
       if (bfErr) {
         console.error('Backfill job lookup error:', bfErr);
