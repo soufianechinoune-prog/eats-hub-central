@@ -212,7 +212,7 @@ export function PlatformRevenueSplit({
               )}
             </div>
             <p className="text-[11px] text-muted-foreground/80 pl-5">
-              Source : réseau global · détail par restaurant indisponible via l'API.
+              Source : Splash360 restaurants · Caisse = Global − Uber Eats − Deliveroo.
             </p>
           </div>
         )}
