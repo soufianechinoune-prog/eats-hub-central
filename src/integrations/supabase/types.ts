@@ -3329,6 +3329,60 @@ export type Database = {
         }
         Relationships: []
       }
+      splash_backfill_jobs: {
+        Row: {
+          attempts: number
+          chain_id: string
+          completed_at: string | null
+          connection_id: string
+          created_at: string
+          id: string
+          last_error: string | null
+          month: number
+          restaurant_name: string | null
+          restaurant_splash_id: number
+          rows_upserted: number | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          attempts?: number
+          chain_id: string
+          completed_at?: string | null
+          connection_id: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          month: number
+          restaurant_name?: string | null
+          restaurant_splash_id: number
+          rows_upserted?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          attempts?: number
+          chain_id?: string
+          completed_at?: string | null
+          connection_id?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          month?: number
+          restaurant_name?: string | null
+          restaurant_splash_id?: number
+          rows_upserted?: number | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
       splash360_daily_sales: {
         Row: {
           average_basket: number
@@ -4417,6 +4471,18 @@ export type Database = {
         Returns: {
           inserted_count: number
           skipped_count: number
+        }[]
+      }
+      splash_backfill_progress: {
+        Args: { p_chain_id: string }
+        Returns: {
+          done: number
+          error: number
+          latest_completed: string
+          oldest_pending_created: string
+          pending: number
+          running: number
+          total: number
         }[]
       }
       splash360_auto_map_restaurants: {
