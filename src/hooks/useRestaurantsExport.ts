@@ -10,6 +10,9 @@ interface RestaurantExportRow {
   uber_opening_date: string | null;
   status: string;
   type: string;
+  denomination_sociale: string;
+  siren: string;
+  siret: string;
 }
 
 function getStatus(r: any): string {
