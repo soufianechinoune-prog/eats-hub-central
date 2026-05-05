@@ -70,34 +70,52 @@ async function processJob(
     const ranges = splitDateRange(job.month_start, job.month_end, MAX_DAYS_PER_REPORT);
     const workflowIds: string[] = [];
 
-    // Lance les créations de rapports séquentiellement pour CE job
-    // (sinon l'API Uber pourrait dédupliquer 2 requêtes identiques),
-    // mais plusieurs JOBS sont traités en parallèle au niveau supérieur.
-    for (const [startDate, endDate] of ranges) {
-      const createResponse = await fetch(
-        `${supabaseUrl}/functions/v1/uber-create-report`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${supabaseServiceKey}`,
-            'Content-Type': 'application/json',
-            'apikey': supabaseServiceKey,
-          },
-          body: JSON.stringify({
-            restaurantId: job.restaurant_id,
-            reportType,
-            startDate,
-            endDate,
-          }),
-        }
-      );
+    // Retry helper avec backoff exponentiel sur 429 (TooManyRequests).
+    // Ne consomme PAS un attempt côté job : c'est juste Uber qui throttle.
+    async function createReportWithRetry(startDate: string, endDate: string): Promise<string> {
+      const maxRetries = 5;
+      let delayMs = 2000; // 2s, 4s, 8s, 16s, 32s
+      for (let attempt = 0; attempt < maxRetries; attempt++) {
+        const createResponse = await fetch(
+          `${supabaseUrl}/functions/v1/uber-create-report`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${supabaseServiceKey}`,
+              'Content-Type': 'application/json',
+              'apikey': supabaseServiceKey,
+            },
+            body: JSON.stringify({ restaurantId: job.restaurant_id, reportType, startDate, endDate }),
+          }
+        );
+        const createData = await createResponse.json();
 
-      const createData = await createResponse.json();
-      if (!createResponse.ok || !createData.workflow_id) {
-        const errMsg = createData.error || `HTTP ${createResponse.status}`;
-        throw new Error(String(errMsg));
+        if (createResponse.ok && createData.workflow_id) {
+          return createData.workflow_id;
+        }
+
+        const errMsg = String(createData.error || `HTTP ${createResponse.status}`);
+        const isRateLimit = errMsg.includes('too_many_requests') || errMsg.includes('TooManyRequests') || createResponse.status === 429;
+
+        if (isRateLimit && attempt < maxRetries - 1) {
+          const jitter = Math.floor(Math.random() * 500);
+          console.log(`Job ${job.job_id}: 429 from Uber, retry ${attempt + 1}/${maxRetries} in ${delayMs + jitter}ms`);
+          await new Promise((r) => setTimeout(r, delayMs + jitter));
+          delayMs *= 2;
+          continue;
+        }
+        throw new Error(errMsg);
       }
-      workflowIds.push(createData.workflow_id);
+      throw new Error('Max retries exhausted on 429');
+    }
+
+    // Sérialise les sous-plages d'un job, avec un petit délai entre chaque
+    // pour éviter de bombarder Uber sur le même store_uuid.
+    for (let i = 0; i < ranges.length; i++) {
+      const [startDate, endDate] = ranges[i];
+      if (i > 0) await new Promise((r) => setTimeout(r, 800));
+      const wfId = await createReportWithRetry(startDate, endDate);
+      workflowIds.push(wfId);
     }
 
     // Stocker les workflow_id (concaténés si plusieurs) sur le job.
