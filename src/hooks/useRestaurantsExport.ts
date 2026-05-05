@@ -10,6 +10,9 @@ interface RestaurantExportRow {
   uber_opening_date: string | null;
   status: string;
   type: string;
+  denomination_sociale: string;
+  siren: string;
+  siret: string;
 }
 
 function getStatus(r: any): string {
@@ -38,10 +41,13 @@ function formatRow(r: any): RestaurantExportRow {
     uber_opening_date: uberDate,
     status: getStatus(r),
     type: r.is_succursale ? "Succursale" : "Franchise",
+    denomination_sociale: r.denomination_sociale || "-",
+    siren: r.siren || "-",
+    siret: r.siret || "-",
   };
 }
 
-const HEADERS = ["Nom", "Ville", "Contact", "Gérant", "Ouverture Uber", "Statut", "Type"];
+const HEADERS = ["Nom", "Ville", "Contact", "Gérant", "Ouverture Uber", "Statut", "Type", "Dénomination sociale", "SIREN", "SIRET"];
 
 export function useRestaurantsExport() {
   const exportCSV = useCallback((restaurants: any[]) => {
@@ -55,7 +61,7 @@ export function useRestaurantsExport() {
       const csv = [
         HEADERS.join(";"),
         ...rows.map((r) =>
-          [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type]
+          [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type, r.denomination_sociale, r.siren, r.siret]
             .map((v) => `"${(v || "").replace(/"/g, '""')}"`)
             .join(";")
         ),
@@ -96,7 +102,7 @@ export function useRestaurantsExport() {
     );
 
     // Table
-    const colWidths = [72, 40, 38, 36, 36, 36, 24]; // total ~282 for landscape A4
+    const colWidths = [44, 32, 28, 30, 24, 18, 18, 40, 18, 22]; // 10 cols, total ~273 for landscape A4
     const headers = HEADERS;
     const startY = 30;
     let y = startY;
@@ -135,7 +141,7 @@ export function useRestaurantsExport() {
         doc.rect(margin, y, pageW - margin * 2, rowH, "F");
       }
 
-      const values = [row.name, row.city, row.contact, row.manager, row.uber_opening_date || "-", row.status, row.type];
+      const values = [row.name, row.city, row.contact, row.manager, row.uber_opening_date || "-", row.status, row.type, row.denomination_sociale, row.siren, row.siret];
       let x = margin + 2;
       values.forEach((val, i) => {
         const maxW = colWidths[i] - 3;
