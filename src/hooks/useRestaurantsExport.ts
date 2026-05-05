@@ -61,7 +61,7 @@ export function useRestaurantsExport() {
       const csv = [
         HEADERS.join(";"),
         ...rows.map((r) =>
-          [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type]
+          [r.name, r.city, r.contact, r.manager, r.uber_opening_date, r.status, r.type, r.denomination_sociale, r.siren, r.siret]
             .map((v) => `"${(v || "").replace(/"/g, '""')}"`)
             .join(";")
         ),
