@@ -102,7 +102,7 @@ export function useRestaurantsExport() {
     );
 
     // Table
-    const colWidths = [72, 40, 38, 36, 36, 36, 24]; // total ~282 for landscape A4
+    const colWidths = [44, 32, 28, 30, 24, 18, 18, 40, 18, 22]; // 10 cols, total ~273 for landscape A4
     const headers = HEADERS;
     const startY = 30;
     let y = startY;
