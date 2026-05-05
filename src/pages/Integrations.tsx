@@ -51,6 +51,7 @@ export default function Integrations() {
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
   const backfill = useBackfillPOS();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
