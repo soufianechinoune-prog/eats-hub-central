@@ -141,7 +141,7 @@ export function useRestaurantsExport() {
         doc.rect(margin, y, pageW - margin * 2, rowH, "F");
       }
 
-      const values = [row.name, row.city, row.contact, row.manager, row.uber_opening_date || "-", row.status, row.type];
+      const values = [row.name, row.city, row.contact, row.manager, row.uber_opening_date || "-", row.status, row.type, row.denomination_sociale, row.siren, row.siret];
       let x = margin + 2;
       values.forEach((val, i) => {
         const maxW = colWidths[i] - 3;
