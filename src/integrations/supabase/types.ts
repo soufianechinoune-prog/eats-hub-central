@@ -4393,7 +4393,7 @@ export type Database = {
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
       pick_next_backfill_job: {
-        Args: never
+        Args: { p_limit?: number }
         Returns: {
           attempts: number
           job_id: string
