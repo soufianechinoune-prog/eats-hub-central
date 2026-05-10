@@ -292,12 +292,12 @@ export default function Analytics() {
   const { data: prevPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_prev", restaurantFilter, prevYear],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+      const { data, error } = await supabase.rpc('get_orders_finance_summary', {
         p_year: prevYear,
         p_restaurant_ids: restaurantFilter || null,
       });
       if (error) {
-        console.error("[Analytics] get_monthly_payouts_summary (prev) error:", error);
+        console.error("[Analytics] get_orders_finance_summary (prev) error:", error);
         throw error;
       }
       return data || [];
