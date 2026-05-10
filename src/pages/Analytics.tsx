@@ -406,13 +406,13 @@ export default function Analytics() {
           let from = 0;
           while (true) {
             const { data, error } = await supabase
-              .rpc('get_yearly_payouts_detail', {
+              .rpc('get_orders_finance_yearly_detail', {
                 p_year: year,
                 p_restaurant_ids: restaurantFilter || null,
               })
               .range(from, from + PAGE_SIZE - 1);
             if (error) {
-              console.error("[Analytics] get_yearly_payouts_detail error:", error);
+              console.error("[Analytics] get_orders_finance_yearly_detail error:", error);
               throw error;
             }
             if (data) all.push(...data);
