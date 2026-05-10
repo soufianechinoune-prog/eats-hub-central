@@ -688,6 +688,9 @@ const Overview = () => {
               onToggleN1={setShowN1Comparison}
               isLoading={statsLoading}
               onRestaurantClick={navigateToFinances}
+              showDataSource={showDataSource}
+              onToggleDataSource={setShowDataSource}
+              dataSourceMap={dataSourceMap}
             />
           </div>
 
