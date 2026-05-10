@@ -2849,14 +2849,13 @@ export function AnalyticsCharts({
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
             {(() => {
-              const validBaskets = chartAvgBasketData.filter(d => d.avgBasket > 0);
-              const validPrevBaskets = chartAvgBasketData.filter(d => d.avgBasketN1 && d.avgBasketN1 > 0);
-              const avgBasket = validBaskets.length > 0 
-                ? validBaskets.reduce((sum, d) => sum + d.avgBasket, 0) / validBaskets.length 
-                : 0;
-              const avgPrevBasket = validPrevBaskets.length > 0 
-                ? validPrevBaskets.reduce((sum, d) => sum + (d.avgBasketN1 || 0), 0) / validPrevBaskets.length 
-                : 0;
+              // Weighted average: SUM(revenue) / SUM(orders) — coherent with Overview
+              const totalRevenue = chartAvgBasketData.reduce((s, d: any) => s + (d.revenue || 0), 0);
+              const totalOrders = chartAvgBasketData.reduce((s, d: any) => s + (d.orders || 0), 0);
+              const totalPrevRevenue = chartAvgBasketData.reduce((s, d: any) => s + (d.prevRevenue || 0), 0);
+              const totalPrevOrders = chartAvgBasketData.reduce((s, d: any) => s + (d.prevOrders || 0), 0);
+              const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+              const avgPrevBasket = totalPrevOrders > 0 ? totalPrevRevenue / totalPrevOrders : 0;
               const basketVariation = calcVariation(avgBasket, avgPrevBasket);
               
               return (
