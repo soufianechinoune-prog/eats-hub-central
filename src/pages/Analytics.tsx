@@ -274,15 +274,15 @@ export default function Analytics() {
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["analytics_payouts", restaurantFilter, selectedYear],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+      const { data, error } = await supabase.rpc('get_orders_finance_summary', {
         p_year: selectedYear,
         p_restaurant_ids: restaurantFilter || null,
       });
       if (error) {
-        console.error("[Analytics] get_monthly_payouts_summary error:", error);
+        console.error("[Analytics] get_orders_finance_summary error:", error);
         throw error;
       }
-      console.log("[Analytics] Payouts data:", data?.length, "rows", data);
+      console.log("[Analytics] Orders finance summary:", data?.length, "rows", data);
       return data || [];
     },
     enabled: needsPayouts,
