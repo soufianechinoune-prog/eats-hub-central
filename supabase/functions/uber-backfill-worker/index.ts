@@ -14,7 +14,9 @@ const corsHeaders = {
 // Combien de jobs traiter en parallèle par tick.
 // L'API Uber tient largement la charge ; le polling étant async côté Uber
 // (webhook), on ne fait QUE le POST de création ici → très peu coûteux.
-const PARALLEL = 5;
+const PARALLEL = 2;
+// Délai entre chaque job dans un même tick du worker (anti-burst 429).
+const INTER_JOB_DELAY_MS = 1500;
 
 // Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
 const MAX_DAYS_PER_REPORT = 30;
@@ -74,7 +76,7 @@ async function processJob(
     // Ne consomme PAS un attempt côté job : c'est juste Uber qui throttle.
     async function createReportWithRetry(startDate: string, endDate: string): Promise<string> {
       const maxRetries = 5;
-      let delayMs = 2000; // 2s, 4s, 8s, 16s, 32s
+      let delayMs = 5000; // 5s, 10s, 20s, 40s, 80s
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const createResponse = await fetch(
           `${supabaseUrl}/functions/v1/uber-create-report`,
@@ -181,17 +183,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Picked ${jobs.length} job(s) for parallel processing`);
+    console.log(`Picked ${jobs.length} job(s) for sequential processing (delay ${INTER_JOB_DELAY_MS}ms)`);
 
-    // 3. Traiter tous les jobs en parallèle
-    const results = await Promise.allSettled(
-      (jobs as JobRow[]).map((j) => processJob(j, supabase, supabaseUrl, supabaseServiceKey))
-    );
-
-    const summary = results.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value;
-      return { status: 'rejected', job_id: (jobs as JobRow[])[i].job_id, detail: String(r.reason) };
-    });
+    // 3. Traiter les jobs en série, espacés, pour éviter les 429 Uber
+    const summary: any[] = [];
+    for (let i = 0; i < (jobs as JobRow[]).length; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, INTER_JOB_DELAY_MS));
+      try {
+        const res = await processJob((jobs as JobRow[])[i], supabase, supabaseUrl, supabaseServiceKey);
+        summary.push(res);
+      } catch (e: any) {
+        summary.push({ status: 'rejected', job_id: (jobs as JobRow[])[i].job_id, detail: String(e?.message || e) });
+      }
+    }
 
     return new Response(
       JSON.stringify({ status: 'ok', processed: jobs.length, results: summary }),
