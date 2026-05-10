@@ -19,6 +19,7 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
+import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
