@@ -76,7 +76,7 @@ async function processJob(
     // Ne consomme PAS un attempt côté job : c'est juste Uber qui throttle.
     async function createReportWithRetry(startDate: string, endDate: string): Promise<string> {
       const maxRetries = 5;
-      let delayMs = 2000; // 2s, 4s, 8s, 16s, 32s
+      let delayMs = 5000; // 5s, 10s, 20s, 40s, 80s
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const createResponse = await fetch(
           `${supabaseUrl}/functions/v1/uber-create-report`,
