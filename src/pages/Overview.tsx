@@ -100,6 +100,7 @@ const Overview = () => {
     return analyticsCtx.dateRange;
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
+  const [showDataSource, setShowDataSource] = useState(true);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
