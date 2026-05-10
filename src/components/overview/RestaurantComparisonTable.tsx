@@ -378,7 +378,15 @@ export function RestaurantComparisonTable({
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold group-hover:text-primary transition-colors">
-                      {resto.name}
+                      <div className="flex items-center gap-2">
+                        <span>{resto.name}</span>
+                        {showDataSource && dataSourceMap?.get(resto.id) && (
+                          <DataSourceBadge
+                            source={dataSourceMap.get(resto.id)!.dominantSource}
+                            uberShare={dataSourceMap.get(resto.id)!.uberShare}
+                          />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
                       {formatCurrency(resto.revenue)}
