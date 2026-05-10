@@ -380,6 +380,13 @@ const Overview = () => {
     reviewsData: overviewReviewsData,
   });
 
+  const { data: dataSourceMap } = useDataSourceBreakdown({
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+    enabled: showDataSource,
+  });
+
   const { data: cashRevenueData, isLoading: cashLoading } = useNetworkCashRevenue({
     startDate,
     endDate,
