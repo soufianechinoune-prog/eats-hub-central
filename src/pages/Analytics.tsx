@@ -388,13 +388,13 @@ export default function Analytics() {
       if (viewMode === "finances") {
         // If a specific month is selected, fetch only that month
         if (drillDownMonth) {
-          const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+          const { data, error } = await supabase.rpc('get_orders_finance_detail', {
             p_year: selectedYear,
             p_month: drillDownMonth,
             p_restaurant_ids: restaurantFilter || null,
           });
           if (error) {
-            console.error("[Analytics] get_monthly_payouts_detail error:", error);
+            console.error("[Analytics] get_orders_finance_detail error:", error);
             throw error;
           }
           return data || [];
