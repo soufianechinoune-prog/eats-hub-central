@@ -14,7 +14,9 @@ const corsHeaders = {
 // Combien de jobs traiter en parallèle par tick.
 // L'API Uber tient largement la charge ; le polling étant async côté Uber
 // (webhook), on ne fait QUE le POST de création ici → très peu coûteux.
-const PARALLEL = 5;
+const PARALLEL = 2;
+// Délai entre chaque job dans un même tick du worker (anti-burst 429).
+const INTER_JOB_DELAY_MS = 1500;
 
 // Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
 const MAX_DAYS_PER_REPORT = 30;

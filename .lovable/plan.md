@@ -1,118 +1,30 @@
-## Approche en 2 phases
+## Objectif
+Réduire les `429 TooManyRequests` Uber pour que les **19 144 jobs pending** se traitent sans retomber en `failed`.
 
-Phase 1 isole le risque sur **une seule table (`orders`)** et **une seule vue (`RestaurantComparisonTable`)**. Si validée, on étend en Phase 2.
+## Diagnostic confirmé
+- 100% des erreurs récentes = `rtapi.too_many_requests` (rate limit Uber)
+- Worker actuel : `PARALLEL=5`, **0ms** entre jobs parallèles, 800ms uniquement entre sous-plages d'un même job
+- Backoff 429 existant (2→32s, 5 retries) mais déclenché trop tard car on saturé d'entrée
+- Cron : 1× / minute → 5 jobs lancés en burst simultané → 5 POST Uber en <1s → 429
 
----
+## Changements (1 seul fichier)
+`supabase/functions/uber-backfill-worker/index.ts` :
 
-## PHASE 1 — Périmètre minimal (à valider d'abord)
+1. **`PARALLEL : 5 → 2`** — moins de POST simultanés sur la même fenêtre.
+2. **Sérialiser les jobs au lieu de `Promise.allSettled`** : boucle `for` avec délai de **1500ms** entre chaque job dans le même tick. Combiné au cron 1/min, on passe de ~5 POST en burst à 2 POST espacés.
+3. **Backoff initial plus large** : `delayMs = 5000` (au lieu de 2000) → 5s, 10s, 20s, 40s, 80s. Laisse plus de temps au seau Uber de se vider.
 
-### A. Migration SQL (à relire avant exécution)
+Aucun autre fichier touché. Aucune migration DB. Aucune modification fonctionnelle de la logique d'ingestion.
 
-```sql
--- 1. Ajout colonne data_source sur orders
-ALTER TABLE public.orders
-  ADD COLUMN IF NOT EXISTS data_source TEXT
-  CHECK (data_source IN ('uber_api', 'csv_import', 'manual'));
+## Effets attendus
+- Débit cible : ~2 jobs / minute = ~120 jobs/h = **~6–7 jours** pour absorber les 19k pending (vs. plantage à répétition aujourd'hui).
+- Si trop lent ensuite, on pourra remonter `PARALLEL` à 3 quand on verra que les 429 ont disparu.
 
--- 2. Index pour les filtres/agrégats par source
-CREATE INDEX IF NOT EXISTS idx_orders_data_source
-  ON public.orders (restaurant_id, data_source);
+## Validation après déploiement
+1. Attendre 5 min → vérifier les logs `uber-backfill-worker` : moins de "429 retry" attendus.
+2. Query : `SELECT status, COUNT(*) FROM backfill_jobs GROUP BY status` → la colonne `done` doit augmenter régulièrement.
+3. Pas besoin de re-cliquer sur "Relancer" : les pending actuels seront pickés naturellement par le cron.
 
--- 3. Backfill rétroactif basé sur la date de fin du backfill API par resto.
---    Logique :
---      - Si une ligne `orders` a un `created_at` >= date du 1er job backfill
---        terminé pour ce restaurant ET que `raw_payload` contient un marqueur
---        webhook (ex: champ 'workflow_id' ou 'report_id'), → 'uber_api'
---      - Sinon → 'csv_import' (toutes les anciennes lignes importées via CSV)
-
--- 3a. Marquer comme 'uber_api' tout ce qui a été inséré par le webhook
-UPDATE public.orders
-SET data_source = 'uber_api'
-WHERE data_source IS NULL
-  AND (
-    raw_payload ? 'workflow_id'
-    OR raw_payload ? 'report_id'
-    OR raw_payload->>'source' = 'uber_api'
-  );
-
--- 3b. Tout le reste = CSV (par défaut historique)
-UPDATE public.orders
-SET data_source = 'csv_import'
-WHERE data_source IS NULL;
-
--- 4. Default + NOT NULL pour les futures insertions CSV (les inserts API
---    devront explicitement passer 'uber_api')
-ALTER TABLE public.orders
-  ALTER COLUMN data_source SET DEFAULT 'csv_import',
-  ALTER COLUMN data_source SET NOT NULL;
-```
-
-> Note : on ne touche pas aux RLS (la colonne hérite des policies existantes). Aucun trigger ajouté.
-
-### B. Edge function `uber-report-webhook`
-
-Patch minimal : à l'INSERT/UPSERT d'une commande venue du webhook Uber, forcer `data_source: 'uber_api'`. Aucune autre logique modifiée.
-
-### C. Composant `<DataSourceBadge>`
-
-Nouveau fichier `src/components/analytics/DataSourceBadge.tsx` :
-
-| Source       | Token couleur (HSL via index.css) | Icône           | Label    |
-|--------------|------------------------------------|-----------------|----------|
-| `uber_api`   | `bg-primary/10 text-primary`       | Cloud           | "API"    |
-| `csv_import` | `bg-amber-500/10 text-amber-700`   | FileSpreadsheet | "CSV"    |
-| `manual`     | `bg-muted text-muted-foreground`   | Pencil          | "Manuel" |
-| `mixed`      | `bg-purple-500/10 text-purple-700` | Layers          | "Mixte"  |
-
-Variant `size="xs"` pour cohabiter avec les badges plateforme existants. Tooltip au hover indiquant le %/répartition pour `mixed`.
-
-### D. Toggle global
-
-Ajout d'un toggle `Afficher la provenance des données` dans `AnalyticsContext` (état booléen + persistance `localStorage`). Affiché dans le header du `RestaurantComparisonTable` à côté du toggle "Afficher N-1". **Par défaut ON** pendant la phase de vérification.
-
-### E. Intégration dans `RestaurantComparisonTable`
-
-- Nouvelle requête côté hook (`useNetworkStats` ou requête dédiée légère) :
-  ```sql
-  SELECT restaurant_id,
-         data_source,
-         COUNT(*) AS n,
-         SUM(gross_amount) AS revenue
-  FROM orders
-  WHERE restaurant_id = ANY($1)
-    AND order_datetime BETWEEN $2 AND $3
-  GROUP BY restaurant_id, data_source;
-  ```
-  → renvoie pour chaque resto la part API vs CSV sur la période.
-- Affichage : un mini-badge à droite du nom du resto. Si 100% d'une source → badge unique. Sinon → badge `mixed` avec tooltip "62% API · 38% CSV".
-- Sur la ligne **TOTAL RÉSEAU**, badge agrégé identique.
-- Sur les sous-lignes Uber/Deliveroo (expansion), pas de badge en Phase 1 (Deliveroo n'a pas la colonne).
-
-### F. Hors scope Phase 1
-
-- Pas de modification des RPC `get_overview_*`, `get_yearly_payouts_detail`, `get_finances_drilldown`, etc.
-- Pas de logique "API prioritaire" (dédoublonnage) — on observe d'abord les écarts avant de décider.
-- Aucune autre table touchée.
-
----
-
-## PHASE 2 — Extension (uniquement si Phase 1 validée)
-
-À ne lancer qu'après accord explicite, dans un plan séparé. Périmètre prévu :
-
-1. Ajouter `data_source` aux tables : `daily_sales_uber`, `monthly_revenue`, `daily_order_accuracy`, `monthly_order_accuracy`, `order_errors`, `monthly_fees`, `customer_reviews`, `menu_item_reviews`, `daily_conversion`, `monthly_conversion`.
-2. Backfill rétroactif équivalent par table.
-3. Mise à jour des RPC pour exposer `data_source` dans les résultats agrégés.
-4. Logique de dédoublonnage **API prioritaire** (vue SQL ou CTE dans les RPC).
-5. Badges dans `Overview` (KPICards + PlatformRevenueSplit) et `Finances` (drilldown).
-6. Badges sur Items / Reviews / Operations.
-
----
-
-## Validation Phase 1
-
-Critères pour décider du go/no-go Phase 2 :
-- Le badge affiche correctement la répartition sur 3-5 restos témoins.
-- Le UPDATE rétroactif a bien classifié toutes les lignes (`SELECT data_source, COUNT(*) FROM orders GROUP BY 1` → 0 NULL).
-- Les nouvelles commandes Uber arrivent bien taguées `uber_api`.
-- Aucune régression visuelle ou de perf sur `RestaurantComparisonTable`.
+## Hors scope (à faire seulement si Phase 1 insuffisante)
+- Patch des edge functions pour stocker `data_source='uber_api'` (Phase 1 du plan provenance déjà approuvée).
+- Backfill rétroactif `data_source` qui avait timeout.
