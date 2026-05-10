@@ -27,9 +27,9 @@ export function useDataSourceBreakdown({ restaurantIds, startDate, endDate, enab
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_orders_data_source_breakdown", {
-        restaurant_ids: restaurantIds,
-        start_date: startDate.toISOString(),
-        end_date: endDate.toISOString(),
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDate.toISOString(),
+        p_end_date: endDate.toISOString(),
       });
       if (error) throw error;
 
