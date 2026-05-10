@@ -274,15 +274,15 @@ export default function Analytics() {
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["analytics_payouts", restaurantFilter, selectedYear],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+      const { data, error } = await supabase.rpc('get_orders_finance_summary', {
         p_year: selectedYear,
         p_restaurant_ids: restaurantFilter || null,
       });
       if (error) {
-        console.error("[Analytics] get_monthly_payouts_summary error:", error);
+        console.error("[Analytics] get_orders_finance_summary error:", error);
         throw error;
       }
-      console.log("[Analytics] Payouts data:", data?.length, "rows", data);
+      console.log("[Analytics] Orders finance summary:", data?.length, "rows", data);
       return data || [];
     },
     enabled: needsPayouts,
@@ -292,12 +292,12 @@ export default function Analytics() {
   const { data: prevPayoutsData } = useQuery({
     queryKey: ["analytics_payouts_prev", restaurantFilter, prevYear],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_monthly_payouts_summary', {
+      const { data, error } = await supabase.rpc('get_orders_finance_summary', {
         p_year: prevYear,
         p_restaurant_ids: restaurantFilter || null,
       });
       if (error) {
-        console.error("[Analytics] get_monthly_payouts_summary (prev) error:", error);
+        console.error("[Analytics] get_orders_finance_summary (prev) error:", error);
         throw error;
       }
       return data || [];
@@ -388,13 +388,13 @@ export default function Analytics() {
       if (viewMode === "finances") {
         // If a specific month is selected, fetch only that month
         if (drillDownMonth) {
-          const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+          const { data, error } = await supabase.rpc('get_orders_finance_detail', {
             p_year: selectedYear,
             p_month: drillDownMonth,
             p_restaurant_ids: restaurantFilter || null,
           });
           if (error) {
-            console.error("[Analytics] get_monthly_payouts_detail error:", error);
+            console.error("[Analytics] get_orders_finance_detail error:", error);
             throw error;
           }
           return data || [];
@@ -406,13 +406,13 @@ export default function Analytics() {
           let from = 0;
           while (true) {
             const { data, error } = await supabase
-              .rpc('get_yearly_payouts_detail', {
+              .rpc('get_orders_finance_yearly_detail', {
                 p_year: year,
                 p_restaurant_ids: restaurantFilter || null,
               })
               .range(from, from + PAGE_SIZE - 1);
             if (error) {
-              console.error("[Analytics] get_yearly_payouts_detail error:", error);
+              console.error("[Analytics] get_orders_finance_yearly_detail error:", error);
               throw error;
             }
             if (data) all.push(...data);
@@ -428,13 +428,13 @@ export default function Analytics() {
       
       // For non-finances views, if we have a specific month, fetch just that month
       if (drillDownMonth) {
-        const { data, error } = await supabase.rpc('get_monthly_payouts_detail', {
+        const { data, error } = await supabase.rpc('get_orders_finance_detail', {
           p_year: selectedYear,
           p_month: drillDownMonth,
           p_restaurant_ids: restaurantFilter || null,
         });
         if (error) {
-          console.error("[Analytics] get_monthly_payouts_detail error:", error);
+          console.error("[Analytics] get_orders_finance_detail error:", error);
           throw error;
         }
         return data || [];

@@ -1,76 +1,68 @@
-## Objectif
-Afficher visuellement la **provenance des données** (Uber API vs CSV) à côté du nom de chaque restaurant dans `RestaurantComparisonTable`, avec un toggle global pour masquer/afficher les badges. Permet de vérifier dès maintenant les ~2M commandes déjà étiquetées (`uber_api` + `csv_import`) pendant que le backfill des `NULL` tourne en arrière-plan.
+## Réponse à ta question
 
-## Architecture
+**Oui, le matching est possible.** Toutes les tables alimentées par CSV partagent la même clé `uber_order_id`, qui est aussi rempli sur 100% des commandes API (vérifié : 107 230/107 230 commandes API mars 2026).
 
-```text
-Overview.tsx
-  ├── useDataSourceBreakdown(restaurantIds, from, to)   ← nouveau hook
-  │     └── RPC get_orders_data_source_breakdown        ← déjà déployée
-  └── <RestaurantComparisonTable
-         dataSourceMap={...}      ← nouveau prop
-         showDataSource={bool}    ← nouveau prop (toggle)
-         onToggleDataSource={fn}  ← nouveau prop
-       />
-            └── <DataSourceBadge source="uber_api" | "csv_import" | "mixed" />
-```
+| Donnée | Table | Clé de matching | Granularité |
+|---|---|---|---|
+| Éco-contribution (CSV PAYMENT_DETAILS) | `orders.eco_contribution_refund` | `uber_order_id` ✅ | par commande |
+| Coût pub Ads (CSV PAYMENTS) | `payouts.ads_cost` (n'existe pas en colonne séparée — agrégé) | `payout_date` ❌ | hebdo, pas par commande |
+| Erreurs détaillées (CSV) | `order_errors` | `uber_order_id` ✅ | par commande |
+| Stats livraison (CSV ORDER_HISTORY) | `delivery_stats` + `order_history` | `uber_order_id` ✅ | par commande |
+| Conversion (CSV) | `daily_conversion` | `restaurant_id` + `date` ✅ | par jour |
 
-## Composants à créer / modifier
+**Conclusion** : on peut tout réconcilier proprement, sauf le coût Ads qui restera un total hebdo/mensuel (Uber ne le fournit que dans le relevé de versement).
 
-### 1. `src/components/overview/DataSourceBadge.tsx` (nouveau)
-Petit badge compact qui affiche la source dominante d'un restaurant sur la période :
+---
 
-- `uber_api` → badge violet "API" (icône `Zap`), tooltip "Données API Uber Eats (temps réel)"
-- `csv_import` → badge slate "CSV" (icône `FileText`), tooltip "Données issues d'un import CSV"
-- `mixed` → badge bicolore "API+CSV", tooltip "Mix API + CSV sur la période"
+## Stratégie : "API d'abord, CSV en complément"
 
-Utilise les tokens sémantiques (`bg-primary/10 text-primary`, `bg-muted text-muted-foreground`). Pas de couleurs hard-codées.
+### 1. Source de vérité = API pour tout ce qui est commande
+- **CA, commissions, promos, refunds, marketing fees, offer usage, net payout, meal vouchers, TVA** → 100% API via la table `orders` filtrée par `order_datetime`.
+- **Cohérence garantie** entre Overview et Finances & Frais (même requête, même filtre).
 
-```tsx
-type DataSource = 'uber_api' | 'csv_import' | 'mixed';
-interface Props { source: DataSource; revenueShare?: number; }
-```
+### 2. CSV en complément pour les champs que l'API ne fournit pas
+On continue à importer les CSV existants. À l'import, on **enrichit** les commandes API existantes (UPDATE par `uber_order_id`) au lieu de créer des doublons :
 
-### 2. `src/hooks/useDataSourceBreakdown.ts` (nouveau)
-React Query hook qui appelle la RPC existante `get_orders_data_source_breakdown(restaurant_ids, start, end)` et renvoie une map :
+| CSV à importer | Champ enrichi | Où ça remonte |
+|---|---|---|
+| **PAYMENT_DETAILS_REPORT** | `orders.eco_contribution_refund`, `tip_amount`, `vat_adjustment`, `price_adjustment`, `other_payments_incl_vat` | Finances & Frais (lignes Éco / Pourboires / Ajustements) |
+| **PAYMENTS** (relevé de versement) | `payouts.ads_cost`, `marketing_fee_adjustment` consolidés | Finances & Frais (encart "Frais hebdomadaires Uber") |
+| **ORDER_ERRORS_*** | `order_errors` (lié par `uber_order_id`) | Operations / Order Accuracy |
+| **ORDER_HISTORY_REPORT** | `delivery_stats` + `order_history` (lié par `uber_order_id`) | Opérations (temps prep / livraison) |
+| **CONVERSION** | `daily_conversion` | Conversion tab |
+| **DOWNTIME** | `hourly_availability` | Downtime tab |
+| **REVIEWS** | `customer_reviews`, `menu_item_reviews` | Reviews tab |
 
-```ts
-Map<restaurant_id, {
-  dominantSource: 'uber_api' | 'csv_import' | 'mixed',
-  uberRevenue: number,
-  csvRevenue: number,
-  uberShare: number,  // 0..1
-}>
-```
+### 3. Modifications nécessaires sur Finances & Frais (UI)
 
-Règles :
-- `uberShare >= 0.95` → `uber_api`
-- `uberShare <= 0.05` → `csv_import`
-- sinon → `mixed`
-- Garde sentinel UUID `'0000...'` (analytics-ready guard).
-- `enabled: showDataSource && restaurantIds.length > 0`.
+**a)** Nouvelle RPC `get_orders_finance_summary(restaurant_ids, start, end, granularity)` :
+- Source : `orders` filtré par `order_datetime` (cohérent avec Overview).
+- Retour : CA TTC/HT, TVA, promos, commissions, marketing, offer usage, refunds, meal vouchers, **éco-contribution**, **pourboires**, net payout calculé.
+- `SECURITY DEFINER`, scope `chain_id`, sentinel `'0000...'`.
 
-### 3. `RestaurantComparisonTable.tsx` (modifier)
-- Ajouter props `showDataSource: boolean`, `onToggleDataSource: (v: boolean) => void`, `dataSourceMap?: Map<string, ...>`.
-- Ajouter un `<Switch>` "Afficher la source des données" dans la barre d'en-tête de la table (à côté du toggle N-1 existant).
-- Dans la cellule nom (ligne 364-366), afficher le `<DataSourceBadge>` à droite du nom **uniquement si `showDataSource`**.
-- Ne **pas** modifier la logique de tri ni les autres colonnes.
+**b)** `ProfitabilityComparisonTable.tsx` consomme cette RPC au lieu de `get_monthly_payouts_*` / `get_yearly_payouts_detail` (mode Uber Eats uniquement). Forme `PayoutData[]` inchangée.
 
-### 4. `src/pages/Overview.tsx` (modifier)
-- Ajouter `const [showDataSource, setShowDataSource] = useState(true);`
-- Appeler `useDataSourceBreakdown(restaurantIds, dateRange.from, dateRange.to)`.
-- Brancher les 3 props sur `<RestaurantComparisonTable>`.
+**c)** Ajout d'un **encart séparé en bas du tableau** : "Frais hebdomadaires Uber (relevés)" avec **Coût pub Ads** + ajustements consolidés du payout — récupérés depuis `payouts` filtré par chevauchement de période. Visuellement distinct pour signaler "donnée hebdo, pas par commande".
 
-## Hors scope
-- Pas de patch des edge functions Uber/CSV (l'écriture du `data_source` à l'insert est Phase 2).
-- Pas de badges dans Overview KPI cards ni dans Finances (Phase 2).
-- Pas de relance du backfill des NULL (continue en arrière-plan).
+**d)** `DataSourceBadge` étendu pour afficher : "Données commandes : API • Frais hebdo : Relevés Uber".
 
-## Validation visuelle attendue
-- Restaurants avec connexion API active depuis longtemps → badge violet "API".
-- Restaurants importés uniquement par CSV → badge gris "CSV".
-- Restaurants en cours de bascule (historique CSV + API récente) → "API+CSV".
-- Restaurants encore `NULL` (non backfillés) → afficheront "CSV" car `COALESCE(o.data_source, 'csv_import')` dans la RPC.
+**e)** Deliveroo : aucun changement (déjà aligné par commande).
 
-## Risque
-Aucun : lecture seule via RPC `SECURITY DEFINER` déjà en place + index `idx_orders_data_source`. Toggle OFF par défaut possible si jamais la RPC est lente sur grosses périodes — à confirmer.
+### 4. Hors scope
+- Pas de changement sur Overview.
+- Pas de suppression de la table `payouts` (reste utilisée pour Ads + réconciliation).
+- Pas de changement sur les pages Operations / Conversion / Reviews (déjà CSV-only et OK).
+
+---
+
+## Détails techniques
+
+**Risques** : faibles. Lecture seule via RPC `SECURITY DEFINER`. La table `orders` contient déjà tous les champs nécessaires (vérifié colonnes `uber_fee_*`, `vat_uber_fee`, `item_promo_*`, `marketing_fee_adjustment`, `eco_contribution_refund`, `meal_voucher_amount`, `offer_usage_fee`, `refund_*`).
+
+**Validation** :
+- Reims (uber_api) mars 2026 : CA Finances & Frais doit = CA Overview à l'euro près.
+- Un restaurant CSV-only (ex: Lyon) : aucun changement visible (orders y est rempli par CSV, même résultat).
+
+**Évolution import PAYMENT_DETAILS** : déjà UPSERT par `uber_order_id` dans `parse-payment-report` → enrichira automatiquement les lignes API existantes. Aucun changement d'import nécessaire.
+
+**Ads cost** : à terme, on pourrait extraire `ads_cost` du CSV PAYMENTS dans une colonne dédiée de `payouts` (actuellement noyé dans `marketing_fee_adjustment` / `other_payments_incl_vat`). Étape optionnelle.
