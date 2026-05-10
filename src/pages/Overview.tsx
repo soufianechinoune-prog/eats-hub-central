@@ -19,6 +19,7 @@ import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
+import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
@@ -99,6 +100,7 @@ const Overview = () => {
     return analyticsCtx.dateRange;
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
+  const [showDataSource, setShowDataSource] = useState(true);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
@@ -376,6 +378,13 @@ const Overview = () => {
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
     reviewsData: overviewReviewsData,
+  });
+
+  const { data: dataSourceMap } = useDataSourceBreakdown({
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+    enabled: showDataSource,
   });
 
   const { data: cashRevenueData, isLoading: cashLoading } = useNetworkCashRevenue({
@@ -679,6 +688,9 @@ const Overview = () => {
               onToggleN1={setShowN1Comparison}
               isLoading={statsLoading}
               onRestaurantClick={navigateToFinances}
+              showDataSource={showDataSource}
+              onToggleDataSource={setShowDataSource}
+              dataSourceMap={dataSourceMap}
             />
           </div>
 

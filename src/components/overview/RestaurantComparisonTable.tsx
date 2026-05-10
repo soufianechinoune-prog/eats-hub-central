@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals, type PlatformBreakdown } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
+import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
+import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
@@ -28,6 +30,9 @@ interface RestaurantComparisonTableProps {
    * sous forme "—" tant que le détail par restaurant n'est pas disponible via l'API.
    */
   networkCashTotal?: number;
+  showDataSource?: boolean;
+  onToggleDataSource?: (value: boolean) => void;
+  dataSourceMap?: Map<string, RestaurantDataSourceInfo>;
 }
 
 // Format helpers
@@ -175,6 +180,9 @@ export function RestaurantComparisonTable({
   isLoading,
   onRestaurantClick,
   networkCashTotal = 0,
+  showDataSource = false,
+  onToggleDataSource,
+  dataSourceMap,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
@@ -298,6 +306,14 @@ export function RestaurantComparisonTable({
                 className="h-8 w-[200px] pl-8 text-sm"
               />
             </div>
+            {onToggleDataSource && (
+              <>
+                <Switch id="data-source-toggle" checked={showDataSource} onCheckedChange={onToggleDataSource} />
+                <Label htmlFor="data-source-toggle" className="text-sm text-muted-foreground cursor-pointer">
+                  Source des données
+                </Label>
+              </>
+            )}
             <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} />
             <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Afficher N-1
@@ -362,7 +378,15 @@ export function RestaurantComparisonTable({
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold group-hover:text-primary transition-colors">
-                      {resto.name}
+                      <div className="flex items-center gap-2">
+                        <span>{resto.name}</span>
+                        {showDataSource && dataSourceMap?.get(resto.id) && (
+                          <DataSourceBadge
+                            source={dataSourceMap.get(resto.id)!.dominantSource}
+                            uberShare={dataSourceMap.get(resto.id)!.uberShare}
+                          />
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
                       {formatCurrency(resto.revenue)}
