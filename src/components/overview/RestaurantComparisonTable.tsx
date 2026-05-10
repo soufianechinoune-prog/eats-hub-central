@@ -306,6 +306,14 @@ export function RestaurantComparisonTable({
                 className="h-8 w-[200px] pl-8 text-sm"
               />
             </div>
+            {onToggleDataSource && (
+              <>
+                <Switch id="data-source-toggle" checked={showDataSource} onCheckedChange={onToggleDataSource} />
+                <Label htmlFor="data-source-toggle" className="text-sm text-muted-foreground cursor-pointer">
+                  Source des données
+                </Label>
+              </>
+            )}
             <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} />
             <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Afficher N-1
