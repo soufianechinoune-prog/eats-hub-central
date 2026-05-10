@@ -1939,6 +1939,7 @@ export type Database = {
           created_at: string
           currency: string | null
           customer_invoice_url: string | null
+          data_source: string | null
           delivery_cost_excl_vat: number | null
           delivery_cost_incl_vat: number | null
           delivery_fee: number | null
@@ -2020,6 +2021,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_invoice_url?: string | null
+          data_source?: string | null
           delivery_cost_excl_vat?: number | null
           delivery_cost_incl_vat?: number | null
           delivery_fee?: number | null
@@ -2101,6 +2103,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_invoice_url?: string | null
+          data_source?: string | null
           delivery_cost_excl_vat?: number | null
           delivery_cost_incl_vat?: number | null
           delivery_fee?: number | null
