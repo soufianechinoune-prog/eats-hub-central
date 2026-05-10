@@ -1939,6 +1939,7 @@ export type Database = {
           created_at: string
           currency: string | null
           customer_invoice_url: string | null
+          data_source: string | null
           delivery_cost_excl_vat: number | null
           delivery_cost_incl_vat: number | null
           delivery_fee: number | null
@@ -2020,6 +2021,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_invoice_url?: string | null
+          data_source?: string | null
           delivery_cost_excl_vat?: number | null
           delivery_cost_incl_vat?: number | null
           delivery_fee?: number | null
@@ -2101,6 +2103,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_invoice_url?: string | null
+          data_source?: string | null
           delivery_cost_excl_vat?: number | null
           delivery_cost_incl_vat?: number | null
           delivery_fee?: number | null
@@ -3873,6 +3876,10 @@ export type Database = {
       }
     }
     Functions: {
+      backfill_orders_data_source_for_restaurant: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
       enqueue_splash_backfill_for_chain: {
         Args: {
           p_chain_id: string
@@ -4245,6 +4252,19 @@ export type Database = {
           total_orders: number
           weekday: number
           weekday_orders: number
+        }[]
+      }
+      get_orders_data_source_breakdown: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          data_source: string
+          order_count: number
+          restaurant_id: string
+          revenue: number
         }[]
       }
       get_prep_time_daily:

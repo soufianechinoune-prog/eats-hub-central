@@ -1,93 +1,118 @@
-## Pourquoi tu ne vois pas la Caisse Splash360
+## Approche en 2 phases
 
-La data Splash existe bien pour mai, juin, novembre 2024, mais l’affichage lit au mauvais endroit.
+Phase 1 isole le risque sur **une seule table (`orders`)** et **une seule vue (`RestaurantComparisonTable`)**. Si validée, on étend en Phase 2.
 
-### Ce que j’ai vérifié en base
+---
 
-Pour les restaurants individuels, les montants existent :
+## PHASE 1 — Périmètre minimal (à valider d'abord)
 
-| Mois 2024 | Global Splash TTC | Uber Splash TTC | Deliveroo Splash TTC | Caisse calculée |
-|---|---:|---:|---:|---:|
-| Mai | 5 899 992 € | 1 485 927 € | 44 265 € | 4 369 800 € |
-| Juin | 5 854 415 € | 1 420 314 € | 35 738 € | 4 398 363 € |
-| Novembre | 5 872 589 € | 1 697 128 € | 54 262 € | 4 121 199 € |
+### A. Migration SQL (à relire avant exécution)
 
-Donc le backfill a bien ramené la donnée restaurant par restaurant.
+```sql
+-- 1. Ajout colonne data_source sur orders
+ALTER TABLE public.orders
+  ADD COLUMN IF NOT EXISTS data_source TEXT
+  CHECK (data_source IN ('uber_api', 'csv_import', 'manual'));
 
-### Le bug actuel
+-- 2. Index pour les filtres/agrégats par source
+CREATE INDEX IF NOT EXISTS idx_orders_data_source
+  ON public.orders (restaurant_id, data_source);
 
-Le composant Vue d’ensemble utilise `useNetworkCashRevenue.ts`, et ce hook filtre actuellement :
+-- 3. Backfill rétroactif basé sur la date de fin du backfill API par resto.
+--    Logique :
+--      - Si une ligne `orders` a un `created_at` >= date du 1er job backfill
+--        terminé pour ce restaurant ET que `raw_payload` contient un marqueur
+--        webhook (ex: champ 'workflow_id' ou 'report_id'), → 'uber_api'
+--      - Sinon → 'csv_import' (toutes les anciennes lignes importées via CSV)
 
-```ts
-restaurant_splash_id = 0
+-- 3a. Marquer comme 'uber_api' tout ce qui a été inséré par le webhook
+UPDATE public.orders
+SET data_source = 'uber_api'
+WHERE data_source IS NULL
+  AND (
+    raw_payload ? 'workflow_id'
+    OR raw_payload ? 'report_id'
+    OR raw_payload->>'source' = 'uber_api'
+  );
+
+-- 3b. Tout le reste = CSV (par défaut historique)
+UPDATE public.orders
+SET data_source = 'csv_import'
+WHERE data_source IS NULL;
+
+-- 4. Default + NOT NULL pour les futures insertions CSV (les inserts API
+--    devront explicitement passer 'uber_api')
+ALTER TABLE public.orders
+  ALTER COLUMN data_source SET DEFAULT 'csv_import',
+  ALTER COLUMN data_source SET NOT NULL;
 ```
 
-Or le backfill résilient a surtout rempli :
+> Note : on ne touche pas aux RLS (la colonne hérite des policies existantes). Aucun trigger ajouté.
 
-```ts
-restaurant_splash_id != 0
-```
+### B. Edge function `uber-report-webhook`
 
-Donc l’écran regarde la ligne réseau Splash `id = 0`, mais les vraies données backfillées sont dans les lignes restaurants. Résultat : l’interface conclut à tort qu’il n’y a pas de Caisse Splash360.
+Patch minimal : à l'INSERT/UPSERT d'une commande venue du webhook Uber, forcer `data_source: 'uber_api'`. Aucune autre logique modifiée.
 
-La bonne logique doit être :
+### C. Composant `<DataSourceBadge>`
 
-```text
-Caisse Splash360 = somme(Global Splash restos) - somme(Uber Splash restos) - somme(Deliveroo Splash restos)
-```
+Nouveau fichier `src/components/analytics/DataSourceBadge.tsx` :
 
-et non pas lire uniquement la ligne réseau `0`.
+| Source       | Token couleur (HSL via index.css) | Icône           | Label    |
+|--------------|------------------------------------|-----------------|----------|
+| `uber_api`   | `bg-primary/10 text-primary`       | Cloud           | "API"    |
+| `csv_import` | `bg-amber-500/10 text-amber-700`   | FileSpreadsheet | "CSV"    |
+| `manual`     | `bg-muted text-muted-foreground`   | Pencil          | "Manuel" |
+| `mixed`      | `bg-purple-500/10 text-purple-700` | Layers          | "Mixte"  |
 
-## Pourquoi la différence entre Lovable et le navigateur
+Variant `size="xs"` pour cohabiter avec les badges plateforme existants. Tooltip au hover indiquant le %/répartition pour `mixed`.
 
-Sur tes captures, le contexte n’est pas le même :
+### D. Toggle global
 
-- navigateur : `Chicken Street`, environ `104 restaurants suivis`, le message Splash apparaît ;
-- preview Lovable : `Toutes les marques`, environ `169 restaurants suivis`, le message Splash n’apparaît pas.
+Ajout d'un toggle `Afficher la provenance des données` dans `AnalyticsContext` (état booléen + persistance `localStorage`). Affiché dans le header du `RestaurantComparisonTable` à côté du toggle "Afficher N-1". **Par défaut ON** pendant la phase de vérification.
 
-Le message “Caisse Splash360 : aucune donnée…” ne s’affiche que si une connexion Splash est détectée pour la marque active. En mode `Toutes les marques`, la connexion POS de Chicken Street n’est pas considérée comme active pour ce scope, donc le fallback n’apparaît pas.
+### E. Intégration dans `RestaurantComparisonTable`
 
-Il faut donc aussi rendre l’affichage cohérent en mode multi-marques / scope réseau.
+- Nouvelle requête côté hook (`useNetworkStats` ou requête dédiée légère) :
+  ```sql
+  SELECT restaurant_id,
+         data_source,
+         COUNT(*) AS n,
+         SUM(gross_amount) AS revenue
+  FROM orders
+  WHERE restaurant_id = ANY($1)
+    AND order_datetime BETWEEN $2 AND $3
+  GROUP BY restaurant_id, data_source;
+  ```
+  → renvoie pour chaque resto la part API vs CSV sur la période.
+- Affichage : un mini-badge à droite du nom du resto. Si 100% d'une source → badge unique. Sinon → badge `mixed` avec tooltip "62% API · 38% CSV".
+- Sur la ligne **TOTAL RÉSEAU**, badge agrégé identique.
+- Sur les sous-lignes Uber/Deliveroo (expansion), pas de badge en Phase 1 (Deliveroo n'a pas la colonne).
 
-## Plan de correction
+### F. Hors scope Phase 1
 
-1. Modifier `src/hooks/useNetworkCashRevenue.ts`
-   - Ne plus filtrer uniquement `restaurant_splash_id = 0`.
-   - Lire les lignes `restaurant_splash_id != 0`.
-   - Agréger par jour et plateforme.
-   - Calculer la caisse par jour :
+- Pas de modification des RPC `get_overview_*`, `get_yearly_payouts_detail`, `get_finances_drilldown`, etc.
+- Pas de logique "API prioritaire" (dédoublonnage) — on observe d'abord les écarts avant de décider.
+- Aucune autre table touchée.
 
-   ```text
-   max(0, global - uber_eats - deliveroo)
-   ```
+---
 
-   puis sommer sur la période.
+## PHASE 2 — Extension (uniquement si Phase 1 validée)
 
-2. Ajouter la pagination Supabase dans ce hook
-   - La table dépasse 1000 lignes sur les périodes historiques.
-   - Utiliser une boucle `.range()` avec `PAGE_SIZE = 1000`, conformément au standard projet.
+À ne lancer qu'après accord explicite, dans un plan séparé. Périmètre prévu :
 
-3. Corriger la période N-1
-   - Appliquer la même logique agrégée aux restaurants individuels pour la comparaison N-1.
+1. Ajouter `data_source` aux tables : `daily_sales_uber`, `monthly_revenue`, `daily_order_accuracy`, `monthly_order_accuracy`, `order_errors`, `monthly_fees`, `customer_reviews`, `menu_item_reviews`, `daily_conversion`, `monthly_conversion`.
+2. Backfill rétroactif équivalent par table.
+3. Mise à jour des RPC pour exposer `data_source` dans les résultats agrégés.
+4. Logique de dédoublonnage **API prioritaire** (vue SQL ou CTE dans les RPC).
+5. Badges dans `Overview` (KPICards + PlatformRevenueSplit) et `Finances` (drilldown).
+6. Badges sur Items / Reviews / Operations.
 
-4. Clarifier le texte source
-   - Remplacer “Source : réseau global · détail par restaurant indisponible via l’API.”
-   - Par quelque chose du type :
+---
 
-   ```text
-   Source : Splash360 restaurants · Caisse = Global - Uber Eats - Deliveroo.
-   ```
+## Validation Phase 1
 
-5. Rendre le fallback plus cohérent
-   - En mode Chicken Street : afficher le message si aucune donnée.
-   - En mode Toutes les marques : éviter de masquer silencieusement l’info si la connexion Splash existe sur une des marques accessibles, ou afficher un message de scope clair.
-
-## Résultat attendu après correction
-
-Sur mai, juin, novembre 2024, la barre “Répartition du CA réseau” affichera aussi un segment Caisse avec environ :
-
-- Mai 2024 : 4,37 M€
-- Juin 2024 : 4,40 M€
-- Novembre 2024 : 4,12 M€
-
-Aucun nouveau backfill n’est nécessaire.
+Critères pour décider du go/no-go Phase 2 :
+- Le badge affiche correctement la répartition sur 3-5 restos témoins.
+- Le UPDATE rétroactif a bien classifié toutes les lignes (`SELECT data_source, COUNT(*) FROM orders GROUP BY 1` → 0 NULL).
+- Les nouvelles commandes Uber arrivent bien taguées `uber_api`.
+- Aucune régression visuelle ou de perf sur `RestaurantComparisonTable`.
