@@ -30,6 +30,9 @@ interface RestaurantComparisonTableProps {
    * sous forme "—" tant que le détail par restaurant n'est pas disponible via l'API.
    */
   networkCashTotal?: number;
+  showDataSource?: boolean;
+  onToggleDataSource?: (value: boolean) => void;
+  dataSourceMap?: Map<string, RestaurantDataSourceInfo>;
 }
 
 // Format helpers
