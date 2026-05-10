@@ -1,49 +1,76 @@
 ## Objectif
-Remplir la colonne `orders.data_source` (actuellement `NULL` sur 2 708 249 commandes / 93 restaurants) en utilisant la fonction SQL existante `backfill_orders_data_source_for_restaurant(uuid)` déjà déployée.
+Afficher visuellement la **provenance des données** (Uber API vs CSV) à côté du nom de chaque restaurant dans `RestaurantComparisonTable`, avec un toggle global pour masquer/afficher les badges. Permet de vérifier dès maintenant les ~2M commandes déjà étiquetées (`uber_api` + `csv_import`) pendant que le backfill des `NULL` tourne en arrière-plan.
 
-## État actuel (vérifié à l'instant)
-- `uber_api` : 1 714 259 orders (déjà marquées sur les imports passés)
-- `csv_import` : 279 454 orders
-- **`NULL` : 2 708 249 orders → 93 restaurants à traiter**
-- 165 restaurants ont au moins un job backfill `done`
+## Architecture
 
-## Logique de la fonction (rappel)
-Pour un `restaurant_id` donné :
-1. Marque `data_source = 'uber_api'` toutes les `orders` qui tombent dans une plage `[month_start, month_end]` d'un `backfill_jobs.status='done'` du même restaurant.
-2. Marque le reste des `orders NULL` de ce restaurant comme `'csv_import'`.
-
-## Étapes
-### 1. Lancer le backfill par batch (via supabase--insert)
-Boucle SQL côté serveur sur les 93 restaurants ayant des `orders` NULL. On exécute la fonction restaurant par restaurant pour éviter un UPDATE massif en une seule transaction (2,7M lignes) qui pourrait timeout :
-
-```sql
-DO $$
-DECLARE r RECORD;
-BEGIN
-  FOR r IN
-    SELECT DISTINCT restaurant_id
-    FROM orders
-    WHERE data_source IS NULL
-  LOOP
-    PERFORM public.backfill_orders_data_source_for_restaurant(r.restaurant_id);
-  END LOOP;
-END $$;
+```text
+Overview.tsx
+  ├── useDataSourceBreakdown(restaurantIds, from, to)   ← nouveau hook
+  │     └── RPC get_orders_data_source_breakdown        ← déjà déployée
+  └── <RestaurantComparisonTable
+         dataSourceMap={...}      ← nouveau prop
+         showDataSource={bool}    ← nouveau prop (toggle)
+         onToggleDataSource={fn}  ← nouveau prop
+       />
+            └── <DataSourceBadge source="uber_api" | "csv_import" | "mixed" />
 ```
 
-Si timeout statement (> 2 min), on découpe en 3-4 sous-batches manuels (≈ 25 restos par appel).
+## Composants à créer / modifier
 
-### 2. Vérification post-backfill
-Re-query :
-```sql
-SELECT data_source, COUNT(*) FROM orders GROUP BY data_source;
+### 1. `src/components/overview/DataSourceBadge.tsx` (nouveau)
+Petit badge compact qui affiche la source dominante d'un restaurant sur la période :
+
+- `uber_api` → badge violet "API" (icône `Zap`), tooltip "Données API Uber Eats (temps réel)"
+- `csv_import` → badge slate "CSV" (icône `FileText`), tooltip "Données issues d'un import CSV"
+- `mixed` → badge bicolore "API+CSV", tooltip "Mix API + CSV sur la période"
+
+Utilise les tokens sémantiques (`bg-primary/10 text-primary`, `bg-muted text-muted-foreground`). Pas de couleurs hard-codées.
+
+```tsx
+type DataSource = 'uber_api' | 'csv_import' | 'mixed';
+interface Props { source: DataSource; revenueShare?: number; }
 ```
-On doit voir `NULL = 0`.
 
-## Hors scope (Phase 2)
-- Patch des edge functions Uber/CSV pour écrire `data_source` à l'insert (le worker continue à tourner sans).
-- Composant `<DataSourceBadge>` dans `RestaurantComparisonTable`.
-- Toggle global ON/OFF dans Overview.
+### 2. `src/hooks/useDataSourceBreakdown.ts` (nouveau)
+React Query hook qui appelle la RPC existante `get_orders_data_source_breakdown(restaurant_ids, start, end)` et renvoie une map :
+
+```ts
+Map<restaurant_id, {
+  dominantSource: 'uber_api' | 'csv_import' | 'mixed',
+  uberRevenue: number,
+  csvRevenue: number,
+  uberShare: number,  // 0..1
+}>
+```
+
+Règles :
+- `uberShare >= 0.95` → `uber_api`
+- `uberShare <= 0.05` → `csv_import`
+- sinon → `mixed`
+- Garde sentinel UUID `'0000...'` (analytics-ready guard).
+- `enabled: showDataSource && restaurantIds.length > 0`.
+
+### 3. `RestaurantComparisonTable.tsx` (modifier)
+- Ajouter props `showDataSource: boolean`, `onToggleDataSource: (v: boolean) => void`, `dataSourceMap?: Map<string, ...>`.
+- Ajouter un `<Switch>` "Afficher la source des données" dans la barre d'en-tête de la table (à côté du toggle N-1 existant).
+- Dans la cellule nom (ligne 364-366), afficher le `<DataSourceBadge>` à droite du nom **uniquement si `showDataSource`**.
+- Ne **pas** modifier la logique de tri ni les autres colonnes.
+
+### 4. `src/pages/Overview.tsx` (modifier)
+- Ajouter `const [showDataSource, setShowDataSource] = useState(true);`
+- Appeler `useDataSourceBreakdown(restaurantIds, dateRange.from, dateRange.to)`.
+- Brancher les 3 props sur `<RestaurantComparisonTable>`.
+
+## Hors scope
+- Pas de patch des edge functions Uber/CSV (l'écriture du `data_source` à l'insert est Phase 2).
+- Pas de badges dans Overview KPI cards ni dans Finances (Phase 2).
+- Pas de relance du backfill des NULL (continue en arrière-plan).
+
+## Validation visuelle attendue
+- Restaurants avec connexion API active depuis longtemps → badge violet "API".
+- Restaurants importés uniquement par CSV → badge gris "CSV".
+- Restaurants en cours de bascule (historique CSV + API récente) → "API+CSV".
+- Restaurants encore `NULL` (non backfillés) → afficheront "CSV" car `COALESCE(o.data_source, 'csv_import')` dans la RPC.
 
 ## Risque
-- Aucun impact sur le worker Uber en cours (il écrit dans `backfill_jobs` et le webhook insère dans `orders` — la fonction lit en SELECT et fait un UPDATE par restaurant).
-- Si timeout : on relance par sous-batches, idempotent (la fonction filtre `data_source IS NULL`).
+Aucun : lecture seule via RPC `SECURITY DEFINER` déjà en place + index `idx_orders_data_source`. Toggle OFF par défaut possible si jamais la RPC est lente sur grosses périodes — à confirmer.
