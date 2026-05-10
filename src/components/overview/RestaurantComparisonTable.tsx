@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals, type PlatformBreakdown } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
+import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
+import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
