@@ -183,17 +183,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Picked ${jobs.length} job(s) for parallel processing`);
+    console.log(`Picked ${jobs.length} job(s) for sequential processing (delay ${INTER_JOB_DELAY_MS}ms)`);
 
-    // 3. Traiter tous les jobs en parallèle
-    const results = await Promise.allSettled(
-      (jobs as JobRow[]).map((j) => processJob(j, supabase, supabaseUrl, supabaseServiceKey))
-    );
-
-    const summary = results.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value;
-      return { status: 'rejected', job_id: (jobs as JobRow[])[i].job_id, detail: String(r.reason) };
-    });
+    // 3. Traiter les jobs en série, espacés, pour éviter les 429 Uber
+    const summary: any[] = [];
+    for (let i = 0; i < (jobs as JobRow[]).length; i++) {
+      if (i > 0) await new Promise((r) => setTimeout(r, INTER_JOB_DELAY_MS));
+      try {
+        const res = await processJob((jobs as JobRow[])[i], supabase, supabaseUrl, supabaseServiceKey);
+        summary.push(res);
+      } catch (e: any) {
+        summary.push({ status: 'rejected', job_id: (jobs as JobRow[])[i].job_id, detail: String(e?.message || e) });
+      }
+    }
 
     return new Response(
       JSON.stringify({ status: 'ok', processed: jobs.length, results: summary }),
