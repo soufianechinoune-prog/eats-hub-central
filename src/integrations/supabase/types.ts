@@ -3876,6 +3876,10 @@ export type Database = {
       }
     }
     Functions: {
+      backfill_orders_data_source_for_restaurant: {
+        Args: { p_restaurant_id: string }
+        Returns: number
+      }
       enqueue_splash_backfill_for_chain: {
         Args: {
           p_chain_id: string
