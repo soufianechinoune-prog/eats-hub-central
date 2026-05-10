@@ -4250,6 +4250,19 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_orders_data_source_breakdown: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          data_source: string
+          order_count: number
+          restaurant_id: string
+          revenue: number
+        }[]
+      }
       get_prep_time_daily:
         | {
             Args: {
