@@ -1672,6 +1672,8 @@ export function AnalyticsCharts({
       avgBasketN1: item.prevOrders > 0 ? item.prevRevenue / item.prevOrders : 0,
       orders: item.orders,
       prevOrders: item.prevOrders,
+      revenue: item.revenue,
+      prevRevenue: item.prevRevenue,
     }));
   }, [aggregatedRevenueData]);
 
