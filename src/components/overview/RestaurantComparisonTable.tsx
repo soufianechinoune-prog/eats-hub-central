@@ -180,6 +180,9 @@ export function RestaurantComparisonTable({
   isLoading,
   onRestaurantClick,
   networkCashTotal = 0,
+  showDataSource = false,
+  onToggleDataSource,
+  dataSourceMap,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
