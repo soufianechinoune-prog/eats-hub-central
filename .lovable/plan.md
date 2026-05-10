@@ -1,68 +1,62 @@
-## Réponse à ta question
+# Bug : CA journaliers du graphique ≠ vraies données API
 
-**Oui, le matching est possible.** Toutes les tables alimentées par CSV partagent la même clé `uber_order_id`, qui est aussi rempli sur 100% des commandes API (vérifié : 107 230/107 230 commandes API mars 2026).
+## Diagnostic
 
-| Donnée | Table | Clé de matching | Granularité |
-|---|---|---|---|
-| Éco-contribution (CSV PAYMENT_DETAILS) | `orders.eco_contribution_refund` | `uber_order_id` ✅ | par commande |
-| Coût pub Ads (CSV PAYMENTS) | `payouts.ads_cost` (n'existe pas en colonne séparée — agrégé) | `payout_date` ❌ | hebdo, pas par commande |
-| Erreurs détaillées (CSV) | `order_errors` | `uber_order_id` ✅ | par commande |
-| Stats livraison (CSV ORDER_HISTORY) | `delivery_stats` + `order_history` | `uber_order_id` ✅ | par commande |
-| Conversion (CSV) | `daily_conversion` | `restaurant_id` + `date` ✅ | par jour |
+Vérification faite sur **Chicken Street Reims**, Mars 2026 :
 
-**Conclusion** : on peut tout réconcilier proprement, sauf le coût Ads qui restera un total hebdo/mensuel (Uber ne le fournit que dans le relevé de versement).
+| Jour | Tooltip graphique (RPC) | CA réel (heure Paris) | Écart |
+|------|------------------------|-----------------------|-------|
+| 1 Mar | 2 156,26 € (89 cmd) | 2 049,91 € (85 cmd) | **+106 €** |
+| 2 Mar | 1 499,93 € (64 cmd) | 1 538,57 € (67 cmd) | **−39 €** |
+| 3 Mar | 1 916,19 € (83 cmd) | 2 003,39 € (83 cmd) | **−87 €** |
+| 4 Mar | 2 722,31 € (108 cmd) | 2 583,52 € (105 cmd) | **+139 €** |
 
----
+Le tooltip affiche bien ce que la RPC `get_daily_revenue_from_orders` renvoie. **C'est la RPC qui est fausse.**
 
-## Stratégie : "API d'abord, CSV en complément"
+## Cause racine
 
-### 1. Source de vérité = API pour tout ce qui est commande
-- **CA, commissions, promos, refunds, marketing fees, offer usage, net payout, meal vouchers, TVA** → 100% API via la table `orders` filtrée par `order_datetime`.
-- **Cohérence garantie** entre Overview et Finances & Frais (même requête, même filtre).
+La RPC traite `order_datetime` comme du **UTC brut** (sans conversion Paris) :
 
-### 2. CSV en complément pour les champs que l'API ne fournit pas
-On continue à importer les CSV existants. À l'import, on **enrichit** les commandes API existantes (UPDATE par `uber_order_id`) au lieu de créer des doublons :
+```sql
+DATE(o.order_datetime) as date          -- ❌ groupe en UTC
+o.order_datetime >= p_start_date::timestamp  -- ❌ borne en UTC
+```
 
-| CSV à importer | Champ enrichi | Où ça remonte |
-|---|---|---|
-| **PAYMENT_DETAILS_REPORT** | `orders.eco_contribution_refund`, `tip_amount`, `vat_adjustment`, `price_adjustment`, `other_payments_incl_vat` | Finances & Frais (lignes Éco / Pourboires / Ajustements) |
-| **PAYMENTS** (relevé de versement) | `payouts.ads_cost`, `marketing_fee_adjustment` consolidés | Finances & Frais (encart "Frais hebdomadaires Uber") |
-| **ORDER_ERRORS_*** | `order_errors` (lié par `uber_order_id`) | Operations / Order Accuracy |
-| **ORDER_HISTORY_REPORT** | `delivery_stats` + `order_history` (lié par `uber_order_id`) | Opérations (temps prep / livraison) |
-| **CONVERSION** | `daily_conversion` | Conversion tab |
-| **DOWNTIME** | `hourly_availability` | Downtime tab |
-| **REVIEWS** | `customer_reviews`, `menu_item_reviews` | Reviews tab |
+Conséquences :
+- Une commande à `00h30 Paris` est rattachée à la **veille** (22h30 UTC en heure d'été)
+- Le total mensuel tombe juste, mais la **répartition jour par jour est décalée**
+- Cela viole la règle Core memory : "Use `AT TIME ZONE Europe/Paris` in SQL"
+- C'est aussi la raison pour laquelle Overview (qui utilise déjà Paris) ≠ Revenue & Ventes
 
-### 3. Modifications nécessaires sur Finances & Frais (UI)
+## Correction
 
-**a)** Nouvelle RPC `get_orders_finance_summary(restaurant_ids, start, end, granularity)` :
-- Source : `orders` filtré par `order_datetime` (cohérent avec Overview).
-- Retour : CA TTC/HT, TVA, promos, commissions, marketing, offer usage, refunds, meal vouchers, **éco-contribution**, **pourboires**, net payout calculé.
-- `SECURITY DEFINER`, scope `chain_id`, sentinel `'0000...'`.
+Recréer `get_daily_revenue_from_orders` en utilisant `Europe/Paris` :
 
-**b)** `ProfitabilityComparisonTable.tsx` consomme cette RPC au lieu de `get_monthly_payouts_*` / `get_yearly_payouts_detail` (mode Uber Eats uniquement). Forme `PayoutData[]` inchangée.
+```sql
+SELECT 
+  o.restaurant_id,
+  ((o.order_datetime AT TIME ZONE 'Europe/Paris'))::date AS date,
+  'uber_eats'::TEXT as platform,
+  COALESCE(SUM(o.sales_incl_vat), 0) as revenue_ttc,
+  COUNT(*) as order_count,
+  CASE WHEN COUNT(*) > 0 
+    THEN ROUND(SUM(o.sales_incl_vat) / COUNT(*), 2)
+    ELSE 0 
+  END as average_basket
+FROM public.orders o
+WHERE o.order_datetime >= (p_start_date::timestamp AT TIME ZONE 'Europe/Paris')
+  AND o.order_datetime <  ((p_end_date + interval '1 day')::timestamp AT TIME ZONE 'Europe/Paris')
+  AND (p_restaurant_ids IS NULL OR o.restaurant_id = ANY(p_restaurant_ids))
+GROUP BY o.restaurant_id, ((o.order_datetime AT TIME ZONE 'Europe/Paris'))::date
+```
 
-**c)** Ajout d'un **encart séparé en bas du tableau** : "Frais hebdomadaires Uber (relevés)" avec **Coût pub Ads** + ajustements consolidés du payout — récupérés depuis `payouts` filtré par chevauchement de période. Visuellement distinct pour signaler "donnée hebdo, pas par commande".
+Après cette migration, le tooltip du graphique affichera **exactement** les mêmes valeurs que :
+- l'Overview
+- les requêtes brutes `SUM(sales_incl_vat) GROUP BY (order_datetime AT TIME ZONE 'Europe/Paris')::date`
 
-**d)** `DataSourceBadge` étendu pour afficher : "Données commandes : API • Frais hebdo : Relevés Uber".
+## Impact
 
-**e)** Deliveroo : aucun changement (déjà aligné par commande).
-
-### 4. Hors scope
-- Pas de changement sur Overview.
-- Pas de suppression de la table `payouts` (reste utilisée pour Ads + réconciliation).
-- Pas de changement sur les pages Operations / Conversion / Reviews (déjà CSV-only et OK).
-
----
-
-## Détails techniques
-
-**Risques** : faibles. Lecture seule via RPC `SECURITY DEFINER`. La table `orders` contient déjà tous les champs nécessaires (vérifié colonnes `uber_fee_*`, `vat_uber_fee`, `item_promo_*`, `marketing_fee_adjustment`, `eco_contribution_refund`, `meal_voucher_amount`, `offer_usage_fee`, `refund_*`).
-
-**Validation** :
-- Reims (uber_api) mars 2026 : CA Finances & Frais doit = CA Overview à l'euro près.
-- Un restaurant CSV-only (ex: Lyon) : aucun changement visible (orders y est rempli par CSV, même résultat).
-
-**Évolution import PAYMENT_DETAILS** : déjà UPSERT par `uber_order_id` dans `parse-payment-report` → enrichira automatiquement les lignes API existantes. Aucun changement d'import nécessaire.
-
-**Ads cost** : à terme, on pourrait extraire `ads_cost` du CSV PAYMENTS dans une colonne dédiée de `payouts` (actuellement noyé dans `marketing_fee_adjustment` / `other_payments_incl_vat`). Étape optionnelle.
+- Une seule fonction modifiée (`get_daily_revenue_from_orders`)
+- Aucun changement de code front
+- Tous les graphiques journaliers d'Analytics → Revenue & Ventes deviennent cohérents avec Overview
+- Le total mensuel restera ≈ identique (juste mieux ventilé par jour)
