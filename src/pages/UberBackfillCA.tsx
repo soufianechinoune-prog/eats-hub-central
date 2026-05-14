@@ -414,6 +414,11 @@ export default function UberBackfillCA() {
                   <Button size="sm" variant="outline" onClick={() => pickYear(2025)}>Tout 2025</Button>
                   <Button size="sm" variant="outline" onClick={() => pickYear(2024)}>Tout 2024</Button>
                   <Button size="sm" variant="ghost" onClick={() => setPicked({})}>Tout décocher</Button>
+                  {(jobs ?? []).some((j) => j.status === "pending") && (
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={cancelPending}>
+                      Annuler les pending
+                    </Button>
+                  )}
                 </div>
 
                 {loadingCalendar ? (
