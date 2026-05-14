@@ -398,7 +398,19 @@ export default function UberBackfillCA() {
                             <span title="Pas encore lancé" className="flex-shrink-0 inline-block h-2 w-2 rounded-full bg-muted-foreground/30 ml-1.5 mr-1.5" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium text-sm truncate">{r.name}</div>
+                            <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                              {r.name}
+                              {(() => {
+                                const s = notesMap?.get(r.id);
+                                if (!s || s === "resolved") return null;
+                                return (
+                                  <span title="Annotation : voir détail" className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
+                                    <FileWarning className="h-2.5 w-2.5" />
+                                    CSV
+                                  </span>
+                                );
+                              })()}
+                            </div>
                             <div className="text-xs text-muted-foreground truncate">
                               store: {r.uber_store_id}
                             </div>
