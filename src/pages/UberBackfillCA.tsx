@@ -106,6 +106,7 @@ export default function UberBackfillCA() {
     queryKey: ["backfill-jobs-resto", selectedId],
     enabled: !!selectedId,
     refetchInterval: 5000,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("backfill_jobs")
@@ -333,17 +334,24 @@ export default function UberBackfillCA() {
                   const running = jobs.filter((j) => j.status === "running").length;
                   const pending = jobs.filter((j) => j.status === "pending").length;
                   const failed = jobs.filter((j) => j.status === "failed").length;
-                  const total = jobs.length;
+                  const skipped = jobs.filter((j) => j.status === "skipped").length;
+                  // Total "actionnable" : on exclut les skipped (hors fenêtre API → couverts par CSV)
+                  const actionable = done + running + pending + failed;
                   const remaining = pending + running;
                   const rate = throughput ?? 0; // jobs/min réseau
                   const etaMin = rate > 0 ? Math.ceil(remaining / rate) : null;
-                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const pct = actionable > 0 ? Math.round((done / actionable) * 100) : 0;
                   return (
                     <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <div className="flex items-center gap-2 font-medium">
                           <Activity className="h-4 w-4" />
-                          Progression : {done}/{total} done · {pct}%
+                          Progression : {done}/{actionable} done · {pct}%
+                          {skipped > 0 && (
+                            <span className="text-xs font-normal text-muted-foreground ml-2">
+                              · {skipped} hors fenêtre (CSV)
+                            </span>
+                          )}
                         </div>
                         <div className="text-xs text-muted-foreground flex items-center gap-1">
                           <Clock className="h-3 w-3" />

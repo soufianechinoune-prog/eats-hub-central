@@ -135,16 +135,23 @@ async function processJob(
   } catch (err: any) {
     const errMsg = String(err.message || err);
     console.error(`Job ${job.job_id} failed: ${errMsg}`);
-    const newStatus = job.attempts >= 3 ? 'failed' : 'pending';
+    // Auto-skip si l'erreur est la limite 188 jours d'Uber → pas de retry
+    const isOutOfWindow = /188 days|startDate must be within/i.test(errMsg);
+    const newStatus = isOutOfWindow
+      ? 'skipped'
+      : (job.attempts >= 3 ? 'failed' : 'pending');
+    const finalErr = isOutOfWindow
+      ? "Hors fenêtre API Uber (188 jours max). Utilise l'import CSV pour cet historique."
+      : errMsg.slice(0, 500);
     await supabase
       .from('backfill_jobs')
       .update({
         status: newStatus,
-        last_error: errMsg.slice(0, 500),
+        last_error: finalErr,
         updated_at: new Date().toISOString(),
       })
       .eq('id', job.job_id);
-    return { status: 'job_failed', job_id: job.job_id, detail: errMsg };
+    return { status: isOutOfWindow ? 'skipped' : 'job_failed', job_id: job.job_id, detail: errMsg };
   }
 }
 
