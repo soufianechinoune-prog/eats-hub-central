@@ -538,7 +538,7 @@ export default function UberBackfillCA() {
 
                 {jobs && jobs.length > 0 && (
                   <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-2">Jobs récents (vague 6)</h4>
+                    <h4 className="text-sm font-medium mb-2">Jobs récents (PAYMENT_DETAILS_REPORT)</h4>
                     <div className="space-y-1 max-h-48 overflow-y-auto">
                       {jobs.map((j) => (
                         <div key={j.id} className="flex items-center justify-between text-xs p-1.5 bg-muted/50 rounded">
