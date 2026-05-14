@@ -89,7 +89,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Jobs for selected (vague 6 = ORDER_HISTORY_REPORT)
+  // Jobs for selected (vague 1 = PAYMENT_DETAILS_REPORT)
   const { data: jobs } = useQuery({
     queryKey: ["backfill-jobs-resto", selectedId],
     enabled: !!selectedId,
@@ -100,7 +100,7 @@ export default function UberBackfillCA() {
         .from("backfill_jobs")
         .select("id, month_start, status, attempts, last_error, updated_at")
         .eq("restaurant_id", selectedId!)
-        .eq("vague", 6)
+        .eq("vague", 1)
         .order("month_start", { ascending: false })
         .limit(40);
       if (error) throw error;
