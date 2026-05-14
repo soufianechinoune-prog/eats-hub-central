@@ -110,7 +110,7 @@ export default function UberBackfillCA() {
     setPicked({});
   }, [selectedId]);
 
-  const selectedResto = summary?.find((r) => r.restaurant_id === selectedId);
+  const selectedResto = restos?.find((r) => r.id === selectedId);
 
   const togglePick = (m: string) =>
     setPicked((p) => ({ ...p, [m]: !p[m] }));
