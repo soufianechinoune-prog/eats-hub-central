@@ -3880,6 +3880,10 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: number
       }
+      enqueue_order_history_backfill: {
+        Args: { p_months: string[]; p_restaurant_id: string }
+        Returns: number
+      }
       enqueue_splash_backfill_for_chain: {
         Args: {
           p_chain_id: string
@@ -4438,6 +4442,19 @@ export type Database = {
           sales: number
         }[]
       }
+      get_restaurant_data_source_calendar: {
+        Args: {
+          p_end_date: string
+          p_restaurant_id: string
+          p_start_date: string
+        }
+        Returns: {
+          api_count: number
+          csv_count: number
+          month_start: string
+          total_count: number
+        }[]
+      }
       get_restaurant_local_benchmark: {
         Args: {
           p_end_date: string
@@ -4451,6 +4468,21 @@ export type Database = {
           competitor_count: number
           match_level: string
           postal_code: string
+        }[]
+      }
+      get_restaurants_data_source_summary: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          api_count: number
+          chain_id: string
+          csv_count: number
+          months_api_only: number
+          months_csv_only: number
+          months_mixed: number
+          months_with_data: number
+          restaurant_id: string
+          restaurant_name: string
+          uber_store_id: string
         }[]
       }
       get_reviews_overview_stats: {

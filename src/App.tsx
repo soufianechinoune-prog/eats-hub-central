@@ -65,6 +65,7 @@ const Account = React.lazy(() => import("./pages/Account"));
 const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 const UberBackfillHistorique = React.lazy(() => import("./pages/UberBackfillHistorique"));
+const UberBackfillCA = React.lazy(() => import("./pages/UberBackfillCA"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -182,6 +183,7 @@ const App = () => {
                     <Route path="/settings/integrations" element={<P><AppLayout><Integrations /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill" element={<P><AppLayout><UberBackfill /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill-historique" element={<P><AppLayout><UberBackfillHistorique /></AppLayout></P>} />
+                    <Route path="/admin/uber-backfill-ca" element={<P><AppLayout><UberBackfillCA /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
