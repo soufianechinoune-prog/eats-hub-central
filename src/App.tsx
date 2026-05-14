@@ -183,6 +183,7 @@ const App = () => {
                     <Route path="/settings/integrations" element={<P><AppLayout><Integrations /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill" element={<P><AppLayout><UberBackfill /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill-historique" element={<P><AppLayout><UberBackfillHistorique /></AppLayout></P>} />
+                    <Route path="/admin/uber-backfill-ca" element={<P><AppLayout><UberBackfillCA /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>
