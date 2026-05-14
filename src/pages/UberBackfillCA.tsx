@@ -12,17 +12,11 @@ import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 
-interface SummaryRow {
-  restaurant_id: string;
-  restaurant_name: string;
+interface RestoRow {
+  id: string;
+  name: string;
   uber_store_id: string;
   chain_id: string | null;
-  api_count: number;
-  csv_count: number;
-  months_with_data: number;
-  months_csv_only: number;
-  months_api_only: number;
-  months_mixed: number;
 }
 
 interface CalendarRow {
@@ -56,25 +50,27 @@ export default function UberBackfillCA() {
   );
   const endDate = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
-  // List
-  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
-    queryKey: ["data-source-summary", startDate, endDate],
+  // List — fast, no aggregation
+  const { data: restos, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
+    queryKey: ["backfill-ca-restos"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_restaurants_data_source_summary", {
-        p_start_date: startDate,
-        p_end_date: endDate,
-      });
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, uber_store_id, chain_id")
+        .not("uber_store_id", "is", null)
+        .neq("uber_store_id", "")
+        .order("name");
       if (error) throw error;
-      return (data ?? []) as SummaryRow[];
+      return (data ?? []) as RestoRow[];
     },
   });
 
   const filtered = useMemo(() => {
-    if (!summary) return [];
+    if (!restos) return [];
     const s = search.trim().toLowerCase();
-    if (!s) return summary;
-    return summary.filter((r) => r.restaurant_name.toLowerCase().includes(s));
-  }, [summary, search]);
+    if (!s) return restos;
+    return restos.filter((r) => r.name.toLowerCase().includes(s));
+  }, [restos, search]);
 
   // Calendar for selected
   const { data: calendar, isLoading: loadingCalendar, refetch: refetchCalendar } = useQuery({
@@ -114,7 +110,7 @@ export default function UberBackfillCA() {
     setPicked({});
   }, [selectedId]);
 
-  const selectedResto = summary?.find((r) => r.restaurant_id === selectedId);
+  const selectedResto = restos?.find((r) => r.id === selectedId);
 
   const togglePick = (m: string) =>
     setPicked((p) => ({ ...p, [m]: !p[m] }));
@@ -143,7 +139,7 @@ export default function UberBackfillCA() {
 
   const launch = async () => {
     if (!selectedId || pickedMonths.length === 0) return;
-    if (!confirm(`Lancer ${pickedMonths.length} appel(s) Uber pour ${selectedResto?.restaurant_name} ?`)) return;
+    if (!confirm(`Lancer ${pickedMonths.length} appel(s) Uber pour ${selectedResto?.name} ?`)) return;
     setLaunching(true);
     try {
       const { data, error } = await supabase.rpc("enqueue_order_history_backfill", {
@@ -218,33 +214,18 @@ export default function UberBackfillCA() {
               ) : (
                 <div className="space-y-1">
                   {filtered.map((r) => {
-                    const isSel = r.restaurant_id === selectedId;
-                    const total = r.months_with_data || 1;
-                    const pctCsv = Math.round(((r.months_csv_only + r.months_mixed) / total) * 100);
+                    const isSel = r.id === selectedId;
                     return (
                       <button
-                        key={r.restaurant_id}
-                        onClick={() => setSelectedId(r.restaurant_id)}
+                        key={r.id}
+                        onClick={() => setSelectedId(r.id)}
                         className={`w-full text-left p-2 rounded-md border transition-colors ${
                           isSel ? "bg-primary/10 border-primary" : "hover:bg-muted border-transparent"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm truncate">{r.restaurant_name}</span>
-                          {r.months_csv_only === 0 && r.months_mixed === 0 ? (
-                            <Badge variant="secondary" className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" /> 100% API
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300">
-                              {pctCsv}% CSV
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
-                          <span>API: {r.months_api_only}</span>
-                          <span>CSV: {r.months_csv_only}</span>
-                          <span>Mixte: {r.months_mixed}</span>
+                        <div className="font-medium text-sm truncate">{r.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          store: {r.uber_store_id}
                         </div>
                       </button>
                     );
@@ -264,7 +245,7 @@ export default function UberBackfillCA() {
           ) : (
             <>
               <CardHeader>
-                <CardTitle>{selectedResto.restaurant_name}</CardTitle>
+                <CardTitle>{selectedResto.name}</CardTitle>
                 <CardDescription>
                   uber_store_id: <code>{selectedResto.uber_store_id}</code>
                 </CardDescription>
