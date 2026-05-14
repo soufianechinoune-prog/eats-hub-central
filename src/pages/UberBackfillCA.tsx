@@ -214,33 +214,18 @@ export default function UberBackfillCA() {
               ) : (
                 <div className="space-y-1">
                   {filtered.map((r) => {
-                    const isSel = r.restaurant_id === selectedId;
-                    const total = r.months_with_data || 1;
-                    const pctCsv = Math.round(((r.months_csv_only + r.months_mixed) / total) * 100);
+                    const isSel = r.id === selectedId;
                     return (
                       <button
-                        key={r.restaurant_id}
-                        onClick={() => setSelectedId(r.restaurant_id)}
+                        key={r.id}
+                        onClick={() => setSelectedId(r.id)}
                         className={`w-full text-left p-2 rounded-md border transition-colors ${
                           isSel ? "bg-primary/10 border-primary" : "hover:bg-muted border-transparent"
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-medium text-sm truncate">{r.restaurant_name}</span>
-                          {r.months_csv_only === 0 && r.months_mixed === 0 ? (
-                            <Badge variant="secondary" className="gap-1">
-                              <CheckCircle2 className="h-3 w-3" /> 100% API
-                            </Badge>
-                          ) : (
-                            <Badge variant="outline" className="text-orange-600 border-orange-300">
-                              {pctCsv}% CSV
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="flex gap-2 mt-1 text-xs text-muted-foreground">
-                          <span>API: {r.months_api_only}</span>
-                          <span>CSV: {r.months_csv_only}</span>
-                          <span>Mixte: {r.months_mixed}</span>
+                        <div className="font-medium text-sm truncate">{r.name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          store: {r.uber_store_id}
                         </div>
                       </button>
                     );
