@@ -296,7 +296,7 @@ export default function UberBackfillCA() {
         <div>
           <h1 className="text-3xl font-bold">Rattrapage CA Uber</h1>
           <p className="text-muted-foreground mt-1">
-            Synchronise les <strong>6 derniers mois</strong> via l'API Uber Eats. Au-delà, l'historique reste sur les imports CSV — c'est la même donnée, même fiabilité.
+            Synchronise <strong>tout l'historique disponible</strong> via l'API Uber Eats (rapport <code>PAYMENT_DETAILS_REPORT</code>, sans limite de date).
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchSummary()}>
@@ -304,12 +304,11 @@ export default function UberBackfillCA() {
         </Button>
       </div>
 
-      <div className="rounded-lg border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm">
-        <div className="font-semibold text-amber-900 dark:text-amber-200 mb-1">⚠️ Limite Uber : API 188 jours max</div>
-        <div className="text-amber-800 dark:text-amber-300">
-          L'API Uber Eats refuse toute demande au-delà de <strong>188 jours</strong> (~6 mois).
-          Les mois antérieurs sont déjà couverts par les imports CSV — <strong>même donnée, même CA, même fiabilité</strong>.
-          Ne tente le rattrapage API que sur les mois <span className="text-emerald-700 dark:text-emerald-400 font-medium">verts (éligibles)</span>.
+      <div className="rounded-lg border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 p-4 text-sm">
+        <div className="font-semibold text-emerald-900 dark:text-emerald-200 mb-1">✅ CA Uber : aucune limite de date</div>
+        <div className="text-emerald-800 dark:text-emerald-300">
+          Cette page utilise uniquement le rapport <strong>PAYMENT_DETAILS_REPORT</strong>, qui n'a <strong>aucune limite de 188 jours</strong>.
+          Tu peux rattraper le CA sur n'importe quel mois depuis l'ouverture du restaurant — 2024, 2023, etc.
         </div>
       </div>
 
