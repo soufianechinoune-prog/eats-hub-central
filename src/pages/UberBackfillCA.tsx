@@ -70,12 +70,34 @@ export default function UberBackfillCA() {
     },
   });
 
+  // Notes (annotations) for all restaurants
+  const { data: notesMap } = useQuery({
+    queryKey: ["backfill-notes-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurant_backfill_notes")
+        .select("restaurant_id, status")
+        .eq("report_type", "PAYMENT_DETAILS_REPORT");
+      if (error) throw error;
+      const m = new Map<string, string>();
+      (data ?? []).forEach((n: any) => m.set(n.restaurant_id, n.status));
+      return m;
+    },
+  });
+
   const filtered = useMemo(() => {
     if (!restos) return [];
+    let list = restos;
+    if (onlyFlagged) {
+      list = list.filter((r) => {
+        const s = notesMap?.get(r.id);
+        return s && s !== "resolved";
+      });
+    }
     const s = search.trim().toLowerCase();
-    if (!s) return restos;
-    return restos.filter((r) => r.name.toLowerCase().includes(s));
-  }, [restos, search]);
+    if (!s) return list;
+    return list.filter((r) => r.name.toLowerCase().includes(s));
+  }, [restos, search, onlyFlagged, notesMap]);
 
   // Calendar for selected
   const { data: calendar, isLoading: loadingCalendar, refetch: refetchCalendar } = useQuery({
