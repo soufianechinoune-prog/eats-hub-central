@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook, FileWarning } from "lucide-react";
 import { BackfillNoteCard } from "@/components/admin/BackfillNoteCard";
+import { ResyncLiveTagCard } from "@/components/admin/ResyncLiveTagCard";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth, differenceInCalendarMonths } from "date-fns";
