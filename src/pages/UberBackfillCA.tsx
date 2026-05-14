@@ -106,6 +106,7 @@ export default function UberBackfillCA() {
     queryKey: ["backfill-jobs-resto", selectedId],
     enabled: !!selectedId,
     refetchInterval: 5000,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("backfill_jobs")
