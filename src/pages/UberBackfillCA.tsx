@@ -228,6 +228,29 @@ export default function UberBackfillCA() {
     }
   };
 
+  const cancelPending = async () => {
+    if (!selectedId) return;
+    const pendingCount = (jobs ?? []).filter((j) => j.status === "pending").length;
+    if (pendingCount === 0) return;
+    if (!confirm(`Annuler ${pendingCount} job(s) pending pour ${selectedResto?.name} ?`)) return;
+    const { error } = await supabase
+      .from("backfill_jobs")
+      .update({
+        status: "skipped",
+        last_error: "Annulé manuellement par l'admin",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("restaurant_id", selectedId)
+      .eq("vague", 6)
+      .eq("status", "pending");
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Annulés", description: `${pendingCount} job(s) annulé(s).` });
+    qc.invalidateQueries({ queryKey: ["backfill-jobs-resto", selectedId] });
+  };
+
   const monthsList = useMemo(() => {
     const arr: string[] = [];
     for (let i = 0; i < MONTHS_BACK; i++) {
