@@ -349,6 +349,18 @@ export default function UberBackfillCA() {
               onChange={(e) => setSearch(e.target.value)}
               className="mt-2"
             />
+            <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer">
+              <Checkbox checked={onlyFlagged} onCheckedChange={(v) => setOnlyFlagged(!!v)} />
+              <span className="flex items-center gap-1">
+                <FileWarning className="h-3 w-3 text-orange-500" />
+                Uniquement les stores à problème
+                {notesMap && (
+                  <span className="text-muted-foreground">
+                    ({Array.from(notesMap.values()).filter((s) => s !== "resolved").length})
+                  </span>
+                )}
+              </span>
+            </label>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px] pr-3">
