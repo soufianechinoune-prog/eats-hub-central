@@ -37,6 +37,19 @@ interface JobRow {
 }
 
 const MONTHS_BACK = 24;
+// Limite stricte de l'API Uber Eats pour ORDER_HISTORY_REPORT
+const UBER_API_WINDOW_DAYS = 188;
+const MIN_API_DATE = (() => {
+  const d = new Date();
+  d.setDate(d.getDate() - UBER_API_WINDOW_DAYS);
+  return d;
+})();
+const isInApiWindow = (monthStart: string) => {
+  // Le mois est éligible si sa fin (dernier jour) est >= MIN_API_DATE
+  const start = new Date(monthStart);
+  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+  return end >= MIN_API_DATE;
+};
 
 export default function UberBackfillCA() {
   const qc = useQueryClient();
@@ -159,14 +172,18 @@ export default function UberBackfillCA() {
 
   const selectedResto = restos?.find((r) => r.id === selectedId);
 
-  const togglePick = (m: string) =>
+  const togglePick = (m: string) => {
+    if (!isInApiWindow(m)) return; // ignore les mois hors fenêtre
     setPicked((p) => ({ ...p, [m]: !p[m] }));
+  };
 
   const pickAllCsv = () => {
     if (!calendar) return;
     const next: Record<string, boolean> = {};
     calendar.forEach((c) => {
-      if (c.csv_count > 0 && c.api_count === 0) next[c.month_start] = true;
+      if (c.csv_count > 0 && c.api_count === 0 && isInApiWindow(c.month_start)) {
+        next[c.month_start] = true;
+      }
     });
     setPicked(next);
   };
@@ -175,10 +192,13 @@ export default function UberBackfillCA() {
     if (!calendar) return;
     const next = { ...picked };
     calendar.forEach((c) => {
-      if (new Date(c.month_start).getFullYear() === year) next[c.month_start] = true;
+      if (new Date(c.month_start).getFullYear() === year && isInApiWindow(c.month_start)) {
+        next[c.month_start] = true;
+      }
     });
     setPicked(next);
   };
+
 
   const pickedMonths = Object.entries(picked).filter(([, v]) => v).map(([k]) => k);
 
@@ -231,14 +251,23 @@ export default function UberBackfillCA() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Rattrapage CA Uber (API)</h1>
+          <h1 className="text-3xl font-bold">Rattrapage CA Uber</h1>
           <p className="text-muted-foreground mt-1">
-            Lance le rapport <code>ORDER_HISTORY_REPORT</code> restaurant par restaurant pour faire passer les badges CSV en API.
+            Synchronise les <strong>6 derniers mois</strong> via l'API Uber Eats. Au-delà, l'historique reste sur les imports CSV — c'est la même donnée, même fiabilité.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchSummary()}>
           <RefreshCw className="h-4 w-4 mr-2" /> Rafraîchir
         </Button>
+      </div>
+
+      <div className="rounded-lg border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm">
+        <div className="font-semibold text-amber-900 dark:text-amber-200 mb-1">⚠️ Limite Uber : API 188 jours max</div>
+        <div className="text-amber-800 dark:text-amber-300">
+          L'API Uber Eats refuse toute demande au-delà de <strong>188 jours</strong> (~6 mois).
+          Les mois antérieurs sont déjà couverts par les imports CSV — <strong>même donnée, même CA, même fiabilité</strong>.
+          Ne tente le rattrapage API que sur les mois <span className="text-emerald-700 dark:text-emerald-400 font-medium">verts (éligibles)</span>.
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -368,15 +397,22 @@ export default function UberBackfillCA() {
                       const isCsv = c && c.csv_count > 0 && c.api_count === 0;
                       const isEmpty = !c || c.total_count === 0;
                       const checked = !!picked[m];
+                      const inWindow = isInApiWindow(m);
                       return (
                         <label
                           key={m}
-                          className={`flex items-start gap-2 p-2 border rounded-md cursor-pointer text-xs ${
-                            checked ? "border-primary bg-primary/5" : "border-border"
+                          className={`flex items-start gap-2 p-2 border rounded-md text-xs ${
+                            !inWindow
+                              ? "opacity-50 cursor-not-allowed bg-muted/30"
+                              : checked
+                                ? "border-primary bg-primary/5 cursor-pointer"
+                                : "border-border cursor-pointer"
                           }`}
+                          title={!inWindow ? "Hors fenêtre API Uber (188 jours). Données déjà couvertes par l'import CSV." : undefined}
                         >
                           <Checkbox
                             checked={checked}
+                            disabled={!inWindow}
                             onCheckedChange={() => togglePick(m)}
                           />
                           <div className="flex-1 min-w-0">
@@ -384,10 +420,11 @@ export default function UberBackfillCA() {
                               {format(new Date(m), "MMM yyyy", { locale: fr })}
                             </div>
                             <div className="mt-1 flex flex-wrap gap-1">
-                              {isApi && <Badge className="bg-emerald-500 hover:bg-emerald-500 text-white text-[10px]">API</Badge>}
-                              {isCsv && <Badge className="bg-orange-500 hover:bg-orange-500 text-white text-[10px]">CSV</Badge>}
+                              {isApi && <Badge className="bg-emerald-500 hover:bg-emerald-500 text-white text-[10px]">Live</Badge>}
+                              {isCsv && <Badge className="bg-slate-500 hover:bg-slate-500 text-white text-[10px]">Historique</Badge>}
                               {isMixed && <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[10px]">Mixte</Badge>}
                               {isEmpty && <Badge variant="outline" className="text-[10px]">Vide</Badge>}
+                              {!inWindow && <Badge variant="outline" className="text-[10px] border-dashed">Hors fenêtre API</Badge>}
                             </div>
                             {c && c.total_count > 0 && (
                               <div className="text-[10px] text-muted-foreground mt-1">
