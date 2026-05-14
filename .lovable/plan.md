@@ -1,71 +1,41 @@
+## Diagnostic
 
-# Page Backfill CA Uber — Restaurant par Restaurant
+**1. Pourquoi "0/24" ?**
 
-## Objectif
+Le compteur affiche `done / total` où `total = jobs.length` (limité à 40, triés par `month_start DESC`). Pour Chicken Street - Reims, la DB contient **24 jobs vague=6** :
 
-Créer une nouvelle page `/uber-backfill-ca` qui te permet de **rattraper l'historique des commandes Uber (`ORDER_HISTORY_REPORT`)** pour les ~140 restaurants dont le CA en Overview affiche le badge "CSV" au lieu de "API".
+- **7 pending** (mai 2026 → nov 2025) → vrais jobs API en attente
+- **17 skipped** (oct 2025 → juin 2024) → marqués hors fenêtre API par la migration précédente
 
-Tu valides **un restaurant + une période à la fois**, tu vois le résultat, puis tu décides si on passe au suivant. Pas de batch automatique → pas de surconsommation de crédits Uber, pas de surprises.
+Donc `0 done / 24 total` = trompeur. Le "24" inclut **les 17 skipped** qui ne seront jamais traités. La vraie progression est `0 / 7`.
 
-## Workflow utilisateur
+Ce n'est PAS "sur 24 mois" — c'est sur 24 lignes en base, dont 17 sont déjà classées sans suite.
 
-```text
-1. Tu ouvres la page
-2. Tu vois la liste des restaurants triés par "% de mois en CSV"
-   (ceux qui ont le plus à rattraper en premier)
-3. Tu cliques sur un restaurant → panneau s'ouvre à droite
-4. Tu vois mois par mois : badge API / CSV / Vide
-5. Tu coches les mois à rattraper (ou bouton "Tout 2024", "Tout 2025"…)
-6. Tu cliques "Lancer le backfill pour ce restaurant"
-7. Tu vois la progression en temps réel (1 job par mois, ~1 min/job)
-8. Quand c'est fini → badge récap "X mois passés en API"
-9. Tu valides "OK suivant" → restaurant suivant, ou tu fermes
-```
+**2. Pourquoi le bandeau a "disparu" sur la 2ème capture ?**
 
-## Détail des sections de la page
+Le bandeau est conditionné par `jobs && jobs.length > 0`. Lors du `invalidateQueries` après le clic Lancer, ou pendant un refetch (toutes les 5s), `jobs` peut momentanément revenir `undefined` et le bloc disparaît jusqu'au prochain succès. Pas de bug de fond — flash visuel pendant refetch.
 
-**Section 1 — Liste restaurants (gauche, ~40%)**
-- Colonnes : Nom · Mois en CSV · Mois en API · Mois vides · % CSV · Statut backfill
-- Tri par défaut : `% CSV` décroissant (les plus prioritaires en haut)
-- Filtre : marque (chain), recherche par nom
-- Badge si un backfill est déjà en cours pour ce restaurant
+Confirmé par DB : les 7 pending sont bien là, dont **nov 2025 avec `attempts=2` et erreur "startDate must be within 188 days"** → ce mois-là est *à la limite* (1er nov → fin nov = 30 jours d'âge mais début = 195 jours), l'API le refuse partiellement. Le worker va retry et probablement le marquer failed/skipped.
 
-**Section 2 — Détail restaurant (droite, ~60%)**
-- Nom + uber_store_id
-- Grille des mois (24 mois glissants par défaut, extensible jusqu'à 2024-01)
-- Pour chaque mois : badge `API` (vert) / `CSV` (orange) / `Vide` (gris)
-- Cases à cocher (les mois déjà API sont décochés et grisés par défaut)
-- Boutons rapides : "Cocher tous les CSV", "Tout 2025", "Tout 2024"
-- Bouton principal : `Lancer (N mois)` avec confirmation
-- En bas : timeline des jobs en cours (mois X → workflow_id → status)
+## Plan de correction
 
-## Sécurité / garde-fous
+**A. Compteur fiable**
+Exclure les `skipped` du calcul de progression. Nouveau libellé :
+- `Progression : {done} / {actionable} · {pct}%` où `actionable = done + running + pending + failed`
+- Sous-ligne : `· 17 hors fenêtre (CSV)` quand il y a des skipped, en muted
 
-- Confirmation avant lancement : "Tu vas lancer N appels Uber pour {restaurant} sur {période}. Continuer ?"
-- 1 seul restaurant en cours à la fois (lock côté UI)
-- Affichage du nombre estimé de jobs et du temps (~1 min/job)
-- Bouton "Stop" si tu veux interrompre (marque les jobs pending en `cancelled`)
+**B. Anti-flash du bandeau**
+Ajouter `placeholderData: (prev) => prev` (keepPreviousData) sur la query `backfill-jobs-resto` pour éviter la disparition pendant les refetch de 5s.
 
-## Détails techniques (pour info)
+**C. Cas "nov 2025" limite**
+Côté serveur (`enqueue_order_history_backfill` + worker), durcir : si la fin du mois est < `current_date - 188 days` OU si Uber renvoie l'erreur 188 jours, marquer le job `skipped` automatiquement avec le message standard, pas de retry infini. Le job nov 2025 actuel sera nettoyé au prochain run.
 
-- **Réutilise l'infra existante** `backfill_jobs` + `uber-backfill-worker` (cron toutes les minutes, déjà en place)
-- Nouveau **vague 6** = `ORDER_HISTORY_REPORT` (les 5 vagues actuelles ne touchent pas `orders`)
-- Nouvelle RPC `enqueue_order_history_backfill(restaurant_id, months[])` qui crée les rows dans `backfill_jobs` avec `report_type = 'ORDER_HISTORY_REPORT'` et `vague = 6`
-- Nouvelle RPC `get_restaurant_data_source_calendar(restaurant_id, start, end)` qui retourne mois par mois la répartition `uber_api` / `null` / vide depuis `orders`
-- Le webhook `uber-report-webhook` existant ingère déjà ORDER_HISTORY_REPORT et marque le job `done` → rien à modifier côté ingestion
-- Page accessible uniquement aux super_admin (comme les autres pages backfill)
+**D. Détail visuel (optionnel)**
+Dans la liste de jobs, afficher les `skipped` en gris léger sous un sous-titre "Couverts par CSV" pour qu'ils ne polluent pas la lecture.
 
-## Ce qui ne change PAS
+## Fichiers touchés
 
-- Aucune modification de la table `orders`, des RLS, des autres pages
-- Les 5 vagues actuelles (PAYMENT, FEEDBACK, ITEM, ERRORS, DOWNTIME) continuent indépendamment
-- Les badges Overview (CSV/API) se mettront à jour automatiquement dès que les commandes seront rapatriées
+- `src/pages/UberBackfillCA.tsx` — compteur + keepPreviousData + section skipped séparée
+- migration SQL — durcir le worker `process_order_history_backfill` (auto-skip sur erreur 188j)
 
-## Livrable
-
-- 1 nouvelle route `/uber-backfill-ca` + entrée sidebar (super admin)
-- 1 composant page + 2 composants enfants (liste, détail)
-- 2 RPC SQL (calendar + enqueue)
-- Réutilisation à 100% du worker et du webhook existants
-
-Dis-moi si je lance, ou si tu veux ajuster (ex: mensuel vs hebdo, plus de mois affichés, multi-sélection de restos, etc.).
+Pas de changement de logique métier ni d'impact sur le CA affiché ailleurs.
