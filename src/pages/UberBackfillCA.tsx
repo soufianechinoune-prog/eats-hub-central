@@ -251,9 +251,9 @@ export default function UberBackfillCA() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Rattrapage CA Uber (API)</h1>
+          <h1 className="text-3xl font-bold">Rattrapage CA Uber</h1>
           <p className="text-muted-foreground mt-1">
-            Lance le rapport <code>ORDER_HISTORY_REPORT</code> restaurant par restaurant pour faire passer les badges CSV en API.
+            Synchronise les <strong>6 derniers mois</strong> via l'API Uber Eats. Au-delà, l'historique reste sur les imports CSV — c'est la même donnée, même fiabilité.
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchSummary()}>
