@@ -45,10 +45,10 @@ const MIN_API_DATE = (() => {
   return d;
 })();
 const isInApiWindow = (monthStart: string) => {
-  // Le mois est éligible si sa fin (dernier jour) est >= MIN_API_DATE
+  // Strict : le mois est éligible API uniquement si son DÉBUT est dans la fenêtre 188j.
+  // Sinon Uber rejette la requête (startDate trop vieille). Pour ces mois, le CSV couvre déjà la donnée.
   const start = new Date(monthStart);
-  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-  return end >= MIN_API_DATE;
+  return start >= MIN_API_DATE;
 };
 
 export default function UberBackfillCA() {
@@ -228,6 +228,29 @@ export default function UberBackfillCA() {
     }
   };
 
+  const cancelPending = async () => {
+    if (!selectedId) return;
+    const pendingCount = (jobs ?? []).filter((j) => j.status === "pending").length;
+    if (pendingCount === 0) return;
+    if (!confirm(`Annuler ${pendingCount} job(s) pending pour ${selectedResto?.name} ?`)) return;
+    const { error } = await supabase
+      .from("backfill_jobs")
+      .update({
+        status: "skipped",
+        last_error: "Annulé manuellement par l'admin",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("restaurant_id", selectedId)
+      .eq("vague", 6)
+      .eq("status", "pending");
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "Annulés", description: `${pendingCount} job(s) annulé(s).` });
+    qc.invalidateQueries({ queryKey: ["backfill-jobs-resto", selectedId] });
+  };
+
   const monthsList = useMemo(() => {
     const arr: string[] = [];
     for (let i = 0; i < MONTHS_BACK; i++) {
@@ -391,6 +414,11 @@ export default function UberBackfillCA() {
                   <Button size="sm" variant="outline" onClick={() => pickYear(2025)}>Tout 2025</Button>
                   <Button size="sm" variant="outline" onClick={() => pickYear(2024)}>Tout 2024</Button>
                   <Button size="sm" variant="ghost" onClick={() => setPicked({})}>Tout décocher</Button>
+                  {(jobs ?? []).some((j) => j.status === "pending") && (
+                    <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive" onClick={cancelPending}>
+                      Annuler les pending
+                    </Button>
+                  )}
                 </div>
 
                 {loadingCalendar ? (
