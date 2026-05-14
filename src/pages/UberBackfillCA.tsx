@@ -47,6 +47,7 @@ export default function UberBackfillCA() {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [launching, setLaunching] = useState(false);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
 
   const startDate = useMemo(
     () => format(startOfMonth(subMonths(new Date(), MONTHS_BACK - 1)), "yyyy-MM-dd"),
