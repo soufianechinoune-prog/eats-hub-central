@@ -260,7 +260,7 @@ export default function UberBackfillCA() {
         updated_at: new Date().toISOString(),
       })
       .eq("restaurant_id", selectedId)
-      .eq("vague", 6)
+      .eq("vague", 1)
       .eq("status", "pending");
     if (error) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
