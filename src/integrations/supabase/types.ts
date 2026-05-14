@@ -2838,6 +2838,45 @@ export type Database = {
           },
         ]
       }
+      restaurant_backfill_notes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          flagged_period_end: string | null
+          flagged_period_start: string | null
+          id: string
+          note: string
+          report_type: string
+          restaurant_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          flagged_period_end?: string | null
+          flagged_period_start?: string | null
+          id?: string
+          note?: string
+          report_type?: string
+          restaurant_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          flagged_period_end?: string | null
+          flagged_period_start?: string | null
+          id?: string
+          note?: string
+          report_type?: string
+          restaurant_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       restaurant_deliveroo_ids: {
         Row: {
           created_at: string
