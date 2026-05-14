@@ -172,14 +172,29 @@ export default function UberBackfillCA() {
 
   const selectedResto = restos?.find((r) => r.id === selectedId);
 
-  const togglePick = (m: string) =>
+  const togglePick = (m: string) => {
+    if (!isInApiWindow(m)) return; // ignore les mois hors fenêtre
     setPicked((p) => ({ ...p, [m]: !p[m] }));
+  };
 
   const pickAllCsv = () => {
     if (!calendar) return;
     const next: Record<string, boolean> = {};
     calendar.forEach((c) => {
-      if (c.csv_count > 0 && c.api_count === 0) next[c.month_start] = true;
+      if (c.csv_count > 0 && c.api_count === 0 && isInApiWindow(c.month_start)) {
+        next[c.month_start] = true;
+      }
+    });
+    setPicked(next);
+  };
+
+  const pickYear = (year: number) => {
+    if (!calendar) return;
+    const next = { ...picked };
+    calendar.forEach((c) => {
+      if (new Date(c.month_start).getFullYear() === year && isInApiWindow(c.month_start)) {
+        next[c.month_start] = true;
+      }
     });
     setPicked(next);
   };
