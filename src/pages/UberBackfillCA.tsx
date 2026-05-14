@@ -12,17 +12,11 @@ import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 
-interface SummaryRow {
-  restaurant_id: string;
-  restaurant_name: string;
+interface RestoRow {
+  id: string;
+  name: string;
   uber_store_id: string;
   chain_id: string | null;
-  api_count: number;
-  csv_count: number;
-  months_with_data: number;
-  months_csv_only: number;
-  months_api_only: number;
-  months_mixed: number;
 }
 
 interface CalendarRow {
@@ -56,25 +50,27 @@ export default function UberBackfillCA() {
   );
   const endDate = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
 
-  // List
-  const { data: summary, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
-    queryKey: ["data-source-summary", startDate, endDate],
+  // List — fast, no aggregation
+  const { data: restos, isLoading: loadingSummary, refetch: refetchSummary } = useQuery({
+    queryKey: ["backfill-ca-restos"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_restaurants_data_source_summary", {
-        p_start_date: startDate,
-        p_end_date: endDate,
-      });
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, uber_store_id, chain_id")
+        .not("uber_store_id", "is", null)
+        .neq("uber_store_id", "")
+        .order("name");
       if (error) throw error;
-      return (data ?? []) as SummaryRow[];
+      return (data ?? []) as RestoRow[];
     },
   });
 
   const filtered = useMemo(() => {
-    if (!summary) return [];
+    if (!restos) return [];
     const s = search.trim().toLowerCase();
-    if (!s) return summary;
-    return summary.filter((r) => r.restaurant_name.toLowerCase().includes(s));
-  }, [summary, search]);
+    if (!s) return restos;
+    return restos.filter((r) => r.name.toLowerCase().includes(s));
+  }, [restos, search]);
 
   // Calendar for selected
   const { data: calendar, isLoading: loadingCalendar, refetch: refetchCalendar } = useQuery({
