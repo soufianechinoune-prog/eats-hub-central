@@ -245,7 +245,7 @@ export default function UberBackfillCA() {
           ) : (
             <>
               <CardHeader>
-                <CardTitle>{selectedResto.restaurant_name}</CardTitle>
+                <CardTitle>{selectedResto.name}</CardTitle>
                 <CardDescription>
                   uber_store_id: <code>{selectedResto.uber_store_id}</code>
                 </CardDescription>
