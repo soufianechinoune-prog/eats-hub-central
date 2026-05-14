@@ -36,8 +36,9 @@ interface JobRow {
   updated_at: string;
 }
 
-const MONTHS_BACK = 24;
-// PAYMENT_DETAILS_REPORT n'a aucune limite de date côté Uber → tous les mois sont éligibles.
+// PAYMENT_DETAILS_REPORT n'a aucune limite de date → on remonte jusqu'au 1er janvier 2024.
+const HISTORY_START = new Date(2024, 0, 1);
+const MONTHS_BACK = differenceInCalendarMonths(new Date(), HISTORY_START) + 1;
 
 export default function UberBackfillCA() {
   const qc = useQueryClient();
