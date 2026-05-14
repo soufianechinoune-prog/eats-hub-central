@@ -334,7 +334,8 @@ export default function UberBackfillCA() {
                   {filtered.map((r) => {
                     const isSel = r.id === selectedId;
                     const stats = restoDoneMap?.get(r.id);
-                    const isComplete = stats && stats.done >= 6 && stats.running === 0 && stats.pending === 0;
+                    const totalActionable = stats ? stats.done + stats.running + stats.pending + stats.failed : 0;
+                    const isComplete = stats && totalActionable > 0 && stats.done === totalActionable;
                     const isRunning = stats && (stats.running > 0 || stats.pending > 0);
                     const hasFailed = stats && stats.failed > 0 && !isRunning;
                     return (
