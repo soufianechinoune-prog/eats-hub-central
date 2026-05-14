@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook } from "lucide-react";
+import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook, FileWarning } from "lucide-react";
+import { BackfillNoteCard } from "@/components/admin/BackfillNoteCard";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth, differenceInCalendarMonths } from "date-fns";
@@ -46,6 +47,7 @@ export default function UberBackfillCA() {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<Record<string, boolean>>({});
   const [launching, setLaunching] = useState(false);
+  const [onlyFlagged, setOnlyFlagged] = useState(false);
 
   const startDate = useMemo(
     () => format(startOfMonth(subMonths(new Date(), MONTHS_BACK - 1)), "yyyy-MM-dd"),
@@ -68,12 +70,34 @@ export default function UberBackfillCA() {
     },
   });
 
+  // Notes (annotations) for all restaurants
+  const { data: notesMap } = useQuery({
+    queryKey: ["backfill-notes-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurant_backfill_notes")
+        .select("restaurant_id, status")
+        .eq("report_type", "PAYMENT_DETAILS_REPORT");
+      if (error) throw error;
+      const m = new Map<string, string>();
+      (data ?? []).forEach((n: any) => m.set(n.restaurant_id, n.status));
+      return m;
+    },
+  });
+
   const filtered = useMemo(() => {
     if (!restos) return [];
+    let list = restos;
+    if (onlyFlagged) {
+      list = list.filter((r) => {
+        const s = notesMap?.get(r.id);
+        return s && s !== "resolved";
+      });
+    }
     const s = search.trim().toLowerCase();
-    if (!s) return restos;
-    return restos.filter((r) => r.name.toLowerCase().includes(s));
-  }, [restos, search]);
+    if (!s) return list;
+    return list.filter((r) => r.name.toLowerCase().includes(s));
+  }, [restos, search, onlyFlagged, notesMap]);
 
   // Calendar for selected
   const { data: calendar, isLoading: loadingCalendar, refetch: refetchCalendar } = useQuery({
@@ -325,6 +349,18 @@ export default function UberBackfillCA() {
               onChange={(e) => setSearch(e.target.value)}
               className="mt-2"
             />
+            <label className="flex items-center gap-2 mt-2 text-xs cursor-pointer">
+              <Checkbox checked={onlyFlagged} onCheckedChange={(v) => setOnlyFlagged(!!v)} />
+              <span className="flex items-center gap-1">
+                <FileWarning className="h-3 w-3 text-orange-500" />
+                Uniquement les stores à problème
+                {notesMap && (
+                  <span className="text-muted-foreground">
+                    ({Array.from(notesMap.values()).filter((s) => s !== "resolved").length})
+                  </span>
+                )}
+              </span>
+            </label>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px] pr-3">
@@ -362,7 +398,19 @@ export default function UberBackfillCA() {
                             <span title="Pas encore lancé" className="flex-shrink-0 inline-block h-2 w-2 rounded-full bg-muted-foreground/30 ml-1.5 mr-1.5" />
                           )}
                           <div className="min-w-0 flex-1">
-                            <div className="font-medium text-sm truncate">{r.name}</div>
+                            <div className="font-medium text-sm truncate flex items-center gap-1.5">
+                              {r.name}
+                              {(() => {
+                                const s = notesMap?.get(r.id);
+                                if (!s || s === "resolved") return null;
+                                return (
+                                  <span title="Annotation : voir détail" className="flex-shrink-0 inline-flex items-center gap-0.5 text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded bg-orange-100 text-orange-800 dark:bg-orange-950/40 dark:text-orange-300">
+                                    <FileWarning className="h-2.5 w-2.5" />
+                                    CSV
+                                  </span>
+                                );
+                              })()}
+                            </div>
                             <div className="text-xs text-muted-foreground truncate">
                               store: {r.uber_store_id}
                             </div>
@@ -397,6 +445,9 @@ export default function UberBackfillCA() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Annotation (problème API → CSV manuel) */}
+                <BackfillNoteCard restaurantId={selectedResto.id} />
+
                 {/* Progress banner for this resto */}
                 {jobs && jobs.length > 0 && (() => {
                   const done = jobs.filter((j) => j.status === "done").length;
