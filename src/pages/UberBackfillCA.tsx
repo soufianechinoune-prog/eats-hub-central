@@ -348,7 +348,7 @@ export default function UberBackfillCA() {
                       >
                         <div className="flex items-center gap-2">
                           {isComplete ? (
-                            <span title="Rattrapage terminé (6/6)" className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                            <span title={`Rattrapage terminé (${stats!.done}/${totalActionable})`} className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                             </span>
                           ) : isRunning ? (
