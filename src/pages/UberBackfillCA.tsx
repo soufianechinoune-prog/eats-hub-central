@@ -337,6 +337,9 @@ export default function UberBackfillCA() {
         </div>
       </div>
 
+      <ResyncLiveTagCard />
+
+
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* List */}
         <Card className="lg:col-span-2">
