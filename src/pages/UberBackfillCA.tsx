@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, differenceInCalendarMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface RestoRow {
