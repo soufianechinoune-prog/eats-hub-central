@@ -428,9 +428,12 @@ export default function UberBackfillCA() {
                     {monthsList.map((m) => {
                       const c = calMap.get(m);
                       const job = jobsByMonth.get(m);
-                      const isApi = c && c.api_count > 0 && c.csv_count === 0;
-                      const isMixed = c && c.api_count > 0 && c.csv_count > 0;
-                      const isCsv = c && c.csv_count > 0 && c.api_count === 0;
+                      // Un job done via API Uber suffit à marquer le mois comme "Live",
+                      // même si data_source des commandes n'est pas (encore) tagué uber_api.
+                      const jobDone = job?.status === "done";
+                      const isApi = jobDone || (c && c.api_count > 0 && c.csv_count === 0);
+                      const isMixed = !jobDone && c && c.api_count > 0 && c.csv_count > 0;
+                      const isCsv = !jobDone && c && c.csv_count > 0 && c.api_count === 0;
                       const isEmpty = !c || c.total_count === 0;
                       const checked = !!picked[m];
                       const inWindow = isInApiWindow(m);
