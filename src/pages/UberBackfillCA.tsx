@@ -298,6 +298,57 @@ export default function UberBackfillCA() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Progress banner for this resto */}
+                {jobs && jobs.length > 0 && (() => {
+                  const done = jobs.filter((j) => j.status === "done").length;
+                  const running = jobs.filter((j) => j.status === "running").length;
+                  const pending = jobs.filter((j) => j.status === "pending").length;
+                  const failed = jobs.filter((j) => j.status === "failed").length;
+                  const total = jobs.length;
+                  const remaining = pending + running;
+                  const rate = throughput ?? 0; // jobs/min réseau
+                  const etaMin = rate > 0 ? Math.ceil(remaining / rate) : null;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 font-medium">
+                          <Activity className="h-4 w-4" />
+                          Progression : {done}/{total} done · {pct}%
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {remaining === 0
+                            ? "Terminé"
+                            : etaMin !== null
+                              ? `ETA ~${etaMin < 60 ? `${etaMin} min` : `${(etaMin / 60).toFixed(1)} h`}`
+                              : "ETA en cours de calcul…"}
+                        </div>
+                      </div>
+                      <div className="h-2 bg-background rounded overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span className="text-emerald-600">✓ {done} done</span>
+                        <span className="text-blue-600">⟳ {running} running</span>
+                        <span>⏳ {pending} pending</span>
+                        {failed > 0 && <span className="text-destructive">✕ {failed} failed</span>}
+                        <span className="ml-auto">
+                          Débit réseau : {rate.toFixed(2)} jobs/min
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Global queue indicator */}
+                {globalQueue && (globalQueue.pending > 0 || globalQueue.running > 0) && (
+                  <div className="text-xs text-muted-foreground border rounded p-2 bg-amber-50 dark:bg-amber-950/20">
+                    <strong>File d'attente globale :</strong> {globalQueue.pending} pending · {globalQueue.running} running
+                    (toutes vagues). Tes jobs peuvent attendre derrière les autres restos.
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={pickAllCsv}>Cocher tous les CSV</Button>
                   <Button size="sm" variant="outline" onClick={() => pickYear(2025)}>Tout 2025</Button>
