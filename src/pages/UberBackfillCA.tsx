@@ -347,6 +347,10 @@ export default function UberBackfillCA() {
                 <div className="space-y-1">
                   {filtered.map((r) => {
                     const isSel = r.id === selectedId;
+                    const stats = restoDoneMap?.get(r.id);
+                    const isComplete = stats && stats.done >= 6 && stats.running === 0 && stats.pending === 0;
+                    const isRunning = stats && (stats.running > 0 || stats.pending > 0);
+                    const hasFailed = stats && stats.failed > 0 && !isRunning;
                     return (
                       <button
                         key={r.id}
@@ -355,9 +359,31 @@ export default function UberBackfillCA() {
                           isSel ? "bg-primary/10 border-primary" : "hover:bg-muted border-transparent"
                         }`}
                       >
-                        <div className="font-medium text-sm truncate">{r.name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          store: {r.uber_store_id}
+                        <div className="flex items-center gap-2">
+                          {isComplete ? (
+                            <span title="Rattrapage terminé (6/6)" className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                            </span>
+                          ) : isRunning ? (
+                            <span title={`En cours (${stats!.running} running · ${stats!.pending} pending)`} className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-blue-100 dark:bg-blue-900/40">
+                              <Loader2 className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 animate-spin" />
+                            </span>
+                          ) : hasFailed ? (
+                            <span title={`${stats!.failed} job(s) en échec`} className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-destructive/15 text-destructive text-xs font-bold">!</span>
+                          ) : (
+                            <span title="Pas encore lancé" className="flex-shrink-0 inline-block h-2 w-2 rounded-full bg-muted-foreground/30 ml-1.5 mr-1.5" />
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-sm truncate">{r.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              store: {r.uber_store_id}
+                            </div>
+                          </div>
+                          {stats && stats.done > 0 && (
+                            <span className="flex-shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                              {stats.done}/6
+                            </span>
+                          )}
                         </div>
                       </button>
                     );
