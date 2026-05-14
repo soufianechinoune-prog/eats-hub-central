@@ -65,6 +65,7 @@ const Account = React.lazy(() => import("./pages/Account"));
 const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 const UberBackfillHistorique = React.lazy(() => import("./pages/UberBackfillHistorique"));
+const UberBackfillCA = React.lazy(() => import("./pages/UberBackfillCA"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
