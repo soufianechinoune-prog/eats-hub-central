@@ -13,22 +13,22 @@ interface DataSourceBadgeProps {
 
 const CONFIG: Record<DataSource, { label: string; icon: typeof Zap; classes: string; tooltip: string }> = {
   uber_api: {
-    label: "API",
+    label: "Live",
     icon: Zap,
     classes: "bg-primary/10 text-primary border-primary/20 hover:bg-primary/15",
-    tooltip: "Données API Uber Eats (temps réel)",
+    tooltip: "Données synchronisées en temps réel via l'API Uber Eats",
   },
   csv_import: {
-    label: "CSV",
+    label: "Historique",
     icon: FileText,
     classes: "bg-muted text-muted-foreground border-border hover:bg-muted/80",
-    tooltip: "Données issues d'un import CSV",
+    tooltip: "Données issues des rapports historiques Uber Eats (CSV) — source officielle, exhaustive",
   },
   mixed: {
-    label: "API+CSV",
+    label: "Live + Historique",
     icon: GitMerge,
     classes: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/15",
-    tooltip: "Mix API + CSV sur la période",
+    tooltip: "Mix Live + Historique sur la période",
   },
 };
 
