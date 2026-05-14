@@ -45,10 +45,10 @@ const MIN_API_DATE = (() => {
   return d;
 })();
 const isInApiWindow = (monthStart: string) => {
-  // Le mois est éligible si sa fin (dernier jour) est >= MIN_API_DATE
+  // Strict : le mois est éligible API uniquement si son DÉBUT est dans la fenêtre 188j.
+  // Sinon Uber rejette la requête (startDate trop vieille). Pour ces mois, le CSV couvre déjà la donnée.
   const start = new Date(monthStart);
-  const end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
-  return end >= MIN_API_DATE;
+  return start >= MIN_API_DATE;
 };
 
 export default function UberBackfillCA() {
