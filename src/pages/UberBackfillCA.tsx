@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook, FileWarning } from "lucide-react";
 import { BackfillNoteCard } from "@/components/admin/BackfillNoteCard";
+import { ResyncLiveTagCard } from "@/components/admin/ResyncLiveTagCard";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth, differenceInCalendarMonths } from "date-fns";
@@ -336,6 +337,9 @@ export default function UberBackfillCA() {
           Tu peux rattraper le CA sur n'importe quel mois depuis l'ouverture du restaurant — 2024, 2023, etc.
         </div>
       </div>
+
+      <ResyncLiveTagCard />
+
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* List */}

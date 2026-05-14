@@ -4646,6 +4646,14 @@ export type Database = {
         }[]
       }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
+      resync_live_tag_all_restaurants: {
+        Args: never
+        Returns: {
+          restaurant_id: string
+          restaurant_name: string
+          retagged_count: number
+        }[]
+      }
       seed_backfill_jobs: {
         Args: {
           p_end_date: string
