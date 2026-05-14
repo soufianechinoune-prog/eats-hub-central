@@ -108,7 +108,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Per-restaurant completion summary (vague 6) → indicator next to each resto in the list
+  // Per-restaurant completion summary (vague 1) → indicator next to each resto in the list
   const { data: restoDoneMap } = useQuery({
     queryKey: ["backfill-done-by-resto"],
     refetchInterval: 15000,
@@ -120,7 +120,7 @@ export default function UberBackfillCA() {
         const { data, error } = await supabase
           .from("backfill_jobs")
           .select("restaurant_id, status")
-          .eq("vague", 6)
+          .eq("vague", 1)
           .range(from, from + PAGE - 1);
         if (error) throw error;
         const rows = data ?? [];
@@ -153,7 +153,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Throughput: jobs done vague=6 in last 60 min → debit jobs/min
+  // Throughput: jobs done vague=1 in last 60 min → debit jobs/min
   const { data: throughput } = useQuery({
     queryKey: ["backfill-throughput"],
     refetchInterval: 30000,
@@ -162,7 +162,7 @@ export default function UberBackfillCA() {
       const { count } = await supabase
         .from("backfill_jobs")
         .select("id", { count: "exact", head: true })
-        .eq("vague", 6)
+        .eq("vague", 1)
         .eq("status", "done")
         .gte("updated_at", since);
       return (count ?? 0) / 60; // jobs per minute
