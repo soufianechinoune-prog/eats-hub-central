@@ -199,14 +199,6 @@ export default function UberBackfillCA() {
     setPicked(next);
   };
 
-  const pickYear = (year: number) => {
-    if (!calendar) return;
-    const next = { ...picked };
-    calendar.forEach((c) => {
-      if (new Date(c.month_start).getFullYear() === year) next[c.month_start] = true;
-    });
-    setPicked(next);
-  };
 
   const pickedMonths = Object.entries(picked).filter(([, v]) => v).map(([k]) => k);
 
