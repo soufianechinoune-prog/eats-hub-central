@@ -445,6 +445,29 @@ export default function UberBackfillCA() {
                     </div>
                   </div>
                 )}
+
+                {/* Recent Uber webhooks */}
+                <div className="pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <Webhook className="h-4 w-4" /> Webhooks Uber reçus (ce resto)
+                  </h4>
+                  {!webhooks || webhooks.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic">
+                      Aucun webhook reçu pour ce store_id. Si "running" depuis &gt;30 min sans webhook, Uber n'a pas (encore) renvoyé le rapport.
+                    </div>
+                  ) : (
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {webhooks.map((w: any) => (
+                        <div key={w.id} className="flex items-center justify-between text-xs p-1.5 bg-muted/50 rounded">
+                          <span className="font-mono">{w.event_type}</span>
+                          <span className="text-muted-foreground">
+                            {w.processed_at ? formatDistanceToNow(new Date(w.processed_at), { addSuffix: true, locale: fr }) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </>
           )}
