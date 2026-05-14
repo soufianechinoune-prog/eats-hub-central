@@ -120,6 +120,38 @@ export default function UberBackfillCA() {
     },
   });
 
+  // Per-restaurant completion summary (vague 6) → indicator next to each resto in the list
+  const { data: restoDoneMap } = useQuery({
+    queryKey: ["backfill-done-by-resto"],
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const map = new Map<string, { done: number; running: number; pending: number; failed: number }>();
+      const PAGE = 1000;
+      let from = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("backfill_jobs")
+          .select("restaurant_id, status")
+          .eq("vague", 6)
+          .range(from, from + PAGE - 1);
+        if (error) throw error;
+        const rows = data ?? [];
+        for (const r of rows) {
+          const k = r.restaurant_id as string;
+          const cur = map.get(k) ?? { done: 0, running: 0, pending: 0, failed: 0 };
+          if (r.status === "done") cur.done++;
+          else if (r.status === "running") cur.running++;
+          else if (r.status === "pending") cur.pending++;
+          else if (r.status === "failed") cur.failed++;
+          map.set(k, cur);
+        }
+        if (rows.length < PAGE) break;
+        from += PAGE;
+      }
+      return map;
+    },
+  });
+
   // Global queue: pending + running across ALL vagues
   const { data: globalQueue } = useQuery({
     queryKey: ["backfill-global-queue"],
