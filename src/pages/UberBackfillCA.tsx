@@ -445,6 +445,9 @@ export default function UberBackfillCA() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Annotation (problème API → CSV manuel) */}
+                <BackfillNoteCard restaurantId={selectedResto.id} />
+
                 {/* Progress banner for this resto */}
                 {jobs && jobs.length > 0 && (() => {
                   const done = jobs.filter((j) => j.status === "done").length;
