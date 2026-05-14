@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Loader2, Play, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook } from "lucide-react";
+import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
 import { format, subMonths, startOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -105,7 +106,53 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Reset selection state when restaurant changes
+  // Global queue: pending + running across ALL vagues
+  const { data: globalQueue } = useQuery({
+    queryKey: ["backfill-global-queue"],
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const [pending, running] = await Promise.all([
+        supabase.from("backfill_jobs").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("backfill_jobs").select("id", { count: "exact", head: true }).eq("status", "running"),
+      ]);
+      return { pending: pending.count ?? 0, running: running.count ?? 0 };
+    },
+  });
+
+  // Throughput: jobs done vague=6 in last 60 min → debit jobs/min
+  const { data: throughput } = useQuery({
+    queryKey: ["backfill-throughput"],
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from("backfill_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("vague", 6)
+        .eq("status", "done")
+        .gte("updated_at", since);
+      return (count ?? 0) / 60; // jobs per minute
+    },
+  });
+
+  // Recent Uber webhooks for this restaurant
+  const { data: webhooks } = useQuery({
+    queryKey: ["uber-webhooks", selectedId],
+    enabled: !!selectedId,
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const storeId = restos?.find((r) => r.id === selectedId)?.uber_store_id;
+      if (!storeId) return [];
+      const { data, error } = await supabase
+        .from("webhook_logs")
+        .select("id, event_type, store_id, processed_at, payload")
+        .eq("store_id", storeId)
+        .order("processed_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   useEffect(() => {
     setPicked({});
   }, [selectedId]);
@@ -251,6 +298,57 @@ export default function UberBackfillCA() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* Progress banner for this resto */}
+                {jobs && jobs.length > 0 && (() => {
+                  const done = jobs.filter((j) => j.status === "done").length;
+                  const running = jobs.filter((j) => j.status === "running").length;
+                  const pending = jobs.filter((j) => j.status === "pending").length;
+                  const failed = jobs.filter((j) => j.status === "failed").length;
+                  const total = jobs.length;
+                  const remaining = pending + running;
+                  const rate = throughput ?? 0; // jobs/min réseau
+                  const etaMin = rate > 0 ? Math.ceil(remaining / rate) : null;
+                  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                  return (
+                    <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 font-medium">
+                          <Activity className="h-4 w-4" />
+                          Progression : {done}/{total} done · {pct}%
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {remaining === 0
+                            ? "Terminé"
+                            : etaMin !== null
+                              ? `ETA ~${etaMin < 60 ? `${etaMin} min` : `${(etaMin / 60).toFixed(1)} h`}`
+                              : "ETA en cours de calcul…"}
+                        </div>
+                      </div>
+                      <div className="h-2 bg-background rounded overflow-hidden">
+                        <div className="h-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <span className="text-emerald-600">✓ {done} done</span>
+                        <span className="text-blue-600">⟳ {running} running</span>
+                        <span>⏳ {pending} pending</span>
+                        {failed > 0 && <span className="text-destructive">✕ {failed} failed</span>}
+                        <span className="ml-auto">
+                          Débit réseau : {rate.toFixed(2)} jobs/min
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Global queue indicator */}
+                {globalQueue && (globalQueue.pending > 0 || globalQueue.running > 0) && (
+                  <div className="text-xs text-muted-foreground border rounded p-2 bg-amber-50 dark:bg-amber-950/20">
+                    <strong>File d'attente globale :</strong> {globalQueue.pending} pending · {globalQueue.running} running
+                    (toutes vagues). Tes jobs peuvent attendre derrière les autres restos.
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" onClick={pickAllCsv}>Cocher tous les CSV</Button>
                   <Button size="sm" variant="outline" onClick={() => pickYear(2025)}>Tout 2025</Button>
@@ -347,6 +445,29 @@ export default function UberBackfillCA() {
                     </div>
                   </div>
                 )}
+
+                {/* Recent Uber webhooks */}
+                <div className="pt-4 border-t">
+                  <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                    <Webhook className="h-4 w-4" /> Webhooks Uber reçus (ce resto)
+                  </h4>
+                  {!webhooks || webhooks.length === 0 ? (
+                    <div className="text-xs text-muted-foreground italic">
+                      Aucun webhook reçu pour ce store_id. Si "running" depuis &gt;30 min sans webhook, Uber n'a pas (encore) renvoyé le rapport.
+                    </div>
+                  ) : (
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {webhooks.map((w: any) => (
+                        <div key={w.id} className="flex items-center justify-between text-xs p-1.5 bg-muted/50 rounded">
+                          <span className="font-mono">{w.event_type}</span>
+                          <span className="text-muted-foreground">
+                            {w.processed_at ? formatDistanceToNow(new Date(w.processed_at), { addSuffix: true, locale: fr }) : "—"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </>
           )}
