@@ -10,7 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Play, RefreshCw, CheckCircle2, Activity, Clock, Webhook } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { toast } from "@/hooks/use-toast";
-import { format, subMonths, startOfMonth } from "date-fns";
+import { format, subMonths, startOfMonth, differenceInCalendarMonths } from "date-fns";
 import { fr } from "date-fns/locale";
 
 interface RestoRow {
@@ -36,8 +36,9 @@ interface JobRow {
   updated_at: string;
 }
 
-const MONTHS_BACK = 24;
-// PAYMENT_DETAILS_REPORT n'a aucune limite de date côté Uber → tous les mois sont éligibles.
+// PAYMENT_DETAILS_REPORT n'a aucune limite de date → on remonte jusqu'au 1er janvier 2024.
+const HISTORY_START = new Date(2024, 0, 1);
+const MONTHS_BACK = differenceInCalendarMonths(new Date(), HISTORY_START) + 1;
 
 export default function UberBackfillCA() {
   const qc = useQueryClient();
