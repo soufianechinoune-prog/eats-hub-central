@@ -69,7 +69,32 @@ async function processJob(
   console.log(`Processing job ${job.job_id} → ${job.restaurant_name} ${job.month_start} [vague ${job.vague}/${reportType}]`);
 
   try {
-    const ranges = splitDateRange(job.month_start, job.month_end, MAX_DAYS_PER_REPORT);
+    // Uber Eats refuse endDate dans les 2 derniers jours.
+    // On cap month_end à (aujourd'hui - 2 jours) pour le mois courant.
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const maxAllowedEnd = new Date(today);
+    maxAllowedEnd.setUTCDate(maxAllowedEnd.getUTCDate() - 2);
+    const maxAllowedEndStr = maxAllowedEnd.toISOString().slice(0, 10);
+
+    const jobStart = new Date(job.month_start + 'T00:00:00Z');
+    if (jobStart > maxAllowedEnd) {
+      // Tout le mois est dans la fenêtre interdite (J-2). On skip proprement.
+      await supabase.from('backfill_jobs').update({
+        status: 'skipped',
+        last_error: `Trop tôt : Uber refuse les 2 derniers jours. Réessayer après ${maxAllowedEndStr}.`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', job.job_id);
+      console.log(`Job ${job.job_id} skipped: month_start ${job.month_start} > today-2 (${maxAllowedEndStr})`);
+      return { status: 'skipped', job_id: job.job_id, detail: 'Trop tôt (J-2 Uber)' };
+    }
+
+    const cappedEnd = job.month_end > maxAllowedEndStr ? maxAllowedEndStr : job.month_end;
+    if (cappedEnd !== job.month_end) {
+      console.log(`Job ${job.job_id}: month_end capped ${job.month_end} → ${cappedEnd} (Uber J-2 rule)`);
+    }
+
+    const ranges = splitDateRange(job.month_start, cappedEnd, MAX_DAYS_PER_REPORT);
     const workflowIds: string[] = [];
 
     // Retry helper avec backoff exponentiel sur 429 (TooManyRequests).
