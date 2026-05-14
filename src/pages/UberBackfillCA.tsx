@@ -37,19 +37,7 @@ interface JobRow {
 }
 
 const MONTHS_BACK = 24;
-// Limite stricte de l'API Uber Eats pour ORDER_HISTORY_REPORT
-const UBER_API_WINDOW_DAYS = 188;
-const MIN_API_DATE = (() => {
-  const d = new Date();
-  d.setDate(d.getDate() - UBER_API_WINDOW_DAYS);
-  return d;
-})();
-const isInApiWindow = (monthStart: string) => {
-  // Strict : le mois est éligible API uniquement si son DÉBUT est dans la fenêtre 188j.
-  // Sinon Uber rejette la requête (startDate trop vieille). Pour ces mois, le CSV couvre déjà la donnée.
-  const start = new Date(monthStart);
-  return start >= MIN_API_DATE;
-};
+// PAYMENT_DETAILS_REPORT n'a aucune limite de date côté Uber → tous les mois sont éligibles.
 
 export default function UberBackfillCA() {
   const qc = useQueryClient();
