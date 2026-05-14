@@ -229,7 +229,7 @@ export default function UberBackfillCA() {
     if (!confirm(`Lancer ${pickedMonths.length} appel(s) Uber pour ${selectedResto?.name} ?`)) return;
     setLaunching(true);
     try {
-      const { data, error } = await supabase.rpc("enqueue_order_history_backfill", {
+      const { data, error } = await supabase.rpc("enqueue_payment_details_backfill", {
         p_restaurant_id: selectedId,
         p_months: pickedMonths,
       });
