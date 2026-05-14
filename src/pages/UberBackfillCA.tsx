@@ -106,7 +106,53 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Reset selection state when restaurant changes
+  // Global queue: pending + running across ALL vagues
+  const { data: globalQueue } = useQuery({
+    queryKey: ["backfill-global-queue"],
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const [pending, running] = await Promise.all([
+        supabase.from("backfill_jobs").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("backfill_jobs").select("id", { count: "exact", head: true }).eq("status", "running"),
+      ]);
+      return { pending: pending.count ?? 0, running: running.count ?? 0 };
+    },
+  });
+
+  // Throughput: jobs done vague=6 in last 60 min → debit jobs/min
+  const { data: throughput } = useQuery({
+    queryKey: ["backfill-throughput"],
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { count } = await supabase
+        .from("backfill_jobs")
+        .select("id", { count: "exact", head: true })
+        .eq("vague", 6)
+        .eq("status", "done")
+        .gte("updated_at", since);
+      return (count ?? 0) / 60; // jobs per minute
+    },
+  });
+
+  // Recent Uber webhooks for this restaurant
+  const { data: webhooks } = useQuery({
+    queryKey: ["uber-webhooks", selectedId],
+    enabled: !!selectedId,
+    refetchInterval: 10000,
+    queryFn: async () => {
+      const storeId = restos?.find((r) => r.id === selectedId)?.uber_store_id;
+      if (!storeId) return [];
+      const { data, error } = await supabase
+        .from("webhook_logs")
+        .select("id, event_type, store_id, processed_at, payload")
+        .eq("store_id", storeId)
+        .order("processed_at", { ascending: false })
+        .limit(8);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   useEffect(() => {
     setPicked({});
   }, [selectedId]);
