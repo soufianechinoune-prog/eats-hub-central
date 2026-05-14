@@ -480,22 +480,15 @@ export default function UberBackfillCA() {
                       const isCsv = !jobDone && c && c.csv_count > 0 && c.api_count === 0;
                       const isEmpty = !c || c.total_count === 0;
                       const checked = !!picked[m];
-                      const inWindow = isInApiWindow(m);
                       return (
                         <label
                           key={m}
-                          className={`flex items-start gap-2 p-2 border rounded-md text-xs ${
-                            !inWindow
-                              ? "opacity-50 cursor-not-allowed bg-muted/30"
-                              : checked
-                                ? "border-primary bg-primary/5 cursor-pointer"
-                                : "border-border cursor-pointer"
+                          className={`flex items-start gap-2 p-2 border rounded-md text-xs cursor-pointer ${
+                            checked ? "border-primary bg-primary/5" : "border-border"
                           }`}
-                          title={!inWindow ? "Hors fenêtre API Uber (188 jours). Données déjà couvertes par l'import CSV." : undefined}
                         >
                           <Checkbox
                             checked={checked}
-                            disabled={!inWindow}
                             onCheckedChange={() => togglePick(m)}
                           />
                           <div className="flex-1 min-w-0">
@@ -507,7 +500,6 @@ export default function UberBackfillCA() {
                               {isCsv && <Badge className="bg-slate-500 hover:bg-slate-500 text-white text-[10px]">Historique</Badge>}
                               {isMixed && <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[10px]">Mixte</Badge>}
                               {isEmpty && <Badge variant="outline" className="text-[10px]">Vide</Badge>}
-                              {!inWindow && <Badge variant="outline" className="text-[10px] border-dashed">Hors fenêtre API</Badge>}
                             </div>
                             {c && c.total_count > 0 && (
                               <div className="text-[10px] text-muted-foreground mt-1">
