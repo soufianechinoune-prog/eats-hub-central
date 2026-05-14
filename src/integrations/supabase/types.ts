@@ -3884,6 +3884,10 @@ export type Database = {
         Args: { p_months: string[]; p_restaurant_id: string }
         Returns: number
       }
+      enqueue_payment_details_backfill: {
+        Args: { p_months: string[]; p_restaurant_id: string }
+        Returns: number
+      }
       enqueue_splash_backfill_for_chain: {
         Args: {
           p_chain_id: string

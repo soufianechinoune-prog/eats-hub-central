@@ -37,19 +37,7 @@ interface JobRow {
 }
 
 const MONTHS_BACK = 24;
-// Limite stricte de l'API Uber Eats pour ORDER_HISTORY_REPORT
-const UBER_API_WINDOW_DAYS = 188;
-const MIN_API_DATE = (() => {
-  const d = new Date();
-  d.setDate(d.getDate() - UBER_API_WINDOW_DAYS);
-  return d;
-})();
-const isInApiWindow = (monthStart: string) => {
-  // Strict : le mois est éligible API uniquement si son DÉBUT est dans la fenêtre 188j.
-  // Sinon Uber rejette la requête (startDate trop vieille). Pour ces mois, le CSV couvre déjà la donnée.
-  const start = new Date(monthStart);
-  return start >= MIN_API_DATE;
-};
+// PAYMENT_DETAILS_REPORT n'a aucune limite de date côté Uber → tous les mois sont éligibles.
 
 export default function UberBackfillCA() {
   const qc = useQueryClient();
@@ -101,7 +89,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Jobs for selected (vague 6 = ORDER_HISTORY_REPORT)
+  // Jobs for selected (vague 1 = PAYMENT_DETAILS_REPORT)
   const { data: jobs } = useQuery({
     queryKey: ["backfill-jobs-resto", selectedId],
     enabled: !!selectedId,
@@ -112,7 +100,7 @@ export default function UberBackfillCA() {
         .from("backfill_jobs")
         .select("id, month_start, status, attempts, last_error, updated_at")
         .eq("restaurant_id", selectedId!)
-        .eq("vague", 6)
+        .eq("vague", 1)
         .order("month_start", { ascending: false })
         .limit(40);
       if (error) throw error;
@@ -120,7 +108,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Per-restaurant completion summary (vague 6) → indicator next to each resto in the list
+  // Per-restaurant completion summary (vague 1) → indicator next to each resto in the list
   const { data: restoDoneMap } = useQuery({
     queryKey: ["backfill-done-by-resto"],
     refetchInterval: 15000,
@@ -132,7 +120,7 @@ export default function UberBackfillCA() {
         const { data, error } = await supabase
           .from("backfill_jobs")
           .select("restaurant_id, status")
-          .eq("vague", 6)
+          .eq("vague", 1)
           .range(from, from + PAGE - 1);
         if (error) throw error;
         const rows = data ?? [];
@@ -165,7 +153,7 @@ export default function UberBackfillCA() {
     },
   });
 
-  // Throughput: jobs done vague=6 in last 60 min → debit jobs/min
+  // Throughput: jobs done vague=1 in last 60 min → debit jobs/min
   const { data: throughput } = useQuery({
     queryKey: ["backfill-throughput"],
     refetchInterval: 30000,
@@ -174,7 +162,7 @@ export default function UberBackfillCA() {
       const { count } = await supabase
         .from("backfill_jobs")
         .select("id", { count: "exact", head: true })
-        .eq("vague", 6)
+        .eq("vague", 1)
         .eq("status", "done")
         .gte("updated_at", since);
       return (count ?? 0) / 60; // jobs per minute
@@ -206,7 +194,6 @@ export default function UberBackfillCA() {
   const selectedResto = restos?.find((r) => r.id === selectedId);
 
   const togglePick = (m: string) => {
-    if (!isInApiWindow(m)) return; // ignore les mois hors fenêtre
     setPicked((p) => ({ ...p, [m]: !p[m] }));
   };
 
@@ -214,7 +201,7 @@ export default function UberBackfillCA() {
     if (!calendar) return;
     const next: Record<string, boolean> = {};
     calendar.forEach((c) => {
-      if (c.csv_count > 0 && c.api_count === 0 && isInApiWindow(c.month_start)) {
+      if (c.csv_count > 0 && c.api_count === 0) {
         next[c.month_start] = true;
       }
     });
@@ -225,7 +212,7 @@ export default function UberBackfillCA() {
     if (!calendar) return;
     const next = { ...picked };
     calendar.forEach((c) => {
-      if (new Date(c.month_start).getFullYear() === year && isInApiWindow(c.month_start)) {
+      if (new Date(c.month_start).getFullYear() === year) {
         next[c.month_start] = true;
       }
     });
@@ -242,7 +229,7 @@ export default function UberBackfillCA() {
     if (!confirm(`Lancer ${pickedMonths.length} appel(s) Uber pour ${selectedResto?.name} ?`)) return;
     setLaunching(true);
     try {
-      const { data, error } = await supabase.rpc("enqueue_order_history_backfill", {
+      const { data, error } = await supabase.rpc("enqueue_payment_details_backfill", {
         p_restaurant_id: selectedId,
         p_months: pickedMonths,
       });
@@ -273,7 +260,7 @@ export default function UberBackfillCA() {
         updated_at: new Date().toISOString(),
       })
       .eq("restaurant_id", selectedId)
-      .eq("vague", 6)
+      .eq("vague", 1)
       .eq("status", "pending");
     if (error) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
@@ -309,7 +296,7 @@ export default function UberBackfillCA() {
         <div>
           <h1 className="text-3xl font-bold">Rattrapage CA Uber</h1>
           <p className="text-muted-foreground mt-1">
-            Synchronise les <strong>6 derniers mois</strong> via l'API Uber Eats. Au-delà, l'historique reste sur les imports CSV — c'est la même donnée, même fiabilité.
+            Synchronise <strong>tout l'historique disponible</strong> via l'API Uber Eats (rapport <code>PAYMENT_DETAILS_REPORT</code>, sans limite de date).
           </p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetchSummary()}>
@@ -317,12 +304,11 @@ export default function UberBackfillCA() {
         </Button>
       </div>
 
-      <div className="rounded-lg border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm">
-        <div className="font-semibold text-amber-900 dark:text-amber-200 mb-1">⚠️ Limite Uber : API 188 jours max</div>
-        <div className="text-amber-800 dark:text-amber-300">
-          L'API Uber Eats refuse toute demande au-delà de <strong>188 jours</strong> (~6 mois).
-          Les mois antérieurs sont déjà couverts par les imports CSV — <strong>même donnée, même CA, même fiabilité</strong>.
-          Ne tente le rattrapage API que sur les mois <span className="text-emerald-700 dark:text-emerald-400 font-medium">verts (éligibles)</span>.
+      <div className="rounded-lg border-l-4 border-l-emerald-500 bg-emerald-50 dark:bg-emerald-950/20 p-4 text-sm">
+        <div className="font-semibold text-emerald-900 dark:text-emerald-200 mb-1">✅ CA Uber : aucune limite de date</div>
+        <div className="text-emerald-800 dark:text-emerald-300">
+          Cette page utilise uniquement le rapport <strong>PAYMENT_DETAILS_REPORT</strong>, qui n'a <strong>aucune limite de 188 jours</strong>.
+          Tu peux rattraper le CA sur n'importe quel mois depuis l'ouverture du restaurant — 2024, 2023, etc.
         </div>
       </div>
 
@@ -348,7 +334,8 @@ export default function UberBackfillCA() {
                   {filtered.map((r) => {
                     const isSel = r.id === selectedId;
                     const stats = restoDoneMap?.get(r.id);
-                    const isComplete = stats && stats.done >= 6 && stats.running === 0 && stats.pending === 0;
+                    const totalActionable = stats ? stats.done + stats.running + stats.pending + stats.failed : 0;
+                    const isComplete = stats && totalActionable > 0 && stats.done === totalActionable;
                     const isRunning = stats && (stats.running > 0 || stats.pending > 0);
                     const hasFailed = stats && stats.failed > 0 && !isRunning;
                     return (
@@ -361,7 +348,7 @@ export default function UberBackfillCA() {
                       >
                         <div className="flex items-center gap-2">
                           {isComplete ? (
-                            <span title="Rattrapage terminé (6/6)" className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
+                            <span title={`Rattrapage terminé (${stats!.done}/${totalActionable})`} className="flex-shrink-0 inline-flex items-center justify-center h-5 w-5 rounded-full bg-emerald-100 dark:bg-emerald-900/40">
                               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                             </span>
                           ) : isRunning ? (
@@ -381,7 +368,7 @@ export default function UberBackfillCA() {
                           </div>
                           {stats && stats.done > 0 && (
                             <span className="flex-shrink-0 text-[10px] text-muted-foreground tabular-nums">
-                              {stats.done}/6
+                              {stats.done}/{totalActionable}
                             </span>
                           )}
                         </div>
@@ -494,22 +481,15 @@ export default function UberBackfillCA() {
                       const isCsv = !jobDone && c && c.csv_count > 0 && c.api_count === 0;
                       const isEmpty = !c || c.total_count === 0;
                       const checked = !!picked[m];
-                      const inWindow = isInApiWindow(m);
                       return (
                         <label
                           key={m}
-                          className={`flex items-start gap-2 p-2 border rounded-md text-xs ${
-                            !inWindow
-                              ? "opacity-50 cursor-not-allowed bg-muted/30"
-                              : checked
-                                ? "border-primary bg-primary/5 cursor-pointer"
-                                : "border-border cursor-pointer"
+                          className={`flex items-start gap-2 p-2 border rounded-md text-xs cursor-pointer ${
+                            checked ? "border-primary bg-primary/5" : "border-border"
                           }`}
-                          title={!inWindow ? "Hors fenêtre API Uber (188 jours). Données déjà couvertes par l'import CSV." : undefined}
                         >
                           <Checkbox
                             checked={checked}
-                            disabled={!inWindow}
                             onCheckedChange={() => togglePick(m)}
                           />
                           <div className="flex-1 min-w-0">
@@ -521,7 +501,6 @@ export default function UberBackfillCA() {
                               {isCsv && <Badge className="bg-slate-500 hover:bg-slate-500 text-white text-[10px]">Historique</Badge>}
                               {isMixed && <Badge className="bg-amber-500 hover:bg-amber-500 text-white text-[10px]">Mixte</Badge>}
                               {isEmpty && <Badge variant="outline" className="text-[10px]">Vide</Badge>}
-                              {!inWindow && <Badge variant="outline" className="text-[10px] border-dashed">Hors fenêtre API</Badge>}
                             </div>
                             {c && c.total_count > 0 && (
                               <div className="text-[10px] text-muted-foreground mt-1">
@@ -559,7 +538,7 @@ export default function UberBackfillCA() {
 
                 {jobs && jobs.length > 0 && (
                   <div className="pt-4 border-t">
-                    <h4 className="text-sm font-medium mb-2">Jobs récents (vague 6)</h4>
+                    <h4 className="text-sm font-medium mb-2">Jobs récents (PAYMENT_DETAILS_REPORT)</h4>
                     <div className="space-y-1 max-h-48 overflow-y-auto">
                       {jobs.map((j) => (
                         <div key={j.id} className="flex items-center justify-between text-xs p-1.5 bg-muted/50 rounded">

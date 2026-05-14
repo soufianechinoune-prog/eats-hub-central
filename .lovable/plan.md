@@ -1,43 +1,59 @@
-## Bonne nouvelle d'abord : la queue est déjà vide
+## Contexte
 
-J'ai compté : **aucune file d'attente** sur les autres vagues. Toutes les vagues 1–5 sont déjà `done` / `failed` / `skipped`. Le seul truc qui tourne c'est ta vague 6 ORDER_HISTORY (1 pending + 1 running pour Reims).
+La page `/admin/uber-backfill-ca` est censée rattraper le **CA** historique Uber. Aujourd'hui, elle envoie en réalité du `ORDER_HISTORY_REPORT` (vague = 6, via la RPC `enqueue_order_history_backfill`), qui est **bloqué à 188 jours** par Uber. C'est pour ça que les mois antérieurs sont grisés "hors fenêtre API".
 
-Donc **les 0.03 jobs/min ne sont PAS dus à un encombrement** — c'est la latence Uber elle-même : un ORDER_HISTORY_REPORT prend ~20–40 min côté Uber (création workflow → traitement → webhook → ingestion). Stopper d'autres jobs n'accélèrera rien : il n'y en a pas.
+Or, le seul rapport pertinent pour le CA — `PAYMENT_DETAILS_REPORT` — n'a **aucune limite de date**. C'est ce qui a permis de remonter Bonneuil jusqu'à janvier 2024.
 
-## Réponse sur nov 2025
+## Objectif
 
-Tu as 100% raison, ma proposition de "reclasser" était une rustine cosmétique. La vraie cause :
+Rendre tous les mois éligibles à un rattrapage API sur cette page **uniquement** via `PAYMENT_DETAILS_REPORT`, sans toucher aux autres vagues (qui restent à juste titre limitées à 188 jours).
 
-- Aujourd'hui = 14 mai 2026
-- 188 jours en arrière = **7 nov 2025**
-- Donc Uber accepte toute requête dont `startDate >= 7 nov 2025`
-- Le job nov 2025 demande `startDate = 1 nov 2025` → **rejeté** (6 jours trop vieux)
+## Changements
 
-**Ta proposition est meilleure** : ne PAS proposer ce mois en API du tout. On a déjà le CSV de nov 2025, c'est inutile de le rejouer. Il suffit de durcir le filtre d'éligibilité côté UI **et** côté serveur : un mois est éligible API uniquement si **`month_start >= today - 188 jours`** (au lieu de `month_end >=`). Comme ça nov 2025 disparaît tout seul de la liste verte, et les jobs futurs ne pourront même plus être créés pour ce mois.
+### 1. Nouvelle RPC SQL `enqueue_payment_details_backfill`
+Migration SQL ajoutant une fonction quasi-identique à `enqueue_order_history_backfill` mais :
+- `report_type = 'PAYMENT_DETAILS_REPORT'`
+- `vague = 1`
+- **Aucun filtre `v_min_date` / 188 jours** : on accepte tous les mois depuis l'ouverture du restaurant
+- Toujours `SECURITY DEFINER` + `is_super_admin()` guard
+- `ON CONFLICT` sur la même contrainte unique (resto + mois + type) → relance propre des jobs déjà existants
 
-## Plan
+L'ancienne fonction `enqueue_order_history_backfill` n'est pas modifiée (elle reste utile aux autres pages qui ciblent l'opérationnel).
 
-### 1. Durcir l'éligibilité (front + back)
-- `src/pages/UberBackfillCA.tsx` : `isInApiWindow` → comparer `month_start` (pas `month_end`) à `today - 188j`
-- SQL `enqueue_order_history_backfill` : remplacer le check `v_month_end < v_min_date` par `v_month < v_min_date`
-- Effet : oct 2025 et nov 2025 deviennent automatiquement "Hors fenêtre API" en gris ; impossible de les enqueue par accident
+### 2. Page `src/pages/UberBackfillCA.tsx`
+- Appeler la nouvelle RPC `enqueue_payment_details_backfill` au lieu de `enqueue_order_history_backfill`.
+- Lire les jobs sur `vague = 1` au lieu de `vague = 6` (queries `backfill-jobs-resto`, `backfill-done-by-resto`, `backfill-throughput`, `cancelPending`).
+- Supprimer la constante `UBER_API_WINDOW_DAYS`, `MIN_API_DATE`, `isInApiWindow` et tous les blocages associés (`togglePick`, `pickAllCsv`, `pickYear`).
+- Retirer la bannière jaune "⚠️ Limite Uber : API 188 jours max" (elle est fausse pour ce rapport).
+- Ajuster le sous-titre : remplacer "6 derniers mois" par "tout l'historique disponible (depuis l'ouverture du restaurant)".
+- Le compteur "X/6" sur la liste des restos doit s'adapter au nombre de mois réellement enqueue (passer de "/6" à "/{actionable}" basé sur les jobs existants, ou simplement afficher `done` sans dénominateur fixe).
 
-### 2. Nettoyer le job nov 2025 actuel
-- UPDATE le job `failed` pour Reims nov 2025 → `skipped` avec message standard
-- Compteur tombe à `2/6 · 33%`
+### 3. Ce qui ne bouge PAS (important)
+- **Worker `uber-backfill-worker`** : il route déjà sur n'importe quel `report_type` stocké en base. Aucune modif. Sa logique d'auto-skip "188 days" reste en place — elle ne se déclenchera juste plus pour PAYMENT_DETAILS.
+- **Edge function `uber-create-report`** : déjà agnostique au type.
+- **Pages `UberBackfillHistorique` et `UberBackfill`** : intactes. Les vagues 2-6 (opérationnel) gardent leur limite naturelle.
 
-### 3. Mode "manuel pas-à-pas" (ton workflow préféré)
-Tu as **déjà** ce workflow sur la page : choisir 1 resto → cocher 1+ mois → Lancer. Pas besoin d'ajouter de UI. Je propose juste 2 ajouts pour mieux contrôler :
+## Garanties demandées par l'utilisateur
 
-- **Sélecteur de type de rapport** en haut de la fiche resto (dropdown : ORDER_HISTORY / PAYMENT_DETAILS / DOWNTIME / etc.). Aujourd'hui c'est figé sur vague 6 (ORDER_HISTORY). Tu pourras lancer un rapport spécifique sur 1 mois.
-- **Bouton "Annuler les jobs pending"** sur la fiche resto (passe les pending de ce resto en `cancelled`) au cas où tu veux changer ta priorité en cours de route.
+- ✅ On n'envoie **que** `PAYMENT_DETAILS_REPORT` depuis cette page → aucun risque d'erreur "188 days".
+- ✅ Aucun autre type de rapport n'est déclenché par les boutons de cette page.
+- ✅ Si Uber renvoyait quand même une erreur sur un mois trop ancien (resto inexistant à cette date), le worker la marquera proprement en `failed` avec le message d'origine — pas de boucle infinie.
 
-### 4. Pas de pause globale du worker
-Inutile, vu qu'il n'y a rien d'autre en queue. Si un jour tu en relances en masse, on pourra rajouter un toggle global (table `system_settings.worker_paused`).
+## Détail technique (référence)
 
-## Questions avant de coder
+```text
+Avant :  CA page → enqueue_order_history_backfill → vague 6 / ORDER_HISTORY_REPORT → bloqué 188j ❌
+Après :  CA page → enqueue_payment_details_backfill → vague 1 / PAYMENT_DETAILS_REPORT → illimité ✅
+```
 
-1. **Type de rapport au choix** : tu veux le sélecteur sur cette page `/admin/uber-backfill-ca`, ou tu préfères que cette page reste **dédiée à ORDER_HISTORY (CA)** et qu'on en fasse une autre pour les autres rapports ? Mon avis : garder cette page pure CA, et créer plus tard une page sœur si besoin.
-2. **Bouton "Annuler pending"** : OK pour l'ajouter ?
-
-Si tu réponds rapidement je code dans la foulée.
+Migration SQL minimale :
+```sql
+CREATE OR REPLACE FUNCTION public.enqueue_payment_details_backfill(
+  p_restaurant_id uuid, p_months date[]
+) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+-- même corps que enqueue_order_history_backfill
+-- MAIS : pas de v_min_date, report_type='PAYMENT_DETAILS_REPORT', vague=1
+$$;
+GRANT EXECUTE ON FUNCTION public.enqueue_payment_details_backfill(uuid, date[]) TO authenticated;
+```
