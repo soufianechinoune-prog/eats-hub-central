@@ -368,7 +368,7 @@ export default function UberBackfillCA() {
                           </div>
                           {stats && stats.done > 0 && (
                             <span className="flex-shrink-0 text-[10px] text-muted-foreground tabular-nums">
-                              {stats.done}/6
+                              {stats.done}/{totalActionable}
                             </span>
                           )}
                         </div>
