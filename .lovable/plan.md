@@ -1,59 +1,92 @@
-## Contexte
+## Diagnostic
 
-La page `/admin/uber-backfill-ca` est censée rattraper le **CA** historique Uber. Aujourd'hui, elle envoie en réalité du `ORDER_HISTORY_REPORT` (vague = 6, via la RPC `enqueue_order_history_backfill`), qui est **bloqué à 188 jours** par Uber. C'est pour ça que les mois antérieurs sont grisés "hors fenêtre API".
+Champs sur Marne affiche "Vide" alors que tous les jobs `PAYMENT_DETAILS_REPORT` sont `done` (29/29) et qu'Uber Manager montre bien des données de janvier 2024 à aujourd'hui.
 
-Or, le seul rapport pertinent pour le CA — `PAYMENT_DETAILS_REPORT` — n'a **aucune limite de date**. C'est ce qui a permis de remonter Bonneuil jusqu'à janvier 2024.
+**Cause identifiée** : la table `restaurant_uber_ids` (table d'alias utilisée par le webhook d'ingestion pour résoudre `uber_store_id → restaurant_id`) contient des entrées qui pointent vers le mauvais restaurant.
 
-## Objectif
+Pour Champs sur Marne :
+- `uber_store_id = 60b94572-...` est bien sur le restaurant `TASTY CROUSTY CHAMPS SUR MARNE` (`c4c6295f`)
+- Mais `restaurant_uber_ids` mappe ce même store_id vers `TASTY CROUSTY CHAMPIGNY SUR MARNE` (`986b1024`)
+- Résultat : les 53 payouts ingérés via webhook sont attachés à Champigny → Champs sur Marne reste à 0.
 
-Rendre tous les mois éligibles à un rattrapage API sur cette page **uniquement** via `PAYMENT_DETAILS_REPORT`, sans toucher aux autres vagues (qui restent à juste titre limitées à 188 jours).
+**4 alias incorrects au total** (créés le 2026-04-01 « ajouté via import ») :
 
-## Changements
+| Vrai propriétaire | Mal aliasé vers |
+|---|---|
+| TASTY CROUSTY MELUN | TASTY CROUSTY MEAUX |
+| TASTY CROUSTY TOULOUSE | TASTY CROUSTY TOULOUSE CAPITOL |
+| TASTY CROUSTY CHAMPS SUR MARNE | TASTY CROUSTY CHAMPIGNY SUR MARNE |
+| TASTY CROUSTY RÉPUBLIQUE | TASTY CROUSTY PARIS 11 |
 
-### 1. Nouvelle RPC SQL `enqueue_payment_details_backfill`
-Migration SQL ajoutant une fonction quasi-identique à `enqueue_order_history_backfill` mais :
-- `report_type = 'PAYMENT_DETAILS_REPORT'`
-- `vague = 1`
-- **Aucun filtre `v_min_date` / 188 jours** : on accepte tous les mois depuis l'ouverture du restaurant
-- Toujours `SECURITY DEFINER` + `is_super_admin()` guard
-- `ON CONFLICT` sur la même contrainte unique (resto + mois + type) → relance propre des jobs déjà existants
+Conséquence : 4 restos affichent "Vide" partout, et 4 autres restos ont leur CA gonflé (mélange de leurs propres ventes + celles du voisin).
 
-L'ancienne fonction `enqueue_order_history_backfill` n'est pas modifiée (elle reste utile aux autres pages qui ciblent l'opérationnel).
+## Plan de correction
 
-### 2. Page `src/pages/UberBackfillCA.tsx`
-- Appeler la nouvelle RPC `enqueue_payment_details_backfill` au lieu de `enqueue_order_history_backfill`.
-- Lire les jobs sur `vague = 1` au lieu de `vague = 6` (queries `backfill-jobs-resto`, `backfill-done-by-resto`, `backfill-throughput`, `cancelPending`).
-- Supprimer la constante `UBER_API_WINDOW_DAYS`, `MIN_API_DATE`, `isInApiWindow` et tous les blocages associés (`togglePick`, `pickAllCsv`, `pickYear`).
-- Retirer la bannière jaune "⚠️ Limite Uber : API 188 jours max" (elle est fausse pour ce rapport).
-- Ajuster le sous-titre : remplacer "6 derniers mois" par "tout l'historique disponible (depuis l'ouverture du restaurant)".
-- Le compteur "X/6" sur la liste des restos doit s'adapter au nombre de mois réellement enqueue (passer de "/6" à "/{actionable}" basé sur les jobs existants, ou simplement afficher `done` sans dénominateur fixe).
+### 1. Migration SQL — assainir les données
 
-### 3. Ce qui ne bouge PAS (important)
-- **Worker `uber-backfill-worker`** : il route déjà sur n'importe quel `report_type` stocké en base. Aucune modif. Sa logique d'auto-skip "188 days" reste en place — elle ne se déclenchera juste plus pour PAYMENT_DETAILS.
-- **Edge function `uber-create-report`** : déjà agnostique au type.
-- **Pages `UberBackfillHistorique` et `UberBackfill`** : intactes. Les vagues 2-6 (opérationnel) gardent leur limite naturelle.
+Une seule migration, en deux temps :
 
-## Garanties demandées par l'utilisateur
+**a) Réattribuer les payouts mal attachés**
 
-- ✅ On n'envoie **que** `PAYMENT_DETAILS_REPORT` depuis cette page → aucun risque d'erreur "188 days".
-- ✅ Aucun autre type de rapport n'est déclenché par les boutons de cette page.
-- ✅ Si Uber renvoyait quand même une erreur sur un mois trop ancien (resto inexistant à cette date), le worker la marquera proprement en `failed` avec le message d'origine — pas de boucle infinie.
-
-## Détail technique (référence)
-
-```text
-Avant :  CA page → enqueue_order_history_backfill → vague 6 / ORDER_HISTORY_REPORT → bloqué 188j ❌
-Après :  CA page → enqueue_payment_details_backfill → vague 1 / PAYMENT_DETAILS_REPORT → illimité ✅
-```
-
-Migration SQL minimale :
 ```sql
-CREATE OR REPLACE FUNCTION public.enqueue_payment_details_backfill(
-  p_restaurant_id uuid, p_months date[]
-) RETURNS integer
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
--- même corps que enqueue_order_history_backfill
--- MAIS : pas de v_min_date, report_type='PAYMENT_DETAILS_REPORT', vague=1
-$$;
-GRANT EXECUTE ON FUNCTION public.enqueue_payment_details_backfill(uuid, date[]) TO authenticated;
+UPDATE payouts p
+SET restaurant_id = r_owner.id
+FROM restaurants r_owner
+WHERE p.uber_store_id = r_owner.uber_store_id
+  AND p.restaurant_id <> r_owner.id;
 ```
+
+Effet attendu : ~62 payouts re-attribués au bon resto (53 vers Champs sur Marne, 9 vers Champigny pour son propre store, etc.).
+
+**b) Supprimer les 4 alias incorrects**
+
+```sql
+DELETE FROM restaurant_uber_ids rui
+USING restaurants r_owner
+WHERE r_owner.uber_store_id = rui.uber_store_id
+  AND rui.restaurant_id <> r_owner.id;
+```
+
+Effet : les futurs webhooks utiliseront le mapping principal (`restaurants.uber_store_id`), qui est correct.
+
+### 2. Garde-fou — empêcher la récidive
+
+Ajouter une contrainte qui bloque l'insertion d'un alias `restaurant_uber_ids` pointant vers un restaurant différent du propriétaire réel du `uber_store_id` :
+
+```sql
+CREATE OR REPLACE FUNCTION public.prevent_conflicting_uber_alias()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  real_owner uuid;
+BEGIN
+  SELECT id INTO real_owner
+  FROM restaurants
+  WHERE uber_store_id = NEW.uber_store_id;
+
+  IF real_owner IS NOT NULL AND real_owner <> NEW.restaurant_id THEN
+    RAISE EXCEPTION
+      'Alias Uber conflictuel : store % appartient déjà au restaurant %, refusé pour %',
+      NEW.uber_store_id, real_owner, NEW.restaurant_id;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_prevent_conflicting_uber_alias
+BEFORE INSERT OR UPDATE ON restaurant_uber_ids
+FOR EACH ROW EXECUTE FUNCTION public.prevent_conflicting_uber_alias();
+```
+
+### 3. Vérification post-migration
+
+Après application, je relance les requêtes :
+- `SELECT count(*) FROM payouts WHERE restaurant_id = '<champs sur marne>'` doit passer de 0 → 53
+- La page `/admin/uber-backfill-ca` doit afficher "Live" (et non "Vide") pour Champs sur Marne, Melun, Toulouse, République
+- Et le CA agrégé de Champigny / Meaux / Toulouse Capitol / Paris 11 va légèrement baisser (retrait des payouts qui ne leur appartenaient pas) — c'est le comportement correct.
+
+## Pas dans le scope
+
+- Pas de changement UI, pas de changement de logique d'ingestion : le webhook fait déjà ce qu'il faut, c'était juste les données d'alias qui étaient cassées.
+- Pas de relance de backfill : les données sont déjà dans la table `payouts`, on les déplace simplement vers le bon `restaurant_id`.
