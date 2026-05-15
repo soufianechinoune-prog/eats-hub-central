@@ -9,6 +9,7 @@ export interface PlatformBreakdown {
   orders: number;
   avgBasket: number;
   netPayout: number;
+  mealVoucher: number;
   profitability: number | null;
 }
 
@@ -21,6 +22,7 @@ export interface RestaurantNetworkStats {
   orders: number;
   avgBasket: number;
   netPayout: number; // Versement net total (net_payout + meal_voucher)
+  mealVoucher: number; // Titres-restaurant Uber uniquement
   // Quality metrics
   rating: number | null;
   profitability: number | null;
@@ -46,6 +48,7 @@ export interface NetworkTotals {
   totalOrders: number;
   avgBasket: number;
   totalNetPayout: number; // Total versement net réseau
+  totalMealVoucher: number;
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
