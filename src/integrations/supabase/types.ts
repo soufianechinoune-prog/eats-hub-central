@@ -4652,6 +4652,7 @@ export type Database = {
           restaurant_id: string
           restaurant_name: string
           retagged_count: number
+          status: string
         }[]
       }
       seed_backfill_jobs: {
