@@ -16,7 +16,7 @@ import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
 
 interface RestaurantComparisonTableProps {
@@ -139,6 +139,9 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
         {formatCurrency(data.netPayout)}
       </TableCell>
+      <TableCell className="text-right text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+        {data.mealVoucher > 0 ? formatCurrency(data.mealVoucher) : "—"}
+      </TableCell>
       <TableCell className="text-right text-xs">
         {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
       </TableCell>
@@ -231,6 +234,7 @@ export function RestaurantComparisonTable({
         case "orders": aVal = a.orders; bVal = b.orders; break;
         case "avgBasket": aVal = a.avgBasket; bVal = b.avgBasket; break;
         case "netPayout": aVal = a.netPayout; bVal = b.netPayout; break;
+        case "mealVoucher": aVal = a.mealVoucher; bVal = b.mealVoucher; break;
         case "rating": aVal = a.rating ?? -999; bVal = b.rating ?? -999; break;
         case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
