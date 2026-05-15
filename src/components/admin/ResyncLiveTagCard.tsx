@@ -10,23 +10,36 @@ interface ResyncRow {
   restaurant_id: string;
   restaurant_name: string;
   retagged_count: number;
-  status?: "ok" | "locked" | "error";
+  status?: "ok" | "locked" | "error" | "partial";
+  message?: string;
 }
 
-export function ResyncLiveTagCard() {
+interface ResyncLiveTagCardProps {
+  selectedRestaurantId?: string | null;
+  selectedRestaurantName?: string | null;
+  onDone?: () => void;
+}
+
+export function ResyncLiveTagCard({ selectedRestaurantId, selectedRestaurantName, onDone }: ResyncLiveTagCardProps) {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<ResyncRow[] | null>(null);
 
-  const handleRun = async () => {
-    if (!confirm("Resynchroniser le tag « Live » sur toutes les commandes éligibles ?\n\nCela retag les commandes en `uber_api` partout où un backfill PAYMENT_DETAILS_REPORT est terminé.")) return;
+  const handleRun = async (mode: "selected" | "all") => {
+    const isSelected = mode === "selected" && selectedRestaurantId;
+    const targetLabel = isSelected ? selectedRestaurantName : "tous les restaurants éligibles";
+    if (!confirm(`Resynchroniser le tag « Live » sur ${targetLabel} ?\n\nCela retag les commandes en \`uber_api\` partout où un backfill PAYMENT_DETAILS_REPORT est terminé.`)) return;
     setRunning(true);
     setResults(null);
     try {
-      const { data, error } = await supabase.rpc("resync_live_tag_all_restaurants");
+      const rpc = supabase.rpc as any;
+      const { data, error } = await rpc("resync_live_tag_restaurants", {
+        p_restaurant_ids: isSelected ? [selectedRestaurantId] : null,
+      });
       if (error) throw error;
       const rows = (data ?? []) as ResyncRow[];
       setResults(rows);
       const total = rows.reduce((s, r) => s + (r.retagged_count || 0), 0);
+      onDone?.();
       toast({
         title: "Resynchronisation terminée",
         description: `${total.toLocaleString("fr-FR")} commande(s) re-taguées « Live » sur ${rows.length} restaurant(s).`,
@@ -58,10 +71,16 @@ export function ResyncLiveTagCard() {
               Utile quand des restos restent affichés en « Historique » alors que leurs données viennent bien de l'API Uber.
             </CardDescription>
           </div>
-          <Button onClick={handleRun} disabled={running} className="flex-shrink-0">
-            {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            {running ? "En cours…" : "Lancer la resynchronisation"}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+            <Button onClick={() => handleRun("selected")} disabled={running || !selectedRestaurantId} variant="outline">
+              {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Resto sélectionné
+            </Button>
+            <Button onClick={() => handleRun("all")} disabled={running}>
+              {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Tous les restos
+            </Button>
+          </div>
         </div>
       </CardHeader>
       {results && (
@@ -79,11 +98,11 @@ export function ResyncLiveTagCard() {
                   <div key={r.restaurant_id} className="flex justify-between text-xs px-2 py-1 hover:bg-muted rounded">
                     <span className="truncate">
                       {r.status === "locked" && "🔒 "}
-                      {r.status === "error" && "⚠️ "}
+                      {(r.status === "error" || r.status === "partial") && "⚠️ "}
                       {r.restaurant_name}
                     </span>
-                    <span className={`tabular-nums ml-2 flex-shrink-0 ${r.status === "locked" || r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {r.status === "locked" ? "verrouillé" : r.status === "error" ? "erreur" : `+${r.retagged_count.toLocaleString("fr-FR")}`}
+                    <span title={r.message} className={`tabular-nums ml-2 flex-shrink-0 ${r.status === "locked" || r.status === "error" || r.status === "partial" ? "text-destructive" : "text-muted-foreground"}`}>
+                      {r.status === "locked" ? "verrouillé" : r.status === "error" ? "erreur" : r.status === "partial" ? `partiel +${r.retagged_count.toLocaleString("fr-FR")}` : `+${r.retagged_count.toLocaleString("fr-FR")}`}
                     </span>
                   </div>
                 ))}

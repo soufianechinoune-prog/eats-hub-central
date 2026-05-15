@@ -4655,6 +4655,16 @@ export type Database = {
           status: string
         }[]
       }
+      resync_live_tag_restaurants: {
+        Args: { p_restaurant_ids?: string[] }
+        Returns: {
+          message: string
+          restaurant_id: string
+          restaurant_name: string
+          retagged_count: number
+          status: string
+        }[]
+      }
       seed_backfill_jobs: {
         Args: {
           p_end_date: string
