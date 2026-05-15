@@ -16,7 +16,7 @@ import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
 
 interface RestaurantComparisonTableProps {
@@ -43,6 +43,14 @@ const formatCurrency = (value: number) => {
     style: "decimal",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+  }).format(value) + " €";
+};
+
+const formatCurrencyPrecise = (value: number) => {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "decimal",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(value) + " €";
 };
 
@@ -139,6 +147,9 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
         {formatCurrency(data.netPayout)}
       </TableCell>
+      <TableCell className="text-right text-xs text-primary whitespace-nowrap">
+        {data.mealVoucher > 0 ? formatCurrencyPrecise(data.mealVoucher) : "—"}
+      </TableCell>
       <TableCell className="text-right text-xs">
         {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
       </TableCell>
@@ -231,6 +242,7 @@ export function RestaurantComparisonTable({
         case "orders": aVal = a.orders; bVal = b.orders; break;
         case "avgBasket": aVal = a.avgBasket; bVal = b.avgBasket; break;
         case "netPayout": aVal = a.netPayout; bVal = b.netPayout; break;
+        case "mealVoucher": aVal = a.mealVoucher; bVal = b.mealVoucher; break;
         case "rating": aVal = a.rating ?? -999; bVal = b.rating ?? -999; break;
         case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
@@ -363,6 +375,18 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
+              <HeaderCell column="mealVoucher" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Montant des titres-restaurant Uber importé, inclus dans le Versement.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
@@ -425,6 +449,9 @@ export function RestaurantComparisonTable({
                     )}
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
+                      {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
@@ -506,6 +533,9 @@ export function RestaurantComparisonTable({
               )}
               <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                 {formatNetPayout(networkTotals.totalNetPayout)}
+              </TableCell>
+              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                {networkTotals.totalMealVoucher > 0 ? formatCurrencyPrecise(networkTotals.totalMealVoucher) : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
                 {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}

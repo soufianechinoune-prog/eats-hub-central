@@ -9,6 +9,7 @@ export interface PlatformBreakdown {
   orders: number;
   avgBasket: number;
   netPayout: number;
+  mealVoucher: number;
   profitability: number | null;
 }
 
@@ -21,6 +22,7 @@ export interface RestaurantNetworkStats {
   orders: number;
   avgBasket: number;
   netPayout: number; // Versement net total (net_payout + meal_voucher)
+  mealVoucher: number; // Titres-restaurant Uber uniquement
   // Quality metrics
   rating: number | null;
   profitability: number | null;
@@ -46,6 +48,7 @@ export interface NetworkTotals {
   totalOrders: number;
   avgBasket: number;
   totalNetPayout: number; // Total versement net réseau
+  totalMealVoucher: number;
   avgRating: number | null;
   avgProfitability: number | null;
   avgPrepTime: number | null;
@@ -397,6 +400,7 @@ export function useNetworkStats({
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
+        mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
         prevRevenue: includeN1Comparison ? prevRevenue : undefined,
         prevOrders: includeN1Comparison ? prevOrders : undefined,
         revenueVariation:
@@ -413,6 +417,7 @@ export function useNetworkStats({
             orders: uberOrders,
             avgBasket: parseFloat(uberAvgBasket.toFixed(2)),
             netPayout: parseFloat(uberNetPayoutFinal.toFixed(2)),
+            mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
             profitability: uberProfitability != null ? parseFloat(uberProfitability.toFixed(1)) : null,
           },
           deliveroo: {
@@ -420,6 +425,7 @@ export function useNetworkStats({
             orders: deliverooOrders,
             avgBasket: parseFloat(deliverooAvgBasket.toFixed(2)),
             netPayout: parseFloat(deliverooNetPayout.toFixed(2)),
+            mealVoucher: 0,
             profitability: delProfitability != null ? parseFloat(delProfitability.toFixed(1)) : null,
           },
         },
@@ -444,6 +450,7 @@ export function useNetworkStats({
     const totalOrders = stats.reduce((sum, s) => sum + s.orders, 0);
     const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalNetPayout = stats.reduce((sum, s) => sum + s.netPayout, 0);
+    const totalMealVoucher = stats.reduce((sum, s) => sum + s.mealVoucher, 0);
 
     const validRatings = stats.filter((s) => s.rating != null);
     const avgRating =
@@ -502,6 +509,7 @@ export function useNetworkStats({
       totalOrders,
       avgBasket: parseFloat(avgBasket.toFixed(2)),
       totalNetPayout: parseFloat(totalNetPayout.toFixed(2)),
+      totalMealVoucher: parseFloat(totalMealVoucher.toFixed(2)),
       avgRating: avgRating != null ? parseFloat(avgRating.toFixed(2)) : null,
       avgProfitability:
         avgProfitability != null
