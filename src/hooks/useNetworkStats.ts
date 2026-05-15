@@ -450,6 +450,7 @@ export function useNetworkStats({
     const totalOrders = stats.reduce((sum, s) => sum + s.orders, 0);
     const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
     const totalNetPayout = stats.reduce((sum, s) => sum + s.netPayout, 0);
+    const totalMealVoucher = stats.reduce((sum, s) => sum + s.mealVoucher, 0);
 
     const validRatings = stats.filter((s) => s.rating != null);
     const avgRating =
@@ -508,6 +509,7 @@ export function useNetworkStats({
       totalOrders,
       avgBasket: parseFloat(avgBasket.toFixed(2)),
       totalNetPayout: parseFloat(totalNetPayout.toFixed(2)),
+      totalMealVoucher: parseFloat(totalMealVoucher.toFixed(2)),
       avgRating: avgRating != null ? parseFloat(avgRating.toFixed(2)) : null,
       avgProfitability:
         avgProfitability != null
