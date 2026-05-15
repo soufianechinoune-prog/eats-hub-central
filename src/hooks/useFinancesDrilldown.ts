@@ -249,7 +249,7 @@ async function fetchUberIndividualOrders(
   while (hasMore) {
     let query = supabase
       .from("orders")
-      .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type`)
+      .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type, offer_usage_fee, vat_offer_usage_fee`)
       .gte("order_datetime", `${startStr}T00:00:00`)
       .lte("order_datetime", `${endStr}T23:59:59`)
       .order(dbSortColumn, { ascending: isAscending })
