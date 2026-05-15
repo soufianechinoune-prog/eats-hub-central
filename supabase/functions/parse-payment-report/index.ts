@@ -25,6 +25,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'TVA 3 sur les ventes': 'vat_3_sales',
   'Ventes (TVA incluses)': 'sales_incl_vat', // Ancien format
   'Ventes (TVA incluse)': 'sales_incl_vat', // Nouveau format 2025+
+  "Total des ventes d'articles, TVA incluse": 'sales_incl_vat',
   
   // Remboursements - ancien et nouveau format
   'Remboursements (hors TVA)': 'refund_excl_vat',
@@ -52,7 +53,9 @@ const COLUMN_MAPPING: Record<string, string> = {
   "Frais d'utilisation de l'offre": 'offer_usage_fee',
   "TVA sur les frais d'utilisation de l'offre": 'vat_offer_usage_fee',
   'Titre-restaurant': 'meal_voucher_amount',
+  "Versement par l'entité tierce de titres-restaurant, p. ex., Edenred, Swile, etc.": 'meal_voucher_amount',
   'Fournisseur de titres-restaurant': 'meal_voucher_provider',
+  "Nom de l'entité tierce de titres-restaurant, p. ex., Edenred, Swile, etc.": 'meal_voucher_provider',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
   'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat', // Format 2025
   'TVA sur les ajustements du prix': 'vat_price_adjustment',
@@ -99,6 +102,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Description des autres paiements': 'other_payments_description',
   'Autres paiements (TVA incluse)': 'other_payments_incl_vat',
   'Montant total': 'net_payout',
+  'Montant total correspondant à la commande (négatif en cas de remboursement) Ventes (TVA incluse) + Ajustements du prix (TVA incluse) - Bonus (TVA incluse) + Ajustement des frais de marketing + Frais de préparation et d\'emballage (TVA incluse) + Frais de sac + Frais de livraison (livraison autonome) + Pourboires (livraison autonome) - Frais de service de la Marketplace (TVA incluse) + Réduction sur les frais de service (le cas échéant) + Gain sur les frais de livraison +/- Autres paiements': 'net_payout',
   'Date du versement': 'payout_date',
   'Statut de la commande': 'status',
   'Identifiant du programme de fidélité du commerçant': 'loyalty_id',
@@ -234,6 +238,48 @@ function normalizeHeader(h: string): string {
     .replace(/\s+/g, ' ')
     // Trim
     .trim();
+}
+
+function inferColumnMapping(normalizedHeader: string): string | undefined {
+  const h = normalizedHeader.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (h.startsWith('code alphanumerique de commande tel')) return 'uber_order_id';
+  if (h.startsWith('code alphanumerique unique pour identifier la commande')) return 'uber_flow_id';
+  if (h.startsWith("nom de l'etablissement")) return 'restaurant_name';
+  if (h === 'restaurant_statement.shop_id.definition' || h.startsWith("code alphanumerique externe de l'etablissement")) return 'uber_store_id';
+  if (h.startsWith('date locale a laquelle la commande')) return 'order_date';
+  if (h.startsWith('date et heure locales auxquelles le commercant')) return 'order_datetime';
+  if (h.startsWith("mode d'execution de la commande")) return 'fulfillment_type';
+  if (h.startsWith('moyen de paiement')) return 'payment_method';
+  if (h.startsWith('la plateforme utilisee par le client')) return 'order_channel';
+  if (h.startsWith('statut de l’abonnement uber') || h.startsWith("statut de l'abonnement uber")) return 'uber_one_status';
+  if (h.startsWith("total des ventes d'articles hors tva")) return 'sales_excl_vat';
+  if (h.startsWith('tva 1 sur le total des ventes')) return 'vat_1_sales';
+  if (h.startsWith('tva 2 sur les ventes totales')) return 'vat_2_sales';
+  if (h.startsWith('tva 3 sur les ventes totales')) return 'vat_3_sales';
+  if (h.startsWith("total des ventes d'articles, tva incluse")) return 'sales_incl_vat';
+  if (h.includes('rembourser aux clients') && h.includes('hors tva')) return 'refund_excl_vat';
+  if (h.startsWith('tva1 remboursee')) return 'vat_1_refund';
+  if (h.startsWith('tva2 remboursee')) return 'vat_2_refund';
+  if (h.startsWith('tva3 remboursee')) return 'vat_3_refund';
+  if (h.includes('rembourser aux clients') && h.includes('ttc')) return 'refund_incl_vat';
+  if (h.startsWith('promotions du commercant appliquees aux plats/articles hors tva')) return 'item_promo_excl_vat';
+  if (h.startsWith('tva 1 sur les promotions du commercant')) return 'vat_1_item_promo';
+  if (h.startsWith('tva 2 sur les promotions du commercant')) return 'vat_2_item_promo';
+  if (h.startsWith('tva 3 sur les promotions du commercant')) return 'vat_3_item_promo';
+  if (h.startsWith('promotions du commercant appliquees aux plats/articles, tva incluse')) return 'item_promo_incl_vat';
+  if (h.startsWith("frais d'utilisation de l'offre")) return 'offer_usage_fee';
+  if (h.startsWith("taxe sur les frais d'utilisation de l'offre")) return 'vat_offer_usage_fee';
+  if (h.startsWith('montant facture par le commercant a uber pour les campagnes marketing')) return 'marketing_fee_adjustment';
+  if (h.startsWith("versement par l'entite tierce de titres-restaurant")) return 'meal_voucher_amount';
+  if (h.startsWith("nom de l'entite tierce de titres-restaurant")) return 'meal_voucher_provider';
+  if (h.startsWith('detail des paiements ou frais ponctuels')) return 'other_payments_description';
+  if (h.startsWith('toute les sommes uniques')) return 'other_payments_incl_vat';
+  if (h.startsWith('montant total correspondant a la commande')) return 'net_payout';
+  if (h.startsWith('date du versement effectue par uber')) return 'payout_date';
+  if (h.startsWith('la commande peut avoir le statut')) return 'status';
+  if (h.startsWith("il s'agit de l'identifiant des commercants")) return 'loyalty_id';
+  if (h.startsWith('code alphanumerique de reference identifiant le versement')) return 'payout_reference_id';
+  return undefined;
 }
 
 // Pre-normalize all COLUMN_MAPPING keys for faster lookup
@@ -500,7 +546,7 @@ Deno.serve(async (req) => {
     
     headers.forEach((header, index) => {
       const normalizedHeader = normalizeHeader(header);
-      const dbField = NORMALIZED_COLUMN_MAPPING[normalizedHeader];
+      const dbField = NORMALIZED_COLUMN_MAPPING[normalizedHeader] || inferColumnMapping(normalizedHeader);
       
       if (dbField) {
         columnIndices[dbField] = index;
@@ -666,6 +712,12 @@ Deno.serve(async (req) => {
     };
 
     const importTimestamp = new Date().toISOString();
+    const csvTotals = {
+      salesInclVat: 0,
+      netPayout: 0,
+      mealVoucher: 0,
+      expectedBankPayout: 0,
+    };
 
     console.log('Phase 1: Parsing', dataRows.length, 'rows...');
 
@@ -682,6 +734,9 @@ Deno.serve(async (req) => {
       let uberOrderId = getValue('uber_order_id');
       let uberStoreId = getValue('uber_store_id');
       let restaurant: { id: string; name: string } | undefined;
+      csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
+      csvTotals.netPayout += parseNumber(getValue('net_payout'));
+      csvTotals.mealVoucher += parseNumber(getValue('meal_voucher_amount'));
       
       if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
         const context = flowContext.get(uberFlowId);
@@ -1241,6 +1296,8 @@ Deno.serve(async (req) => {
       refund_incl_vat: sampleOrder.refund_incl_vat,
     } : null;
 
+    csvTotals.expectedBankPayout = csvTotals.netPayout + csvTotals.mealVoucher;
+
     const result = {
       success: true,
       reportType,
@@ -1271,6 +1328,12 @@ Deno.serve(async (req) => {
         unknownStoreIds: Array.from(unknownStoreIds),
         unknownStoreDetails,
         skippedDetails: skippedDetails,
+        csvTotals: {
+          salesInclVat: Math.round(csvTotals.salesInclVat * 100) / 100,
+          netPayout: Math.round(csvTotals.netPayout * 100) / 100,
+          mealVoucher: Math.round(csvTotals.mealVoucher * 100) / 100,
+          expectedBankPayout: Math.round(csvTotals.expectedBankPayout * 100) / 100,
+        },
       },
       diagnostics: {
         criticalColumnsFound,

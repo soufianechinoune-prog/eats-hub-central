@@ -4631,6 +4631,8 @@ export type Database = {
       is_super_admin: { Args: never; Returns: boolean }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
+      parse_uber_csv_date: { Args: { _value: string }; Returns: string }
+      parse_uber_csv_numeric: { Args: { _value: string }; Returns: number }
       pick_next_backfill_job: {
         Args: { p_limit?: number }
         Returns: {

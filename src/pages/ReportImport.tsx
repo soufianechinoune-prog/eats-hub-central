@@ -98,6 +98,12 @@ interface ValidationData {
     start: string | null;
     end: string | null;
   };
+  csvTotals?: {
+    salesInclVat: number;
+    netPayout: number;
+    mealVoucher: number;
+    expectedBankPayout: number;
+  };
   salesPeriod?: {
     start: string | null;
     end: string | null;
@@ -1691,6 +1697,11 @@ export default function ReportImport() {
     return new Date(dateStr).toLocaleDateString("fr-FR");
   };
 
+  const formatEuros = (value: number) => new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value) + " €";
+
   const getSkipReasonLabel = (reason: string) => {
     const labels: Record<string, string> = {
       "restaurant_not_found": "Restaurant non trouvé",
@@ -2278,6 +2289,27 @@ export default function ReportImport() {
                             </p>
                           </>
                         )}
+                      </div>
+                    </div>
+                  )}
+
+                  {validationResult.validation?.csvTotals && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-4 bg-muted rounded-lg text-center">
+                        <p className="text-lg font-bold">{formatEuros(validationResult.validation.csvTotals.salesInclVat)}</p>
+                        <p className="text-xs text-muted-foreground">CA TTC CSV</p>
+                      </div>
+                      <div className="p-4 bg-emerald-500/10 rounded-lg text-center">
+                        <p className="text-lg font-bold text-emerald-600">{formatEuros(validationResult.validation.csvTotals.netPayout)}</p>
+                        <p className="text-xs text-muted-foreground">Montant versé TTC</p>
+                      </div>
+                      <div className="p-4 bg-primary/10 rounded-lg text-center">
+                        <p className="text-lg font-bold text-primary">{formatEuros(validationResult.validation.csvTotals.mealVoucher)}</p>
+                        <p className="text-xs text-muted-foreground">Titre restaurant</p>
+                      </div>
+                      <div className="p-4 bg-blue-500/10 rounded-lg text-center">
+                        <p className="text-lg font-bold text-blue-600">{formatEuros(validationResult.validation.csvTotals.expectedBankPayout)}</p>
+                        <p className="text-xs text-muted-foreground">Versement attendu</p>
                       </div>
                     </div>
                   )}
