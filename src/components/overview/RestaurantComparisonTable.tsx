@@ -367,6 +367,18 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
+              <HeaderCell column="mealVoucher" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Montant des titres-restaurant Uber importé, inclus dans le Versement.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
@@ -429,6 +441,9 @@ export function RestaurantComparisonTable({
                     )}
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                      {resto.mealVoucher > 0 ? formatCurrency(resto.mealVoucher) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
@@ -510,6 +525,9 @@ export function RestaurantComparisonTable({
               )}
               <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                 {formatNetPayout(networkTotals.totalNetPayout)}
+              </TableCell>
+              <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
+                {networkTotals.totalMealVoucher > 0 ? formatCurrency(networkTotals.totalMealVoucher) : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
                 {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
