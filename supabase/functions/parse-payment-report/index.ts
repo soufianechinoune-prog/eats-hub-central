@@ -240,6 +240,48 @@ function normalizeHeader(h: string): string {
     .trim();
 }
 
+function inferColumnMapping(normalizedHeader: string): string | undefined {
+  const h = normalizedHeader.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (h.startsWith('code alphanumerique de commande tel')) return 'uber_order_id';
+  if (h.startsWith('code alphanumerique unique pour identifier la commande')) return 'uber_flow_id';
+  if (h.startsWith("nom de l'etablissement")) return 'restaurant_name';
+  if (h === 'restaurant_statement.shop_id.definition' || h.startsWith("code alphanumerique externe de l'etablissement")) return 'uber_store_id';
+  if (h.startsWith('date locale a laquelle la commande')) return 'order_date';
+  if (h.startsWith('date et heure locales auxquelles le commercant')) return 'order_datetime';
+  if (h.startsWith("mode d'execution de la commande")) return 'fulfillment_type';
+  if (h.startsWith('moyen de paiement')) return 'payment_method';
+  if (h.startsWith('la plateforme utilisee par le client')) return 'order_channel';
+  if (h.startsWith('statut de l’abonnement uber') || h.startsWith("statut de l'abonnement uber")) return 'uber_one_status';
+  if (h.startsWith("total des ventes d'articles hors tva")) return 'sales_excl_vat';
+  if (h.startsWith('tva 1 sur le total des ventes')) return 'vat_1_sales';
+  if (h.startsWith('tva 2 sur les ventes totales')) return 'vat_2_sales';
+  if (h.startsWith('tva 3 sur les ventes totales')) return 'vat_3_sales';
+  if (h.startsWith("total des ventes d'articles, tva incluse")) return 'sales_incl_vat';
+  if (h.includes('rembourser aux clients') && h.includes('hors tva')) return 'refund_excl_vat';
+  if (h.startsWith('tva1 remboursee')) return 'vat_1_refund';
+  if (h.startsWith('tva2 remboursee')) return 'vat_2_refund';
+  if (h.startsWith('tva3 remboursee')) return 'vat_3_refund';
+  if (h.includes('rembourser aux clients') && h.includes('ttc')) return 'refund_incl_vat';
+  if (h.startsWith('promotions du commercant appliquees aux plats/articles hors tva')) return 'item_promo_excl_vat';
+  if (h.startsWith('tva 1 sur les promotions du commercant')) return 'vat_1_item_promo';
+  if (h.startsWith('tva 2 sur les promotions du commercant')) return 'vat_2_item_promo';
+  if (h.startsWith('tva 3 sur les promotions du commercant')) return 'vat_3_item_promo';
+  if (h.startsWith('promotions du commercant appliquees aux plats/articles, tva incluse')) return 'item_promo_incl_vat';
+  if (h.startsWith("frais d'utilisation de l'offre")) return 'offer_usage_fee';
+  if (h.startsWith("taxe sur les frais d'utilisation de l'offre")) return 'vat_offer_usage_fee';
+  if (h.startsWith('montant facture par le commercant a uber pour les campagnes marketing')) return 'marketing_fee_adjustment';
+  if (h.startsWith("versement par l'entite tierce de titres-restaurant")) return 'meal_voucher_amount';
+  if (h.startsWith("nom de l'entite tierce de titres-restaurant")) return 'meal_voucher_provider';
+  if (h.startsWith('detail des paiements ou frais ponctuels')) return 'other_payments_description';
+  if (h.startsWith('toute les sommes uniques')) return 'other_payments_incl_vat';
+  if (h.startsWith('montant total correspondant a la commande')) return 'net_payout';
+  if (h.startsWith('date du versement effectue par uber')) return 'payout_date';
+  if (h.startsWith('la commande peut avoir le statut')) return 'status';
+  if (h.startsWith("il s'agit de l'identifiant des commercants")) return 'loyalty_id';
+  if (h.startsWith('code alphanumerique de reference identifiant le versement')) return 'payout_reference_id';
+  return undefined;
+}
+
 // Pre-normalize all COLUMN_MAPPING keys for faster lookup
 const NORMALIZED_COLUMN_MAPPING: Record<string, string> = {};
 for (const [key, value] of Object.entries(COLUMN_MAPPING)) {
