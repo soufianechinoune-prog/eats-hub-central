@@ -1016,46 +1016,44 @@ export function OrdersAnalysisSection({
                                         </TooltipProvider>
                                       )}
                                       <span>#{order.uber_order_id?.slice(-8) || order.id.slice(0, 8)}</span>
-                                      {order.has_offer && (() => {
-                                        const offerFee = order.offer_fee_incl_vat ?? 0;
-                                        const isTaxed = offerFee > 0;
-                                        return (
-                                          <TooltipProvider>
-                                            <Tooltip>
-                                              <TooltipTrigger asChild>
-                                                <Badge className={cn(
-                                                  "text-[10px] px-1.5 py-0 cursor-default",
-                                                  isTaxed
-                                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25"
-                                                    : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25"
-                                                )}>
-                                                  <Tag className="h-2.5 w-2.5 mr-0.5" />
-                                                  Offre{isTaxed ? " €" : ""}
-                                                </Badge>
-                                              </TooltipTrigger>
-                                              <TooltipContent side="right" className="max-w-xs">
-                                                <div className="text-xs space-y-1">
-                                                  {order.offer_note && <p>{order.offer_note}</p>}
-                                                  {(order.deliveroo_funding ?? 0) > 0 && (
-                                                    <p className="text-emerald-600 dark:text-emerald-400">
-                                                      Co-financement Deliveroo : +{order.deliveroo_funding?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
-                                                    </p>
-                                                  )}
-                                                  {isTaxed ? (
-                                                    <p className="text-amber-600 dark:text-amber-400">
-                                                      Frais d'offre Uber : -{offerFee.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € TTC (0,89 € HT + TVA)
-                                                    </p>
-                                                  ) : (
-                                                    <p className="text-emerald-600 dark:text-emerald-400">
-                                                      Offre exonérée de frais Uber
-                                                    </p>
-                                                  )}
-                                                </div>
-                                              </TooltipContent>
-                                            </Tooltip>
-                                          </TooltipProvider>
-                                        );
-                                      })()}
+                                      {order.has_offer && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/25 text-[10px] px-1.5 py-0 cursor-default">
+                                                <Tag className="h-2.5 w-2.5 mr-0.5" />
+                                                Offre
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="max-w-xs">
+                                              <div className="text-xs space-y-1">
+                                                {order.offer_note && <p>{order.offer_note}</p>}
+                                                {(order.deliveroo_funding ?? 0) > 0 && (
+                                                  <p className="text-emerald-600 dark:text-emerald-400">
+                                                    Co-financement Deliveroo : +{order.deliveroo_funding?.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                                                  </p>
+                                                )}
+                                              </div>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
+                                      {(order.offer_fee_incl_vat ?? 0) > 0 && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/25 text-[10px] px-1.5 py-0 cursor-default">
+                                                Frais {order.offer_fee_incl_vat!.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="max-w-xs">
+                                              <p className="text-xs">
+                                                Frais d'utilisation de l'offre prélevé par Uber : {order.offer_fee_incl_vat!.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € TTC (0,89 € HT + TVA). Offre <strong>non exonérée</strong>.
+                                              </p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                     </div>
                                   </TableCell>
                                   <TableCell className="text-sm">
