@@ -670,6 +670,12 @@ Deno.serve(async (req) => {
     };
 
     const importTimestamp = new Date().toISOString();
+    const csvTotals = {
+      salesInclVat: 0,
+      netPayout: 0,
+      mealVoucher: 0,
+      expectedBankPayout: 0,
+    };
 
     console.log('Phase 1: Parsing', dataRows.length, 'rows...');
 
@@ -686,6 +692,9 @@ Deno.serve(async (req) => {
       let uberOrderId = getValue('uber_order_id');
       let uberStoreId = getValue('uber_store_id');
       let restaurant: { id: string; name: string } | undefined;
+      csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
+      csvTotals.netPayout += parseNumber(getValue('net_payout'));
+      csvTotals.mealVoucher += parseNumber(getValue('meal_voucher_amount'));
       
       if (uberFlowId && (!uberOrderId || uberOrderId === '')) {
         const context = flowContext.get(uberFlowId);
@@ -1245,6 +1254,8 @@ Deno.serve(async (req) => {
       refund_incl_vat: sampleOrder.refund_incl_vat,
     } : null;
 
+    csvTotals.expectedBankPayout = csvTotals.netPayout + csvTotals.mealVoucher;
+
     const result = {
       success: true,
       reportType,
@@ -1275,6 +1286,12 @@ Deno.serve(async (req) => {
         unknownStoreIds: Array.from(unknownStoreIds),
         unknownStoreDetails,
         skippedDetails: skippedDetails,
+        csvTotals: {
+          salesInclVat: Math.round(csvTotals.salesInclVat * 100) / 100,
+          netPayout: Math.round(csvTotals.netPayout * 100) / 100,
+          mealVoucher: Math.round(csvTotals.mealVoucher * 100) / 100,
+          expectedBankPayout: Math.round(csvTotals.expectedBankPayout * 100) / 100,
+        },
       },
       diagnostics: {
         criticalColumnsFound,
