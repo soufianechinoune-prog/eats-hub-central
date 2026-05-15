@@ -71,10 +71,16 @@ export function ResyncLiveTagCard({ selectedRestaurantId, selectedRestaurantName
               Utile quand des restos restent affichés en « Historique » alors que leurs données viennent bien de l'API Uber.
             </CardDescription>
           </div>
-          <Button onClick={handleRun} disabled={running} className="flex-shrink-0">
-            {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
-            {running ? "En cours…" : "Lancer la resynchronisation"}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 flex-shrink-0">
+            <Button onClick={() => handleRun("selected")} disabled={running || !selectedRestaurantId} variant="outline">
+              {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Resto sélectionné
+            </Button>
+            <Button onClick={() => handleRun("all")} disabled={running}>
+              {running ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
+              Tous les restos
+            </Button>
+          </div>
         </div>
       </CardHeader>
       {results && (
@@ -92,11 +98,11 @@ export function ResyncLiveTagCard({ selectedRestaurantId, selectedRestaurantName
                   <div key={r.restaurant_id} className="flex justify-between text-xs px-2 py-1 hover:bg-muted rounded">
                     <span className="truncate">
                       {r.status === "locked" && "🔒 "}
-                      {r.status === "error" && "⚠️ "}
+                      {(r.status === "error" || r.status === "partial") && "⚠️ "}
                       {r.restaurant_name}
                     </span>
-                    <span className={`tabular-nums ml-2 flex-shrink-0 ${r.status === "locked" || r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>
-                      {r.status === "locked" ? "verrouillé" : r.status === "error" ? "erreur" : `+${r.retagged_count.toLocaleString("fr-FR")}`}
+                    <span title={r.message} className={`tabular-nums ml-2 flex-shrink-0 ${r.status === "locked" || r.status === "error" || r.status === "partial" ? "text-destructive" : "text-muted-foreground"}`}>
+                      {r.status === "locked" ? "verrouillé" : r.status === "error" ? "erreur" : r.status === "partial" ? `partiel +${r.retagged_count.toLocaleString("fr-FR")}` : `+${r.retagged_count.toLocaleString("fr-FR")}`}
                     </span>
                   </div>
                 ))}
