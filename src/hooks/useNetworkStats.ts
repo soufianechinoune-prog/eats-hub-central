@@ -400,6 +400,7 @@ export function useNetworkStats({
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
+        mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
         prevRevenue: includeN1Comparison ? prevRevenue : undefined,
         prevOrders: includeN1Comparison ? prevOrders : undefined,
         revenueVariation:
@@ -416,6 +417,7 @@ export function useNetworkStats({
             orders: uberOrders,
             avgBasket: parseFloat(uberAvgBasket.toFixed(2)),
             netPayout: parseFloat(uberNetPayoutFinal.toFixed(2)),
+            mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
             profitability: uberProfitability != null ? parseFloat(uberProfitability.toFixed(1)) : null,
           },
           deliveroo: {
@@ -423,6 +425,7 @@ export function useNetworkStats({
             orders: deliverooOrders,
             avgBasket: parseFloat(deliverooAvgBasket.toFixed(2)),
             netPayout: parseFloat(deliverooNetPayout.toFixed(2)),
+            mealVoucher: 0,
             profitability: delProfitability != null ? parseFloat(delProfitability.toFixed(1)) : null,
           },
         },
