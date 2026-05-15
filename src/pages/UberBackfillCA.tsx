@@ -338,7 +338,15 @@ export default function UberBackfillCA() {
         </div>
       </div>
 
-      <ResyncLiveTagCard />
+      <ResyncLiveTagCard
+        selectedRestaurantId={selectedId}
+        selectedRestaurantName={selectedResto?.name}
+        onDone={() => {
+          qc.invalidateQueries({ queryKey: ["data-source-calendar", selectedId, startDate, endDate] });
+          qc.invalidateQueries({ queryKey: ["backfill-jobs-resto", selectedId] });
+          qc.invalidateQueries({ queryKey: ["backfill-done-by-resto"] });
+        }}
+      />
 
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
