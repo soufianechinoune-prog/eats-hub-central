@@ -506,6 +506,7 @@ export interface OrderFinanceData {
   offer_note?: string;
   deliveroo_funding?: number;
   fulfillment_type?: string | null;
+  offer_fee_incl_vat?: number;
 }
 
 
