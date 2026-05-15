@@ -31,8 +31,7 @@ export function ResyncLiveTagCard({ selectedRestaurantId, selectedRestaurantName
     setRunning(true);
     setResults(null);
     try {
-      const rpc = supabase.rpc as any;
-      const { data, error } = await rpc("resync_live_tag_restaurants", {
+      const { data, error } = await (supabase as any).rpc("resync_live_tag_restaurants", {
         p_restaurant_ids: isSelected ? [selectedRestaurantId] : null,
       });
       if (error) throw error;
