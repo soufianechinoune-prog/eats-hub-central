@@ -1000,6 +1000,7 @@ export function useFinancesDrilldown({
         offer_note: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : "",
         deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
         fulfillment_type: (order as any).fulfillment_type || null,
+        offer_fee_incl_vat: Math.abs(Number((order as any).offer_usage_fee) || 0) + Math.abs(Number((order as any).vat_offer_usage_fee) || 0),
       };
     });
   }, [individualOrdersData, granularity]);
