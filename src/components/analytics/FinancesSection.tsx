@@ -179,6 +179,11 @@ export function FinancesSection({
 
   return (
     <div className="space-y-6">
+      {/* Info bandeau : découpage UTC pour aligner avec le CSV Uber */}
+      <div className="text-xs text-muted-foreground bg-muted/40 border rounded-md px-3 py-2">
+        📅 Découpage journalier en <strong>UTC</strong> pour correspondre au rapport CSV Uber Eats. Les autres écrans (Overview, Operations…) utilisent l'heure de Paris.
+      </div>
+
       {/* === Actions Control Bar === */}
       <div className="flex flex-col gap-3 p-4 bg-muted/30 rounded-lg border">
         <div className="flex items-center justify-between">

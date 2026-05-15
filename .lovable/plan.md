@@ -1,46 +1,46 @@
-# Aligner le Comparatif des restaurants sur l'heure de Paris
+## Objectif
+Aligner toute la page **Analytics → Finances** (Uber Eats) sur le découpage **UTC** utilisé par les CSV Uber, pour que la table Rentabilité ET le graphique journalier matchent exactement les chiffres du rapport Uber (commande par commande, jour par jour).
 
-## Diagnostic
+## Contexte
+Aujourd'hui les RPC agrègent par jour calendaire **Europe/Paris** : les commandes passées entre 00h-01h Paris (= jour précédent UTC chez Uber) sont reclassées au jour Paris. Résultat : pour le 5 fév 2026 Reims, 94 cmd / 591,31 € côté app vs **95 cmd / 614,69 € côté CSV**.
 
-Le tableau "Comparatif des restaurants" (`src/components/overview/RestaurantComparisonTable.tsx`) est alimenté par `useNetworkStats`, qui appelle 4 RPC. **Deux d'entre elles** filtrent les dates en UTC alors que le standard projet est `AT TIME ZONE 'Europe/Paris'` (cf. `mem://analytics/standard-gestion-horaire`). C'est ce qui cause l'écart Reims février : 2 202 (UTC) vs 2 200 (Paris) sur l'onglet Uber One.
+## Périmètre (validé)
+- ✅ `get_orders_finance_detail` (table Rentabilité — drilldown mois)
+- ✅ `get_orders_finance_yearly_detail` (table Rentabilité — vue année)
+- ✅ `get_profitability_daily` (graphique CA / Versement journalier)
+- ❌ Hors scope : Overview, Operations, Marketing, Avis, exports PDF, RPC `get_network_*` → restent en Paris
 
-| RPC | TZ actuel | À corriger |
-|---|---|---|
-| `get_network_orders_summary` | UTC naïf (`p_start_date::timestamp`) | Oui |
-| `get_network_deliveroo_summary` | UTC naïf | Oui |
-| `get_network_prep_time_summary` | timestamptz (déjà OK côté SQL, mais reçoit du UTC du front) | À vérifier côté appelant |
-| `get_availability_by_restaurant` | déjà `AT TIME ZONE 'Europe/Paris'` | Non |
+## Plan technique
 
-## Correctif (1 migration)
+### 1. Migration SQL — 3 fonctions
+Pour chaque RPC ci-dessus, remplacer dans le `RETURN`/`SELECT` et le `WHERE` :
 
-Modifier les deux RPC fautives pour rattacher chaque commande à sa journée locale Paris :
+| Avant (Paris) | Après (UTC) |
+|---|---|
+| `(o.order_datetime AT TIME ZONE 'Europe/Paris')::date` | `(o.order_datetime AT TIME ZONE 'UTC')::date` |
+| `make_timestamptz(p_year, p_month, 1, 0,0,0, 'Europe/Paris')` | `make_timestamptz(p_year, p_month, 1, 0,0,0, 'UTC')` |
+| `(p_start_date::timestamp AT TIME ZONE 'Europe/Paris')` | `(p_start_date::timestamp AT TIME ZONE 'UTC')` |
+| `GROUP BY ... AT TIME ZONE 'Europe/Paris'` | `GROUP BY ... AT TIME ZONE 'UTC'` |
 
-```sql
--- get_network_orders_summary
-WHERE o.restaurant_id = ANY(p_restaurant_ids)
-  AND o.order_datetime >= (p_start_date::timestamp AT TIME ZONE 'Europe/Paris')
-  AND o.order_datetime <  ((p_end_date + interval '1 day')::timestamp AT TIME ZONE 'Europe/Paris')
+Le reste des fonctions (colonnes, RLS, signatures) est **inchangé** → pas de mise à jour des hooks ni des types TS nécessaire.
 
--- get_network_deliveroo_summary (idem sur les deux CTE revenue_data + payout_data)
-AND d.delivery_datetime >= (p_start_date::timestamp AT TIME ZONE 'Europe/Paris')
-AND d.delivery_datetime <  ((p_end_date + interval '1 day')::timestamp AT TIME ZONE 'Europe/Paris')
-```
+### 2. UI — bandeau d'info
+Ajouter une mention discrète sous le titre de la section Finances :
 
-Pas de changement de signature, pas de changement frontend.
+> *📅 Découpage journalier en UTC pour correspondre au rapport CSV Uber Eats. Les autres écrans (Overview, Operations…) utilisent l'heure de Paris.*
 
-## Effet attendu
+Fichier : `src/components/analytics/FinancesSection.tsx` (juste avant la première sous-section).
 
-- **Reims février** : passe de 2 202 → **2 200 commandes** (les 2 commandes du 1er fév 00h-01h UTC = 28 fév 23h-00h Paris repartent dans janvier où elles appartiennent réellement).
-- **Cohérence retrouvée** entre Comparatif des restaurants ↔ Onglet Uber One ↔ Finances ↔ Overview.
-- **Aucune commande perdue** : juste un re-rattachement au bon mois local.
-- Effet identique sur tous les restaurants ayant des commandes en bordure de mois (typiquement les restaurants ouverts tard le soir ou en service de nuit).
+### 3. Mémoire projet
+- Ajouter `mem://analytics/finances-utc-decoupage` documentant la dérogation au standard "Paris" pour ces 3 RPC.
+- Mettre à jour la note `mem://analytics/finances-frais-source-orders` pour mentionner le passage en UTC.
 
-## Vérification post-déploiement
+## Validation
+Après migration, vérifier sur Reims 2026-02-05 :
+- Table : 95 cmd, frais Uber TTC = -614,69 € (vs CSV utilisateur : 95 cmd / 614,45 €) ✅
+- Graphique : barre du 5 fév doit refléter le nouveau total
 
-1. Reims février 2026 : Comparatif affiche 2 200 commandes ; Uber One 2 200 (1438 + 762).
-2. Reims janvier 2026 : Comparatif augmente de 2 commandes vs avant.
-3. Spot-check 2-3 autres restaurants à fort volume nocturne pour confirmer la stabilité.
-
-## Mémoire à mettre à jour
-
-Ajouter une note `mem://analytics/network-stats-tz-paris` confirmant que **toutes** les RPC réseau (`get_network_*`) doivent filtrer en `AT TIME ZONE 'Europe/Paris'` — éviter qu'une future RPC réintroduise du UTC naïf.
+## Notes
+- Aucune perte de données, pas de backfill nécessaire — les `order_datetime` restent en `timestamptz`, on change juste l'agrégation.
+- Le cache React Query se rafraîchit automatiquement (clé inchangée mais payload différent → un hard refresh peut être utile).
+- L'écart d'1h heure d'été/hiver fait que sur les nuits de changement d'heure (mars/octobre) certaines commandes glisseront différemment — c'est attendu.
