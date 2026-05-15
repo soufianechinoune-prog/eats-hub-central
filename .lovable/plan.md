@@ -1,44 +1,37 @@
-## Objectif
+Constat en base :
 
-Permettre de marquer un restaurant comme "API Uber non disponible — utiliser import CSV" directement depuis la page de backfill CA, avec une note libre, pour qu'on traite les cas un par un sans les oublier.
+- Chicken Street Argenteuil a 69 220 commandes, dont 0 taguées `uber_api`.
+- Chicken Street Orléans a 41 325 commandes, dont 0 taguées `uber_api`.
+- Pourtant, les jobs `PAYMENT_DETAILS_REPORT` sont bien `done` de janvier 2024 à mai 2026 pour les deux restaurants.
+- Donc le problème n’est pas l’API Uber : les jobs API existent bien. Le problème est le retag qui n’a pas modifié les commandes existantes.
 
-## Ce qu'on ajoute
+Pourquoi ça reste affiché “Historique” :
 
-### 1. Stockage (nouvelle table)
+- La page affiche “Live” seulement si les commandes du mois ont `data_source = 'uber_api'`, ou si elle trouve un job `done` pour ce mois.
+- Pour Argenteuil et Orléans, les commandes sont encore avec `data_source = NULL`.
+- La fonction de resynchronisation actuelle devrait les passer en `uber_api`, mais elle semble ne pas l’avoir fait sur ces deux gros volumes.
+- Il y a bien environ 69 208 commandes éligibles à retagger pour Argenteuil et 41 322 pour Orléans.
 
-Nouvelle table `restaurant_backfill_notes` :
-- `restaurant_id` (uuid, unique) — 1 note par resto
-- `report_type` (text, défaut `PAYMENT_DETAILS_REPORT`) — pour réutiliser la même mécanique sur d'autres backfills plus tard
-- `status` (text) — `csv_required` | `api_partial` | `resolved`
-- `note` (text) — texte libre (ex: "API vide avant 04/2025, import CSV manuel mensuel")
-- `flagged_period_start` / `flagged_period_end` (date, nullable) — la période concernée
-- `created_by`, `created_at`, `updated_at`
+Plan de correction :
 
-RLS : super_admin uniquement (lecture + écriture), comme `backfill_jobs`.
+1. Remplacer la resynchronisation globale par une version ciblable par restaurant.
+   - Objectif : pouvoir retagger Argenteuil et Orléans séparément, au lieu de relancer toute la base.
+   - Avantage : moins de risque de timeout/verrou, et résultat plus lisible.
 
-### 2. UI dans `src/pages/UberBackfillCA.tsx`
+2. Corriger la logique SQL pour retagger uniquement les commandes couvertes par un job `PAYMENT_DETAILS_REPORT` déjà terminé.
+   - Argenteuil : janvier 2024 à mai 2026.
+   - Orléans : janvier 2024 à mai 2026.
+   - Les quelques commandes de décembre 2023 resteraient “Historique”, car aucun job API de décembre 2023 n’existe.
 
-**Liste des restos (gauche)** :
-- Petit badge orange "CSV requis" à côté du nom des restos qui ont une note active (status ≠ resolved).
+3. Ajouter/adapter l’interface du bouton pour afficher clairement :
+   - combien de commandes ont été retaggées,
+   - quels restaurants ont réussi,
+   - quels restaurants sont bloqués ou en erreur,
+   - et rafraîchir les données de la page après succès.
 
-**Panneau de droite (resto sélectionné)** :
-- Nouveau bloc "Annotation" au-dessus du calendrier des mois :
-  - Si pas de note : bouton "⚠️ Marquer ce store comme problématique"
-  - Si note existante : carte affichant le statut, la note, la période, et boutons **Modifier** / **Marquer comme résolu**
-- Dialog d'édition simple : select statut + textarea note + 2 inputs date période.
+4. Après validation, vérifier en base que :
+   - Argenteuil passe d’environ 0 à 69k commandes `uber_api`,
+   - Orléans passe d’environ 0 à 41k commandes `uber_api`,
+   - les mois concernés affichent bien “Live”.
 
-### 3. Filtre rapide
-
-Au-dessus de la liste, un toggle "Afficher uniquement les stores à problème" pour traiter la backlog.
-
-## Détails techniques
-
-- Fichiers touchés : `src/pages/UberBackfillCA.tsx` uniquement + 1 nouveau composant `BackfillNoteCard.tsx` dans `src/components/admin/`.
-- Migration SQL pour créer la table + RLS.
-- Pas de changement sur la logique de backfill elle-même : c'est purement informatif.
-- Les notes sont chargées en une requête au mount et mises en cache par React Query, jointes côté client à la liste des restos.
-
-## Hors scope
-
-- Pas de modification du flow d'import CSV existant.
-- Pas d'auto-détection des stores problématiques (CSV vide → flag auto) — on le fait manuellement pour l'instant, on pourra automatiser plus tard si besoin.
+En vulgarisé : l’API Uber a bien ramené les données, mais l’étiquette collée sur les anciennes commandes n’a pas changé. La page voit encore l’ancienne étiquette vide, donc elle écrit “Historique”. Il faut refaire le collage d’étiquette, mais de façon ciblée et plus robuste pour ces gros restaurants.
