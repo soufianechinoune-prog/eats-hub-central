@@ -77,9 +77,13 @@ export function ResyncLiveTagCard() {
               <div className="space-y-1">
                 {results.map((r) => (
                   <div key={r.restaurant_id} className="flex justify-between text-xs px-2 py-1 hover:bg-muted rounded">
-                    <span className="truncate">{r.restaurant_name}</span>
-                    <span className="tabular-nums text-muted-foreground ml-2 flex-shrink-0">
-                      +{r.retagged_count.toLocaleString("fr-FR")}
+                    <span className="truncate">
+                      {r.status === "locked" && "🔒 "}
+                      {r.status === "error" && "⚠️ "}
+                      {r.restaurant_name}
+                    </span>
+                    <span className={`tabular-nums ml-2 flex-shrink-0 ${r.status === "locked" || r.status === "error" ? "text-destructive" : "text-muted-foreground"}`}>
+                      {r.status === "locked" ? "verrouillé" : r.status === "error" ? "erreur" : `+${r.retagged_count.toLocaleString("fr-FR")}`}
                     </span>
                   </div>
                 ))}
