@@ -98,6 +98,12 @@ interface ValidationData {
     start: string | null;
     end: string | null;
   };
+  csvTotals?: {
+    salesInclVat: number;
+    netPayout: number;
+    mealVoucher: number;
+    expectedBankPayout: number;
+  };
   salesPeriod?: {
     start: string | null;
     end: string | null;
@@ -1690,6 +1696,11 @@ export default function ReportImport() {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString("fr-FR");
   };
+
+  const formatEuros = (value: number) => new Intl.NumberFormat("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value) + " €";
 
   const getSkipReasonLabel = (reason: string) => {
     const labels: Record<string, string> = {
