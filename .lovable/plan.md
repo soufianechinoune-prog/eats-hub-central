@@ -1,55 +1,77 @@
-# Plan — Overview simplifié : 2 chiffres factuels uniquement
+# Constat vérifié dans ton CSV
 
-## Principe (ta règle)
+J’ai recalculé directement le fichier brut que tu as envoyé :
 
-L'Overview doit afficher **uniquement 2 chiffres bruts et vérifiables** :
+| Colonne CSV | Total trouvé |
+|---|---:|
+| **Total des ventes d'articles, TVA incluse** | **57 711,32 €** |
+| **Versement par l'entité tierce de titres-restaurant** | **5 519,44 €** |
+| **Montant total correspondant à la commande** | **29 097,08 €** |
 
-1. **CA TTC** = somme des `orders.gross_amount` sur la période
-2. **Versement** = `SUM(net_payout) + SUM(meal_voucher_amount)` = ce qui arrive **réellement sur le compte bancaire**
+Donc le vrai versement bancaire Uber doit être :
 
-**Pas de déductions** d'eco-contribution, ads, marketing, ajustements, etc. dans l'Overview. Ces analyses fines iront dans les onglets dédiés (Finances, Frais, Profitabilité…).
+```text
+29 097,08 € + 5 519,44 € = 34 616,52 €
+```
 
----
+Tu as raison : les **35 069 €** affichés ne viennent pas du CSV brut.
 
-## État actuel vs attendu (Argenteuil février 2026)
+# Cause probable
 
-| | Overview actuel | Cible (= règle simple) | OK ? |
-|---|---:|---:|---|
-| CA TTC | 57 637 € | `SUM(gross_amount)` = **57 637,42 €** | ✅ déjà bon |
-| Versement | 35 069 € | `SUM(net_payout) + SUM(meal_voucher_amount)` = 29 542,56 + 5 526,57 = **35 069,13 €** | ✅ déjà bon |
+Le parser ne reconnaît pas parfaitement les nouveaux intitulés longs du CSV Uber Manager.
 
-→ **L'Overview est déjà aligné sur ta règle.** Les "écarts" qu'on cherchait à expliquer venaient d'une comparaison avec des chiffres Uber Manager qui, eux, intègrent déjà les déductions (ads, ajustements). C'est normal.
+Dans ton fichier, la colonne du net s’appelle :
 
----
+```text
+Montant total correspondant à la commande (négatif en cas de remboursement) ... +/- Autres paiements
+```
 
-## Ce qu'il faut faire
+Mais le mapping actuel cherche surtout :
 
-### 1. Confirmer / clarifier l'affichage Overview
-- Le bloc "Versement" doit afficher **35 069 €** (= ce qui tombe en banque) — c'est déjà le cas ✅
-- Le bloc "CA" doit afficher **57 637 €** — c'est déjà le cas ✅
-- Vérifier les libellés / tooltips pour qu'ils disent explicitement :
-  - **CA TTC** : "Chiffre d'affaires brut TTC, toutes commandes confondues"
-  - **Versement** : "Net versé sur compte bancaire (payout Uber + titres-restaurant)"
+```text
+Montant total
+```
 
-### 2. Nettoyer ce qui pourrait fausser ces 2 chiffres
-- Vérifier que `meal_voucher_amount` ne contient pas de pollution (la +19,98 € d'eco-contribution doublée identifiée précédemment) — **fix parser** pour que `meal_voucher_amount` = uniquement vrais TR
-- Après fix : le "Versement" passera de 35 069,13 € à **35 049,15 €** (chiffre 100% propre)
+Résultat : sur certains imports, le système peut retomber sur une ancienne valeur déjà présente ou mal mapper une colonne proche, ce qui explique l’écart.
 
-### 3. Déplacer toutes les analyses fines dans les autres onglets
-- Eco-contribution, ads, ajustements, marketing co-financing → onglets **Finances** / **Frais** / **Profitabilité**
-- L'Overview reste **un tableau de bord factuel**, pas un tableau comptable
+# Plan de correction
 
----
+1. **Renforcer le mapping du parser Uber**
+   - Mapper explicitement l’intitulé long de la colonne `Montant total correspondant à la commande...` vers `net_payout`.
+   - Mapper explicitement l’intitulé long de la colonne `Versement par l'entité tierce de titres-restaurant...` vers `meal_voucher_amount`.
+   - Mapper explicitement l’intitulé long du CA TTC vers `sales_incl_vat`.
 
-## Étapes
+2. **Ajouter une validation post-import**
+   - Le parser devra retourner dans le résultat d’import :
+     - total CA TTC CSV
+     - total montant versé TTC CSV
+     - total titres-restaurant CSV
+     - total attendu versement = montant versé TTC + titres-restaurant
+   - Comme ça, après import, on pourra voir immédiatement si le fichier donne bien **34 616,52 €**.
 
-1. **Fix parser** (`parse-payment-report`) : ne plus ajouter l'eco-contribution dans `meal_voucher_amount`
-2. **Réimporter février Argenteuil** pour valider que `meal_voucher_amount` = 5 519,44 € (au lieu de 5 526,57 €)
-3. **Vérifier les libellés** des cartes Overview (CA + Versement) pour qu'ils soient sans ambiguïté
-4. **Passer aux autres mois** (janvier 2026, décembre 2025, …) avec la même logique
+3. **Réimporter février Argenteuil proprement**
+   - Wipe ciblé uniquement sur Chicken Street Argenteuil février.
+   - Réimport du CSV corrigé.
+   - Vérification attendue dans l’Overview :
+     - CA Uber : **57 711,32 €**
+     - Titre restaurant : **5 519,44 €**
+     - Versement Uber : **34 616,52 €**
 
----
+4. **Garder la colonne “Titre restaurant” affichée**
+   - Elle reste utile pour comprendre la décomposition :
 
-## Question
+```text
+Versement Uber = Montant total CSV + Titre restaurant CSV
+```
 
-Tu valides cette logique ? Si oui, je commence par **l'étape 1 (fix parser)** + on relance février pour avoir des chiffres 100% propres.
+# Résultat attendu
+
+La ligne Uber Eats Argenteuil février devra afficher environ :
+
+```text
+CA: 57 711,32 €
+Versement: 34 616,52 €
+Titre restaurant: 5 519,44 €
+```
+
+et non plus 35 069 €.
