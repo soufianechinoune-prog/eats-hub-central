@@ -25,6 +25,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'TVA 3 sur les ventes': 'vat_3_sales',
   'Ventes (TVA incluses)': 'sales_incl_vat', // Ancien format
   'Ventes (TVA incluse)': 'sales_incl_vat', // Nouveau format 2025+
+  "Total des ventes d'articles, TVA incluse": 'sales_incl_vat',
   
   // Remboursements - ancien et nouveau format
   'Remboursements (hors TVA)': 'refund_excl_vat',
@@ -52,7 +53,9 @@ const COLUMN_MAPPING: Record<string, string> = {
   "Frais d'utilisation de l'offre": 'offer_usage_fee',
   "TVA sur les frais d'utilisation de l'offre": 'vat_offer_usage_fee',
   'Titre-restaurant': 'meal_voucher_amount',
+  "Versement par l'entité tierce de titres-restaurant, p. ex., Edenred, Swile, etc.": 'meal_voucher_amount',
   'Fournisseur de titres-restaurant': 'meal_voucher_provider',
+  "Nom de l'entité tierce de titres-restaurant, p. ex., Edenred, Swile, etc.": 'meal_voucher_provider',
   'Ajustements du prix (hors TVA)': 'price_adjustment_excl_vat',
   'Ajustements de prix (hors TVA)': 'price_adjustment_excl_vat', // Format 2025
   'TVA sur les ajustements du prix': 'vat_price_adjustment',
@@ -99,6 +102,7 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Description des autres paiements': 'other_payments_description',
   'Autres paiements (TVA incluse)': 'other_payments_incl_vat',
   'Montant total': 'net_payout',
+  'Montant total correspondant à la commande (négatif en cas de remboursement) Ventes (TVA incluse) + Ajustements du prix (TVA incluse) - Bonus (TVA incluse) + Ajustement des frais de marketing + Frais de préparation et d\'emballage (TVA incluse) + Frais de sac + Frais de livraison (livraison autonome) + Pourboires (livraison autonome) - Frais de service de la Marketplace (TVA incluse) + Réduction sur les frais de service (le cas échéant) + Gain sur les frais de livraison +/- Autres paiements': 'net_payout',
   'Date du versement': 'payout_date',
   'Statut de la commande': 'status',
   'Identifiant du programme de fidélité du commerçant': 'loyalty_id',
