@@ -546,7 +546,7 @@ Deno.serve(async (req) => {
     
     headers.forEach((header, index) => {
       const normalizedHeader = normalizeHeader(header);
-      const dbField = NORMALIZED_COLUMN_MAPPING[normalizedHeader];
+      const dbField = NORMALIZED_COLUMN_MAPPING[normalizedHeader] || inferColumnMapping(normalizedHeader);
       
       if (dbField) {
         columnIndices[dbField] = index;
