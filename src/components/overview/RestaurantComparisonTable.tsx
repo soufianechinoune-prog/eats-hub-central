@@ -13,6 +13,8 @@ import { type RestaurantNetworkStats, type NetworkTotals, type PlatformBreakdown
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
 import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
