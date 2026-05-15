@@ -450,8 +450,8 @@ export function RestaurantComparisonTable({
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
                     </TableCell>
-                    <TableCell className="text-right font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                      {resto.mealVoucher > 0 ? formatCurrency(resto.mealVoucher) : "—"}
+                    <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
+                      {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
@@ -534,8 +534,8 @@ export function RestaurantComparisonTable({
               <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                 {formatNetPayout(networkTotals.totalNetPayout)}
               </TableCell>
-              <TableCell className="text-right font-bold text-blue-600 dark:text-blue-400 whitespace-nowrap">
-                {networkTotals.totalMealVoucher > 0 ? formatCurrency(networkTotals.totalMealVoucher) : "—"}
+              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                {networkTotals.totalMealVoucher > 0 ? formatCurrencyPrecise(networkTotals.totalMealVoucher) : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
                 {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
