@@ -13,6 +13,8 @@ import { type RestaurantNetworkStats, type NetworkTotals, type PlatformBreakdown
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
 import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
 type SortDirection = "asc" | "desc";
@@ -327,7 +329,18 @@ export function RestaurantComparisonTable({
             <TableRow className="hover:bg-transparent border-border/50">
               <TableHead className="w-12 text-xs font-semibold uppercase">#</TableHead>
               <HeaderCell column="name">Restaurant</HeaderCell>
-              <HeaderCell column="revenue" className="text-right">CA</HeaderCell>
+              <HeaderCell column="revenue" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">CA <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Chiffre d'affaires brut TTC, toutes commandes confondues (Uber + Deliveroo).
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               {showN1Comparison && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
@@ -338,7 +351,18 @@ export function RestaurantComparisonTable({
                   </span>
                 </TableHead>
               )}
-              <HeaderCell column="netPayout" className="text-right">Versement</HeaderCell>
+              <HeaderCell column="netPayout" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">Versement <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Net réellement versé sur le compte bancaire = Payout Uber + Titres-restaurant + Versement Deliveroo. Hors ajustements (ads, eco-contribution, marketing) traités dans les onglets Finances / Frais.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>

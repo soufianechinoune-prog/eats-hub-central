@@ -1,77 +1,55 @@
-## 🎯 Décision actée
+# Plan — Overview simplifié : 2 chiffres factuels uniquement
 
-**Le CSV Uber Eats devient la SEULE source de vérité pour tous les chiffres financiers** (CA, payouts, commissions, refunds, marketing, eco-contribution, ajustements). L'API Uber Eats reste utilisée uniquement pour afficher du **provisoire** sur le mois en cours, jusqu'à l'arrivée du CSV mensuel.
+## Principe (ta règle)
 
-## Pourquoi
+L'Overview doit afficher **uniquement 2 chiffres bruts et vérifiables** :
 
-Les CSV "Payment Details" capturent ce que l'API ne donne pas :
-- les **remboursements rétroactifs J+10/J+15** (litiges clients)
-- les **ajustements quotidiens globaux** sans UUID (publicité, frais Uber)
-- les **corrections de TVA / eco-contribution** post-export
-- les **lignes négatives compensatoires** étalées sur plusieurs jours
+1. **CA TTC** = somme des `orders.gross_amount` sur la période
+2. **Versement** = `SUM(net_payout) + SUM(meal_voucher_amount)` = ce qui arrive **réellement sur le compte bancaire**
 
-C'est aussi la source utilisée par l'expert-comptable, la compta et la négo Uber → cohérence garantie.
+**Pas de déductions** d'eco-contribution, ads, marketing, ajustements, etc. dans l'Overview. Ces analyses fines iront dans les onglets dédiés (Finances, Frais, Profitabilité…).
 
-## Plan d'implémentation
+---
 
-### 1. Marquage des données par source
-- Ajouter colonne `data_source` (`'csv'` | `'api'`) sur `orders`, `monthly_revenue`, `monthly_fees`, `daily_revenue`, `daily_sales_uber`
-- Ajouter `csv_imported_at` sur `monthly_revenue` / `monthly_fees` pour savoir quand le mois a été "figé" par CSV
+## État actuel vs attendu (Argenteuil février 2026)
 
-### 2. Règle de bascule API → CSV
-À chaque import de CSV "Payment Details" pour un mois M :
-- **Supprimer** toutes les lignes API du mois M (orders, daily_revenue, daily_sales_uber, monthly_*) pour les restaurants concernés
-- **Insérer** les lignes CSV
-- Marquer `monthly_revenue.csv_imported_at = now()`
+| | Overview actuel | Cible (= règle simple) | OK ? |
+|---|---:|---:|---|
+| CA TTC | 57 637 € | `SUM(gross_amount)` = **57 637,42 €** | ✅ déjà bon |
+| Versement | 35 069 € | `SUM(net_payout) + SUM(meal_voucher_amount)` = 29 542,56 + 5 526,57 = **35 069,13 €** | ✅ déjà bon |
 
-### 3. UI Overview / Finances
-- Si mois courant **sans CSV** → badge orange **"Provisoire (API)"** + tooltip explicatif
-- Si mois **avec CSV** → badge vert **"Définitif (CSV)"** + date d'import
-- Si mois **mixte** (transition) → bandeau d'avertissement
+→ **L'Overview est déjà aligné sur ta règle.** Les "écarts" qu'on cherchait à expliquer venaient d'une comparaison avec des chiffres Uber Manager qui, eux, intègrent déjà les déductions (ads, ajustements). C'est normal.
 
-### 4. Désactiver les écritures API sur les mois "figés"
-- Edge function `uber-sync-orders` (et équivalents) : avant d'écrire, vérifier que `monthly_revenue.csv_imported_at IS NULL` pour ce mois/restaurant
-- Si CSV déjà importé → skip silencieusement, ne pas écraser les chiffres comptables
+---
 
-### 5. Bouton manuel "Re-figer le mois depuis CSV"
-- Dans la page Imports, pour chaque mois × restaurant, un bouton qui force la suppression des données API et le re-traitement du dernier CSV
-- Utile en cas de re-import correctif Uber
+## Ce qu'il faut faire
 
-### 6. Documentation visuelle
-- Ajouter un encart pédagogique sur la page Overview expliquant la règle "API = provisoire / CSV = définitif"
-- Mettre à jour la mémoire projet avec cette règle de gouvernance des données
+### 1. Confirmer / clarifier l'affichage Overview
+- Le bloc "Versement" doit afficher **35 069 €** (= ce qui tombe en banque) — c'est déjà le cas ✅
+- Le bloc "CA" doit afficher **57 637 €** — c'est déjà le cas ✅
+- Vérifier les libellés / tooltips pour qu'ils disent explicitement :
+  - **CA TTC** : "Chiffre d'affaires brut TTC, toutes commandes confondues"
+  - **Versement** : "Net versé sur compte bancaire (payout Uber + titres-restaurant)"
 
-## Ce qui reste piloté par API (inchangé)
+### 2. Nettoyer ce qui pourrait fausser ces 2 chiffres
+- Vérifier que `meal_voucher_amount` ne contient pas de pollution (la +19,98 € d'eco-contribution doublée identifiée précédemment) — **fix parser** pour que `meal_voucher_amount` = uniquement vrais TR
+- Après fix : le "Versement" passera de 35 069,13 € à **35 049,15 €** (chiffre 100% propre)
 
-| Domaine | Source |
-|---|---|
-| Statut commande temps réel, downtime live | 🔌 API |
-| Avis clients récents | 🔌 API |
-| Menu / disponibilité produits | 🔌 API |
-| Mois en cours avant CSV (badge "Provisoire") | 🔌 API |
+### 3. Déplacer toutes les analyses fines dans les autres onglets
+- Eco-contribution, ads, ajustements, marketing co-financing → onglets **Finances** / **Frais** / **Profitabilité**
+- L'Overview reste **un tableau de bord factuel**, pas un tableau comptable
 
-## Détails techniques
+---
 
-```text
-Flux mensuel :
-  J1-J31    → API alimente orders/daily_revenue (badge "Provisoire (API)")
-  ~J35      → CSV "Payment Details" du mois M dispo dans Uber Eats Manager
-  Import    → Edge function purge orders du mois M + insert CSV
-            → monthly_revenue.csv_imported_at = now()
-            → Badge devient "Définitif (CSV)"
-  J+15..60  → Si Uber re-publie le CSV (refunds tardifs), bouton "Re-figer"
-```
+## Étapes
 
-**Tables impactées** : `orders`, `order_items`, `daily_revenue`, `daily_sales_uber`, `monthly_revenue`, `monthly_fees`
-**Edge functions impactées** : `parse-payment-report`, `uber-sync-orders` (et toute fonction écrivant dans `orders` depuis l'API)
-**Pages UI impactées** : Overview, Finances, Frais, Imports
+1. **Fix parser** (`parse-payment-report`) : ne plus ajouter l'eco-contribution dans `meal_voucher_amount`
+2. **Réimporter février Argenteuil** pour valider que `meal_voucher_amount` = 5 519,44 € (au lieu de 5 526,57 €)
+3. **Vérifier les libellés** des cartes Overview (CA + Versement) pour qu'ils soient sans ambiguïté
+4. **Passer aux autres mois** (janvier 2026, décembre 2025, …) avec la même logique
 
-## Ce qui n'est PAS dans ce plan
+---
 
-- Réconciliation ligne-par-ligne CSV vs DB (sujet déjà traité dans l'audit Argenteuil)
-- Refonte du dashboard Avis ou des autres modules non-financiers
-- Migration historique des données existantes (à décider après validation du flux sur 1 mois pilote)
+## Question
 
-## Question ouverte avant implémentation
-
-Veux-tu qu'on **pilote d'abord sur 1 marque (Chicken Street) sur 1 mois** avant de basculer tout le réseau, ou qu'on déploie directement partout ?
+Tu valides cette logique ? Si oui, je commence par **l'étape 1 (fix parser)** + on relance février pour avoir des chiffres 100% propres.
