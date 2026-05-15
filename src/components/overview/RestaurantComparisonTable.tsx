@@ -46,6 +46,14 @@ const formatCurrency = (value: number) => {
   }).format(value) + " €";
 };
 
+const formatCurrencyPrecise = (value: number) => {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "decimal",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value) + " €";
+};
+
 const formatMinutesLong = (minutes: number | null): string => {
   if (minutes == null) return "—";
   const mins = Math.round(minutes);
@@ -139,8 +147,8 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
         {formatCurrency(data.netPayout)}
       </TableCell>
-      <TableCell className="text-right text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
-        {data.mealVoucher > 0 ? formatCurrency(data.mealVoucher) : "—"}
+      <TableCell className="text-right text-xs text-primary whitespace-nowrap">
+        {data.mealVoucher > 0 ? formatCurrencyPrecise(data.mealVoucher) : "—"}
       </TableCell>
       <TableCell className="text-right text-xs">
         {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
