@@ -10,6 +10,7 @@ interface ResyncRow {
   restaurant_id: string;
   restaurant_name: string;
   retagged_count: number;
+  status?: "ok" | "locked" | "error";
 }
 
 export function ResyncLiveTagCard() {
