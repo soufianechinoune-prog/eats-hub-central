@@ -1,37 +1,77 @@
-Constat en base :
+## 🎯 Décision actée
 
-- Chicken Street Argenteuil a 69 220 commandes, dont 0 taguées `uber_api`.
-- Chicken Street Orléans a 41 325 commandes, dont 0 taguées `uber_api`.
-- Pourtant, les jobs `PAYMENT_DETAILS_REPORT` sont bien `done` de janvier 2024 à mai 2026 pour les deux restaurants.
-- Donc le problème n’est pas l’API Uber : les jobs API existent bien. Le problème est le retag qui n’a pas modifié les commandes existantes.
+**Le CSV Uber Eats devient la SEULE source de vérité pour tous les chiffres financiers** (CA, payouts, commissions, refunds, marketing, eco-contribution, ajustements). L'API Uber Eats reste utilisée uniquement pour afficher du **provisoire** sur le mois en cours, jusqu'à l'arrivée du CSV mensuel.
 
-Pourquoi ça reste affiché “Historique” :
+## Pourquoi
 
-- La page affiche “Live” seulement si les commandes du mois ont `data_source = 'uber_api'`, ou si elle trouve un job `done` pour ce mois.
-- Pour Argenteuil et Orléans, les commandes sont encore avec `data_source = NULL`.
-- La fonction de resynchronisation actuelle devrait les passer en `uber_api`, mais elle semble ne pas l’avoir fait sur ces deux gros volumes.
-- Il y a bien environ 69 208 commandes éligibles à retagger pour Argenteuil et 41 322 pour Orléans.
+Les CSV "Payment Details" capturent ce que l'API ne donne pas :
+- les **remboursements rétroactifs J+10/J+15** (litiges clients)
+- les **ajustements quotidiens globaux** sans UUID (publicité, frais Uber)
+- les **corrections de TVA / eco-contribution** post-export
+- les **lignes négatives compensatoires** étalées sur plusieurs jours
 
-Plan de correction :
+C'est aussi la source utilisée par l'expert-comptable, la compta et la négo Uber → cohérence garantie.
 
-1. Remplacer la resynchronisation globale par une version ciblable par restaurant.
-   - Objectif : pouvoir retagger Argenteuil et Orléans séparément, au lieu de relancer toute la base.
-   - Avantage : moins de risque de timeout/verrou, et résultat plus lisible.
+## Plan d'implémentation
 
-2. Corriger la logique SQL pour retagger uniquement les commandes couvertes par un job `PAYMENT_DETAILS_REPORT` déjà terminé.
-   - Argenteuil : janvier 2024 à mai 2026.
-   - Orléans : janvier 2024 à mai 2026.
-   - Les quelques commandes de décembre 2023 resteraient “Historique”, car aucun job API de décembre 2023 n’existe.
+### 1. Marquage des données par source
+- Ajouter colonne `data_source` (`'csv'` | `'api'`) sur `orders`, `monthly_revenue`, `monthly_fees`, `daily_revenue`, `daily_sales_uber`
+- Ajouter `csv_imported_at` sur `monthly_revenue` / `monthly_fees` pour savoir quand le mois a été "figé" par CSV
 
-3. Ajouter/adapter l’interface du bouton pour afficher clairement :
-   - combien de commandes ont été retaggées,
-   - quels restaurants ont réussi,
-   - quels restaurants sont bloqués ou en erreur,
-   - et rafraîchir les données de la page après succès.
+### 2. Règle de bascule API → CSV
+À chaque import de CSV "Payment Details" pour un mois M :
+- **Supprimer** toutes les lignes API du mois M (orders, daily_revenue, daily_sales_uber, monthly_*) pour les restaurants concernés
+- **Insérer** les lignes CSV
+- Marquer `monthly_revenue.csv_imported_at = now()`
 
-4. Après validation, vérifier en base que :
-   - Argenteuil passe d’environ 0 à 69k commandes `uber_api`,
-   - Orléans passe d’environ 0 à 41k commandes `uber_api`,
-   - les mois concernés affichent bien “Live”.
+### 3. UI Overview / Finances
+- Si mois courant **sans CSV** → badge orange **"Provisoire (API)"** + tooltip explicatif
+- Si mois **avec CSV** → badge vert **"Définitif (CSV)"** + date d'import
+- Si mois **mixte** (transition) → bandeau d'avertissement
 
-En vulgarisé : l’API Uber a bien ramené les données, mais l’étiquette collée sur les anciennes commandes n’a pas changé. La page voit encore l’ancienne étiquette vide, donc elle écrit “Historique”. Il faut refaire le collage d’étiquette, mais de façon ciblée et plus robuste pour ces gros restaurants.
+### 4. Désactiver les écritures API sur les mois "figés"
+- Edge function `uber-sync-orders` (et équivalents) : avant d'écrire, vérifier que `monthly_revenue.csv_imported_at IS NULL` pour ce mois/restaurant
+- Si CSV déjà importé → skip silencieusement, ne pas écraser les chiffres comptables
+
+### 5. Bouton manuel "Re-figer le mois depuis CSV"
+- Dans la page Imports, pour chaque mois × restaurant, un bouton qui force la suppression des données API et le re-traitement du dernier CSV
+- Utile en cas de re-import correctif Uber
+
+### 6. Documentation visuelle
+- Ajouter un encart pédagogique sur la page Overview expliquant la règle "API = provisoire / CSV = définitif"
+- Mettre à jour la mémoire projet avec cette règle de gouvernance des données
+
+## Ce qui reste piloté par API (inchangé)
+
+| Domaine | Source |
+|---|---|
+| Statut commande temps réel, downtime live | 🔌 API |
+| Avis clients récents | 🔌 API |
+| Menu / disponibilité produits | 🔌 API |
+| Mois en cours avant CSV (badge "Provisoire") | 🔌 API |
+
+## Détails techniques
+
+```text
+Flux mensuel :
+  J1-J31    → API alimente orders/daily_revenue (badge "Provisoire (API)")
+  ~J35      → CSV "Payment Details" du mois M dispo dans Uber Eats Manager
+  Import    → Edge function purge orders du mois M + insert CSV
+            → monthly_revenue.csv_imported_at = now()
+            → Badge devient "Définitif (CSV)"
+  J+15..60  → Si Uber re-publie le CSV (refunds tardifs), bouton "Re-figer"
+```
+
+**Tables impactées** : `orders`, `order_items`, `daily_revenue`, `daily_sales_uber`, `monthly_revenue`, `monthly_fees`
+**Edge functions impactées** : `parse-payment-report`, `uber-sync-orders` (et toute fonction écrivant dans `orders` depuis l'API)
+**Pages UI impactées** : Overview, Finances, Frais, Imports
+
+## Ce qui n'est PAS dans ce plan
+
+- Réconciliation ligne-par-ligne CSV vs DB (sujet déjà traité dans l'audit Argenteuil)
+- Refonte du dashboard Avis ou des autres modules non-financiers
+- Migration historique des données existantes (à décider après validation du flux sur 1 mois pilote)
+
+## Question ouverte avant implémentation
+
+Veux-tu qu'on **pilote d'abord sur 1 marque (Chicken Street) sur 1 mois** avant de basculer tout le réseau, ou qu'on déploie directement partout ?
