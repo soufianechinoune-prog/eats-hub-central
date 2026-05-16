@@ -637,6 +637,7 @@ export function RestaurantComparisonTable({
                         errorRate={resto.errorRate}
                         prepTime={resto.totalDeliveryTime}
                         downtime={resto.downtime}
+                        showCashColumn={showCashColumn}
                       />
                       <PlatformSubRow
                         platform="Deliveroo"
@@ -644,7 +645,20 @@ export function RestaurantComparisonTable({
                         showN1Comparison={showN1Comparison}
                         isUber={false}
                         revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.deliveroo.revenue / resto.revenue) * 100 : 0}
+                        showCashColumn={showCashColumn}
                       />
+                      {(() => {
+                        const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                        const totalWithCash = resto.revenue + cash;
+                        return (
+                          <CashSubRow
+                            cash={cash}
+                            revenueShare={totalWithCash > 0 ? (cash / totalWithCash) * 100 : 0}
+                            showN1Comparison={showN1Comparison}
+                            showCashColumn={showCashColumn}
+                          />
+                        );
+                      })()}
                     </>
                   )}
                 </>
