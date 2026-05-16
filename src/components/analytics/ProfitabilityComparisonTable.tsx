@@ -1029,7 +1029,10 @@ export function ProfitabilityComparisonTable({
     );
 
     const channelLabel = (c: ChannelBreakdown["channel"]) =>
-      c === "delivery" ? "🚲 Livraison" : c === "takeaway" ? "🛍️ À emporter" : "• Autre";
+      c === "delivery" ? "🚲 Livraison"
+        : c === "takeaway" ? "🛍️ À emporter"
+        : c === "web_online" ? "💻 Commande en ligne"
+        : "• Autre";
 
     return (
       <TooltipProvider>
