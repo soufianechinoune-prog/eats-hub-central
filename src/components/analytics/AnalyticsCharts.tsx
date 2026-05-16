@@ -2283,7 +2283,7 @@ export function AnalyticsCharts({
               >
                 <ResponsiveContainer width="100%" height="100%">
                   {revenueChartType === 'bar' ? (
-                    <BarChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+                    <BarChart data={drillDownMonth ? drillDownChartData : displayRevenueData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="month" className="text-xs" />
                         <YAxis className="text-xs" />
