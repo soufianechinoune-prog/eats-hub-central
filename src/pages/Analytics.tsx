@@ -26,6 +26,7 @@ import { OffersAnalyticsSection } from "@/components/analytics/OffersAnalyticsSe
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
+import { PosEmptyState } from "@/components/analytics/PosEmptyState";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: false,
