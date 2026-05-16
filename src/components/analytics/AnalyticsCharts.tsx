@@ -629,7 +629,7 @@ export function AnalyticsCharts({
     endDate: profitEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Fetch N-1 profitability data for comparison
@@ -639,7 +639,7 @@ export function AnalyticsCharts({
     endDate: profitPrevEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Fetch Uber One stats for the Cross Data Analysis chart
@@ -648,7 +648,7 @@ export function AnalyticsCharts({
     startDate: profitStartDate,
     endDate: profitEndDate,
     periodMode: granularity === "daily" ? "month" : "year",
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Transform Uber One data to match chart format
@@ -3430,7 +3430,7 @@ export function AnalyticsCharts({
           profitabilityComparisonMode={profitabilityComparisonMode}
           onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthDrillDown={handleProfitabilityClick}
-          selectedPlatform={selectedPlatform}
+          selectedPlatform={selectedPlatform === "pos" ? "global" : selectedPlatform}
           // Action filtering props
           showActions={chartActionsConfig?.global}
           onShowActionsChange={(value) => onChartActionsConfigChange?.({ ...chartActionsConfig!, global: value })}

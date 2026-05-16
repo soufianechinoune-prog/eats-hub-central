@@ -26,6 +26,7 @@ import { OffersAnalyticsSection } from "@/components/analytics/OffersAnalyticsSe
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
+import { PosEmptyState } from "@/components/analytics/PosEmptyState";
 
 const DEFAULT_CHART_ACTIONS_CONFIG: ChartActionsConfig = {
   global: false,
@@ -1352,7 +1353,9 @@ export default function Analytics() {
       )}
 
       {/* Content based on selected platform from context */}
-      {isLoading ? (
+      {selectedPlatform === "pos" ? (
+        <PosEmptyState />
+      ) : isLoading ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
