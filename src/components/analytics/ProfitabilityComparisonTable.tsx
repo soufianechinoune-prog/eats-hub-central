@@ -426,6 +426,38 @@ export function ProfitabilityComparisonTable({
     return map;
   }, [ecoAdjustmentsRaw]);
 
+  // ── Cofinancement marketing négocié : lignes "marketing_adjustment" sans rattachement à une commande ──
+  const { data: marketingAdjustmentsRaw } = useQuery({
+    queryKey: ["marketing-adjustments", ecoQueryParams],
+    queryFn: async () => {
+      if (!ecoQueryParams) return [];
+      const { data, error } = await supabase
+        .from("payout_adjustments")
+        .select("payout_date, restaurant_id, amount")
+        .eq("category", "marketing_adjustment")
+        .in("restaurant_id", ecoQueryParams.restaurantIds)
+        .gte("payout_date", ecoQueryParams.start)
+        .lte("payout_date", ecoQueryParams.end);
+      if (error) {
+        console.error("[ProfitabilityComparisonTable] marketing_adjustments", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!ecoQueryParams,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const marketingMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!marketingAdjustmentsRaw) return map;
+    for (const row of marketingAdjustmentsRaw as any[]) {
+      const key = `${row.payout_date}|${row.restaurant_id}`;
+      map.set(key, (map.get(key) || 0) + (Number(row.amount) || 0));
+    }
+    return map;
+  }, [marketingAdjustmentsRaw]);
+
   const comparisonData = useMemo(() => {
     const rows = payouts.map((payout): ComparisonRow => {
       const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
