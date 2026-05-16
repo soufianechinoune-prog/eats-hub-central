@@ -535,9 +535,14 @@ export function RestaurantComparisonTable({
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
-                    {showCashColumn && (
-                      <TableCell className="text-right text-muted-foreground">—</TableCell>
-                    )}
+                    {showCashColumn && (() => {
+                      const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                      return (
+                        <TableCell className={cn("text-right whitespace-nowrap", cash > 0 ? "text-cash font-semibold" : "text-muted-foreground")}>
+                          {cash > 0 ? formatCurrency(cash) : "—"}
+                        </TableCell>
+                      );
+                    })()}
                     <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(resto.netPayout)}
                     </TableCell>
