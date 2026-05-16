@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, differenceInDays, parseISO } from "date-fns";
+import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, differenceInDays, parseISO, endOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
@@ -237,7 +237,11 @@ export const ProfitabilityComparisonChart = ({
       });
     } else {
       // MONTHLY aggregation from daily data
-      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
+      // In yearOverYear, extend X axis to full year (Jan→Dec) even if data stops earlier
+      const monthsEnd = comparisonMode === "yearOverYear"
+        ? endOfYear(dateRange.start)
+        : dateRange.end;
+      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: monthsEnd });
       
       // Aggregate current period daily data by month
       const dataByMonth: Record<string, {
@@ -319,7 +323,7 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     }
-  }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
+  }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase, comparisonMode]);
 
   // Detailed chart data: per-restaurant profitability for multi-line view
   const detailedChartData = useMemo(() => {

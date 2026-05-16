@@ -1,67 +1,44 @@
-## Objectif
+## Problème identifié
 
-Appliquer la même logique de "cutoff" au graphique **Rentabilité globale** (`ProfitabilityComparisonChart.tsx`) que celle déjà en place sur Chiffre d'Affaires / Commandes / Panier moyen.
+Sur le graphique **Rentabilité globale**, l'axe X s'arrête à mai alors qu'il devrait aller de janvier à décembre (comme Chiffre d'affaires / Commandes).
 
-En vue annuelle (2026 vs 2025), la courbe 2026 doit s'arrêter au dernier mois (ou jour) avec data réelle, la courbe 2025 reste affichée en entier, et la **variation (`-1.6pp`)** doit être recalculée sur la **même fenêtre comparable** (Jan → dernier mois 2026).
+**Cause** : ligne 240 de `ProfitabilityComparisonChart.tsx` :
+```ts
+const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
+```
+`dateRange.end` vaut aujourd'hui (16 mai 2026), donc `allMonths` ne génère que Jan→Mai. Recharts n'a tout simplement pas de points pour juin→décembre.
 
-## Comportement attendu
+## Comportement attendu (identique aux 2 autres graphiques)
 
-1. Détecter le dernier index avec data réelle en année courante (`sales > 0` ou `orders > 0` ou `profitability !== null`).
-2. Courbe 2026 : `profitability = null` après le cutoff → Recharts coupe proprement la ligne.
-3. Courbe 2025 (`prevProfitability`) : inchangée, affichée en entier.
-4. KPIs `totalProfitability`, `prevTotalProfitability`, `variation` : recalculés uniquement sur les mois ≤ cutoff.
-5. Indicateur discret sous le titre : `· comparable Jan → Mai` quand un cutoff est appliqué.
-6. Actif uniquement si `comparisonMode === "yearOverYear"`. Le mode `rollingPeriod` reste inchangé.
+En mode `yearOverYear`, l'axe X doit couvrir **toute l'année courante** (Jan → Déc) :
+- Courbe 2026 : présente Jan → Mai (data réelle), puis `null` → la ligne s'arrête visuellement.
+- Courbe 2025 : présente Jan → Déc en entier.
+- KPI `-1.6pp` : déjà recalculé sur la fenêtre comparable (Jan → Mai) par mon édit précédente. ✅
 
 ## Implémentation
 
-Fichier unique : `src/components/compare/ProfitabilityComparisonChart.tsx`
-
-### 1. Cutoff (nouveau `useMemo` après `chartData`)
+**Un seul changement** dans `src/components/compare/ProfitabilityComparisonChart.tsx`, useMemo `chartData` ligne ~240 :
 
 ```ts
-const currentYearCutoffIndex = useMemo(() => {
-  if (comparisonMode !== "yearOverYear") return -1;
-  let last = -1;
-  chartData.forEach((d, i) => {
-    if ((d.sales || 0) > 0 || (d.orders || 0) > 0) last = i;
-  });
-  // Ne s'applique que s'il manque au moins une période en année courante
-  const hasMissing = chartData.some((d, i) => i > last);
-  return hasMissing ? last : -1;
-}, [chartData, comparisonMode]);
+import { endOfYear } from "date-fns"; // ajouter à l'import existant
+
+// ... à la place de :
+const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
+
+// utiliser :
+const monthsEnd = comparisonMode === "yearOverYear"
+  ? endOfYear(dateRange.start)
+  : dateRange.end;
+const allMonths = eachMonthOfInterval({ start: dateRange.start, end: monthsEnd });
 ```
 
-### 2. Data affichée (courbe tronquée)
+Et ajouter `comparisonMode` aux dépendances du useMemo (ligne 322).
 
-```ts
-const displayChartData = useMemo(() => {
-  if (currentYearCutoffIndex < 0) return chartData;
-  return chartData.map((d, i) => i > currentYearCutoffIndex
-    ? { ...d, profitability: null, trBonus: null }
-    : d);
-}, [chartData, currentYearCutoffIndex]);
-```
+**Effets** :
+- `chartData` contient 12 mois (Jan→Déc), valeurs à 0 pour juin→déc côté 2026.
+- Mon `currentYearCutoffIndex` détecte mai comme dernier mois avec data (sales>0), donc :
+  - `displayChartData` met `profitability = null` de juin à décembre → la courbe verte 2026 s'arrête à mai.
+  - La courbe pointillée 2025 (`prevProfitability`) reste affichée jusqu'à décembre (les valeurs N-1 viennent de `prevDataByMonth` qui couvre toute l'année 2025).
+  - Les KPIs restent calculés sur Jan→Mai (`scoped = chartData.slice(0, cutoff+1)`).
 
-Remplacer `chartData` par `displayChartData` dans les `LineChart` / `BarChart` (lignes ~1107-1153 et autres références dans le rendu graphique).
-
-### 3. KPIs sur fenêtre comparable
-
-Dans le `useMemo` ligne 428, calculer les sommes **uniquement** sur `chartData.slice(0, currentYearCutoffIndex + 1)` quand `currentYearCutoffIndex >= 0`. Sinon, comportement actuel. Cela aligne `totalProfitability` (2026 partiel) et `prevTotalProfitability` (2025 sur la même fenêtre) → la `variation` devient pertinente.
-
-### 4. Indicateur visuel
-
-Sous le titre "Rentabilité globale", ajouter (uniquement si cutoff actif) :
-```
-· comparable Jan → {nom du dernier mois}
-```
-
-### 5. Export CSV
-
-L'export ligne 639 boucle sur `chartData` → conserver `chartData` complet pour l'export (utilisateur peut vouloir voir les zéros), OU exporter `displayChartData`. À confirmer si besoin — par défaut on garde `chartData`.
-
-## Points techniques
-
-- Aucune modif backend / RPC.
-- Aucun impact sur le mode `rollingPeriod`.
-- Cohérent avec le pattern déjà appliqué dans `AnalyticsCharts.tsx`.
+Aucun autre fichier touché. Pas de changement backend.
