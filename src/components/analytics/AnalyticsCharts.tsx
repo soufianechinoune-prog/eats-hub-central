@@ -639,7 +639,7 @@ export function AnalyticsCharts({
     endDate: profitPrevEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Fetch Uber One stats for the Cross Data Analysis chart
