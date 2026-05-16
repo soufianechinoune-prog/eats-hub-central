@@ -1421,7 +1421,11 @@ export function ProfitabilityComparisonTable({
                         <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
+                        <CommissionAuditCell
+                          percentValue={row.uberFeeRate}
+                          amountValue={row.uberFeeNet}
+                          breakdownKeys={[`${row.date}|${row.restaurantId}`]}
+                        />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
@@ -1584,7 +1588,11 @@ export function ProfitabilityComparisonTable({
                                 <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                               </TableCell>
                               <TableCell className="text-right">
-                                <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
+                                <CommissionAuditCell
+                                  percentValue={row.uberFeeRate}
+                                  amountValue={row.uberFeeNet}
+                                  breakdownKeys={[`${row.date}|${row.restaurantId}`]}
+                                />
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground">
                                 <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
