@@ -705,7 +705,7 @@ export function AnalyticsCharts({
   }, [comparisonMode, revenueData, prevRevenueData]);
   
   // Chart type toggle state (bar or line)
-  const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('bar');
+  const [revenueChartType, setRevenueChartType] = useState<'bar' | 'line'>('line');
   
   // View mode toggle state (chart or table)
   const [revenueViewMode, setRevenueViewMode] = useState<'chart' | 'table'>('chart');
