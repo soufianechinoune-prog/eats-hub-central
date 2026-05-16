@@ -588,6 +588,20 @@ export function RestaurantComparisonTable({
               <TableCell className="text-right font-semibold text-muted-foreground">
                 {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
               </TableCell>
+              <TableCell className="text-right font-bold text-uber whitespace-nowrap">
+                {networkAdsPct != null ? (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : "—"}
+              </TableCell>
               <TableCell className="text-right font-semibold">
                 {networkTotals.totalOrders.toLocaleString("fr-FR")}
               </TableCell>
