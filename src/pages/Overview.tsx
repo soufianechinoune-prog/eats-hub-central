@@ -23,6 +23,7 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
@@ -394,6 +395,11 @@ const Overview = () => {
     endDate,
     chainId: analyticsCtx.selectedChainId,
   });
+  const { data: cashByRestaurant } = useRestaurantCashRevenue({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
+  });
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const cashConnected = !!activePosConnection && activePosConnection.is_active;
 
@@ -714,6 +720,8 @@ const Overview = () => {
               networkAdsSpend={adsRatio.networkAdsSpend}
               networkAdsRevenue={adsRatio.networkRevenue}
               networkAdsPct={adsRatio.networkPct}
+              networkCashTotal={cashRevenueData?.totalCash ?? 0}
+              cashByRestaurant={cashByRestaurant}
             />
           </div>
 
