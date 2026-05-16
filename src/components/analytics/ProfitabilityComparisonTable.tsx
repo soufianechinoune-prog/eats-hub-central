@@ -1752,7 +1752,11 @@ export function ProfitabilityComparisonTable({
                             <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                            <CommissionAuditCell
+                              percentValue={group.avgUberFeeRate}
+                              amountValue={group.totalUberFee}
+                              breakdownKeys={group.rows.map(r => `${r.date}|${r.restaurantId}`)}
+                            />
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
@@ -1820,7 +1824,11 @@ export function ProfitabilityComparisonTable({
                               {resto.profitability.toFixed(1)}%
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.uberFeeRate} amountValue={resto.uberFee} isCommission />
+                              <CommissionAuditCell
+                                percentValue={resto.uberFeeRate}
+                                amountValue={resto.uberFee}
+                                breakdownKeys={group.rows.filter(r => r.restaurantId === resto.restaurantId).map(r => `${r.date}|${r.restaurantId}`)}
+                              />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
@@ -2035,7 +2043,11 @@ export function ProfitabilityComparisonTable({
                             <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                            <CommissionAuditCell
+                              percentValue={group.avgUberFeeRate}
+                              amountValue={group.totalUberFee}
+                              breakdownKeys={group.rows.map(r => `${r.date}|${r.restaurantId}`)}
+                            />
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
@@ -2103,7 +2115,11 @@ export function ProfitabilityComparisonTable({
                               {resto.profitability.toFixed(1)}%
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.uberFeeRate} amountValue={resto.uberFee} isCommission />
+                              <CommissionAuditCell
+                                percentValue={resto.uberFeeRate}
+                                amountValue={resto.uberFee}
+                                breakdownKeys={group.rows.filter(r => r.restaurantId === resto.restaurantId).map(r => `${r.date}|${r.restaurantId}`)}
+                              />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
