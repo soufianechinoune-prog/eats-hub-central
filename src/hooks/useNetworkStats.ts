@@ -27,6 +27,8 @@ export interface RestaurantNetworkStats {
   // Quality metrics
   rating: number | null;
   profitability: number | null;
+  // Cofinancement marketing négocié (versé par Uber au niveau du payout hebdo, hors commandes)
+  negotiatedCofinancement: number;
   // Operations metrics
   prepTime: number | null;
   totalDeliveryTime: number | null; // Temps prépa+livraison moyen
