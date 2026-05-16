@@ -379,6 +379,50 @@ export function ProfitabilityComparisonTable({
     return map;
   }, [commissionBreakdownRaw]);
 
+  // ── Éco-contribution : lue depuis payout_adjustments (les colonnes payouts.eco_contribution_* ne sont jamais peuplées) ──
+  const ecoQueryParams = useMemo(() => {
+    if (platform === "deliveroo" || !payouts || payouts.length === 0) return null;
+    const restaurantIds = Array.from(new Set(payouts.map(p => p.restaurant_id).filter(Boolean)));
+    if (restaurantIds.length === 0) return null;
+    const dates = payouts.map(p => p.payout_date).filter(Boolean).sort();
+    return { restaurantIds, start: dates[0], end: dates[dates.length - 1] };
+  }, [payouts, platform]);
+
+  const { data: ecoAdjustmentsRaw } = useQuery({
+    queryKey: ["eco-adjustments", ecoQueryParams],
+    queryFn: async () => {
+      if (!ecoQueryParams) return [];
+      const { data, error } = await supabase
+        .from("payout_adjustments")
+        .select("payout_date, restaurant_id, amount")
+        .eq("category", "eco_contribution")
+        .in("restaurant_id", ecoQueryParams.restaurantIds)
+        .gte("payout_date", ecoQueryParams.start)
+        .lte("payout_date", ecoQueryParams.end);
+      if (error) {
+        console.error("[ProfitabilityComparisonTable] eco_adjustments", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!ecoQueryParams,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const ecoMap = useMemo(() => {
+    const map = new Map<string, { refund: number; charge: number }>();
+    if (!ecoAdjustmentsRaw) return map;
+    for (const row of ecoAdjustmentsRaw as any[]) {
+      const key = `${row.payout_date}|${row.restaurant_id}`;
+      const amount = Number(row.amount) || 0;
+      const entry = map.get(key) || { refund: 0, charge: 0 };
+      if (amount > 0) entry.refund += amount;
+      else if (amount < 0) entry.charge += Math.abs(amount);
+      map.set(key, entry);
+    }
+    return map;
+  }, [ecoAdjustmentsRaw]);
+
   const comparisonData = useMemo(() => {
     const rows = payouts.map((payout): ComparisonRow => {
       const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
