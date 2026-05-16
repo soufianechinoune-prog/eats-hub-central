@@ -161,6 +161,7 @@ Deno.serve(async (req) => {
                   dryRun: false,
                   reportId: report.id,
                   restaurantId: reportData.restaurant_id,
+                  dataSource: 'uber_api',
                 },
               });
               if (parseInvokeError) {
