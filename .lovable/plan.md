@@ -1,66 +1,72 @@
-## Diagnostic des taux 26,7 % et 26,6 %
+## Vérification
 
-Le calcul actuel **est correct** — il vérifie bien la commission appliquée. La différence avec 27 % vient simplement du **mélange livraison / à emporter** dans le dénominateur.
+**Hypothèse confirmée.** Les 3 commandes à 10 % du 29/07/2024 (et celle du 26/08/2024) ne sont pas une erreur Uber : ce sont des **commandes passées via le site web Uber Eats**, identifiables par `orders.order_channel = 'Commandes en ligne version web'`. Uber applique pour ce canal un **taux contractuel réduit à 10 % (HT/TTC)** — distinct de l'app mobile (iOS/Android = 27 %).
 
-### Vérification chiffrée (Reims, données réelles)
+Distribution réelle du 29/07/2024 :
+- iOS — Livraison : 30 cmd → 29,72 %
+- Android — Livraison : 18 cmd → 29,67 %
+- **Commandes en ligne version web — Livraison : 3 cmd → 10,97 %** ✅
+- Uber Eats Web — Livraison : 1 cmd → 29,69 %
 
-**5 février 2026**
-| Canal | Cmd | Base TTC (CA−promo) | Commission HT | Taux |
-|---|---|---|---|---|
-| Livraison | 93 | 1 872,41 € | 505,68 € | **27,01 %** ✅ |
-| À emporter | 2 | 43,90 € | 6,59 € | **15,01 %** ✅ |
-| **Total** | **95** | **1 916,31 €** | **512,27 €** | **26,73 %** |
+Donc il y a bien aujourd'hui **3 canaux contractuels** côté Uber :
+1. 🚲 **Livraison** (app mobile) → 27 %
+2. 🛍️ **À emporter** → 15 %
+3. 💻 **Commande en ligne (web)** → 10 %
 
-→ Uber applique bien les bons taux contractuels. Le 26,7 % global est juste la moyenne pondérée par la base TTC.
+Le statut Uber One / non‑Uber One reste informatif pour 2025 (même taux), et deviendra un 4ᵉ axe contractuel en 2026 — **non implémenté pour l'instant**, juste préparé dans la structure.
 
-**25 février 2026**
-| Canal | Cmd | Base TTC | Commission HT | Taux |
-|---|---|---|---|---|
-| Livraison | 61 | 1 310,84 € | 353,96 € | **27,00 %** ✅ |
-| À emporter | 2 | 41,10 € | 6,17 € | **15,01 %** ✅ |
-| **Total** | **63** | **1 351,94 €** | **360,13 €** | **26,64 %** |
+## Changements
 
-→ Pareil, taux contractuels respectés. Le poids un peu plus faible de la livraison fait descendre la moyenne à 26,6 %.
+### 1. RPC `get_orders_commission_by_fulfillment` (migration SQL)
 
-### Pourquoi votre estimation 26,9 % donne 26,7 %
+Étendre le `CASE` qui détermine `channel` pour ajouter `web_online`, **prioritaire** sur le fulfillment (une commande web est en livraison mais facturée 10 %) :
 
-La moyenne pondérée se fait sur la **base TTC**, pas sur le nombre de commandes :
-- Si on pondère par commandes : 93/95×27 + 2/95×15 = **26,75 %**
-- Si on pondère par base TTC : 1872/1916×27 + 44/1916×15 = **26,73 %**
-
-Les deux donnent ~26,7 %, pas 26,9 %. Le calcul est mathématiquement sain.
-
-### Proposition : rendre l'audit visible
-
-Le chiffre global cache la décomposition. Pour vraiment **vérifier** que Uber applique 27 % et 15 %, on ajoute une décomposition par type de service dans la cellule Commission.
-
-#### Option A — Tooltip enrichi (léger)
-Au survol de la cellule Commission d'une ligne, on affiche :
-```
-Commission Uber
-─────────────────────────
-🚲 Livraison    93 cmd   27,01 %   505,68 € HT
-🛍️ À emporter    2 cmd   15,01 %     6,59 € HT
-─────────────────────────
-Moyenne pondérée         26,73 %
-✅ Taux contractuels respectés
+```sql
+CASE
+  WHEN o.order_channel ILIKE '%commandes en ligne%' THEN 'web_online'
+  WHEN o.fulfillment_type ILIKE '%emport%'          THEN 'takeaway'
+  WHEN o.fulfillment_type ILIKE '%livraison%' 
+    OR o.fulfillment_type ILIKE '%delivery%'        THEN 'delivery'
+  ELSE 'other'
+END AS channel
 ```
 
-Un badge ⚠️ apparaît si l'écart vs 27 % / 15 % dépasse 0,5 pt (signal anomalie facturation).
+Le reste de la fonction (signature, SECURITY DEFINER, agrégats) est inchangé.
 
-#### Option B — Sous-ligne dépliable (plus visible)
-Au clic sur la ligne, on ajoute deux sous-lignes au-dessus du drilldown actuel : une Livraison, une À emporter, chacune avec son taux. Permet de scanner visuellement plusieurs jours.
+### 2. `src/components/analytics/ProfitabilityComparisonTable.tsx`
 
-#### Option C — Les deux
-Tooltip pour scan rapide + sous-lignes dans le drilldown détaillé.
+- **Type `ChannelBreakdown.channel`** → ajouter `"web_online"`.
+- **`expectedRate`** (ligne 362) :
+  ```ts
+  const expectedRate = 
+    channel === "delivery"   ? 27 :
+    channel === "takeaway"   ? 15 :
+    channel === "web_online" ? 10 : 0;
+  ```
+- **Ordre de tri** (lignes 375 et 1010) :
+  ```ts
+  const order = { delivery: 0, takeaway: 1, web_online: 2, other: 3 };
+  ```
+- **`channelLabel`** (ligne 1028) :
+  ```ts
+  c === "delivery"   ? "🚲 Livraison"          :
+  c === "takeaway"   ? "🛍️ À emporter"         :
+  c === "web_online" ? "💻 Commande en ligne"  : "• Autre"
+  ```
 
-### Détails techniques
+Aucun autre composant ne dépend du shape du RPC.
 
-- Source : table `orders`, groupé par `fulfillment_type` (déjà disponible côté DB).
-- Calcul par canal : `SUM(uber_fee_before_promo_excl_vat) / (SUM(sales_incl_vat) − SUM(item_promo_incl_vat))`.
-- Seuil d'alerte : écart absolu > 0,5 pt vs 27 % (livraison) ou 15 % (emporté).
-- Fichiers à modifier :
-  - `src/components/analytics/ProfitabilityComparisonTable.tsx` — ajout du calcul par fulfillment_type et UI tooltip/sous-ligne.
-  - `src/hooks/useFinancesDrilldown.ts` — exposer le breakdown par canal si Option B/C.
+### 3. Uber One (note, pas de code)
 
-**Question pour valider :** Option A (tooltip), B (sous-lignes) ou C (les deux) ?
+Les colonnes `uber_one_status` existent déjà. Pas de changement maintenant : on le réactivera comme 4ᵉ axe quand le nouveau contrat 2026 entrera en vigueur.
+
+## Résultat attendu
+
+Après ces changements, le tooltip "Audit commission Uber" du 29/07/2024 Chicken Street Reims affichera :
+
+| Canal | Cmd | Taux | Comm. HT |
+|---|---|---|---|
+| 🚲 Livraison | 49 | 27,00 % / 27 % ✅ | … |
+| 💻 Commande en ligne | 3 | 10,97 % / 10 % ✅ | … |
+
+Plus aucune "anomalie" amber sur ces 3 commandes — l'écart 25,67 % global est mathématiquement justifié par la moyenne pondérée des 2 canaux contractuels.
