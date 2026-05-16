@@ -152,6 +152,30 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
+  // Negotiated marketing cofinancement (payout-level adjustments, hors commandes)
+  const { data: negotiatedCofinData } = useQuery({
+    queryKey: ["network-stats-negotiated-cofin", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!hasIds) return [] as { restaurant_id: string; amount: number }[];
+      const { data, error } = await supabase
+        .from("payout_adjustments")
+        .select("restaurant_id, amount")
+        .eq("category", "marketing_adjustment")
+        .in("restaurant_id", restaurantIds)
+        .gte("payout_date", startDateStr)
+        .lte("payout_date", endDateStr);
+      if (error) throw error;
+      const byResto = new Map<string, number>();
+      for (const row of data || []) {
+        if (!row.restaurant_id) continue;
+        byResto.set(row.restaurant_id, (byResto.get(row.restaurant_id) || 0) + Number(row.amount || 0));
+      }
+      return Array.from(byResto.entries()).map(([restaurant_id, amount]) => ({ restaurant_id, amount }));
+    },
+    enabled: hasIds,
+    ...RETRY_CONFIG,
+  });
+
   // N-1 sales via aggregated RPC (no row limit issue)
   const { data: prevSalesData } = useQuery({
     queryKey: ["network-stats-sales-prev", restaurantIds, prevStartDateStr, prevEndDateStr],
