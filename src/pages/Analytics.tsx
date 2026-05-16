@@ -1422,7 +1422,7 @@ export default function Analytics() {
                   selectedRestaurants={[]}
                   selectedYear={selectedYear}
                   selectedMonth={null}
-                  selectedPlatform={selectedPlatform}
+                  selectedPlatform={selectedPlatform === "pos" ? "global" : selectedPlatform}
                   selectedChainId={selectedChainId}
                 />
               );
