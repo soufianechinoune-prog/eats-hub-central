@@ -2234,7 +2234,7 @@ export function AnalyticsCharts({
         <CardContent>
           {revenueViewMode === 'table' ? (
             <RevenueDataTable 
-              data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+              data={drillDownMonth ? drillDownChartData : displayRevenueData}
               showComparison={drillDownMonth ? hasDrillDownPrevData : hasPrevData}
               selectedYear={selectedYear}
               comparisonMode={comparisonMode}
