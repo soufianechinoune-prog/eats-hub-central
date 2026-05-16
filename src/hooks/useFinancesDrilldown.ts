@@ -1002,6 +1002,7 @@ export function useFinancesDrilldown({
         deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
         fulfillment_type: (order as any).fulfillment_type || null,
         offer_fee_incl_vat: Math.abs(Number((order as any).offer_usage_fee) || 0) + Math.abs(Number((order as any).vat_offer_usage_fee) || 0),
+        marketing_cofunding: Number((order as any).marketing_fee_adjustment) || 0,
       };
     });
   }, [individualOrdersData, granularity]);
