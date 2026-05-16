@@ -322,8 +322,10 @@ export function ProfitabilityComparisonTable({
       
       // Calcul du taux de commission contractuel :
       // Deliveroo : commission_amount est déjà calculé après réduction → dénominateur = CA TTC brut
-      // Uber : commission HT / CA Net TTC (après promos) = taux contractuel
-      const uberFeeHT = Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
+      // Uber : commission HT AVANT cofinancement / CA Net TTC (après promos) = taux contractuel (27% / 15%)
+      // On utilise uber_fee_before_promo_excl_vat pour ne pas faire varier le taux quand Uber cofinance une promo.
+      const uberFeeHT = Math.abs(Number(payout.uber_fee_before_promo_excl_vat) || 0)
+        || Math.abs(Number(payout.uber_fee_after_promo_excl_vat) || 0)
         || Math.abs(Number(payout.uber_fee_after_promo_incl_vat) || 0);
       const netSalesTTC = sales - promoAmount; // CA net après promos
       const rateDenominator = platform === "deliveroo" ? sales : netSalesTTC;
