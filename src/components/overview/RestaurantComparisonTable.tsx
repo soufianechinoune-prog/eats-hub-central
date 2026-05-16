@@ -213,6 +213,9 @@ export function RestaurantComparisonTable({
   networkAdsPct = null,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
+  const { dateRange } = useAnalyticsContext();
+  const startDateStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
+  const endDateStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : startDateStr;
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
