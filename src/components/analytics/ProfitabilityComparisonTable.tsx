@@ -647,7 +647,8 @@ export function ProfitabilityComparisonTable({
         const totalPayoutWithVoucher = rows.reduce((sum, r) => sum + r.totalPayout, 0);
         const totalUberFeeHT = rows.reduce((sum, r) => {
           const payoutData = payouts.find(p => p.payout_date === r.date && p.restaurant_id === r.restaurantId);
-          return sum + Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+          return sum + (Math.abs(Number(payoutData?.uber_fee_before_promo_excl_vat) || 0)
+            || Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0));
         }, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
