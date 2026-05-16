@@ -340,7 +340,7 @@ export function ProfitabilityComparisonTable({
   });
 
   type ChannelBreakdown = {
-    channel: "delivery" | "takeaway" | "other";
+    channel: "delivery" | "takeaway" | "web_online" | "other";
     orderCount: number;
     bhHT: number;
     baseTTC: number;
