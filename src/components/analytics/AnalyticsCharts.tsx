@@ -648,7 +648,7 @@ export function AnalyticsCharts({
     startDate: profitStartDate,
     endDate: profitEndDate,
     periodMode: granularity === "daily" ? "month" : "year",
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Transform Uber One data to match chart format
