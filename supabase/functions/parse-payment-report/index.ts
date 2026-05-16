@@ -1007,6 +1007,7 @@ Deno.serve(async (req) => {
         imported_from_report: true,
         report_import_date: importTimestamp,
         currency: 'EUR',
+        data_source: dataSource,
         extra_columns: buildExtraColumns(row),
       });
     }
