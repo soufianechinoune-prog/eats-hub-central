@@ -3,7 +3,7 @@ import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
-export type Platform = "uber_eats" | "deliveroo" | "global";
+export type Platform = "uber_eats" | "deliveroo" | "global" | "pos";
 export type ComparisonMode = "yearOverYear" | "rollingPeriod";
 export type ProfitabilityBase = "gross" | "net"; // gross = Ventes TTC, net = Ventes - Promos
 
