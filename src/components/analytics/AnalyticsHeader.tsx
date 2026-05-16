@@ -394,7 +394,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
         </div>
 
         {/* Platform Pills */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             variant={selectedPlatform === "uber_eats" ? "default" : "outline"}
             onClick={() => setSelectedPlatform("uber_eats")}
@@ -426,6 +426,17 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
             )}
           >
             Global
+          </Button>
+          <Button
+            variant={selectedPlatform === "pos" ? "default" : "outline"}
+            onClick={() => setSelectedPlatform("pos")}
+            className={cn(
+              "h-10 gap-2 transition-all duration-200",
+              selectedPlatform === "pos" && "bg-amber-600 hover:bg-amber-700 text-white border-0"
+            )}
+          >
+            <Store className="h-4 w-4" />
+            <span>Caisse</span>
           </Button>
         </div>
 
