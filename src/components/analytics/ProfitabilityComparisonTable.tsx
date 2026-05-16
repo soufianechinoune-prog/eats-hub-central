@@ -1010,7 +1010,7 @@ export function ProfitabilityComparisonTable({
         ...b,
         rate: b.baseTTC > 0 ? (b.bhHT / b.baseTTC) * 100 : 0,
       }));
-      const order = { delivery: 0, takeaway: 1, other: 2 } as const;
+      const order = { delivery: 0, takeaway: 1, web_online: 2, other: 3 } as const;
       result.sort((a, b) => order[a.channel] - order[b.channel]);
       return result;
     }, [breakdownKeys]);
