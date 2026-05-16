@@ -275,8 +275,8 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
   return (
     <div className="sticky top-0 z-40 backdrop-blur-xl bg-background/95 border-2 border-border/40 rounded-2xl p-6 shadow-lg space-y-4">
       <div className="flex flex-wrap gap-3 items-start">
-        {/* Restaurant Multi-Select */}
-        <div className="flex-1 min-w-[250px]">
+        {/* Restaurant Multi-Select (compact) */}
+        <div className="w-[280px] shrink-0">
           <Popover open={restaurantOpen} onOpenChange={setRestaurantOpen}>
             <PopoverTrigger asChild>
               <Button
