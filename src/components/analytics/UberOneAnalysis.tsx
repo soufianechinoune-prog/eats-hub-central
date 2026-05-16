@@ -124,7 +124,7 @@ export function UberOneAnalysis() {
     startDate,
     endDate,
     periodMode,
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
     useAllActive: restaurantIdsForQuery.length === 0,
   });
 
