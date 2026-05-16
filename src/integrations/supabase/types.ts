@@ -3973,6 +3973,19 @@ export type Database = {
               total_revenue: number
             }[]
           }
+      get_ads_revenue_ratio: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          ads_pct: number
+          ads_spend: number
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
       get_availability_by_restaurant: {
         Args: {
           p_end_date: string
