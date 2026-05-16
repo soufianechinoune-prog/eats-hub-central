@@ -486,6 +486,26 @@ export function RestaurantComparisonTable({
                         {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
                       </span>
                     </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {(() => {
+                        const r = adsRatioMap?.get(resto.id);
+                        if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
+                        return (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="font-medium cursor-help">
+                                  {r.adsPct.toFixed(2).replace(".", ",")}%
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
+                    </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {resto.orders.toLocaleString("fr-FR")}
                     </TableCell>
