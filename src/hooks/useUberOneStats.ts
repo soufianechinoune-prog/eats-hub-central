@@ -107,15 +107,18 @@ export function useUberOneStats({
   const useDaily = ["month", "7d", "30d", "previous_week", "current_month", "range"].includes(periodMode);
   const platformFilter = platform !== "global" ? platform : null;
 
+  const startKey = format(startDate, "yyyy-MM-dd");
+  const endKey = format(endDate, "yyyy-MM-dd");
+
   // Fetch aggregated data via RPC
   const { data: rpcData, isLoading } = useQuery({
-    queryKey: ["uber-one-stats-rpc", effectiveRestaurantIds, startDate.toISOString(), endDate.toISOString(), platformFilter, useDaily ? "daily" : "monthly"],
+    queryKey: ["uber-one-stats-rpc", effectiveRestaurantIds, startKey, endKey, platformFilter, useDaily ? "daily" : "monthly"],
     staleTime: 5 * 60 * 1000,
     retry: false,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_uber_one_stats", {
-        p_start_date: startDate.toISOString(),
-        p_end_date: endDate.toISOString(),
+        p_start_date: startKey,
+        p_end_date: endKey,
         p_restaurant_ids: effectiveRestaurantIds,
         p_platform: platformFilter,
         p_granularity: useDaily ? "daily" : "monthly",
