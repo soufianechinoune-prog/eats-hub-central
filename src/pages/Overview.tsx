@@ -24,6 +24,8 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
+import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
+import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -395,6 +397,12 @@ const Overview = () => {
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const cashConnected = !!activePosConnection && activePosConnection.is_active;
 
+  const adsRatio = useAdsRevenueRatio({
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+  });
+
   const MONTHS_FULL = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
@@ -679,6 +687,17 @@ const Overview = () => {
             />
           </div>
 
+          {/* Ratio Dépenses Pub / CA Uber Eats */}
+          <div className="mt-6 grid gap-6 lg:grid-cols-3">
+            <AdsRevenueRatioCard
+              adsSpend={adsRatio.networkAdsSpend}
+              revenue={adsRatio.networkRevenue}
+              pct={adsRatio.networkPct}
+              isLoading={adsRatio.isLoading}
+              periodLabel={getPeriodLabel()}
+            />
+          </div>
+
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
             <RestaurantComparisonTable
@@ -691,6 +710,10 @@ const Overview = () => {
               showDataSource={showDataSource}
               onToggleDataSource={setShowDataSource}
               dataSourceMap={dataSourceMap}
+              adsRatioMap={adsRatio.byRestaurant}
+              networkAdsSpend={adsRatio.networkAdsSpend}
+              networkAdsRevenue={adsRatio.networkRevenue}
+              networkAdsPct={adsRatio.networkPct}
             />
           </div>
 

@@ -1,56 +1,87 @@
-## Diagnostic
+## Objectif
 
-Le graphique "Évolution % Uber One" affiche un pourcentage différent pour **le même mois** selon l'année sélectionnée (ex. Déc 24 = 50,8 % en vue 2024 vs 66,7 % en vue 2025).
+Afficher le **% de dépenses publicitaires Uber Eats / CA TTC** par restaurant, en global réseau, et selon la période sélectionnée. Indicateur neutre (pas de seuil contractuel, la plateforme sert plusieurs chaînes).
 
-**Cause racine — décalage UTC ↔ Europe/Paris :**
+## Données — confirmé en base
 
-1. Dans `src/components/analytics/UberOneAnalysis.tsx` (l.109-118), on calcule la plage avec `startOfYear(new Date(2025,0,1))` → **1er janvier 2025 00:00 heure de Paris**.
-2. Dans `src/hooks/useUberOneStats.ts` (l.116-117), on envoie cette date au RPC via `.toISOString()` → **2024-12-31T23:00:00Z** (UTC).
-3. Le RPC `get_uber_one_stats` bucketise par `to_char(order_datetime::date, 'YYYY-MM')` en TZ session (UTC sur Lovable Cloud).
-4. Résultat sur la vue 2025 : le bucket "2024-12" ne contient qu'une **fenêtre d'1 heure** (commandes Paris du 1er janvier 00:00-01:00, qui sont Dec 31 23:00-23:59 UTC). C'est un échantillon minuscule, d'où un % très différent du vrai Déc 2024 (vue 2024).
+- **Dépenses pub Uber** : `payout_adjustments` où `category = 'advertising'`
+  - "Dépenses publicitaires" (123 lignes, -26 583,90 €) — prélèvement
+  - "Crédits publicitaires" (1 ligne, +3,48 €) — remboursement
+  - → `ads_spend = ABS(SUM(amount))` sur les deux libellés combinés
+- **CA TTC** : `orders.sales_incl_vat` (source canonique, Europe/Paris)
+- **Hors périmètre** : `marketing_adjustment` (cofinancement BOGO, déjà tracké ailleurs)
+- **V1 = Uber Eats uniquement**. Deliveroo : non affiché tant que les Ads Deliveroo ne sont pas importées.
 
-Le même problème se reproduit pour Déc 25 entre vue 2025 et vue 2026, et plus largement à chaque bord d'année. Ce point parasite "Déc N-1" sur la vue N devrait simplement **ne pas exister**.
+## Calcul
 
-Cela viole une règle Core du projet : *"Format dates locally `format(date, 'yyyy-MM-dd')`. Avoid UTC `.toISOString()` shifts. Use `AT TIME ZONE Europe/Paris` in SQL."*
+```
+Pour chaque restaurant et période :
+  ads_spend   = ABS(SUM(payout_adjustments.amount
+                        WHERE category='advertising'
+                          AND payout_date BETWEEN start AND end))
+  revenue_ttc = SUM(orders.sales_incl_vat
+                        WHERE (order_datetime AT TIME ZONE 'Europe/Paris')::date
+                              BETWEEN start AND end)
+  ads_pct     = ads_spend / NULLIF(revenue_ttc, 0) * 100
 
-## Plan de correction
+Réseau = SUM(ads_spend) / SUM(revenue_ttc)   -- jamais une moyenne de pourcentages
+```
 
-**Option retenue (la plus sûre, alignée sur les autres RPC du projet) :** corriger côté SQL en bucketisant explicitement en `Europe/Paris`, et resserrer le filtre de plage côté frontend pour ne plus envoyer une date qui débordera sur l'année précédente en UTC.
+## Implémentation
 
-### 1. Migration SQL — `get_uber_one_stats`
-
-Remplacer les deux `to_char(u.order_datetime::date, …)` par :
+### 1. RPC `get_ads_revenue_ratio` (SECURITY DEFINER)
 
 ```sql
-to_char((u.order_datetime AT TIME ZONE 'Europe/Paris')::date, 'YYYY-MM')
--- ou 'YYYY-MM-DD' pour daily
+get_ads_revenue_ratio(
+  p_start_date     date,
+  p_end_date       date,
+  p_restaurant_ids uuid[]
+) RETURNS TABLE (
+  restaurant_id uuid,
+  ads_spend     numeric,
+  revenue_ttc   numeric,
+  ads_pct       numeric
+)
 ```
 
-Appliqué à la fois dans le `SELECT` et le `GROUP BY`. Aucun changement de signature.
+- Filtrage dates en `AT TIME ZONE 'Europe/Paris'` sur `orders`.
+- Bornes naturelles sur `payout_date` (déjà type `date`).
+- Aggrégat par `restaurant_id`.
 
-### 2. Frontend — `useUberOneStats.ts`
+### 2. Hook `useAdsRevenueRatio`
 
-Remplacer `startDate.toISOString()` / `endDate.toISOString()` par un format date locale (`yyyy-MM-dd`) pour que la borne envoyée au RPC corresponde bien à minuit Paris du jour voulu, pas à 23:00 UTC de la veille.
+`src/hooks/useAdsRevenueRatio.ts` :
+- Format date local (`format(date, "yyyy-MM-dd")`)
+- Attente sentinelle UUID `0000...`
+- Resolve "All restaurants" → IDs explicites
+- Retour : `{ networkAdsSpend, networkRevenue, networkPct, byRestaurant: [{id, name, adsSpend, revenue, pct}], isLoading }`
 
-```ts
-import { format } from "date-fns";
-// …
-p_start_date: format(startDate, "yyyy-MM-dd"),
-p_end_date:   format(endDate,   "yyyy-MM-dd"),
-```
+### 3. Affichage
 
-Le RPC accepte déjà ces chaînes (cast implicite en `timestamptz`, interprété à minuit Paris si on combine avec la correction SQL ci-dessus). Mettre à jour aussi la `queryKey` pour rester stable.
+**a) Overview — KPI Card "% Pub / CA Uber"**
+- Bloc neutre (pas d'alerte rouge/vert) avec :
+  - Grand chiffre : `2,4 %`
+  - Sous-ligne : `26 580 € de pub / 1 098 200 € de CA TTC`
+  - Tag plateforme "Uber Eats" (cohérent avec règles de filtrage plateforme)
+- Visible uniquement si plateforme = Uber Eats ou Global.
 
-### 3. Vérification
+**b) Tableau "Comparaison restaurants"**
+- Nouvelle colonne **"% Pub / CA"** triable, format `X,X %`.
+- Tooltip : `€ pub / € CA TTC` sur la période.
+- Pas de code couleur conditionnel (neutre).
 
-Après application :
-- Vue 2024 sur Déc 24 et vue 2025 sur Déc 24 → **valeur identique** (et le point Déc 24 ne devrait plus apparaître sur la vue 2025, qui doit démarrer à Jan 25).
-- Idem Déc 25 entre vue 2025 et vue 2026.
-- Re-tester les vues "Mois", "30 jours", "Plage" pour confirmer qu'aucune autre régression n'apparaît.
+### 4. Périmètre V1
 
-## Fichiers touchés
+- Uber Eats only.
+- Pas de graphique d'évolution mensuel pour la V1 (sera ajouté plus tard si utile).
+- Deliveroo : aucune mention dans la UI (pas de "données indisponibles" — on n'expose simplement pas l'indicateur quand plateforme = Deliveroo).
 
-- Nouvelle migration : `supabase/migrations/<timestamp>_fix_uber_one_stats_timezone.sql`
-- `src/hooks/useUberOneStats.ts` (paramètres `p_start_date` / `p_end_date` + `queryKey`)
+## Fichiers à créer / modifier
 
-Aucun changement UI, aucun changement business : uniquement le calage du fuseau horaire.
+- **Nouveau** : `supabase/migrations/<ts>_get_ads_revenue_ratio.sql`
+- **Nouveau** : `src/hooks/useAdsRevenueRatio.ts`
+- **Nouveau** : `src/components/analytics/AdsRevenueRatioCard.tsx`
+- **Modifié** : page Overview pour intégrer la carte
+- **Modifié** : tableau de comparaison restaurants (ajout colonne)
+
+OK pour lancer l'implémentation ?

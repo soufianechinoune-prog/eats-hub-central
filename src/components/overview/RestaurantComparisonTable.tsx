@@ -16,8 +16,10 @@ import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
+
+import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
 interface RestaurantComparisonTableProps {
   stats: RestaurantNetworkStats[];
@@ -35,6 +37,11 @@ interface RestaurantComparisonTableProps {
   showDataSource?: boolean;
   onToggleDataSource?: (value: boolean) => void;
   dataSourceMap?: Map<string, RestaurantDataSourceInfo>;
+  /** % Dépenses pub Uber / CA TTC par restaurant */
+  adsRatioMap?: Map<string, AdsRatioByRestaurant>;
+  networkAdsSpend?: number;
+  networkAdsRevenue?: number;
+  networkAdsPct?: number | null;
 }
 
 // Format helpers
@@ -153,6 +160,7 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs">
         {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
       </TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
       <TableCell className="text-right text-xs text-muted-foreground">
         {data.orders.toLocaleString("fr-FR")}
       </TableCell>
@@ -196,6 +204,10 @@ export function RestaurantComparisonTable({
   showDataSource = false,
   onToggleDataSource,
   dataSourceMap,
+  adsRatioMap,
+  networkAdsSpend = 0,
+  networkAdsRevenue = 0,
+  networkAdsPct = null,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
@@ -248,6 +260,11 @@ export function RestaurantComparisonTable({
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
         case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
+        case "adsRatio": {
+          aVal = adsRatioMap?.get(a.id)?.adsPct ?? -1;
+          bVal = adsRatioMap?.get(b.id)?.adsPct ?? -1;
+          break;
+        }
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
@@ -388,6 +405,18 @@ export function RestaurantComparisonTable({
                 </TooltipProvider>
               </HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
+              <HeaderCell column="adsRatio" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
               <HeaderCell column="rating" className="text-right">Note</HeaderCell>
@@ -457,6 +486,26 @@ export function RestaurantComparisonTable({
                       <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
                         {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
                       </span>
+                    </TableCell>
+                    <TableCell className="text-right whitespace-nowrap">
+                      {(() => {
+                        const r = adsRatioMap?.get(resto.id);
+                        if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
+                        return (
+                          <TooltipProvider delayDuration={200}>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <span className="font-medium cursor-help">
+                                  {r.adsPct.toFixed(2).replace(".", ",")}%
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="text-xs">
+                                {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-right text-muted-foreground">
                       {resto.orders.toLocaleString("fr-FR")}
@@ -539,6 +588,20 @@ export function RestaurantComparisonTable({
               </TableCell>
               <TableCell className="text-right font-semibold text-muted-foreground">
                 {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
+              </TableCell>
+              <TableCell className="text-right font-bold text-uber whitespace-nowrap">
+                {networkAdsPct != null ? (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="text-xs">
+                        {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : "—"}
               </TableCell>
               <TableCell className="text-right font-semibold">
                 {networkTotals.totalOrders.toLocaleString("fr-FR")}
