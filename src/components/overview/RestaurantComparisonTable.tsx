@@ -15,6 +15,9 @@ import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
 import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
+import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { format } from "date-fns";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
