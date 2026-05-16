@@ -629,7 +629,7 @@ export function AnalyticsCharts({
     endDate: profitEndDate,
     granularity: 'daily',
     enabled: viewMode === 'revenue' && restaurantIds.length > 0,
-    platform: selectedPlatform,
+    platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
   // Fetch N-1 profitability data for comparison
