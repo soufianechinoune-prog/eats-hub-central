@@ -1538,7 +1538,31 @@ export function ProfitabilityComparisonTable({
                       </TableCell>
                       </>}
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                        {formatCurrency(row.totalPayout)}
+                        {(() => {
+                          const cofinKey = `${row.date}|${row.restaurantId}`;
+                          const cofin = marketingMap.get(cofinKey) || 0;
+                          if (cofin > 0) {
+                            return (
+                              <NegotiatedCofinPopover
+                                restaurantId={row.restaurantId}
+                                restaurantName={row.restaurantName}
+                                startDate={row.date}
+                                endDate={row.date}
+                                totalAmount={cofin}
+                              >
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1"
+                                  title={`Inclut ${formatCurrency(cofin)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                                >
+                                  {formatCurrency(row.totalPayout)}
+                                  <Info className="h-3 w-3 text-amber-500" />
+                                </button>
+                              </NegotiatedCofinPopover>
+                            );
+                          }
+                          return formatCurrency(row.totalPayout);
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))}
