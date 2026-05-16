@@ -720,6 +720,8 @@ const Overview = () => {
               networkAdsSpend={adsRatio.networkAdsSpend}
               networkAdsRevenue={adsRatio.networkRevenue}
               networkAdsPct={adsRatio.networkPct}
+              networkCashTotal={cashRevenueData?.totalCash ?? 0}
+              cashByRestaurant={cashByRestaurant}
             />
           </div>
 
