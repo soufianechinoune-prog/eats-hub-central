@@ -24,6 +24,8 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
+import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
+import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
