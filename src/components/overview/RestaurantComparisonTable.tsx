@@ -488,7 +488,7 @@ export function RestaurantComparisonTable({
                     <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
                       {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                       {resto.negotiatedCofinancement > 0 && startDateStr && endDateStr ? (
                         <NegotiatedCofinPopover
                           restaurantId={resto.id}
@@ -499,6 +499,7 @@ export function RestaurantComparisonTable({
                         >
                           <button
                             type="button"
+                            onClick={(e) => e.stopPropagation()}
                             className={cn(
                               "font-medium cursor-pointer inline-flex items-center gap-1 hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1",
                               getStatusTextClass(profitStatus)
