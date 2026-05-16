@@ -198,6 +198,59 @@ function PlatformSubRow({
   );
 }
 
+// Cash (Splash) sub-row — only the Caisse + CA columns are populated.
+function CashSubRow({
+  cash,
+  revenueShare,
+  showN1Comparison,
+  showCashColumn,
+}: {
+  cash: number;
+  revenueShare: number;
+  showN1Comparison: boolean;
+  showCashColumn: boolean;
+}) {
+  if (cash <= 0) return null;
+  return (
+    <TableRow className="bg-muted/10 hover:bg-muted/20 border-border/20">
+      <TableCell></TableCell>
+      <TableCell className="pl-8 text-xs">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground font-medium min-w-[28px] text-right">
+            {revenueShare.toFixed(0)}%
+          </span>
+          <Badge
+            variant="outline"
+            className="text-[9px] h-4 px-1.5 font-normal border-cash text-cash"
+          >
+            <Store className="h-2.5 w-2.5 mr-1" />
+            Caisse
+          </Badge>
+        </div>
+      </TableCell>
+      <TableCell className="text-right text-xs whitespace-nowrap">
+        {formatCurrency(cash)}
+      </TableCell>
+      {showN1Comparison && <TableCell></TableCell>}
+      {showCashColumn && (
+        <TableCell className="text-right text-xs text-cash whitespace-nowrap">
+          {formatCurrency(cash)}
+        </TableCell>
+      )}
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+    </TableRow>
+  );
+}
+
 export function RestaurantComparisonTable({
   stats,
   networkTotals,
