@@ -775,8 +775,9 @@ export function ProfitabilityComparisonTable({
     const totalMealVoucher = comparisonData.reduce((sum, d) => sum + d.mealVoucher, 0);
     const totalEcoContribution = comparisonData.reduce((sum, d) => sum + d.ecoContribution, 0);
     const totalPayout = comparisonData.reduce((sum, d) => sum + d.totalPayout, 0);
-    // Calcul du taux contractuel = uber_fee_HT / (CA - promos)
-    const totalUberFeeHT = payouts.reduce((sum, p) => sum + Math.abs(Number(p.uber_fee_after_promo_excl_vat) || 0), 0);
+    // Calcul du taux contractuel = uber_fee_HT (avant cofin) / (CA - promos)
+    const totalUberFeeHT = payouts.reduce((sum, p) => sum + (Math.abs(Number(p.uber_fee_before_promo_excl_vat) || 0)
+      || Math.abs(Number(p.uber_fee_after_promo_excl_vat) || 0)), 0);
     const totalPromoTTC = payouts.reduce((sum, p) => sum + Math.abs(Number(p.item_promo_incl_vat) || 0), 0);
     const netSales = totalSales - totalPromoTTC;
     const avgRateDenominator = platform === "deliveroo" ? totalSales : netSales;
