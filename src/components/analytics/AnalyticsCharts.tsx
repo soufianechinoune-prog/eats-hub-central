@@ -3430,7 +3430,7 @@ export function AnalyticsCharts({
           profitabilityComparisonMode={profitabilityComparisonMode}
           onProfitabilityComparisonModeChange={onProfitabilityComparisonModeChange}
           onMonthDrillDown={handleProfitabilityClick}
-          selectedPlatform={selectedPlatform}
+          selectedPlatform={selectedPlatform === "pos" ? "global" : selectedPlatform}
           // Action filtering props
           showActions={chartActionsConfig?.global}
           onShowActionsChange={(value) => onChartActionsConfigChange?.({ ...chartActionsConfig!, global: value })}
