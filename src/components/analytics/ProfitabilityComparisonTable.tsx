@@ -40,6 +40,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PayoutData {
   payout_date: string;
