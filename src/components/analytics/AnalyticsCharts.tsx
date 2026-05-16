@@ -1703,17 +1703,21 @@ export function AnalyticsCharts({
 
 
   const averageBasketData = useMemo(() => {
-    return aggregatedRevenueData.map(item => ({
+    // Source displayRevenueData so the current-year line naturally stops at the cutoff
+    // in yearOverYear mode (revenue/orders are null past cutoff → avgBasket also null).
+    return displayRevenueData.map((item: any) => ({
       month: item.month,
       monthNum: item.monthNum,
-      avgBasket: item.avgBasket,
+      avgBasket: item.revenue != null && item.orders != null && item.orders > 0
+        ? item.revenue / item.orders
+        : 0,
       avgBasketN1: item.prevOrders > 0 ? item.prevRevenue / item.prevOrders : 0,
       orders: item.orders,
       prevOrders: item.prevOrders,
       revenue: item.revenue,
       prevRevenue: item.prevRevenue,
     }));
-  }, [aggregatedRevenueData]);
+  }, [displayRevenueData]);
 
   // Filter out months with no data to prevent 0 values from distorting the chart
   const filteredAvgBasketData = useMemo(() => {
