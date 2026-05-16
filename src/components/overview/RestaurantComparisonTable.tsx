@@ -483,9 +483,25 @@ export function RestaurantComparisonTable({
                       {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
-                        {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                      </span>
+                      {resto.negotiatedCofinancement > 0 ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className={cn("font-medium cursor-help inline-flex items-center gap-1", getStatusTextClass(profitStatus))}>
+                                {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                                <Info className="h-3 w-3 text-amber-500" />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs max-w-[260px]">
+                              Inclut <strong>{formatCurrency(resto.negotiatedCofinancement)}</strong> de cofinancement marketing négocié, versé par Uber au niveau du virement hebdomadaire (hors commandes).
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : (
+                        <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
+                          {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                        </span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       {(() => {
