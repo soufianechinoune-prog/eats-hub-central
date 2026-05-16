@@ -701,7 +701,8 @@ export function ProfitabilityComparisonTable({
           agg.orderCount += row.orderCount;
           agg.advertisingAmount += row.advertisingAmount;
           const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
-          agg.uberFee += Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0);
+          agg.uberFee += (Math.abs(Number(payoutData?.uber_fee_before_promo_excl_vat) || 0)
+            || Math.abs(Number(payoutData?.uber_fee_after_promo_excl_vat) || 0));
         });
         
         const restaurantData: MonthRestaurantData[] = Object.values(restaurantAggregates)
