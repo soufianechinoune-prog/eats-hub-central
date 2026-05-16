@@ -687,6 +687,17 @@ const Overview = () => {
             />
           </div>
 
+          {/* Ratio Dépenses Pub / CA Uber Eats */}
+          <div className="mt-6 grid gap-6 lg:grid-cols-3">
+            <AdsRevenueRatioCard
+              adsSpend={adsRatio.networkAdsSpend}
+              revenue={adsRatio.networkRevenue}
+              pct={adsRatio.networkPct}
+              isLoading={adsRatio.isLoading}
+              periodLabel={getPeriodLabel()}
+            />
+          </div>
+
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
             <RestaurantComparisonTable
@@ -699,6 +710,10 @@ const Overview = () => {
               showDataSource={showDataSource}
               onToggleDataSource={setShowDataSource}
               dataSourceMap={dataSourceMap}
+              adsRatioMap={adsRatio.byRestaurant}
+              networkAdsSpend={adsRatio.networkAdsSpend}
+              networkAdsRevenue={adsRatio.networkRevenue}
+              networkAdsPct={adsRatio.networkPct}
             />
           </div>
 
