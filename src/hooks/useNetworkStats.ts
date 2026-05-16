@@ -11,6 +11,7 @@ export interface PlatformBreakdown {
   netPayout: number;
   mealVoucher: number;
   profitability: number | null;
+  negotiatedCofinancement?: number;
 }
 
 export interface RestaurantNetworkStats {
@@ -26,6 +27,8 @@ export interface RestaurantNetworkStats {
   // Quality metrics
   rating: number | null;
   profitability: number | null;
+  // Cofinancement marketing négocié (versé par Uber au niveau du payout hebdo, hors commandes)
+  negotiatedCofinancement: number;
   // Operations metrics
   prepTime: number | null;
   totalDeliveryTime: number | null; // Temps prépa+livraison moyen
@@ -147,6 +150,30 @@ export function useNetworkStats({
         total_payable: Number(d.total_payable),
         order_count: Number(d.order_count),
       }));
+    },
+    enabled: hasIds,
+    ...RETRY_CONFIG,
+  });
+
+  // Negotiated marketing cofinancement (payout-level adjustments, hors commandes)
+  const { data: negotiatedCofinData } = useQuery({
+    queryKey: ["network-stats-negotiated-cofin", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      if (!hasIds) return [] as { restaurant_id: string; amount: number }[];
+      const { data, error } = await supabase
+        .from("payout_adjustments")
+        .select("restaurant_id, amount")
+        .eq("category", "marketing_adjustment")
+        .in("restaurant_id", restaurantIds)
+        .gte("payout_date", startDateStr)
+        .lte("payout_date", endDateStr);
+      if (error) throw error;
+      const byResto = new Map<string, number>();
+      for (const row of data || []) {
+        if (!row.restaurant_id) continue;
+        byResto.set(row.restaurant_id, (byResto.get(row.restaurant_id) || 0) + Number(row.amount || 0));
+      }
+      return Array.from(byResto.entries()).map(([restaurant_id, amount]) => ({ restaurant_id, amount }));
     },
     enabled: hasIds,
     ...RETRY_CONFIG,
@@ -308,6 +335,9 @@ export function useNetworkStats({
       const restoReviewTotal = restoReviewAggs.reduce((s, r: any) => s + (r.review_count || 0), 0);
       const rating = restoReviewTotal > 0 ? restoRatingSum / restoReviewTotal : null;
 
+      // Negotiated cofinancement (versé par Uber au niveau du payout, hors commandes)
+      const negotiatedCofin = negotiatedCofinData?.find((c) => c.restaurant_id === resto.id)?.amount || 0;
+
       // Profitability from orders payout RPC
       let profitability: number | null = null;
       let netPayout = 0;
@@ -318,7 +348,8 @@ export function useNetworkStats({
         const totalPromo = restoOrdersSummary?.total_item_promo_incl_vat || 0;
         const totalNetPayoutRaw = restoOrdersSummary?.total_net_payout || 0;
         const totalMealVoucher = restoOrdersSummary?.total_meal_voucher || 0;
-        const uberNetPayout = totalNetPayoutRaw + totalMealVoucher;
+        // Cofin négocié inclus dans le versement Uber → impacte la Marge Uber
+        const uberNetPayout = totalNetPayoutRaw + totalMealVoucher + negotiatedCofin;
         
         // Combined payout (Uber + Deliveroo)
         netPayout = uberNetPayout + deliverooNetPayout;
@@ -365,12 +396,12 @@ export function useNetworkStats({
       const uberAvgBasket = uberOrders > 0 ? uberRevenue / uberOrders : 0;
       const deliverooAvgBasket = deliverooOrders > 0 ? deliverooRevenue / deliverooOrders : 0;
 
-      // Uber profitability
+      // Uber profitability (inclut cofin négocié)
       let uberProfitability: number | null = null;
       if (restoOrdersSummary) {
         const uberSalesVal = restoOrdersSummary.total_sales_incl_vat;
         const totalPromoVal = restoOrdersSummary.total_item_promo_incl_vat;
-        const uberNetPayoutVal = restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher;
+        const uberNetPayoutVal = restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher + negotiatedCofin;
         const uberBase = profitabilityBase === "net" ? Math.max(0, uberSalesVal - totalPromoVal) : uberSalesVal;
         uberProfitability = uberBase > 0 ? (uberNetPayoutVal / uberBase) * 100 : null;
       }
@@ -382,8 +413,8 @@ export function useNetworkStats({
       }
 
       const uberNetPayoutFinal = restoOrdersSummary
-        ? restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher
-        : 0;
+        ? restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher + negotiatedCofin
+        : negotiatedCofin;
 
       return {
         id: resto.id,
@@ -395,6 +426,7 @@ export function useNetworkStats({
         rating: rating != null ? parseFloat(rating.toFixed(2)) : null,
         profitability:
           profitability != null ? parseFloat(profitability.toFixed(1)) : null,
+        negotiatedCofinancement: parseFloat(negotiatedCofin.toFixed(2)),
         prepTime: prepTime != null ? prepTime : null,
         totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
@@ -419,6 +451,7 @@ export function useNetworkStats({
             netPayout: parseFloat(uberNetPayoutFinal.toFixed(2)),
             mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
             profitability: uberProfitability != null ? parseFloat(uberProfitability.toFixed(1)) : null,
+            negotiatedCofinancement: parseFloat(negotiatedCofin.toFixed(2)),
           },
           deliveroo: {
             revenue: deliverooRevenue,
@@ -437,6 +470,7 @@ export function useNetworkStats({
     prevSalesData,
     reviewsData,
     ordersPayoutData,
+    negotiatedCofinData,
     prepTimeSummaryData,
     accuracyData,
     availabilityData,
