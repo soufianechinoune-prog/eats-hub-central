@@ -1,42 +1,45 @@
-## Problèmes constatés
+# Recentrer le backfill Splash sur Reims uniquement
 
-Sur le screenshot :
-1. Le **popover** de sélection de restaurant garde sa largeur d'origine (350 px) alors que le **trigger** a été réduit à 280 px → décalage visuel.
-2. Le sélecteur de période **"Mai 2026"** se retrouve collé au milieu, alors qu'avant il était calé à **droite** de la barre.
-3. Les pills **Uber Eats / Deliveroo / Global / Caisse** sont serrées au centre, alors qu'il faudrait qu'elles **prennent toute la place disponible** entre le sélecteur de restaurant (à gauche) et "Mai 2026" (à droite).
+## Objectif
+Arrêter le backfill global en cours (2825 jobs, ~9h), repartir d'une base propre, et ne backfiller que **Chicken Street Reims** (id `418`) sur la période **2024-05-01 → aujourd'hui** (~550 jobs, ~2h).
 
-## Plan de correction
+## Étapes
 
-Fichier : `src/components/analytics/AnalyticsHeader.tsx` (uniquement)
+### 1. Mettre le worker en pause
+Désactiver le cron `splash-backfill-worker` via `cron.unschedule(...)` (ou `cron.alter_job` avec `active := false`). Cela stoppe immédiatement la consommation de nouveaux jobs.
 
-### 1. Aligner la largeur du popover sur le trigger
-- Ligne 301 : remplacer `w-[350px]` par `w-[var(--radix-popover-trigger-width)]` (Radix expose cette CSS var, donc le contenu prend exactement la largeur du bouton trigger = 280 px) **OU** plus simple : passer `w-[280px]`.
-- Je pars sur `w-[var(--radix-popover-trigger-width)]` pour rester auto-aligné si on retouche la largeur plus tard.
+### 2. Purger les données existantes
+- `DELETE FROM splash_backfill_jobs` (tous statuts : pending, running, completed, failed) → table vide.
+- `DELETE FROM splash_daily_sales` → on repart de zéro, base propre Reims-only.
 
-### 2. Repousser "Mai 2026" tout à droite
-- Le bloc `{!hidePeriodSelector && <div ...>` du sélecteur de période : ajouter `ml-auto` pour le pousser à droite du `flex-wrap`.
+### 3. Vérifier l'identité Reims
+Confirmer que le restaurant Reims (`418`) a bien un mapping Splash (`splash_restaurant_id` non null dans `restaurants` ou table de mapping). Si non, il faudra le créer avant d'enqueuer.
 
-### 3. Étirer les pills entre le restaurant et la période
-- Wrapper des pills (ligne 397) : passer de `flex flex-wrap gap-2` à `flex-1 flex gap-2 justify-evenly` (ou `flex-1 grid grid-cols-4 gap-2`) pour qu'elles occupent l'espace central.
-- Chaque `<Button>` pill : ajouter `flex-1` pour qu'elles se partagent équitablement l'espace.
-- Garder les hauteurs (`h-10`) et les couleurs actuelles.
+### 4. Enqueue Reims uniquement
+Insérer ~550 jobs `pending` dans `splash_backfill_jobs` :
+- `restaurant_id = 418`
+- 1 job par jour, du `2024-05-01` au `CURRENT_DATE`
+- `granularity = 'day'`, `status = 'pending'`
 
-### Layout final attendu
+### 5. Réactiver le worker
+Re-schedule le cron `splash-backfill-worker` (* * * * *). Il ne verra plus que les jobs Reims → ~2h pour finir.
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│ [Restaurant 280px] [Uber Eats][Deliveroo][Global][Caisse]   [Mai 2026] │
-└─────────────────────────────────────────────────────────────────────────┘
-```
+### 6. Suivi
+Vérifier au prochain message la progression (`SELECT status, count(*) FROM splash_backfill_jobs GROUP BY status`) et inspecter les premières lignes de `splash_daily_sales` pour Reims.
 
-- Sélecteur restaurant : largeur fixe 280 px (inchangé)
-- 4 pills : étirées et équi-réparties au centre
-- "Mai 2026" : poussée à droite via `ml-auto`
-- Popover restaurant : 280 px = exactement la largeur du trigger
+## Détails techniques
 
-### Hors périmètre
-- Aucune logique de données touchée.
-- Aucun autre fichier modifié.
-- Pas de changement responsive : le `flex-wrap` du conteneur parent reste, donc en dessous d'une certaine largeur les pills se réorganisent naturellement.
+**Tables touchées** (data uniquement, aucune migration de schéma) :
+- `splash_backfill_jobs` : DELETE all + INSERT ~550 lignes Reims
+- `splash_daily_sales` : DELETE all
+- `cron.job` : unschedule + reschedule du worker
 
-Si OK je passe en build.
+**Outils** :
+- `supabase--insert` pour les DELETE/INSERT data
+- `supabase--insert` pour `cron.unschedule` / `cron.schedule` (data, pas schéma)
+- `supabase--read_query` pour vérifier l'id Splash de Reims avant enqueue
+
+**Aucune modification de code ou de fichier** dans le projet — purement opérationnel côté DB.
+
+## Après ce plan
+Une fois le backfill Reims terminé (~2h), on passera à l'étape 2 : construire l'UI "Caisse" sur Reims comme restaurant pilote. Le backfill du reste du réseau se fera quand les bases UI seront validées.
