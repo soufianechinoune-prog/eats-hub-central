@@ -1038,6 +1038,25 @@ export function OrdersAnalysisSection({
                                           </Tooltip>
                                         </TooltipProvider>
                                       )}
+                                      {((order.marketing_cofunding ?? 0) > 0 || (order.deliveroo_funding ?? 0) > 0) && (
+                                        <TooltipProvider>
+                                          <Tooltip>
+                                            <TooltipTrigger asChild>
+                                              <Badge className="bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30 hover:bg-teal-500/25 text-[10px] px-1.5 py-0 cursor-default">
+                                                Cofin +{((order.marketing_cofunding ?? 0) || (order.deliveroo_funding ?? 0)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €
+                                              </Badge>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="right" className="max-w-xs">
+                                              <p className="text-xs">
+                                                {(order.marketing_cofunding ?? 0) > 0
+                                                  ? <>Cofinancement <strong>Uber Eats</strong> : +{order.marketing_cofunding!.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} € (Ajustement marketing remboursé par Uber sur cette commande).</>
+                                                  : <>Cofinancement <strong>Deliveroo</strong> : +{order.deliveroo_funding!.toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €.</>
+                                                }
+                                              </p>
+                                            </TooltipContent>
+                                          </Tooltip>
+                                        </TooltipProvider>
+                                      )}
                                       {(order.offer_fee_incl_vat ?? 0) > 0 && (
                                         <TooltipProvider>
                                           <Tooltip>
