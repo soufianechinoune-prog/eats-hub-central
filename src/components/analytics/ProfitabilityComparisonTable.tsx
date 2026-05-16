@@ -453,8 +453,11 @@ export function ProfitabilityComparisonTable({
       // Rentabilité = (Versement Uber + Titres restaurant) / Base
       // Base = CA TTC (gross) ou CA TTC - Promos (net)
       const mealVoucher = Math.abs(Number(payout.meal_voucher_amount) || 0);
-      const ecoContribution = Math.abs(Number(payout.eco_contribution_refund) || 0);
-      const ecoCharge = Math.abs(Number(payout.eco_contribution_charge) || 0);
+      // Éco-contribution : priorité à payout_adjustments (Tiroir B), fallback sur colonnes payouts si jamais peuplées
+      const ecoKey = `${payout.payout_date}|${payout.restaurant_id}`;
+      const ecoEntry = ecoMap.get(ecoKey);
+      const ecoContribution = ecoEntry?.refund ?? Math.abs(Number(payout.eco_contribution_refund) || 0);
+      const ecoCharge = ecoEntry?.charge ?? Math.abs(Number(payout.eco_contribution_charge) || 0);
       const totalToReceive = netPayout + mealVoucher;
       // Dénominateur pour le calcul de rentabilité selon la base choisie
       const profitabilityDenominator = profitabilityBase === 'net' ? netSalesTTC : sales;
