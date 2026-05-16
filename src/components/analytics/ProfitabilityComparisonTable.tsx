@@ -40,6 +40,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PayoutData {
   payout_date: string;
@@ -303,6 +305,79 @@ export function ProfitabilityComparisonTable({
     });
     return map;
   }, [advertisingData]);
+
+  // ── Audit commission par canal (livraison vs à emporter) ──
+  // On interroge l'agrégat orders pour vérifier que Uber applique bien 27 % / 15 %.
+  const commissionQueryParams = useMemo(() => {
+    if (platform === "deliveroo" || !payouts || payouts.length === 0) return null;
+    const restaurantIds = Array.from(new Set(payouts.map(p => p.restaurant_id).filter(Boolean)));
+    if (restaurantIds.length === 0) return null;
+    const dates = payouts.map(p => p.payout_date).filter(Boolean).sort();
+    return {
+      restaurantIds,
+      start: dates[0],
+      end: dates[dates.length - 1],
+    };
+  }, [payouts, platform]);
+
+  const { data: commissionBreakdownRaw } = useQuery({
+    queryKey: ["commission-breakdown-fulfillment", commissionQueryParams],
+    queryFn: async () => {
+      if (!commissionQueryParams) return [];
+      const { data, error } = await supabase.rpc("get_orders_commission_by_fulfillment", {
+        p_restaurant_ids: commissionQueryParams.restaurantIds,
+        p_start_date: commissionQueryParams.start,
+        p_end_date: commissionQueryParams.end,
+      });
+      if (error) {
+        console.error("[ProfitabilityComparisonTable] get_orders_commission_by_fulfillment", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!commissionQueryParams,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  type ChannelBreakdown = {
+    channel: "delivery" | "takeaway" | "other";
+    orderCount: number;
+    bhHT: number;
+    baseTTC: number;
+    rate: number;
+    expectedRate: number;
+  };
+
+  const commissionBreakdownMap = useMemo(() => {
+    const map = new Map<string, ChannelBreakdown[]>();
+    if (!commissionBreakdownRaw) return map;
+    for (const row of commissionBreakdownRaw as any[]) {
+      const key = `${row.day}|${row.restaurant_id}`;
+      const bh = Math.abs(Number(row.uber_fee_before_promo_excl_vat) || 0);
+      const sales = Math.abs(Number(row.sales_incl_vat) || 0);
+      const promo = Math.abs(Number(row.item_promo_incl_vat) || 0);
+      const base = sales - promo;
+      const rate = base > 0 ? (bh / base) * 100 : 0;
+      const channel = (row.channel || "other") as ChannelBreakdown["channel"];
+      const expectedRate = channel === "delivery" ? 27 : channel === "takeaway" ? 15 : 0;
+      const list = map.get(key) || [];
+      list.push({
+        channel,
+        orderCount: Number(row.order_count) || 0,
+        bhHT: bh,
+        baseTTC: base,
+        rate,
+        expectedRate,
+      });
+      map.set(key, list);
+    }
+    // Tri : livraison d'abord, puis à emporter, puis autres
+    const order = { delivery: 0, takeaway: 1, other: 2 };
+    for (const list of map.values()) {
+      list.sort((a, b) => order[a.channel] - order[b.channel]);
+    }
+    return map;
+  }, [commissionBreakdownRaw]);
 
   const comparisonData = useMemo(() => {
     const rows = payouts.map((payout): ComparisonRow => {
@@ -853,6 +928,131 @@ export function ProfitabilityComparisonTable({
       </span>
     );
   };
+
+  // Cellule Commission Uber avec audit par canal (livraison vs à emporter).
+  // Affiche le % global, et au survol détaille les taux contractuels par canal.
+  const CommissionAuditCell = ({
+    percentValue,
+    amountValue,
+    breakdownKeys,
+  }: {
+    percentValue: number;
+    amountValue: number;
+    breakdownKeys: string[]; // ex. ["2026-02-05|restaurantId"]
+  }) => {
+    // Agrège les breakdowns pour toutes les clés fournies (jour+resto, ou plusieurs)
+    const aggregated = useMemo(() => {
+      const acc: Record<string, ChannelBreakdown> = {};
+      for (const key of breakdownKeys) {
+        const list = commissionBreakdownMap.get(key);
+        if (!list) continue;
+        for (const b of list) {
+          if (!acc[b.channel]) {
+            acc[b.channel] = { ...b };
+          } else {
+            acc[b.channel].orderCount += b.orderCount;
+            acc[b.channel].bhHT += b.bhHT;
+            acc[b.channel].baseTTC += b.baseTTC;
+          }
+        }
+      }
+      const result = Object.values(acc).map(b => ({
+        ...b,
+        rate: b.baseTTC > 0 ? (b.bhHT / b.baseTTC) * 100 : 0,
+      }));
+      const order = { delivery: 0, takeaway: 1, other: 2 } as const;
+      result.sort((a, b) => order[a.channel] - order[b.channel]);
+      return result;
+    }, [breakdownKeys]);
+
+    const display = displayMode === 'amount'
+      ? formatCurrency(amountValue)
+      : `${percentValue.toFixed(1)}%`;
+
+    if (platform === "deliveroo" || aggregated.length === 0) {
+      return <span className="font-medium tabular-nums">{display}</span>;
+    }
+
+    // Détection d'une anomalie : écart > 0,5 pt vs taux contractuel attendu
+    const hasAnomaly = aggregated.some(b =>
+      b.expectedRate > 0 && Math.abs(b.rate - b.expectedRate) > 0.5
+    );
+
+    const channelLabel = (c: ChannelBreakdown["channel"]) =>
+      c === "delivery" ? "🚲 Livraison" : c === "takeaway" ? "🛍️ À emporter" : "• Autre";
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "font-medium tabular-nums cursor-help inline-flex items-center gap-1",
+              hasAnomaly && "text-amber-600"
+            )}>
+              {display}
+              {hasAnomaly && <AlertCircle className="h-3 w-3" />}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm p-0">
+            <div className="text-xs">
+              <div className="px-3 py-2 border-b font-semibold bg-muted/50">
+                Audit commission Uber
+              </div>
+              <table className="w-full">
+                <thead className="text-[10px] uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-1">Canal</th>
+                    <th className="text-right px-2 py-1">Cmd</th>
+                    <th className="text-right px-2 py-1">Taux</th>
+                    <th className="text-right px-3 py-1">Comm. HT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aggregated.map(b => {
+                    const deviation = b.expectedRate > 0 ? Math.abs(b.rate - b.expectedRate) : 0;
+                    const isOk = b.expectedRate > 0 && deviation <= 0.5;
+                    const isOff = b.expectedRate > 0 && deviation > 0.5;
+                    return (
+                      <tr key={b.channel} className="border-t">
+                        <td className="px-3 py-1.5">{channelLabel(b.channel)}</td>
+                        <td className="text-right tabular-nums px-2 py-1.5">{b.orderCount}</td>
+                        <td className={cn(
+                          "text-right tabular-nums px-2 py-1.5 font-medium",
+                          isOk && "text-emerald-600",
+                          isOff && "text-amber-600"
+                        )}>
+                          {b.rate.toFixed(2)}%
+                          {b.expectedRate > 0 && (
+                            <span className="text-muted-foreground font-normal ml-1">
+                              / {b.expectedRate}%
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-right tabular-nums px-3 py-1.5">{formatCurrency(b.bhHT)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-3 py-2 border-t bg-muted/30 flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Moyenne pondérée</span>
+                <span className="font-semibold tabular-nums">{percentValue.toFixed(2)}%</span>
+              </div>
+              {hasAnomaly ? (
+                <div className="px-3 py-1.5 border-t text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Écart vs taux contractuel détecté
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 border-t text-emerald-600">
+                  ✓ Taux contractuels respectés
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
   
   // Check if we have multiple restaurants (needed for week view)
   const hasMultipleRestaurants = uniqueRestaurants.size > 1;
@@ -1221,7 +1421,11 @@ export function ProfitabilityComparisonTable({
                         <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                       </TableCell>
                       <TableCell className="text-right">
-                        <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
+                        <CommissionAuditCell
+                          percentValue={row.uberFeeRate}
+                          amountValue={row.uberFeeNet}
+                          breakdownKeys={[`${row.date}|${row.restaurantId}`]}
+                        />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
                         <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
@@ -1384,7 +1588,11 @@ export function ProfitabilityComparisonTable({
                                 <span className="font-medium tabular-nums">{row.profitability.toFixed(1)}%</span>
                               </TableCell>
                               <TableCell className="text-right">
-                                <ComparisonCell percentValue={row.uberFeeRate} amountValue={row.uberFeeNet} isCommission />
+                                <CommissionAuditCell
+                                  percentValue={row.uberFeeRate}
+                                  amountValue={row.uberFeeNet}
+                                  breakdownKeys={[`${row.date}|${row.restaurantId}`]}
+                                />
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground">
                                 <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
@@ -1544,7 +1752,11 @@ export function ProfitabilityComparisonTable({
                             <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                            <CommissionAuditCell
+                              percentValue={group.avgUberFeeRate}
+                              amountValue={group.totalUberFee}
+                              breakdownKeys={group.rows.map(r => `${r.date}|${r.restaurantId}`)}
+                            />
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
@@ -1612,7 +1824,11 @@ export function ProfitabilityComparisonTable({
                               {resto.profitability.toFixed(1)}%
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.uberFeeRate} amountValue={resto.uberFee} isCommission />
+                              <CommissionAuditCell
+                                percentValue={resto.uberFeeRate}
+                                amountValue={resto.uberFee}
+                                breakdownKeys={group.rows.filter(r => r.restaurantId === resto.restaurantId).map(r => `${r.date}|${r.restaurantId}`)}
+                              />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
@@ -1827,7 +2043,11 @@ export function ProfitabilityComparisonTable({
                             <span className="font-medium tabular-nums">{group.avgProfitability.toFixed(1)}%</span>
                           </TableCell>
                           <TableCell className="text-right">
-                            <ComparisonCell percentValue={group.avgUberFeeRate} amountValue={group.totalUberFee} isCommission />
+                            <CommissionAuditCell
+                              percentValue={group.avgUberFeeRate}
+                              amountValue={group.totalUberFee}
+                              breakdownKeys={group.rows.map(r => `${r.date}|${r.restaurantId}`)}
+                            />
                           </TableCell>
                           <TableCell className="text-right text-muted-foreground">
                             <ComparisonCell percentValue={group.avgPromoRate} amountValue={group.totalPromo} />
@@ -1895,7 +2115,11 @@ export function ProfitabilityComparisonTable({
                               {resto.profitability.toFixed(1)}%
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.uberFeeRate} amountValue={resto.uberFee} isCommission />
+                              <CommissionAuditCell
+                                percentValue={resto.uberFeeRate}
+                                amountValue={resto.uberFee}
+                                breakdownKeys={group.rows.filter(r => r.restaurantId === resto.restaurantId).map(r => `${r.date}|${r.restaurantId}`)}
+                              />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />

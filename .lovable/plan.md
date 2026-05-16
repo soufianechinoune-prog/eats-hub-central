@@ -1,46 +1,66 @@
-## Objectif
-Aligner toute la page **Analytics → Finances** (Uber Eats) sur le découpage **UTC** utilisé par les CSV Uber, pour que la table Rentabilité ET le graphique journalier matchent exactement les chiffres du rapport Uber (commande par commande, jour par jour).
+## Diagnostic des taux 26,7 % et 26,6 %
 
-## Contexte
-Aujourd'hui les RPC agrègent par jour calendaire **Europe/Paris** : les commandes passées entre 00h-01h Paris (= jour précédent UTC chez Uber) sont reclassées au jour Paris. Résultat : pour le 5 fév 2026 Reims, 94 cmd / 591,31 € côté app vs **95 cmd / 614,69 € côté CSV**.
+Le calcul actuel **est correct** — il vérifie bien la commission appliquée. La différence avec 27 % vient simplement du **mélange livraison / à emporter** dans le dénominateur.
 
-## Périmètre (validé)
-- ✅ `get_orders_finance_detail` (table Rentabilité — drilldown mois)
-- ✅ `get_orders_finance_yearly_detail` (table Rentabilité — vue année)
-- ✅ `get_profitability_daily` (graphique CA / Versement journalier)
-- ❌ Hors scope : Overview, Operations, Marketing, Avis, exports PDF, RPC `get_network_*` → restent en Paris
+### Vérification chiffrée (Reims, données réelles)
 
-## Plan technique
+**5 février 2026**
+| Canal | Cmd | Base TTC (CA−promo) | Commission HT | Taux |
+|---|---|---|---|---|
+| Livraison | 93 | 1 872,41 € | 505,68 € | **27,01 %** ✅ |
+| À emporter | 2 | 43,90 € | 6,59 € | **15,01 %** ✅ |
+| **Total** | **95** | **1 916,31 €** | **512,27 €** | **26,73 %** |
 
-### 1. Migration SQL — 3 fonctions
-Pour chaque RPC ci-dessus, remplacer dans le `RETURN`/`SELECT` et le `WHERE` :
+→ Uber applique bien les bons taux contractuels. Le 26,7 % global est juste la moyenne pondérée par la base TTC.
 
-| Avant (Paris) | Après (UTC) |
-|---|---|
-| `(o.order_datetime AT TIME ZONE 'Europe/Paris')::date` | `(o.order_datetime AT TIME ZONE 'UTC')::date` |
-| `make_timestamptz(p_year, p_month, 1, 0,0,0, 'Europe/Paris')` | `make_timestamptz(p_year, p_month, 1, 0,0,0, 'UTC')` |
-| `(p_start_date::timestamp AT TIME ZONE 'Europe/Paris')` | `(p_start_date::timestamp AT TIME ZONE 'UTC')` |
-| `GROUP BY ... AT TIME ZONE 'Europe/Paris'` | `GROUP BY ... AT TIME ZONE 'UTC'` |
+**25 février 2026**
+| Canal | Cmd | Base TTC | Commission HT | Taux |
+|---|---|---|---|---|
+| Livraison | 61 | 1 310,84 € | 353,96 € | **27,00 %** ✅ |
+| À emporter | 2 | 41,10 € | 6,17 € | **15,01 %** ✅ |
+| **Total** | **63** | **1 351,94 €** | **360,13 €** | **26,64 %** |
 
-Le reste des fonctions (colonnes, RLS, signatures) est **inchangé** → pas de mise à jour des hooks ni des types TS nécessaire.
+→ Pareil, taux contractuels respectés. Le poids un peu plus faible de la livraison fait descendre la moyenne à 26,6 %.
 
-### 2. UI — bandeau d'info
-Ajouter une mention discrète sous le titre de la section Finances :
+### Pourquoi votre estimation 26,9 % donne 26,7 %
 
-> *📅 Découpage journalier en UTC pour correspondre au rapport CSV Uber Eats. Les autres écrans (Overview, Operations…) utilisent l'heure de Paris.*
+La moyenne pondérée se fait sur la **base TTC**, pas sur le nombre de commandes :
+- Si on pondère par commandes : 93/95×27 + 2/95×15 = **26,75 %**
+- Si on pondère par base TTC : 1872/1916×27 + 44/1916×15 = **26,73 %**
 
-Fichier : `src/components/analytics/FinancesSection.tsx` (juste avant la première sous-section).
+Les deux donnent ~26,7 %, pas 26,9 %. Le calcul est mathématiquement sain.
 
-### 3. Mémoire projet
-- Ajouter `mem://analytics/finances-utc-decoupage` documentant la dérogation au standard "Paris" pour ces 3 RPC.
-- Mettre à jour la note `mem://analytics/finances-frais-source-orders` pour mentionner le passage en UTC.
+### Proposition : rendre l'audit visible
 
-## Validation
-Après migration, vérifier sur Reims 2026-02-05 :
-- Table : 95 cmd, frais Uber TTC = -614,69 € (vs CSV utilisateur : 95 cmd / 614,45 €) ✅
-- Graphique : barre du 5 fév doit refléter le nouveau total
+Le chiffre global cache la décomposition. Pour vraiment **vérifier** que Uber applique 27 % et 15 %, on ajoute une décomposition par type de service dans la cellule Commission.
 
-## Notes
-- Aucune perte de données, pas de backfill nécessaire — les `order_datetime` restent en `timestamptz`, on change juste l'agrégation.
-- Le cache React Query se rafraîchit automatiquement (clé inchangée mais payload différent → un hard refresh peut être utile).
-- L'écart d'1h heure d'été/hiver fait que sur les nuits de changement d'heure (mars/octobre) certaines commandes glisseront différemment — c'est attendu.
+#### Option A — Tooltip enrichi (léger)
+Au survol de la cellule Commission d'une ligne, on affiche :
+```
+Commission Uber
+─────────────────────────
+🚲 Livraison    93 cmd   27,01 %   505,68 € HT
+🛍️ À emporter    2 cmd   15,01 %     6,59 € HT
+─────────────────────────
+Moyenne pondérée         26,73 %
+✅ Taux contractuels respectés
+```
+
+Un badge ⚠️ apparaît si l'écart vs 27 % / 15 % dépasse 0,5 pt (signal anomalie facturation).
+
+#### Option B — Sous-ligne dépliable (plus visible)
+Au clic sur la ligne, on ajoute deux sous-lignes au-dessus du drilldown actuel : une Livraison, une À emporter, chacune avec son taux. Permet de scanner visuellement plusieurs jours.
+
+#### Option C — Les deux
+Tooltip pour scan rapide + sous-lignes dans le drilldown détaillé.
+
+### Détails techniques
+
+- Source : table `orders`, groupé par `fulfillment_type` (déjà disponible côté DB).
+- Calcul par canal : `SUM(uber_fee_before_promo_excl_vat) / (SUM(sales_incl_vat) − SUM(item_promo_incl_vat))`.
+- Seuil d'alerte : écart absolu > 0,5 pt vs 27 % (livraison) ou 15 % (emporté).
+- Fichiers à modifier :
+  - `src/components/analytics/ProfitabilityComparisonTable.tsx` — ajout du calcul par fulfillment_type et UI tooltip/sous-ligne.
+  - `src/hooks/useFinancesDrilldown.ts` — exposer le breakdown par canal si Option B/C.
+
+**Question pour valider :** Option A (tooltip), B (sous-lignes) ou C (les deux) ?
