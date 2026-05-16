@@ -335,6 +335,9 @@ export function useNetworkStats({
       const restoReviewTotal = restoReviewAggs.reduce((s, r: any) => s + (r.review_count || 0), 0);
       const rating = restoReviewTotal > 0 ? restoRatingSum / restoReviewTotal : null;
 
+      // Negotiated cofinancement (versé par Uber au niveau du payout, hors commandes)
+      const negotiatedCofin = negotiatedCofinData?.find((c) => c.restaurant_id === resto.id)?.amount || 0;
+
       // Profitability from orders payout RPC
       let profitability: number | null = null;
       let netPayout = 0;
@@ -345,7 +348,8 @@ export function useNetworkStats({
         const totalPromo = restoOrdersSummary?.total_item_promo_incl_vat || 0;
         const totalNetPayoutRaw = restoOrdersSummary?.total_net_payout || 0;
         const totalMealVoucher = restoOrdersSummary?.total_meal_voucher || 0;
-        const uberNetPayout = totalNetPayoutRaw + totalMealVoucher;
+        // Cofin négocié inclus dans le versement Uber → impacte la Marge Uber
+        const uberNetPayout = totalNetPayoutRaw + totalMealVoucher + negotiatedCofin;
         
         // Combined payout (Uber + Deliveroo)
         netPayout = uberNetPayout + deliverooNetPayout;
