@@ -11,6 +11,7 @@ export interface PlatformBreakdown {
   netPayout: number;
   mealVoucher: number;
   profitability: number | null;
+  negotiatedCofinancement?: number;
 }
 
 export interface RestaurantNetworkStats {
