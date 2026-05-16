@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, differenceInDays, parseISO } from "date-fns";
+import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears, subWeeks, differenceInDays, parseISO, endOfYear } from "date-fns";
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
