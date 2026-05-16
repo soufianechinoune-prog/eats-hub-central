@@ -1141,7 +1141,7 @@ export const ProfitabilityComparisonChart = ({
           ) : (
             /* Average mode: single aggregated line with N-1 comparison */
             <LineChart 
-              data={chartData}
+              data={displayChartData}
               onClick={handleChartClick}
               style={{ cursor: onMonthClick ? "pointer" : "default" }}
               margin={{ top: showActions ? 24 : 5, right: 5, left: 5, bottom: 5 }}
