@@ -397,6 +397,12 @@ const Overview = () => {
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const cashConnected = !!activePosConnection && activePosConnection.is_active;
 
+  const adsRatio = useAdsRevenueRatio({
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+  });
+
   const MONTHS_FULL = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
     "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
