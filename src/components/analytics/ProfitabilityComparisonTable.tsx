@@ -36,8 +36,10 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  ZoomIn
+  ZoomIn,
+  Info
 } from "lucide-react";
+import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useQuery } from "@tanstack/react-query";
@@ -425,6 +427,38 @@ export function ProfitabilityComparisonTable({
     }
     return map;
   }, [ecoAdjustmentsRaw]);
+
+  // ── Cofinancement marketing négocié : lignes "marketing_adjustment" sans rattachement à une commande ──
+  const { data: marketingAdjustmentsRaw } = useQuery({
+    queryKey: ["marketing-adjustments", ecoQueryParams],
+    queryFn: async () => {
+      if (!ecoQueryParams) return [];
+      const { data, error } = await supabase
+        .from("payout_adjustments")
+        .select("payout_date, restaurant_id, amount")
+        .eq("category", "marketing_adjustment")
+        .in("restaurant_id", ecoQueryParams.restaurantIds)
+        .gte("payout_date", ecoQueryParams.start)
+        .lte("payout_date", ecoQueryParams.end);
+      if (error) {
+        console.error("[ProfitabilityComparisonTable] marketing_adjustments", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!ecoQueryParams,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const marketingMap = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!marketingAdjustmentsRaw) return map;
+    for (const row of marketingAdjustmentsRaw as any[]) {
+      const key = `${row.payout_date}|${row.restaurant_id}`;
+      map.set(key, (map.get(key) || 0) + (Number(row.amount) || 0));
+    }
+    return map;
+  }, [marketingAdjustmentsRaw]);
 
   const comparisonData = useMemo(() => {
     const rows = payouts.map((payout): ComparisonRow => {
@@ -1504,7 +1538,31 @@ export function ProfitabilityComparisonTable({
                       </TableCell>
                       </>}
                       <TableCell className="text-right font-semibold text-green-600 tabular-nums">
-                        {formatCurrency(row.totalPayout)}
+                        {(() => {
+                          const cofinKey = `${row.date}|${row.restaurantId}`;
+                          const cofin = marketingMap.get(cofinKey) || 0;
+                          if (cofin > 0) {
+                            return (
+                              <NegotiatedCofinPopover
+                                restaurantId={row.restaurantId}
+                                restaurantName={row.restaurantName}
+                                startDate={row.date}
+                                endDate={row.date}
+                                totalAmount={cofin}
+                              >
+                                <button
+                                  type="button"
+                                  className="inline-flex items-center gap-1 cursor-pointer hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1"
+                                  title={`Inclut ${formatCurrency(cofin)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                                >
+                                  {formatCurrency(row.totalPayout)}
+                                  <Info className="h-3 w-3 text-amber-500" />
+                                </button>
+                              </NegotiatedCofinPopover>
+                            );
+                          }
+                          return formatCurrency(row.totalPayout);
+                        })()}
                       </TableCell>
                     </TableRow>
                   ))}
