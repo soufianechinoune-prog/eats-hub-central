@@ -1,87 +1,58 @@
-## Objectif
+## Problème
 
-Afficher le **% de dépenses publicitaires Uber Eats / CA TTC** par restaurant, en global réseau, et selon la période sélectionnée. Indicateur neutre (pas de seuil contractuel, la plateforme sert plusieurs chaînes).
+Quand on est en vue annuelle (ex: 2026 vs 2025), la courbe 2026 affiche `0` pour les mois sans data (juin → décembre), et le KPI de variation (`-68%`) compare **l'année entière 2026 (incomplète)** à **l'année entière 2025 (complète)** — donc faux.
 
-## Données — confirmé en base
+## Comportement attendu
 
-- **Dépenses pub Uber** : `payout_adjustments` où `category = 'advertising'`
-  - "Dépenses publicitaires" (123 lignes, -26 583,90 €) — prélèvement
-  - "Crédits publicitaires" (1 ligne, +3,48 €) — remboursement
-  - → `ads_spend = ABS(SUM(amount))` sur les deux libellés combinés
-- **CA TTC** : `orders.sales_incl_vat` (source canonique, Europe/Paris)
-- **Hors périmètre** : `marketing_adjustment` (cofinancement BOGO, déjà tracké ailleurs)
-- **V1 = Uber Eats uniquement**. Deliveroo : non affiché tant que les Ads Deliveroo ne sont pas importées.
+1. **Détecter le cutoff** = dernière période (mois ou jour) avec data réelle en année courante (`revenue > 0` ou `orders > 0`).
+2. **Courbe année courante** : s'arrête au cutoff (pas de points à 0 après).
+3. **Courbe année précédente** : reste affichée en entier (référence visuelle).
+4. **KPI de variation** : compare uniquement la **même fenêtre** (Jan → cutoff) sur les deux années → pourcentage comparable.
 
-## Calcul
+Appliqué aux **3 graphiques d'évolution** : Chiffre d'Affaires, Commandes, Panier Moyen — tous dans `AnalyticsCharts.tsx`.
 
-```
-Pour chaque restaurant et période :
-  ads_spend   = ABS(SUM(payout_adjustments.amount
-                        WHERE category='advertising'
-                          AND payout_date BETWEEN start AND end))
-  revenue_ttc = SUM(orders.sales_incl_vat
-                        WHERE (order_datetime AT TIME ZONE 'Europe/Paris')::date
-                              BETWEEN start AND end)
-  ads_pct     = ads_spend / NULLIF(revenue_ttc, 0) * 100
-
-Réseau = SUM(ads_spend) / SUM(revenue_ttc)   -- jamais une moyenne de pourcentages
-```
+Uniquement actif en mode `comparisonMode === "yearOverYear"`. Le mode `rollingPeriod` n'est pas concerné.
 
 ## Implémentation
 
-### 1. RPC `get_ads_revenue_ratio` (SECURITY DEFINER)
+Dans `src/components/analytics/AnalyticsCharts.tsx` :
 
-```sql
-get_ads_revenue_ratio(
-  p_start_date     date,
-  p_end_date       date,
-  p_restaurant_ids uuid[]
-) RETURNS TABLE (
-  restaurant_id uuid,
-  ads_spend     numeric,
-  revenue_ttc   numeric,
-  ads_pct       numeric
-)
+### 1. Calculer le cutoff
+
+Nouveau `useMemo` après `aggregatedRevenueData` :
+```ts
+const currentYearCutoffIndex = useMemo(() => {
+  if (comparisonMode !== "yearOverYear") return -1;
+  let last = -1;
+  aggregatedRevenueData.forEach((d, i) => {
+    if ((d.revenue || 0) > 0 || (d.orders || 0) > 0) last = i;
+  });
+  return last; // -1 si aucune data
+}, [aggregatedRevenueData, comparisonMode]);
 ```
 
-- Filtrage dates en `AT TIME ZONE 'Europe/Paris'` sur `orders`.
-- Bornes naturelles sur `payout_date` (déjà type `date`).
-- Aggrégat par `restaurant_id`.
+### 2. Filtrer les KPIs (lignes 1834-1868)
 
-### 2. Hook `useAdsRevenueRatio`
+Ne sommer `totalRevenue`, `totalOrders`, `prevTotalRevenue`, `prevTotalOrders` (et conversion, fees) **que jusqu'à `currentYearCutoffIndex` inclus** quand celui-ci est ≥ 0. Sinon, comportement actuel inchangé.
 
-`src/hooks/useAdsRevenueRatio.ts` :
-- Format date local (`format(date, "yyyy-MM-dd")`)
-- Attente sentinelle UUID `0000...`
-- Resolve "All restaurants" → IDs explicites
-- Retour : `{ networkAdsSpend, networkRevenue, networkPct, byRestaurant: [{id, name, adsSpend, revenue, pct}], isLoading }`
+### 3. Tronquer la courbe année courante
 
-### 3. Affichage
+Dans les `chartData` passés aux `LineChart` / `BarChart` (Revenue ~ligne 2200, Commandes ~ligne 2700, Panier moyen ~ligne 2900), remplacer `revenue` / `orders` / `avgBasket` par `null` (ou `undefined`) pour les index > cutoff. Recharts saute proprement les `null` → la ligne s'arrête, l'année N-1 continue.
 
-**a) Overview — KPI Card "% Pub / CA Uber"**
-- Bloc neutre (pas d'alerte rouge/vert) avec :
-  - Grand chiffre : `2,4 %`
-  - Sous-ligne : `26 580 € de pub / 1 098 200 € de CA TTC`
-  - Tag plateforme "Uber Eats" (cohérent avec règles de filtrage plateforme)
-- Visible uniquement si plateforme = Uber Eats ou Global.
+### 4. Indicateur visuel (optionnel mais recommandé)
 
-**b) Tableau "Comparaison restaurants"**
-- Nouvelle colonne **"% Pub / CA"** triable, format `X,X %`.
-- Tooltip : `€ pub / € CA TTC` sur la période.
-- Pas de code couleur conditionnel (neutre).
+Ajouter une mention discrète sous le titre quand un cutoff est appliqué :
+> *Comparaison sur période comparable (Jan → Mai)*
 
-### 4. Périmètre V1
+Et garder le suffixe existant `(2026 vs 2025)` tel quel.
 
-- Uber Eats only.
-- Pas de graphique d'évolution mensuel pour la V1 (sera ajouté plus tard si utile).
-- Deliveroo : aucune mention dans la UI (pas de "données indisponibles" — on n'expose simplement pas l'indicateur quand plateforme = Deliveroo).
+## Points techniques
 
-## Fichiers à créer / modifier
+- Le cutoff est **calculé à partir de la data agrégée déjà filtrée** (par plateforme, restaurants sélectionnés, période). Pas besoin de requête SQL supplémentaire.
+- En vue mensuelle (granularity = month, par défaut), le cutoff est un **index de mois**. En vue journalière (drill-down), c'est un **index de jour**.
+- `hasPrevData` n'a pas besoin d'évoluer : on continue d'afficher la courbe N-1 entière.
+- Aucune modif backend / RPC nécessaire.
 
-- **Nouveau** : `supabase/migrations/<ts>_get_ads_revenue_ratio.sql`
-- **Nouveau** : `src/hooks/useAdsRevenueRatio.ts`
-- **Nouveau** : `src/components/analytics/AdsRevenueRatioCard.tsx`
-- **Modifié** : page Overview pour intégrer la carte
-- **Modifié** : tableau de comparaison restaurants (ajout colonne)
+## Fichiers touchés
 
-OK pour lancer l'implémentation ?
+- `src/components/analytics/AnalyticsCharts.tsx` (seul fichier modifié)

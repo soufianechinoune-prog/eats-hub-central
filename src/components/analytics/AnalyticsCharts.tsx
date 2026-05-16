@@ -1663,19 +1663,61 @@ export function AnalyticsCharts({
   // Determine if showing multi-restaurant view
   const isMultiRestaurant = selectedRestaurants.length === 0 || selectedRestaurants.length > 1;
 
-  // Average Basket Evolution data
+  // Cutoff index = last period of the current year that has real data.
+  // Used in yearOverYear mode to (1) stop the current-year line at the last imported period
+  // and (2) compute KPI variations on a comparable window (Jan → cutoff vs Jan → cutoff N-1).
+  const currentYearCutoffIndex = useMemo(() => {
+    if (comparisonMode !== "yearOverYear") return -1;
+    let last = -1;
+    aggregatedRevenueData.forEach((d: any, i: number) => {
+      if ((d.revenue || 0) > 0 || (d.orders || 0) > 0) last = i;
+    });
+    // Only meaningful if at least one period is missing on current year
+    return last >= 0 && last < aggregatedRevenueData.length - 1 ? last : -1;
+  }, [aggregatedRevenueData, comparisonMode]);
+
+  // Display data: nullify current-year fields past cutoff so Recharts stops the current line,
+  // while keeping prev-year fields intact (full N-1 line stays visible as reference).
+  const displayRevenueData = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return aggregatedRevenueData;
+    return aggregatedRevenueData.map((d: any, i: number) =>
+      i > currentYearCutoffIndex
+        ? { ...d, revenue: null, orders: null, avgBasket: null }
+        : d
+    );
+  }, [aggregatedRevenueData, currentYearCutoffIndex]);
+
+  // Comparable subset: slice both years up to the cutoff for KPI variation calculations.
+  const comparableRevenueData = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return aggregatedRevenueData;
+    return aggregatedRevenueData.slice(0, currentYearCutoffIndex + 1);
+  }, [aggregatedRevenueData, currentYearCutoffIndex]);
+
+  // Human label for the comparable window (e.g. "Jan → Mai")
+  const comparableWindowLabel = useMemo(() => {
+    if (currentYearCutoffIndex < 0 || comparableRevenueData.length === 0) return null;
+    const first = (comparableRevenueData[0] as any).month;
+    const last = (comparableRevenueData[comparableRevenueData.length - 1] as any).month;
+    return first === last ? first : `${first} → ${last}`;
+  }, [comparableRevenueData, currentYearCutoffIndex]);
+
+
   const averageBasketData = useMemo(() => {
-    return aggregatedRevenueData.map(item => ({
+    // Source displayRevenueData so the current-year line naturally stops at the cutoff
+    // in yearOverYear mode (revenue/orders are null past cutoff → avgBasket also null).
+    return displayRevenueData.map((item: any) => ({
       month: item.month,
       monthNum: item.monthNum,
-      avgBasket: item.avgBasket,
+      avgBasket: item.revenue != null && item.orders != null && item.orders > 0
+        ? item.revenue / item.orders
+        : 0,
       avgBasketN1: item.prevOrders > 0 ? item.prevRevenue / item.prevOrders : 0,
       orders: item.orders,
       prevOrders: item.prevOrders,
       revenue: item.revenue,
       prevRevenue: item.prevRevenue,
     }));
-  }, [aggregatedRevenueData]);
+  }, [displayRevenueData]);
 
   // Filter out months with no data to prevent 0 values from distorting the chart
   const filteredAvgBasketData = useMemo(() => {
@@ -1832,17 +1874,19 @@ export function AnalyticsCharts({
 
   // Calculate KPIs
   const kpis = useMemo(() => {
-    const totalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0);
-    const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.orders, 0);
+    // Revenue/orders KPIs are computed on the comparable window (Jan → cutoff on both years)
+    // so the % variation only compares periods where current year actually has data.
+    const totalRevenue = comparableRevenueData.reduce((sum, d) => sum + d.revenue, 0);
+    const totalOrders = comparableRevenueData.reduce((sum, d) => sum + d.orders, 0);
     const totalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0);
     const totalConvOrders = aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0);
     const totalFees = effectiveFeesData.reduce((sum, d) => sum + d.totalFees, 0);
     const totalNet = effectiveFeesData.reduce((sum, d) => sum + d.net, 0);
     const profitability = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0;
 
-    // Previous year totals
-    const prevTotalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
-    const prevTotalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
+    // Previous year totals - aligned on the same comparable window
+    const prevTotalRevenue = comparableRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
+    const prevTotalOrders = comparableRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
     const prevTotalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0);
     const prevTotalFees = effectiveFeesData.reduce((sum, d) => sum + d.prevTotalFees, 0);
     const prevTotalNet = effectiveFeesData.reduce((sum, d) => sum + d.prevNet, 0);
@@ -1865,7 +1909,7 @@ export function AnalyticsCharts({
       prevTotalFees,
       prevProfitability,
     };
-  }, [aggregatedRevenueData, aggregatedConversionData, effectiveFeesData]);
+  }, [comparableRevenueData, aggregatedConversionData, effectiveFeesData]);
 
   const hasData = aggregatedRevenueData.some(d => d.revenue > 0) || 
                   aggregatedConversionData.some(d => d.visits > 0) || 
@@ -2038,6 +2082,11 @@ export function AnalyticsCharts({
                     }
                   </span>
                 )}
+                {comparableWindowLabel && hasPrevData && (
+                  <span className="text-xs font-normal text-amber-600 dark:text-amber-400 ml-2">
+                    · comparable {comparableWindowLabel}
+                  </span>
+                )}
               </>
             )}
           </CardTitle>
@@ -2194,7 +2243,7 @@ export function AnalyticsCharts({
         <CardContent>
           {revenueViewMode === 'table' ? (
             <RevenueDataTable 
-              data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+              data={drillDownMonth ? drillDownChartData : displayRevenueData}
               showComparison={drillDownMonth ? hasDrillDownPrevData : hasPrevData}
               selectedYear={selectedYear}
               comparisonMode={comparisonMode}
@@ -2243,7 +2292,7 @@ export function AnalyticsCharts({
               >
                 <ResponsiveContainer width="100%" height="100%">
                   {revenueChartType === 'bar' ? (
-                    <BarChart data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}>
+                    <BarChart data={drillDownMonth ? drillDownChartData : displayRevenueData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                         <XAxis dataKey="month" className="text-xs" />
                         <YAxis className="text-xs" />
@@ -2448,7 +2497,7 @@ export function AnalyticsCharts({
                       </BarChart>
                     ) : (
                       <LineChart 
-                        data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+                        data={drillDownMonth ? drillDownChartData : displayRevenueData}
                         onClick={!drillDownMonth ? handleRevenueBarClick : undefined}
                         style={{ cursor: !drillDownMonth ? 'pointer' : undefined }}
                       >
@@ -2667,12 +2716,17 @@ export function AnalyticsCharts({
                 }
               </span>
             )}
+            {comparableWindowLabel && hasPrevData && (
+              <span className="text-xs font-normal text-amber-600 dark:text-amber-400 ml-2">
+                · comparable {comparableWindowLabel}
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
             {(() => {
-              const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
-              const totalPrevOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.prevOrders || 0), 0);
+              const totalOrders = comparableRevenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
+              const totalPrevOrders = comparableRevenueData.reduce((sum, d) => sum + (d.prevOrders || 0), 0);
               const ordersVariation = calcVariation(totalOrders, totalPrevOrders);
               
               return (
@@ -2745,7 +2799,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={aggregatedRevenueData}>
+              <LineChart data={displayRevenueData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
@@ -2845,15 +2899,20 @@ export function AnalyticsCharts({
                 }
               </span>
             )}
+            {comparableWindowLabel && hasPrevData && (
+              <span className="text-xs font-normal text-amber-600 dark:text-amber-400 ml-2">
+                · comparable {comparableWindowLabel}
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
             {(() => {
-              // Weighted average: SUM(revenue) / SUM(orders) — coherent with Overview
-              const totalRevenue = chartAvgBasketData.reduce((s, d: any) => s + (d.revenue || 0), 0);
-              const totalOrders = chartAvgBasketData.reduce((s, d: any) => s + (d.orders || 0), 0);
-              const totalPrevRevenue = chartAvgBasketData.reduce((s, d: any) => s + (d.prevRevenue || 0), 0);
-              const totalPrevOrders = chartAvgBasketData.reduce((s, d: any) => s + (d.prevOrders || 0), 0);
+              // Weighted average over the comparable window so the % comparison is fair
+              const totalRevenue = comparableRevenueData.reduce((s, d: any) => s + (d.revenue || 0), 0);
+              const totalOrders = comparableRevenueData.reduce((s, d: any) => s + (d.orders || 0), 0);
+              const totalPrevRevenue = comparableRevenueData.reduce((s, d: any) => s + (d.prevRevenue || 0), 0);
+              const totalPrevOrders = comparableRevenueData.reduce((s, d: any) => s + (d.prevOrders || 0), 0);
               const avgBasket = totalOrders > 0 ? totalRevenue / totalOrders : 0;
               const avgPrevBasket = totalPrevOrders > 0 ? totalPrevRevenue / totalPrevOrders : 0;
               const basketVariation = calcVariation(avgBasket, avgPrevBasket);
