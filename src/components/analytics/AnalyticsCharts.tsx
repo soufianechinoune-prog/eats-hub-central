@@ -1905,7 +1905,7 @@ export function AnalyticsCharts({
       prevTotalFees,
       prevProfitability,
     };
-  }, [aggregatedRevenueData, aggregatedConversionData, effectiveFeesData]);
+  }, [comparableRevenueData, aggregatedConversionData, effectiveFeesData]);
 
   const hasData = aggregatedRevenueData.some(d => d.revenue > 0) || 
                   aggregatedConversionData.some(d => d.visits > 0) || 
