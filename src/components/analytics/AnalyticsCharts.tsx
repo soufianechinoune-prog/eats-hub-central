@@ -2785,7 +2785,7 @@ export function AnalyticsCharts({
           />
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={aggregatedRevenueData}>
+              <LineChart data={displayRevenueData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
                 <YAxis className="text-xs" />
