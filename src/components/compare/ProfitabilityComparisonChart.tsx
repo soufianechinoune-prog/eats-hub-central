@@ -424,19 +424,54 @@ export const ProfitabilityComparisonChart = ({
     }
   };
 
+  // Cutoff: in yearOverYear mode, find the last period with real current-year data
+  // so the current line stops and KPIs compare the same window on both years.
+  const currentYearCutoffIndex = useMemo(() => {
+    if (comparisonMode !== "yearOverYear") return -1;
+    let last = -1;
+    chartData.forEach((d, i) => {
+      if ((d.sales || 0) > 0 || (d.orders || 0) > 0) last = i;
+    });
+    const hasMissing = chartData.some((_, i) => i > last);
+    return hasMissing ? last : -1;
+  }, [chartData, comparisonMode]);
+
+  // Current-year line truncated after cutoff (N-1 stays intact)
+  const displayChartData = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return chartData;
+    return chartData.map((d, i) =>
+      i > currentYearCutoffIndex
+        ? { ...d, profitability: null as any, trBonus: null as any }
+        : d
+    );
+  }, [chartData, currentYearCutoffIndex]);
+
+  // Label shown under the title when a cutoff is active (e.g. "comparable Jan → Mai")
+  const comparableWindowLabel = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return null;
+    const last = chartData[currentYearCutoffIndex];
+    const lastLabel = last?.monthLabel || "";
+    return `comparable janv. → ${lastLabel}`;
+  }, [chartData, currentYearCutoffIndex]);
+
   // Calculate totals and KPIs from chartData (already aggregated from payouts)
   const { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders, totalPromo } = useMemo(() => {
-    const totalSales = chartData.reduce((sum, d) => sum + (d.sales || 0), 0);
-    const totalNetPayout = chartData.reduce((sum, d) => sum + (d.netPayout || 0), 0);
-    const totalMealVoucher = chartData.reduce((sum, d) => sum + (d.mealVoucher || 0), 0);
-    const totalOrders = chartData.reduce((sum, d) => sum + (d.orders || 0), 0);
-    const totalPromo = chartData.reduce((sum, d) => sum + (d.promo || 0), 0);
+    // Apply comparable window when a cutoff is active so 2026 (partial) vs 2025 stay aligned
+    const scoped = currentYearCutoffIndex >= 0
+      ? chartData.slice(0, currentYearCutoffIndex + 1)
+      : chartData;
+
+    const totalSales = scoped.reduce((sum, d) => sum + (d.sales || 0), 0);
+    const totalNetPayout = scoped.reduce((sum, d) => sum + (d.netPayout || 0), 0);
+    const totalMealVoucher = scoped.reduce((sum, d) => sum + (d.mealVoucher || 0), 0);
+    const totalOrders = scoped.reduce((sum, d) => sum + (d.orders || 0), 0);
+    const totalPromo = scoped.reduce((sum, d) => sum + (d.promo || 0), 0);
     
-    // N-1 totals
-    const prevTotalSales = chartData.reduce((sum, d) => sum + (d.prevSales || 0), 0);
-    const prevTotalNetPayout = chartData.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
-    const prevTotalMealVoucher = chartData.reduce((sum, d) => sum + (d.prevMealVoucher || 0), 0);
-    const prevTotalPromo = chartData.reduce((sum, d) => sum + (d.promo || 0), 0); // Prev promo not tracked separately
+    // N-1 totals (same window)
+    const prevTotalSales = scoped.reduce((sum, d) => sum + (d.prevSales || 0), 0);
+    const prevTotalNetPayout = scoped.reduce((sum, d) => sum + (d.prevNetPayout || 0), 0);
+    const prevTotalMealVoucher = scoped.reduce((sum, d) => sum + (d.prevMealVoucher || 0), 0);
+    const prevTotalPromo = scoped.reduce((sum, d) => sum + (d.promo || 0), 0); // Prev promo not tracked separately
     
     // Total payout includes meal vouchers
     const totalPayoutWithVoucher = totalNetPayout + totalMealVoucher;
