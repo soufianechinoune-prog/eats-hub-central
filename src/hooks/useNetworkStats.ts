@@ -396,12 +396,12 @@ export function useNetworkStats({
       const uberAvgBasket = uberOrders > 0 ? uberRevenue / uberOrders : 0;
       const deliverooAvgBasket = deliverooOrders > 0 ? deliverooRevenue / deliverooOrders : 0;
 
-      // Uber profitability
+      // Uber profitability (inclut cofin négocié)
       let uberProfitability: number | null = null;
       if (restoOrdersSummary) {
         const uberSalesVal = restoOrdersSummary.total_sales_incl_vat;
         const totalPromoVal = restoOrdersSummary.total_item_promo_incl_vat;
-        const uberNetPayoutVal = restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher;
+        const uberNetPayoutVal = restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher + negotiatedCofin;
         const uberBase = profitabilityBase === "net" ? Math.max(0, uberSalesVal - totalPromoVal) : uberSalesVal;
         uberProfitability = uberBase > 0 ? (uberNetPayoutVal / uberBase) * 100 : null;
       }
@@ -413,8 +413,8 @@ export function useNetworkStats({
       }
 
       const uberNetPayoutFinal = restoOrdersSummary
-        ? restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher
-        : 0;
+        ? restoOrdersSummary.total_net_payout + restoOrdersSummary.total_meal_voucher + negotiatedCofin
+        : negotiatedCofin;
 
       return {
         id: resto.id,
@@ -426,6 +426,7 @@ export function useNetworkStats({
         rating: rating != null ? parseFloat(rating.toFixed(2)) : null,
         profitability:
           profitability != null ? parseFloat(profitability.toFixed(1)) : null,
+        negotiatedCofinancement: parseFloat(negotiatedCofin.toFixed(2)),
         prepTime: prepTime != null ? prepTime : null,
         totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
@@ -450,6 +451,7 @@ export function useNetworkStats({
             netPayout: parseFloat(uberNetPayoutFinal.toFixed(2)),
             mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
             profitability: uberProfitability != null ? parseFloat(uberProfitability.toFixed(1)) : null,
+            negotiatedCofinancement: parseFloat(negotiatedCofin.toFixed(2)),
           },
           deliveroo: {
             revenue: deliverooRevenue,
@@ -468,6 +470,7 @@ export function useNetworkStats({
     prevSalesData,
     reviewsData,
     ordersPayoutData,
+    negotiatedCofinData,
     prepTimeSummaryData,
     accuracyData,
     availabilityData,
