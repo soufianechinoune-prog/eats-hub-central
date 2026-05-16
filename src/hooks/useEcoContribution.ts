@@ -197,11 +197,39 @@ export function useEcoContribution({
     return [...(uberDetailLines || []), ...deliverooDetailLines];
   }, [uberDetailLines, deliverooDetailLines]);
 
-  // Aggregate by year-month (Uber payouts + Deliveroo)
+  // Fallback: use Uber detail lines (payout_adjustments) only for restaurants
+  // that have NO aggregated payouts row, to avoid double-counting when both sources exist.
+  const uberDetailFallbackLines = useMemo(() => {
+    if (!uberDetailLines) return [];
+    const restaurantsWithPayouts = new Set(
+      (payoutsData || []).map(p => p.restaurant_id)
+    );
+    return uberDetailLines.filter(
+      line => line.restaurant_id && !restaurantsWithPayouts.has(line.restaurant_id)
+    );
+  }, [uberDetailLines, payoutsData]);
+
+  // Aggregate by year-month (Uber payouts + Uber detail fallback + Deliveroo)
   const monthlyData = useMemo(() => {
     const byKey = new Map<string, { year: number; month: number; refund: number; charge: number; count: number }>();
     
-    // Uber payouts
+    const addLineByDate = (dateStr: string | null, amount: number) => {
+      if (!dateStr) return;
+      const d = new Date(dateStr);
+      const y = d.getFullYear();
+      const m = d.getMonth() + 1;
+      const key = `${y}-${m}`;
+      const existing = byKey.get(key) || { year: y, month: m, refund: 0, charge: 0, count: 0 };
+      if (amount >= 0) {
+        existing.refund += amount;
+      } else {
+        existing.charge += Math.abs(amount);
+      }
+      existing.count += 1;
+      byKey.set(key, existing);
+    };
+
+    // Uber payouts (aggregated)
     if (payoutsData) {
       for (const row of payoutsData) {
         const d = new Date(row.payout_date);
@@ -216,22 +244,14 @@ export function useEcoContribution({
       }
     }
 
+    // Uber detail fallback (payout_adjustments for restaurants without aggregated payouts)
+    for (const line of uberDetailFallbackLines) {
+      addLineByDate(line.payout_date, Number(line.amount) || 0);
+    }
+
     // Deliveroo eco lines
     for (const line of deliverooDetailLines) {
-      if (!line.payout_date) continue;
-      const d = new Date(line.payout_date);
-      const y = d.getFullYear();
-      const m = d.getMonth() + 1;
-      const key = `${y}-${m}`;
-      const existing = byKey.get(key) || { year: y, month: m, refund: 0, charge: 0, count: 0 };
-      const amount = line.amount;
-      if (amount >= 0) {
-        existing.refund += amount;
-      } else {
-        existing.charge += Math.abs(amount);
-      }
-      existing.count += 1;
-      byKey.set(key, existing);
+      addLineByDate(line.payout_date, line.amount);
     }
 
     return Array.from(byKey.values())
@@ -244,12 +264,23 @@ export function useEcoContribution({
         count: d.count,
       }))
       .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month);
-  }, [payoutsData, deliverooDetailLines]);
+  }, [payoutsData, uberDetailFallbackLines, deliverooDetailLines]);
 
-  // Aggregate by restaurant (Uber + Deliveroo)
+  // Aggregate by restaurant (Uber payouts + Uber detail fallback + Deliveroo)
   const byRestaurant = useMemo(() => {
     const byResto = new Map<string, { refund: number; charge: number; count: number }>();
     
+    const addToResto = (restaurantId: string, amount: number) => {
+      const existing = byResto.get(restaurantId) || { refund: 0, charge: 0, count: 0 };
+      if (amount >= 0) {
+        existing.refund += amount;
+      } else {
+        existing.charge += Math.abs(amount);
+      }
+      existing.count += 1;
+      byResto.set(restaurantId, existing);
+    };
+
     // Uber payouts
     if (payoutsData) {
       for (const row of payoutsData) {
@@ -261,17 +292,14 @@ export function useEcoContribution({
       }
     }
 
+    // Uber detail fallback
+    for (const line of uberDetailFallbackLines) {
+      addToResto(line.restaurant_id, Number(line.amount) || 0);
+    }
+
     // Deliveroo
     for (const line of deliverooDetailLines) {
-      const existing = byResto.get(line.restaurant_id) || { refund: 0, charge: 0, count: 0 };
-      const amount = line.amount;
-      if (amount >= 0) {
-        existing.refund += amount;
-      } else {
-        existing.charge += Math.abs(amount);
-      }
-      existing.count += 1;
-      byResto.set(line.restaurant_id, existing);
+      addToResto(line.restaurant_id, line.amount);
     }
 
     return Array.from(byResto.entries())
@@ -283,7 +311,7 @@ export function useEcoContribution({
         count: d.count,
       }))
       .sort((a, b) => b.net - a.net);
-  }, [payoutsData, deliverooDetailLines]);
+  }, [payoutsData, uberDetailFallbackLines, deliverooDetailLines]);
 
   // KPI totals
   const totals = useMemo(() => {
@@ -297,14 +325,18 @@ export function useEcoContribution({
       }
     }
 
+    // Uber detail fallback
+    for (const line of uberDetailFallbackLines) {
+      const amount = Number(line.amount) || 0;
+      if (amount >= 0) refund += amount;
+      else charge += Math.abs(amount);
+    }
+
     // Deliveroo
     for (const line of deliverooDetailLines) {
       const amount = line.amount;
-      if (amount >= 0) {
-        refund += amount;
-      } else {
-        charge += Math.abs(amount);
-      }
+      if (amount >= 0) refund += amount;
+      else charge += Math.abs(amount);
     }
 
     return {
@@ -313,7 +345,7 @@ export function useEcoContribution({
       net: Math.round((refund - charge) * 100) / 100,
       lineCount: allDetailLines.length,
     };
-  }, [payoutsData, deliverooDetailLines, allDetailLines]);
+  }, [payoutsData, uberDetailFallbackLines, deliverooDetailLines, allDetailLines]);
 
   return {
     monthlyData,
