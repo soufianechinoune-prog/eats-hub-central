@@ -614,8 +614,13 @@ export function AnalyticsCharts({
   }, [profitStartDate]);
   
   const profitPrevEndDate = useMemo(() => {
+    // In yearOverYear mode, extend N-1 range to end of previous year (Dec 31)
+    // so the grey N-1 line can render Jan→Dec even if current year stops earlier (e.g. May).
+    if (comparisonMode === "yearOverYear") {
+      return new Date(profitEndDate.getFullYear() - 1, 11, 31);
+    }
     return new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
-  }, [profitEndDate]);
+  }, [profitEndDate, comparisonMode]);
   
   // Fetch profitability data for the chart in Revenue section
   const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
