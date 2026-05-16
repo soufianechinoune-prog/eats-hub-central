@@ -2158,27 +2158,6 @@ export function AnalyticsCharts({
               );
             })()}
             
-            {/* View Mode Toggle (Chart/Table) */}
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-              <Button 
-                variant={revenueViewMode === 'chart' ? 'secondary' : 'ghost'} 
-                size="sm"
-                className="h-7 px-2 gap-1"
-                onClick={() => setRevenueViewMode('chart')}
-              >
-                <BarChart3 className="h-4 w-4" />
-                <span className="text-xs hidden sm:inline">Graphique</span>
-              </Button>
-              <Button 
-                variant={revenueViewMode === 'table' ? 'secondary' : 'ghost'} 
-                size="sm"
-                className="h-7 px-2 gap-1"
-                onClick={() => setRevenueViewMode('table')}
-              >
-                <LayoutList className="h-4 w-4" />
-                <span className="text-xs hidden sm:inline">Tableau</span>
-              </Button>
-            </div>
             
             {/* Chart Type Toggle (only visible in chart mode) */}
             {revenueViewMode === 'chart' && (
