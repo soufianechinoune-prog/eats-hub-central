@@ -2716,6 +2716,11 @@ export function AnalyticsCharts({
                 }
               </span>
             )}
+            {comparableWindowLabel && hasPrevData && (
+              <span className="text-xs font-normal text-amber-600 dark:text-amber-400 ml-2">
+                · comparable {comparableWindowLabel}
+              </span>
+            )}
           </CardTitle>
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
