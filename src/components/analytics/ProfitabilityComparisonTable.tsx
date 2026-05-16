@@ -36,8 +36,10 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronLeft,
-  ZoomIn
+  ZoomIn,
+  Info
 } from "lucide-react";
+import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useQuery } from "@tanstack/react-query";
