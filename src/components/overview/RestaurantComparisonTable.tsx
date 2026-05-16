@@ -213,6 +213,7 @@ export function RestaurantComparisonTable({
   networkAdsSpend = 0,
   networkAdsRevenue = 0,
   networkAdsPct = null,
+  cashByRestaurant,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const { dateRange } = useAnalyticsContext();
