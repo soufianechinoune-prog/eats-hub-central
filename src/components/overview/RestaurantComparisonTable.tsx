@@ -160,9 +160,7 @@ function PlatformSubRow({
       <TableCell className="text-right text-xs">
         {data.profitability != null ? `${data.profitability.toFixed(1)}%` : "—"}
       </TableCell>
-      <TableCell className="text-right text-xs text-muted-foreground">
-        {data.orders.toLocaleString("fr-FR")}
-      </TableCell>
+      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
       <TableCell className="text-right text-xs whitespace-nowrap">
         {data.avgBasket.toFixed(2)} €
       </TableCell>
