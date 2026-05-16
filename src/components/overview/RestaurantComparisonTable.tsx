@@ -203,6 +203,10 @@ export function RestaurantComparisonTable({
   showDataSource = false,
   onToggleDataSource,
   dataSourceMap,
+  adsRatioMap,
+  networkAdsSpend = 0,
+  networkAdsRevenue = 0,
+  networkAdsPct = null,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
