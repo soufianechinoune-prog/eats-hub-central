@@ -2711,8 +2711,8 @@ export function AnalyticsCharts({
           <div className="flex items-center gap-4">
             {/* Inline KPIs */}
             {(() => {
-              const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
-              const totalPrevOrders = aggregatedRevenueData.reduce((sum, d) => sum + (d.prevOrders || 0), 0);
+              const totalOrders = comparableRevenueData.reduce((sum, d) => sum + (d.orders || 0), 0);
+              const totalPrevOrders = comparableRevenueData.reduce((sum, d) => sum + (d.prevOrders || 0), 0);
               const ordersVariation = calcVariation(totalOrders, totalPrevOrders);
               
               return (
