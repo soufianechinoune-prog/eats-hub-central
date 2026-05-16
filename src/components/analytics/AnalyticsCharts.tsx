@@ -1663,7 +1663,45 @@ export function AnalyticsCharts({
   // Determine if showing multi-restaurant view
   const isMultiRestaurant = selectedRestaurants.length === 0 || selectedRestaurants.length > 1;
 
-  // Average Basket Evolution data
+  // Cutoff index = last period of the current year that has real data.
+  // Used in yearOverYear mode to (1) stop the current-year line at the last imported period
+  // and (2) compute KPI variations on a comparable window (Jan → cutoff vs Jan → cutoff N-1).
+  const currentYearCutoffIndex = useMemo(() => {
+    if (comparisonMode !== "yearOverYear") return -1;
+    let last = -1;
+    aggregatedRevenueData.forEach((d: any, i: number) => {
+      if ((d.revenue || 0) > 0 || (d.orders || 0) > 0) last = i;
+    });
+    // Only meaningful if at least one period is missing on current year
+    return last >= 0 && last < aggregatedRevenueData.length - 1 ? last : -1;
+  }, [aggregatedRevenueData, comparisonMode]);
+
+  // Display data: nullify current-year fields past cutoff so Recharts stops the current line,
+  // while keeping prev-year fields intact (full N-1 line stays visible as reference).
+  const displayRevenueData = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return aggregatedRevenueData;
+    return aggregatedRevenueData.map((d: any, i: number) =>
+      i > currentYearCutoffIndex
+        ? { ...d, revenue: null, orders: null, avgBasket: null }
+        : d
+    );
+  }, [aggregatedRevenueData, currentYearCutoffIndex]);
+
+  // Comparable subset: slice both years up to the cutoff for KPI variation calculations.
+  const comparableRevenueData = useMemo(() => {
+    if (currentYearCutoffIndex < 0) return aggregatedRevenueData;
+    return aggregatedRevenueData.slice(0, currentYearCutoffIndex + 1);
+  }, [aggregatedRevenueData, currentYearCutoffIndex]);
+
+  // Human label for the comparable window (e.g. "Jan → Mai")
+  const comparableWindowLabel = useMemo(() => {
+    if (currentYearCutoffIndex < 0 || comparableRevenueData.length === 0) return null;
+    const first = (comparableRevenueData[0] as any).month;
+    const last = (comparableRevenueData[comparableRevenueData.length - 1] as any).month;
+    return first === last ? first : `${first} → ${last}`;
+  }, [comparableRevenueData, currentYearCutoffIndex]);
+
+
   const averageBasketData = useMemo(() => {
     return aggregatedRevenueData.map(item => ({
       month: item.month,
