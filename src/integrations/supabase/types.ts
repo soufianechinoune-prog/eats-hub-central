@@ -4301,6 +4301,23 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_orders_commission_by_fulfillment: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          channel: string
+          day: string
+          item_promo_incl_vat: number
+          order_count: number
+          restaurant_id: string
+          sales_incl_vat: number
+          uber_fee_after_promo_excl_vat: number
+          uber_fee_before_promo_excl_vat: number
+        }[]
+      }
       get_orders_data_source_breakdown: {
         Args: {
           p_end_date: string
