@@ -259,6 +259,11 @@ export function RestaurantComparisonTable({
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
         case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
+        case "adsRatio": {
+          aVal = adsRatioMap?.get(a.id)?.adsPct ?? -1;
+          bVal = adsRatioMap?.get(b.id)?.adsPct ?? -1;
+          break;
+        }
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
