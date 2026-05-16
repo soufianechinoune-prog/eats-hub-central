@@ -2159,27 +2159,6 @@ export function AnalyticsCharts({
             })()}
             
             
-            {/* Chart Type Toggle (only visible in chart mode) */}
-            {revenueViewMode === 'chart' && (
-              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-                <Button 
-                  variant={revenueChartType === 'bar' ? 'secondary' : 'ghost'} 
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => setRevenueChartType('bar')}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                </Button>
-                <Button 
-                  variant={revenueChartType === 'line' ? 'secondary' : 'ghost'} 
-                  size="sm"
-                  className="h-7 w-7 p-0"
-                  onClick={() => setRevenueChartType('line')}
-                >
-                  <TrendingUp className="h-4 w-4" />
-                </Button>
-              </div>
-            )}
             
             {/* Rolling Period Toggle - only for 2025+ with daily data */}
             {selectedYear >= 2025 && onComparisonModeChange && (
