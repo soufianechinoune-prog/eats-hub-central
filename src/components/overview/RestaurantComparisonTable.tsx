@@ -45,6 +45,8 @@ interface RestaurantComparisonTableProps {
   networkAdsSpend?: number;
   networkAdsRevenue?: number;
   networkAdsPct?: number | null;
+  /** CA caisse par restaurant (Splash360). */
+  cashByRestaurant?: Map<string, number>;
 }
 
 // Format helpers
