@@ -298,7 +298,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[350px] p-0 bg-background border shadow-lg" align="start">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-background border shadow-lg" align="start">
               <Command>
                 <CommandInput placeholder="Rechercher un restaurant..." />
                 <CommandList>
