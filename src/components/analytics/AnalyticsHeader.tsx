@@ -298,7 +298,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
               </Button>
             </PopoverTrigger>
-            <PopoverContent className="w-[350px] p-0 bg-background border shadow-lg" align="start">
+            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0 bg-background border shadow-lg" align="start">
               <Command>
                 <CommandInput placeholder="Rechercher un restaurant..." />
                 <CommandList>
@@ -393,13 +393,13 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
           </Popover>
         </div>
 
-        {/* Platform Pills */}
-        <div className="flex flex-wrap gap-2">
+        {/* Platform Pills — étirés pour remplir l'espace entre restaurant et période */}
+        <div className="flex-1 flex gap-2 min-w-[400px]">
           <Button
             variant={selectedPlatform === "uber_eats" ? "default" : "outline"}
             onClick={() => setSelectedPlatform("uber_eats")}
             className={cn(
-              "h-10 gap-2 transition-all duration-200",
+              "flex-1 h-10 gap-2 transition-all duration-200",
               selectedPlatform === "uber_eats" && "bg-[#06C167] hover:bg-[#06C167]/90 text-white border-0"
             )}
           >
@@ -410,7 +410,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
             variant={selectedPlatform === "deliveroo" ? "default" : "outline"}
             onClick={() => setSelectedPlatform("deliveroo")}
             className={cn(
-              "h-10 gap-2 transition-all duration-200",
+              "flex-1 h-10 gap-2 transition-all duration-200",
               selectedPlatform === "deliveroo" && "bg-[#00CCBC] hover:bg-[#00CCBC]/90 text-white border-0"
             )}
           >
@@ -421,7 +421,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
             variant={selectedPlatform === "global" ? "default" : "outline"}
             onClick={() => setSelectedPlatform("global")}
             className={cn(
-              "h-10 transition-all duration-200",
+              "flex-1 h-10 transition-all duration-200",
               selectedPlatform === "global" && "bg-primary hover:bg-primary/90"
             )}
           >
@@ -431,7 +431,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
             variant={selectedPlatform === "pos" ? "default" : "outline"}
             onClick={() => setSelectedPlatform("pos")}
             className={cn(
-              "h-10 gap-2 transition-all duration-200",
+              "flex-1 h-10 gap-2 transition-all duration-200",
               selectedPlatform === "pos" && "bg-amber-600 hover:bg-amber-700 text-white border-0"
             )}
           >
@@ -440,9 +440,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
           </Button>
         </div>
 
-
-
-        {!hidePeriodSelector && <div className="flex items-center gap-2">
+        {!hidePeriodSelector && <div className="flex items-center gap-2 ml-auto">
           <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
             <PopoverTrigger asChild>
               <Button
