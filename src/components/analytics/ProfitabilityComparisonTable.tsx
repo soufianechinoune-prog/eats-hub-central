@@ -1071,7 +1071,12 @@ export function ProfitabilityComparisonTable({
                       </TooltipTrigger>
                        <TooltipContent className="max-w-xs">
                         <div className="text-xs space-y-1">
-                          <p className="font-medium">Commission {platform === "deliveroo" ? "Deliveroo" : "Uber après promotions"} (TTC)</p>
+                          <p className="font-medium">Commission {platform === "deliveroo" ? "Deliveroo" : "Uber"} (TTC)</p>
+                          {platform !== "deliveroo" && (
+                            <p className="text-muted-foreground">
+                              Taux contractuel = commission HT avant cofinancement / (CA TTC − promos). Constant : 27 % en livraison, 15 % à emporter.
+                            </p>
+                          )}
                           <p className="text-muted-foreground">
                             Cliquez sur une ligne pour voir la décomposition.
                           </p>
