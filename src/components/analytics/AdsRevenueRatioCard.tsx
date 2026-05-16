@@ -2,7 +2,7 @@ import { Megaphone, Info } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { UberEatsLogo } from "@/components/ui/UberEatsLogo";
+import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
 interface AdsRevenueRatioCardProps {
   adsSpend: number;
