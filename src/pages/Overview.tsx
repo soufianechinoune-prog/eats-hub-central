@@ -395,6 +395,11 @@ const Overview = () => {
     endDate,
     chainId: analyticsCtx.selectedChainId,
   });
+  const { data: cashByRestaurant } = useRestaurantCashRevenue({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
+  });
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const cashConnected = !!activePosConnection && activePosConnection.is_active;
 
