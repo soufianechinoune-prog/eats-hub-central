@@ -23,6 +23,7 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
