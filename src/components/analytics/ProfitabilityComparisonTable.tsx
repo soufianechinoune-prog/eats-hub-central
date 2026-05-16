@@ -928,6 +928,131 @@ export function ProfitabilityComparisonTable({
       </span>
     );
   };
+
+  // Cellule Commission Uber avec audit par canal (livraison vs à emporter).
+  // Affiche le % global, et au survol détaille les taux contractuels par canal.
+  const CommissionAuditCell = ({
+    percentValue,
+    amountValue,
+    breakdownKeys,
+  }: {
+    percentValue: number;
+    amountValue: number;
+    breakdownKeys: string[]; // ex. ["2026-02-05|restaurantId"]
+  }) => {
+    // Agrège les breakdowns pour toutes les clés fournies (jour+resto, ou plusieurs)
+    const aggregated = useMemo(() => {
+      const acc: Record<string, ChannelBreakdown> = {};
+      for (const key of breakdownKeys) {
+        const list = commissionBreakdownMap.get(key);
+        if (!list) continue;
+        for (const b of list) {
+          if (!acc[b.channel]) {
+            acc[b.channel] = { ...b };
+          } else {
+            acc[b.channel].orderCount += b.orderCount;
+            acc[b.channel].bhHT += b.bhHT;
+            acc[b.channel].baseTTC += b.baseTTC;
+          }
+        }
+      }
+      const result = Object.values(acc).map(b => ({
+        ...b,
+        rate: b.baseTTC > 0 ? (b.bhHT / b.baseTTC) * 100 : 0,
+      }));
+      const order = { delivery: 0, takeaway: 1, other: 2 } as const;
+      result.sort((a, b) => order[a.channel] - order[b.channel]);
+      return result;
+    }, [breakdownKeys]);
+
+    const display = displayMode === 'amount'
+      ? formatCurrency(amountValue)
+      : `${percentValue.toFixed(1)}%`;
+
+    if (platform === "deliveroo" || aggregated.length === 0) {
+      return <span className="font-medium tabular-nums">{display}</span>;
+    }
+
+    // Détection d'une anomalie : écart > 0,5 pt vs taux contractuel attendu
+    const hasAnomaly = aggregated.some(b =>
+      b.expectedRate > 0 && Math.abs(b.rate - b.expectedRate) > 0.5
+    );
+
+    const channelLabel = (c: ChannelBreakdown["channel"]) =>
+      c === "delivery" ? "🚲 Livraison" : c === "takeaway" ? "🛍️ À emporter" : "• Autre";
+
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className={cn(
+              "font-medium tabular-nums cursor-help inline-flex items-center gap-1",
+              hasAnomaly && "text-amber-600"
+            )}>
+              {display}
+              {hasAnomaly && <AlertCircle className="h-3 w-3" />}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-sm p-0">
+            <div className="text-xs">
+              <div className="px-3 py-2 border-b font-semibold bg-muted/50">
+                Audit commission Uber
+              </div>
+              <table className="w-full">
+                <thead className="text-[10px] uppercase text-muted-foreground">
+                  <tr>
+                    <th className="text-left px-3 py-1">Canal</th>
+                    <th className="text-right px-2 py-1">Cmd</th>
+                    <th className="text-right px-2 py-1">Taux</th>
+                    <th className="text-right px-3 py-1">Comm. HT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {aggregated.map(b => {
+                    const deviation = b.expectedRate > 0 ? Math.abs(b.rate - b.expectedRate) : 0;
+                    const isOk = b.expectedRate > 0 && deviation <= 0.5;
+                    const isOff = b.expectedRate > 0 && deviation > 0.5;
+                    return (
+                      <tr key={b.channel} className="border-t">
+                        <td className="px-3 py-1.5">{channelLabel(b.channel)}</td>
+                        <td className="text-right tabular-nums px-2 py-1.5">{b.orderCount}</td>
+                        <td className={cn(
+                          "text-right tabular-nums px-2 py-1.5 font-medium",
+                          isOk && "text-emerald-600",
+                          isOff && "text-amber-600"
+                        )}>
+                          {b.rate.toFixed(2)}%
+                          {b.expectedRate > 0 && (
+                            <span className="text-muted-foreground font-normal ml-1">
+                              / {b.expectedRate}%
+                            </span>
+                          )}
+                        </td>
+                        <td className="text-right tabular-nums px-3 py-1.5">{formatCurrency(b.bhHT)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <div className="px-3 py-2 border-t bg-muted/30 flex items-center justify-between gap-3">
+                <span className="text-muted-foreground">Moyenne pondérée</span>
+                <span className="font-semibold tabular-nums">{percentValue.toFixed(2)}%</span>
+              </div>
+              {hasAnomaly ? (
+                <div className="px-3 py-1.5 border-t text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" /> Écart vs taux contractuel détecté
+                </div>
+              ) : (
+                <div className="px-3 py-1.5 border-t text-emerald-600">
+                  ✓ Taux contractuels respectés
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
   
   // Check if we have multiple restaurants (needed for week view)
   const hasMultipleRestaurants = uniqueRestaurants.size > 1;
