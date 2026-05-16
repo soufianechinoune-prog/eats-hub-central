@@ -340,7 +340,7 @@ export function ProfitabilityComparisonTable({
   });
 
   type ChannelBreakdown = {
-    channel: "delivery" | "takeaway" | "other";
+    channel: "delivery" | "takeaway" | "web_online" | "other";
     orderCount: number;
     bhHT: number;
     baseTTC: number;
@@ -359,7 +359,10 @@ export function ProfitabilityComparisonTable({
       const base = sales - promo;
       const rate = base > 0 ? (bh / base) * 100 : 0;
       const channel = (row.channel || "other") as ChannelBreakdown["channel"];
-      const expectedRate = channel === "delivery" ? 27 : channel === "takeaway" ? 15 : 0;
+      const expectedRate =
+        channel === "delivery" ? 27 :
+        channel === "takeaway" ? 15 :
+        channel === "web_online" ? 10 : 0;
       const list = map.get(key) || [];
       list.push({
         channel,
@@ -371,8 +374,8 @@ export function ProfitabilityComparisonTable({
       });
       map.set(key, list);
     }
-    // Tri : livraison d'abord, puis à emporter, puis autres
-    const order = { delivery: 0, takeaway: 1, other: 2 };
+    // Tri : livraison d'abord, puis à emporter, puis commande en ligne web, puis autres
+    const order = { delivery: 0, takeaway: 1, web_online: 2, other: 3 };
     for (const list of map.values()) {
       list.sort((a, b) => order[a.channel] - order[b.channel]);
     }
@@ -1007,7 +1010,7 @@ export function ProfitabilityComparisonTable({
         ...b,
         rate: b.baseTTC > 0 ? (b.bhHT / b.baseTTC) * 100 : 0,
       }));
-      const order = { delivery: 0, takeaway: 1, other: 2 } as const;
+      const order = { delivery: 0, takeaway: 1, web_online: 2, other: 3 } as const;
       result.sort((a, b) => order[a.channel] - order[b.channel]);
       return result;
     }, [breakdownKeys]);
@@ -1026,7 +1029,10 @@ export function ProfitabilityComparisonTable({
     );
 
     const channelLabel = (c: ChannelBreakdown["channel"]) =>
-      c === "delivery" ? "🚲 Livraison" : c === "takeaway" ? "🛍️ À emporter" : "• Autre";
+      c === "delivery" ? "🚲 Livraison"
+        : c === "takeaway" ? "🛍️ À emporter"
+        : c === "web_online" ? "💻 Commande en ligne"
+        : "• Autre";
 
     return (
       <TooltipProvider>
