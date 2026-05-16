@@ -504,7 +504,7 @@ export const ProfitabilityComparisonChart = ({
     });
     
     return { totalProfitability, prevTotalProfitability, variation, totalSales, prevTotalSales, totalNetPayout, totalMealVoucher, totalOrders, totalPromo };
-  }, [chartData, dateRange, profitabilityBase]);
+  }, [chartData, dateRange, profitabilityBase, currentYearCutoffIndex]);
 
   // Period labels
   const selectedYear = format(dateRange.start, "yyyy");
