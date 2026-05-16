@@ -1352,7 +1352,9 @@ export default function Analytics() {
       )}
 
       {/* Content based on selected platform from context */}
-      {isLoading ? (
+      {selectedPlatform === "pos" ? (
+        <PosEmptyState />
+      ) : isLoading ? (
         <div className="flex justify-center items-center py-20">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
