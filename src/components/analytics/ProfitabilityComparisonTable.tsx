@@ -306,6 +306,79 @@ export function ProfitabilityComparisonTable({
     return map;
   }, [advertisingData]);
 
+  // ── Audit commission par canal (livraison vs à emporter) ──
+  // On interroge l'agrégat orders pour vérifier que Uber applique bien 27 % / 15 %.
+  const commissionQueryParams = useMemo(() => {
+    if (platform === "deliveroo" || !payouts || payouts.length === 0) return null;
+    const restaurantIds = Array.from(new Set(payouts.map(p => p.restaurant_id).filter(Boolean)));
+    if (restaurantIds.length === 0) return null;
+    const dates = payouts.map(p => p.payout_date).filter(Boolean).sort();
+    return {
+      restaurantIds,
+      start: dates[0],
+      end: dates[dates.length - 1],
+    };
+  }, [payouts, platform]);
+
+  const { data: commissionBreakdownRaw } = useQuery({
+    queryKey: ["commission-breakdown-fulfillment", commissionQueryParams],
+    queryFn: async () => {
+      if (!commissionQueryParams) return [];
+      const { data, error } = await supabase.rpc("get_orders_commission_by_fulfillment", {
+        p_restaurant_ids: commissionQueryParams.restaurantIds,
+        p_start_date: commissionQueryParams.start,
+        p_end_date: commissionQueryParams.end,
+      });
+      if (error) {
+        console.error("[ProfitabilityComparisonTable] get_orders_commission_by_fulfillment", error);
+        return [];
+      }
+      return data || [];
+    },
+    enabled: !!commissionQueryParams,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  type ChannelBreakdown = {
+    channel: "delivery" | "takeaway" | "other";
+    orderCount: number;
+    bhHT: number;
+    baseTTC: number;
+    rate: number;
+    expectedRate: number;
+  };
+
+  const commissionBreakdownMap = useMemo(() => {
+    const map = new Map<string, ChannelBreakdown[]>();
+    if (!commissionBreakdownRaw) return map;
+    for (const row of commissionBreakdownRaw as any[]) {
+      const key = `${row.day}|${row.restaurant_id}`;
+      const bh = Math.abs(Number(row.uber_fee_before_promo_excl_vat) || 0);
+      const sales = Math.abs(Number(row.sales_incl_vat) || 0);
+      const promo = Math.abs(Number(row.item_promo_incl_vat) || 0);
+      const base = sales - promo;
+      const rate = base > 0 ? (bh / base) * 100 : 0;
+      const channel = (row.channel || "other") as ChannelBreakdown["channel"];
+      const expectedRate = channel === "delivery" ? 27 : channel === "takeaway" ? 15 : 0;
+      const list = map.get(key) || [];
+      list.push({
+        channel,
+        orderCount: Number(row.order_count) || 0,
+        bhHT: bh,
+        baseTTC: base,
+        rate,
+        expectedRate,
+      });
+      map.set(key, list);
+    }
+    // Tri : livraison d'abord, puis à emporter, puis autres
+    const order = { delivery: 0, takeaway: 1, other: 2 };
+    for (const list of map.values()) {
+      list.sort((a, b) => order[a.channel] - order[b.channel]);
+    }
+    return map;
+  }, [commissionBreakdownRaw]);
+
   const comparisonData = useMemo(() => {
     const rows = payouts.map((payout): ComparisonRow => {
       const sales = Math.abs(Number(payout.sales_incl_vat) || 0);
