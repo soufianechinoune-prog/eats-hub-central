@@ -2488,7 +2488,7 @@ export function AnalyticsCharts({
                       </BarChart>
                     ) : (
                       <LineChart 
-                        data={drillDownMonth ? drillDownChartData : aggregatedRevenueData}
+                        data={drillDownMonth ? drillDownChartData : displayRevenueData}
                         onClick={!drillDownMonth ? handleRevenueBarClick : undefined}
                         style={{ cursor: !drillDownMonth ? 'pointer' : undefined }}
                       >
