@@ -16,8 +16,10 @@ import type { RestaurantDataSourceInfo } from "@/hooks/useDataSourceBreakdown";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Info } from "lucide-react";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
+
+import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
 interface RestaurantComparisonTableProps {
   stats: RestaurantNetworkStats[];
@@ -35,6 +37,11 @@ interface RestaurantComparisonTableProps {
   showDataSource?: boolean;
   onToggleDataSource?: (value: boolean) => void;
   dataSourceMap?: Map<string, RestaurantDataSourceInfo>;
+  /** % Dépenses pub Uber / CA TTC par restaurant */
+  adsRatioMap?: Map<string, AdsRatioByRestaurant>;
+  networkAdsSpend?: number;
+  networkAdsRevenue?: number;
+  networkAdsPct?: number | null;
 }
 
 // Format helpers
