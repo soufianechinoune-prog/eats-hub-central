@@ -452,7 +452,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { csvContent, reportType = 'payment_order_level', dryRun = false } = await req.json();
+    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv' } = await req.json();
 
     if (!csvContent) {
       throw new Error('Missing csvContent in request body');
@@ -1007,6 +1007,7 @@ Deno.serve(async (req) => {
         imported_from_report: true,
         report_import_date: importTimestamp,
         currency: 'EUR',
+        data_source: dataSource,
         extra_columns: buildExtraColumns(row),
       });
     }
