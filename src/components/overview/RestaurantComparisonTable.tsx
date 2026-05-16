@@ -404,6 +404,18 @@ export function RestaurantComparisonTable({
                 </TooltipProvider>
               </HeaderCell>
               <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
+              <HeaderCell column="adsRatio" className="text-right">
+                <TooltipProvider delayDuration={200}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs text-xs">
+                      Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </HeaderCell>
               <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
               <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
               <HeaderCell column="rating" className="text-right">Note</HeaderCell>
