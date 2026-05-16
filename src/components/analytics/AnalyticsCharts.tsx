@@ -1870,17 +1870,19 @@ export function AnalyticsCharts({
 
   // Calculate KPIs
   const kpis = useMemo(() => {
-    const totalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.revenue, 0);
-    const totalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.orders, 0);
+    // Revenue/orders KPIs are computed on the comparable window (Jan → cutoff on both years)
+    // so the % variation only compares periods where current year actually has data.
+    const totalRevenue = comparableRevenueData.reduce((sum, d) => sum + d.revenue, 0);
+    const totalOrders = comparableRevenueData.reduce((sum, d) => sum + d.orders, 0);
     const totalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.visits, 0);
     const totalConvOrders = aggregatedConversionData.reduce((sum, d) => sum + d.orders, 0);
     const totalFees = effectiveFeesData.reduce((sum, d) => sum + d.totalFees, 0);
     const totalNet = effectiveFeesData.reduce((sum, d) => sum + d.net, 0);
     const profitability = totalRevenue > 0 ? (totalNet / totalRevenue) * 100 : 0;
 
-    // Previous year totals
-    const prevTotalRevenue = aggregatedRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
-    const prevTotalOrders = aggregatedRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
+    // Previous year totals - aligned on the same comparable window
+    const prevTotalRevenue = comparableRevenueData.reduce((sum, d) => sum + d.prevRevenue, 0);
+    const prevTotalOrders = comparableRevenueData.reduce((sum, d) => sum + d.prevOrders, 0);
     const prevTotalVisits = aggregatedConversionData.reduce((sum, d) => sum + d.prevVisits, 0);
     const prevTotalFees = effectiveFeesData.reduce((sum, d) => sum + d.prevTotalFees, 0);
     const prevTotalNet = effectiveFeesData.reduce((sum, d) => sum + d.prevNet, 0);
