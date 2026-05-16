@@ -537,7 +537,7 @@ export function ProfitabilityComparisonTable({
       }
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [payouts, restaurants, sortColumn, sortDirection, profitabilityBase, adMap]);
+  }, [payouts, restaurants, sortColumn, sortDirection, profitabilityBase, adMap, ecoMap]);
   
   // Group by week for week view mode
   const weekGroups = useMemo((): WeekGroup[] => {
