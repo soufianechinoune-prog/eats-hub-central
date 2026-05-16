@@ -323,7 +323,7 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     }
-  }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase]);
+  }, [dailyOrdersData, previousDailyOrdersData, dateRange, isShortPeriod, profitabilityBase, comparisonMode]);
 
   // Detailed chart data: per-restaurant profitability for multi-line view
   const detailedChartData = useMemo(() => {
