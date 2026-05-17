@@ -383,7 +383,12 @@ export function useNetworkStats({
       // Availability from RPC summary
       const restoAvail = availabilityData?.find((a) => a.restaurant_id === resto.id);
       const totalOfflineMinutes = restoAvail?.total_offline_minutes || 0;
+      const totalOnlineMinutes = restoAvail?.total_online_minutes || 0;
       const downtime = restoAvail ? totalOfflineMinutes / 60 : null;
+      const availabilityRate =
+        restoAvail && (totalOnlineMinutes + totalOfflineMinutes) > 0
+          ? (totalOnlineMinutes / (totalOnlineMinutes + totalOfflineMinutes)) * 100
+          : null;
 
       const revenueVariation =
         includeN1Comparison && prevRevenue > 0
