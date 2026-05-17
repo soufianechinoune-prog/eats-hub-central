@@ -669,8 +669,10 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+            )}
 
             {/* Deliveroo Card */}
+            {(activeChannel === "global" || activeChannel === "deliveroo") && (
             <Card className="border-2 border-deliveroo/30 shadow-2xl bg-gradient-to-br from-card via-card to-deliveroo/5 backdrop-blur-xl hover:shadow-deliveroo/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
