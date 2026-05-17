@@ -725,7 +725,90 @@ const Overview = () => {
             </Card>
             )}
 
-          </div>
+            {/* Caisse Card */}
+            {activeChannel === "cash" && (
+            <Card className="border-2 border-cash/30 shadow-2xl bg-gradient-to-br from-card via-card to-cash/5 backdrop-blur-xl hover:shadow-cash/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-cash/10 flex items-center justify-center">
+                      <Store className="h-6 w-6 text-cash" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Caisse</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {cashConnected
+                          ? `${activePosConnection?.connector?.name ?? "POS"} · ${getPeriodLabel()}`
+                          : getPeriodLabel()}
+                      </p>
+                    </div>
+                  </div>
+                  {!cashConnected && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/settings/integrations")}
+                      className="gap-1.5"
+                    >
+                      <Plug className="h-3.5 w-3.5" />
+                      Connecter
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!cashConnected && (cashRevenueData?.totalCash ?? 0) === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune caisse connectée pour cette marque.<br />
+                    Connectez votre logiciel de caisse (Splash360, Zelty…) pour activer les analyses sur place.
+                  </div>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={Euro}
+                      label="CA Caisse (TTC)"
+                      value={cashRevenueData?.totalCash != null
+                        ? Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")
+                        : null}
+                      unit="€"
+                      color="text-cash"
+                    />
+                    <MetricRow
+                      icon={TrendingUp}
+                      label="Part dans le CA réseau"
+                      value={cashRevenueData?.cashShare != null
+                        ? cashRevenueData.cashShare.toFixed(1)
+                        : null}
+                      unit="%"
+                      color="text-emerald-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Variation vs N-1"
+                      value={cashRevenueData?.cashVariation != null
+                        ? `${cashRevenueData.cashVariation > 0 ? "+" : ""}${cashRevenueData.cashVariation.toFixed(1)}`
+                        : null}
+                      unit="%"
+                      color={
+                        cashRevenueData?.cashVariation == null
+                          ? "text-muted-foreground"
+                          : cashRevenueData.cashVariation >= 0
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                      }
+                    />
+                    <MetricRow
+                      icon={Clock}
+                      label="Jours avec données"
+                      value={cashRevenueData?.daysWithData ?? null}
+                      color="text-indigo-500"
+                    />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
 
           {/* Platform Revenue Split */}
           {activeChannel === "global" && (
