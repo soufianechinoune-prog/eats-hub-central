@@ -210,6 +210,7 @@ export function RestaurantComparisonTable({
     const cash = cashStats?.cashRevenue ?? 0;
     return {
       revenue: cash,
+      revenueHT: cashStats?.cashRevenueHT ?? 0,
       orders: cashStats?.cashOrders ?? 0,
       avgBasket: cashStats?.cashAvgBasket ?? 0,
       netPayout: 0,
