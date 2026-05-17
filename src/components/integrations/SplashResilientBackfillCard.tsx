@@ -29,7 +29,7 @@ interface ProgressRow {
  */
 export function SplashResilientBackfillCard() {
   const { selectedChainId } = useAnalyticsContext();
-  const [enqueuing, setEnqueuing] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   const { data: progress, isLoading } = useQuery<ProgressRow | null>({
     queryKey: ["splash-backfill-progress", selectedChainId],
@@ -50,39 +50,6 @@ export function SplashResilientBackfillCard() {
   const done = progress?.done ?? 0;
   const errors = progress?.error ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-
-  const handleEnqueue = async (
-    label: string,
-    startYear: number,
-    startMonth: number,
-    endYear: number,
-    endMonth: number,
-  ) => {
-    if (!selectedChainId) return;
-    setEnqueuing(true);
-    try {
-      const { data, error } = await supabase.rpc("enqueue_splash_backfill_for_chain", {
-        p_chain_id: selectedChainId,
-        p_start_year: startYear,
-        p_start_month: startMonth,
-        p_end_year: endYear,
-        p_end_month: endMonth,
-      });
-      if (error) throw error;
-      toast({
-        title: `Backfill ${label} lancé ✓`,
-        description: `${data} jobs créés. Le serveur va les traiter en arrière-plan (≈ 1 minute par job, plusieurs heures au total). Tu peux fermer l'onglet.`,
-      });
-    } catch (e: any) {
-      toast({
-        title: "Erreur",
-        description: e?.message ?? "Impossible de lancer le backfill",
-        variant: "destructive",
-      });
-    } finally {
-      setEnqueuing(false);
-    }
-  };
 
   const now = new Date();
   const currentYear = now.getFullYear();
