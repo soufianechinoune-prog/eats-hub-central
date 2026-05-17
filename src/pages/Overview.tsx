@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2 } from "lucide-react";
+import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2, Store, Plug, Euro } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
