@@ -636,7 +636,10 @@ const Overview = () => {
 
             {/* Uber Eats Card */}
             {(activeChannel === "global" || activeChannel === "uber") && (
-            <Card className="border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]">
+            <Card className={cn(
+              "border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]",
+              activeChannel === "uber" && "lg:col-span-2"
+            )}>
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -667,8 +670,23 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("uber_eats")} />
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
+                <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
+                <MetricRow icon={Star} label="Avis produits" value={networkData?.uber.productApprovalRate != null ? Math.round(networkData.uber.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
             </Card>
+            )}
+
+            {/* Dépenses pub / CA — inline beside Uber card in Uber view */}
+            {activeChannel === "uber" && (
+              <div className="lg:col-span-1">
+                <AdsRevenueRatioCard
+                  adsSpend={adsRatio.networkAdsSpend}
+                  revenue={adsRatio.networkRevenue}
+                  pct={adsRatio.networkPct}
+                  isLoading={adsRatio.isLoading}
+                  periodLabel={getPeriodLabel()}
+                />
+              </div>
             )}
 
             {/* Deliveroo Card */}
