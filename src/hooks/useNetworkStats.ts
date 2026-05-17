@@ -34,6 +34,7 @@ export interface RestaurantNetworkStats {
   totalDeliveryTime: number | null; // Temps prépa+livraison moyen
   errorRate: number | null;
   downtime: number | null;
+  availabilityRate: number | null;
   // N-1 comparison (optional)
   prevRevenue?: number | null;
   prevOrders?: number | null;
