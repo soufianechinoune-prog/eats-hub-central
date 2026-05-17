@@ -671,69 +671,97 @@ export function RestaurantComparisonTable({
             })}
 
             {/* Network totals row */}
-            <TableRow className="bg-muted/30 font-semibold border-t-2 border-border hover:bg-muted/40">
-              <TableCell></TableCell>
-              <TableCell className="font-bold text-primary">
-                RÉSEAU <span className="text-muted-foreground font-normal text-sm">({stats.length} restos)</span>
-              </TableCell>
-              <TableCell className="text-right font-bold whitespace-nowrap">
-                {formatCurrency(networkTotals.totalRevenue)}
-              </TableCell>
-              {showN1Comparison && (
-                <TableCell className="text-right">
-                  {formatVariation(networkTotals.revenueVariation)}
-                </TableCell>
-              )}
-              {showCashColumn && (
-                <TableCell className="text-right font-bold text-cash whitespace-nowrap">
-                  {formatCurrency(networkCashTotal)}
-                </TableCell>
-              )}
-              <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                {formatNetPayout(networkTotals.totalNetPayout)}
-              </TableCell>
-              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
-                {networkTotals.totalMealVoucher > 0 ? formatCurrencyPrecise(networkTotals.totalMealVoucher) : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
-              </TableCell>
-              <TableCell className="text-right font-bold text-uber whitespace-nowrap">
-                {networkAdsPct != null ? (
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">
-                        {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold">
-                {networkTotals.totalOrders.toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="text-right font-semibold whitespace-nowrap">
-                {networkTotals.avgBasket.toFixed(2)} €
-              </TableCell>
-              <TableCell className="text-right">
-                <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
-                  <Star className="h-3 w-3" />
-                  {networkTotals.avgRating?.toFixed(1) ?? "—"}
-                </span>
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgErrorRate != null ? `${networkTotals.avgErrorRate.toFixed(1)}%` : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
-                {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
-                {formatHours(networkTotals.totalDowntime)}
-              </TableCell>
-            </TableRow>
+            {(() => {
+              // For "all" use networkTotals (network-wide aggregates).
+              // For other tabs compute totals from the visible projected rows.
+              const isAll = channelTab === "all";
+              const sumRevenue = isAll ? networkTotals.totalRevenue : filteredStats.reduce((s, r) => s + r.v.revenue, 0);
+              const sumOrders = isAll ? networkTotals.totalOrders : filteredStats.reduce((s, r) => s + r.v.orders, 0);
+              const sumPayout = isAll ? networkTotals.totalNetPayout : filteredStats.reduce((s, r) => s + r.v.netPayout, 0);
+              const sumMeal = isAll ? networkTotals.totalMealVoucher : filteredStats.reduce((s, r) => s + r.v.mealVoucher, 0);
+              const avgBasket = sumOrders > 0 ? sumRevenue / sumOrders : 0;
+              const restoCount = filteredStats.length;
+              return (
+                <TableRow className="bg-muted/30 font-semibold border-t-2 border-border hover:bg-muted/40">
+                  <TableCell></TableCell>
+                  <TableCell className="font-bold text-primary">
+                    RÉSEAU <span className="text-muted-foreground font-normal text-sm">({restoCount} restos)</span>
+                  </TableCell>
+                  <TableCell className="text-right font-bold whitespace-nowrap">
+                    {formatCurrency(sumRevenue)}
+                  </TableCell>
+                  {showN1Comparison && isAll && (
+                    <TableCell className="text-right">
+                      {formatVariation(networkTotals.revenueVariation)}
+                    </TableCell>
+                  )}
+                  {cols.payout && (
+                    <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      {formatNetPayout(sumPayout)}
+                    </TableCell>
+                  )}
+                  {cols.mealVoucher && (
+                    <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                      {sumMeal > 0 ? formatCurrencyPrecise(sumMeal) : "—"}
+                    </TableCell>
+                  )}
+                  {cols.profitability && (
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {isAll && networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
+                    </TableCell>
+                  )}
+                  {cols.adsRatio && (
+                    <TableCell className="text-right font-bold text-uber whitespace-nowrap">
+                      {networkAdsPct != null ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : "—"}
+                    </TableCell>
+                  )}
+                  {cols.orders && (
+                    <TableCell className="text-right font-semibold">
+                      {sumOrders.toLocaleString("fr-FR")}
+                    </TableCell>
+                  )}
+                  {cols.basket && (
+                    <TableCell className="text-right font-semibold whitespace-nowrap">
+                      {avgBasket.toFixed(2)} €
+                    </TableCell>
+                  )}
+                  {cols.rating && (
+                    <TableCell className="text-right">
+                      <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
+                        <Star className="h-3 w-3" />
+                        {networkTotals.avgRating?.toFixed(1) ?? "—"}
+                      </span>
+                    </TableCell>
+                  )}
+                  {cols.errorRate && (
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {networkTotals.avgErrorRate != null ? `${networkTotals.avgErrorRate.toFixed(1)}%` : "—"}
+                    </TableCell>
+                  )}
+                  {cols.delivery && (
+                    <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
+                      {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
+                    </TableCell>
+                  )}
+                  {cols.downtime && (
+                    <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
+                      {formatHours(networkTotals.totalDowntime)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })()}
           </TableBody>
         </Table>
 
