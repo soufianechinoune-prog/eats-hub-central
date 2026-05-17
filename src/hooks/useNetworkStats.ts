@@ -295,6 +295,7 @@ export function useNetworkStats({
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
+        total_online_minutes: Number(d.total_online_minutes || 0),
         total_offline_minutes: Number(d.total_offline_minutes),
       }));
     },
