@@ -409,7 +409,7 @@ export function RestaurantComparisonTable({
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">CA <Info className="h-3 w-3 opacity-60" /></span>
+                      <span className="inline-flex items-center gap-1">{channelTab === "cash" ? "CA TTC" : "CA"} <Info className="h-3 w-3 opacity-60" /></span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
                       Chiffre d'affaires brut TTC, toutes commandes confondues (Uber + Deliveroo).
@@ -417,6 +417,9 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
+              {channelTab === "cash" && (
+                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">CA HT</TableHead>
+              )}
               {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
