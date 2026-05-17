@@ -476,12 +476,16 @@ export function RestaurantComparisonTable({
                   >
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleRow(resto.id); }}
-                          className="p-0.5 rounded hover:bg-muted transition-transform"
-                        >
-                          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")} />
-                        </button>
+                        {cols.expand ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleRow(resto.id); }}
+                            className="p-0.5 rounded hover:bg-muted transition-transform"
+                          >
+                            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")} />
+                          </button>
+                        ) : (
+                          <span className="w-[18px] inline-block" />
+                        )}
                         <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs h-6 w-6 flex items-center justify-center rounded-md">
                           {idx + 1}
                         </Badge>
