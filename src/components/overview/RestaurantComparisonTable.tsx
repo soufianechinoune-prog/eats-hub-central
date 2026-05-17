@@ -289,7 +289,7 @@ export function RestaurantComparisonTable({
         case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
-        case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
+        case "downtime": aVal = a.availabilityRate ?? -1; bVal = b.availabilityRate ?? -1; break;
         case "adsRatio": {
           aVal = adsRatioMap?.get(A.resto.id)?.adsPct ?? -1;
           bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
