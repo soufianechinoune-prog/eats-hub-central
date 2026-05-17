@@ -654,7 +654,7 @@ export function RestaurantComparisonTable({
                     )}
                   </TableRow>
                   {cols.expand && isExpanded && (() => {
-                    const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                    const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
                     // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
                     const visibleCols = 3
