@@ -719,7 +719,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("deliveroo")} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
+                <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.deliveroo.availabilityRate != null ? networkData.deliveroo.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.deliveroo.availabilityRate)} onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
             )}
