@@ -7,6 +7,7 @@ interface DailyRow {
   date: string;
   platform: string;
   revenue_ttc: number;
+  revenue_ht: number;
   order_count: number;
   n1_revenue_ttc: number | null;
   n1_order_count: number | null;
@@ -14,10 +15,11 @@ interface DailyRow {
 
 export interface RestaurantCashStats {
   cashRevenue: number;
+  cashRevenueHT: number;
   cashOrders: number;
   cashAvgBasket: number;
   globalRevenue: number;
-  cashShare: number; // % de la caisse dans le CA total du resto
+  cashShare: number;
   prevCashRevenue: number | null;
   cashVariation: number | null;
   prevCashOrders: number | null;
