@@ -105,6 +105,7 @@ const Overview = () => {
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
   const [showDataSource, setShowDataSource] = useState(true);
+  const [activeChannel, setActiveChannel] = useState<OverviewChannel>("global");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
