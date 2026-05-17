@@ -58,7 +58,7 @@ export function OperationsAnalytics() {
     }
     return "availability";
   });
-  const [chartType, setChartType] = useState<"line" | "bar">("line");
+  
   const [selectedDay, setSelectedDay] = useState<string | null>(null); // format "yyyy-MM-dd"
 
   // Initialize from URL parameters for drill-down navigation
