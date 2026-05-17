@@ -834,24 +834,6 @@ export function OperationsAnalytics() {
               </div>
             ) : null}
           </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant={chartType === "line" ? "default" : "outline"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setChartType("line")}
-            >
-              <LineChartIcon className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={chartType === "bar" ? "default" : "outline"}
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setChartType("bar")}
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
-          </div>
         </CardHeader>
         <CardContent className="w-full">
           <ChartContainer
