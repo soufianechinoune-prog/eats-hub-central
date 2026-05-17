@@ -179,7 +179,7 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
           <div className="w-40 md:w-52 shrink-0">Restaurant</div>
           <div className="flex-1">Disponibilité</div>
           <div className="w-[96px] shrink-0 text-center">Statut</div>
-          <div className="w-24 md:w-28 text-right shrink-0">% · Hors ligne</div>
+          <div className="w-24 md:w-28 text-right shrink-0">Disponibilité</div>
         </div>
         <div className="max-h-[640px] overflow-y-auto divide-y divide-border/40">
           {filteredAndSortedStats.length === 0 ? (
