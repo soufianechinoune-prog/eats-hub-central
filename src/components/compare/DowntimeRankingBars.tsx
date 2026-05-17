@@ -172,67 +172,114 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
       )}
 
       {/* Restaurant list */}
-      <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
-        {filteredAndSortedStats.length === 0 ? (
-          <div className="text-center text-muted-foreground py-8">
-            Aucun restaurant trouvé pour "{searchQuery}"
-          </div>
-        ) : (
-          filteredAndSortedStats.map((stat, index) => {
-            const barWidth = stat.availabilityRate;
-            const status = getStatusLabel(stat.availabilityRate);
-            const cityName = extractCityName(stat.name);
-            // Only show medals for top 3 when sorted by best first and no search filter
-            const showMedal = sortDirection === "desc" && !searchQuery && index < 3;
-            
-            return (
-              <motion.div
-                key={stat.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: Math.min(index * 0.05, 0.5) }}
-                className="space-y-2 cursor-pointer hover:bg-muted/50 p-2 rounded-lg transition-colors -mx-2"
-                onClick={() => handleRestaurantClick(stat.id)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg w-6">{showMedal ? getMedal(index) : ""}</span>
+      <div className="rounded-lg border border-border/60 bg-card overflow-hidden">
+        <div className="max-h-[640px] overflow-y-auto divide-y divide-border/40">
+          {filteredAndSortedStats.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              Aucun restaurant trouvé pour "{searchQuery}"
+            </div>
+          ) : (
+            filteredAndSortedStats.map((stat, index) => {
+              const barWidth = stat.availabilityRate;
+              const status = getStatusLabel(stat.availabilityRate);
+              const cityName = extractCityName(stat.name);
+              const showMedal = sortDirection === "desc" && !searchQuery && index < 3;
+              const isPerfect = stat.availabilityRate === 100;
+
+              const rankBadgeClass = showMedal
+                ? index === 0
+                  ? "bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-500/30"
+                  : index === 1
+                    ? "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-500/15 dark:text-slate-300 dark:border-slate-500/30"
+                    : "bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-500/15 dark:text-orange-300 dark:border-orange-500/30"
+                : "";
+
+              const statusBgClass = isPerfect
+                ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                : stat.availabilityRate >= 99
+                  ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                  : stat.availabilityRate >= 98
+                    ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
+                    : stat.availabilityRate >= 95
+                      ? "bg-orange-50 text-orange-600 dark:bg-orange-500/10 dark:text-orange-400"
+                      : "bg-rose-50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400";
+
+              return (
+                <motion.div
+                  key={stat.id}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(index * 0.02, 0.4) }}
+                  className="group flex items-center gap-4 md:gap-6 px-4 md:px-5 py-3 cursor-pointer hover:bg-muted/40 transition-colors"
+                  onClick={() => handleRestaurantClick(stat.id)}
+                >
+                  {/* Rank */}
+                  <div className="w-7 flex justify-center shrink-0">
+                    {showMedal ? (
+                      <div className={cn(
+                        "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold border shadow-sm",
+                        rankBadgeClass
+                      )}>
+                        {index + 1}
+                      </div>
+                    ) : (
+                      <span className="text-[11px] font-semibold text-muted-foreground tabular-nums">
+                        {index + 1}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Name */}
+                  <div className="w-40 md:w-52 shrink-0 min-w-0">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="font-medium hover:text-primary transition-colors">{cityName}</span>
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate block">
+                          {cityName}
+                        </span>
                       </TooltipTrigger>
                       <TooltipContent>{stat.name}</TooltipContent>
                     </Tooltip>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <span className={cn("text-sm font-medium", status.color)}>
+
+                  {/* Bar + status badge */}
+                  <div className="flex-1 flex items-center gap-3 md:gap-4 min-w-0">
+                    <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${barWidth}%` }}
+                        transition={{ duration: 0.7, ease: "easeOut", delay: Math.min(index * 0.02, 0.4) }}
+                        className={cn(
+                          "h-full rounded-full",
+                          getBarColor(stat.availabilityRate),
+                          isPerfect && "shadow-[0_0_8px_hsl(var(--primary)/0.15)]"
+                        )}
+                      />
+                    </div>
+                    <span className={cn(
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+                      statusBgClass
+                    )}>
                       {status.text}
                     </span>
-                    <span className="font-semibold tabular-nums min-w-[80px] text-right">
-                      {stat.availabilityRate.toFixed(1)}%
-                    </span>
                   </div>
-                </div>
-                
-                <div className="h-3 bg-muted rounded-full overflow-hidden">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${barWidth}%` }}
-                    transition={{ duration: 0.8, ease: "easeOut", delay: Math.min(index * 0.05, 0.5) }}
-                    className={cn("h-full rounded-full", getBarColor(stat.availabilityRate))}
-                  />
-                </div>
-                
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Temps hors ligne: {formatMinutesToDisplay(stat.totalOfflineMinutes)}</span>
-                  {stat.availabilityRate === 100 && (
-                    <span className="text-emerald-500">✓ 100% en ligne</span>
-                  )}
-                </div>
-              </motion.div>
-            );
-          })
-        )}
+
+                  {/* Numeric */}
+                  <div className="w-24 md:w-28 text-right shrink-0">
+                    <div className="text-sm font-semibold tabular-nums text-foreground">
+                      {stat.availabilityRate.toFixed(1)}%
+                    </div>
+                    <div className={cn(
+                      "text-[10px] font-medium tabular-nums",
+                      isPerfect ? "text-muted-foreground" : "text-rose-500"
+                    )}>
+                      {formatMinutesToDisplay(stat.totalOfflineMinutes)} hors ligne
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );
