@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
