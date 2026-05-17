@@ -470,6 +470,13 @@ export function RestaurantComparisonTable({
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
               {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
+              {channelTab === "cash" && (
+                <>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">Part / CA</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1 (CA)</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1 (Cmds)</TableHead>
+                </>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
