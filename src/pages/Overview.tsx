@@ -745,11 +745,13 @@ const Overview = () => {
               networkAdsPct={adsRatio.networkPct}
               networkCashTotal={cashRevenueData?.totalCash ?? 0}
               cashByRestaurant={cashByRestaurant}
+              forcedChannel={activeChannel === "global" ? "all" : activeChannel}
             />
           </div>
 
 
           {/* Avis Produits */}
+          {activeChannel === "global" && (
           <div className="grid gap-6 lg:grid-cols-2 mt-10">
             {/* Top Products */}
             <Card>
