@@ -506,7 +506,7 @@ export function RestaurantComparisonTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
-                      {(() => {
+                      {cols.caMix ? (() => {
                         const cash = cashByRestaurant?.get(resto.id) ?? 0;
                         const segments: ChannelSegment[] = [
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
@@ -515,116 +515,142 @@ export function RestaurantComparisonTable({
                         ];
                         return (
                           <div className="flex flex-col items-end gap-1">
-                            <span>{formatCurrency(resto.revenue)}</span>
+                            <span>{formatCurrency(v.revenue)}</span>
                             <div className="w-20">
                               <ChannelMixBar segments={segments} size="xs" />
                             </div>
                           </div>
                         );
-                      })()}
+                      })() : (
+                        <span>{formatCurrency(v.revenue)}</span>
+                      )}
                     </TableCell>
-                    {showN1Comparison && (
+                    {showN1Comparison && channelTab === "all" && (
                       <TableCell className="text-right">
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
-                    {showCashColumn && (() => {
-                      const cash = cashByRestaurant?.get(resto.id) ?? 0;
-                      return (
-                        <TableCell className={cn("text-right whitespace-nowrap", cash > 0 ? "text-cash font-semibold" : "text-muted-foreground")}>
-                          {cash > 0 ? formatCurrency(cash) : "—"}
-                        </TableCell>
-                      );
-                    })()}
-                    <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                      {formatNetPayout(resto.netPayout)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
-                      {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      {resto.negotiatedCofinancement > 0 && startDateStr && endDateStr ? (
-                        <NegotiatedCofinPopover
-                          restaurantId={resto.id}
-                          restaurantName={resto.name}
-                          startDate={startDateStr}
-                          endDate={endDateStr}
-                          totalAmount={resto.negotiatedCofinancement}
-                        >
-                          <button
-                            type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className={cn(
-                              "font-medium cursor-pointer inline-flex items-center gap-1 hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1",
-                              getStatusTextClass(profitStatus)
-                            )}
-                            title={`Inclut ${formatCurrency(resto.negotiatedCofinancement)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                    {cols.payout && (
+                      <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        {formatNetPayout(v.netPayout)}
+                      </TableCell>
+                    )}
+                    {cols.mealVoucher && (
+                      <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
+                        {v.mealVoucher > 0 ? formatCurrencyPrecise(v.mealVoucher) : "—"}
+                      </TableCell>
+                    )}
+                    {cols.profitability && (
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {channelTab === "all" && resto.negotiatedCofinancement > 0 && startDateStr && endDateStr ? (
+                          <NegotiatedCofinPopover
+                            restaurantId={resto.id}
+                            restaurantName={resto.name}
+                            startDate={startDateStr}
+                            endDate={endDateStr}
+                            totalAmount={resto.negotiatedCofinancement}
                           >
-                            {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                            <Info className="h-3 w-3 text-amber-500" />
-                          </button>
-                        </NegotiatedCofinPopover>
-                      ) : (
-                        <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
-                          {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                            <button
+                              type="button"
+                              onClick={(e) => e.stopPropagation()}
+                              className={cn(
+                                "font-medium cursor-pointer inline-flex items-center gap-1 hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1",
+                                getStatusTextClass(profitStatus)
+                              )}
+                              title={`Inclut ${formatCurrency(resto.negotiatedCofinancement)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                            >
+                              {v.profitability != null ? `${v.profitability.toFixed(1)}%` : "—"}
+                              <Info className="h-3 w-3 text-amber-500" />
+                            </button>
+                          </NegotiatedCofinPopover>
+                        ) : (
+                          <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
+                            {v.profitability != null ? `${v.profitability.toFixed(1)}%` : "—"}
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
+                    {cols.adsRatio && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        {(() => {
+                          const r = adsRatioMap?.get(resto.id);
+                          if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="font-medium cursor-help">
+                                    {r.adsPct.toFixed(2).replace(".", ",")}%
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
+                      </TableCell>
+                    )}
+                    {cols.orders && (
+                      <TableCell className="text-right text-muted-foreground">
+                        {v.orders.toLocaleString("fr-FR")}
+                      </TableCell>
+                    )}
+                    {cols.basket && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        {v.avgBasket.toFixed(2)} €
+                      </TableCell>
+                    )}
+                    {cols.rating && (
+                      <TableCell className="text-right">
+                        <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
+                          <Star className="h-3 w-3" />
+                          {v.rating?.toFixed(1) ?? "—"}
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {(() => {
-                        const r = adsRatioMap?.get(resto.id);
-                        if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
-                        return (
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="font-medium cursor-help">
-                                  {r.adsPct.toFixed(2).replace(".", ",")}%
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {resto.orders.toLocaleString("fr-FR")}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {resto.avgBasket.toFixed(2)} €
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
-                        <Star className="h-3 w-3" />
-                        {resto.rating?.toFixed(1) ?? "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
-                        {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
-                        {formatMinutesLong(resto.totalDeliveryTime)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
-                        {formatHours(resto.downtime)}
-                      </span>
-                    </TableCell>
+                      </TableCell>
+                    )}
+                    {cols.errorRate && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
+                          {v.errorRate != null ? `${v.errorRate.toFixed(1)}%` : "—"}
+                        </span>
+                      </TableCell>
+                    )}
+                    {cols.delivery && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
+                          {formatMinutesLong(v.totalDeliveryTime)}
+                        </span>
+                      </TableCell>
+                    )}
+                    {cols.downtime && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
+                          {formatHours(v.downtime)}
+                        </span>
+                      </TableCell>
+                    )}
                   </TableRow>
-                  {isExpanded && (() => {
+                  {cols.expand && isExpanded && (() => {
                     const cash = cashByRestaurant?.get(resto.id) ?? 0;
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
-                    const totalCols = 13 + (showN1Comparison ? 1 : 0) + (showCashColumn ? 1 : 0);
+                    // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
+                    const visibleCols = 3
+                      + (showN1Comparison && channelTab === "all" ? 1 : 0)
+                      + (cols.payout ? 1 : 0)
+                      + (cols.mealVoucher ? 1 : 0)
+                      + (cols.profitability ? 1 : 0)
+                      + (cols.adsRatio ? 1 : 0)
+                      + (cols.orders ? 1 : 0)
+                      + (cols.basket ? 1 : 0)
+                      + (cols.rating ? 1 : 0)
+                      + (cols.errorRate ? 1 : 0)
+                      + (cols.delivery ? 1 : 0)
+                      + (cols.downtime ? 1 : 0);
                     return (
                       <TableRow className="bg-muted/5 hover:bg-muted/5 border-border/20">
-                        <TableCell colSpan={totalCols} className="p-3">
+                        <TableCell colSpan={visibleCols} className="p-3">
                           <ChannelBreakdownPanel
                             resto={resto}
                             cash={cash}
@@ -633,6 +659,7 @@ export function RestaurantComparisonTable({
                         </TableCell>
                       </TableRow>
                     );
+
                   })()}
                 </>
               );
