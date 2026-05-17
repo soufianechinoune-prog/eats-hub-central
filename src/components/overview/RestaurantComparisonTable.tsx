@@ -517,7 +517,7 @@ export function RestaurantComparisonTable({
                           />
                         )}
                         {cols.chips && (() => {
-                          const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                          const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                           const active: ChannelId[] = [];
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
