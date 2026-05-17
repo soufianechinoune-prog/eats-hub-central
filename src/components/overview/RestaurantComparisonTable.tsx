@@ -238,8 +238,8 @@ export function RestaurantComparisonTable({
     if (channelTab === "deliveroo") {
       return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
     }
-    // cash
-    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
+    // cash — orders + basket + share + variation N-1
+    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
   }, [channelTab]);
 
 
