@@ -350,6 +350,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
     productApprovalRate: number | null;
   };
   uber: {
@@ -359,6 +360,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
   };
   deliveroo: {
     rating: number | null;
@@ -367,6 +369,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
   };
   topByRating: any[];
   flopByRating: any[];
