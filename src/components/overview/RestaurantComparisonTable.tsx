@@ -464,7 +464,7 @@ export function RestaurantComparisonTable({
               {cols.rating && <HeaderCell column="rating" className="text-right">Note</HeaderCell>}
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
-              {cols.downtime && <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>}
+              {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
