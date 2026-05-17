@@ -843,52 +843,7 @@ export function OperationsAnalytics() {
             className="h-[300px] w-full"
           >
             <ResponsiveContainer width="100%" height="100%">
-              {chartType === "line" ? (
-                <LineChart 
-                  data={chartData} 
-                  onClick={handleChartClick} 
-                  style={{ cursor: isChartClickable() ? "pointer" : "default" }}
-                  margin={{ top: 20, right: 30, left: 0, bottom: 0 }}
-                >
-                  <ReferenceArea y1={98} y2={100} fill="hsl(var(--chart-2))" fillOpacity={0.1} />
-                  <ReferenceArea y1={95} y2={98} fill="hsl(var(--chart-4))" fillOpacity={0.1} />
-                  <ReferenceArea y1={0} y2={95} fill="hsl(var(--destructive))" fillOpacity={0.05} />
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey={getXAxisDataKey()} 
-                    className="text-xs" 
-                    tick={{ fontSize: 11 }}
-                    interval={selectedDay ? 1 : 0}
-                  />
-                  <YAxis domain={getYAxisDomain()} className="text-xs" tickFormatter={(v) => `${v}%`} width={45} />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value, name, props) => {
-                          if (value === null) return ["Pas de données", ""];
-                          const entry = props.payload;
-                          if (selectedDay && entry?.offlineMinutes !== undefined) {
-                            return [
-                              `${Number(value).toFixed(1)}% (${entry.offlineMinutes}min offline)`,
-                              "Disponibilité"
-                            ];
-                          }
-                          return [`${Number(value).toFixed(1)}%`, "Disponibilité"];
-                        }}
-                      />
-                    }
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="availability"
-                    stroke="hsl(var(--chart-2))"
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: "hsl(var(--chart-2))", cursor: isChartClickable() ? "pointer" : "default" }}
-                    activeDot={{ r: 6, cursor: isChartClickable() ? "pointer" : "default" }}
-                    connectNulls={true}
-                  />
-                </LineChart>
-              ) : (
+              {(
                 <BarChart 
                   data={chartData} 
                   onClick={handleChartClick} 
