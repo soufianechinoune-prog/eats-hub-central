@@ -739,13 +739,13 @@ export function RestaurantComparisonTable({
                     RÉSEAU <span className="text-muted-foreground font-normal text-sm">({restoCount} restos)</span>
                   </TableCell>
                   <TableCell className="text-right font-bold whitespace-nowrap">
-                    {channelTab === "cash" ? (
-                      <div className="flex flex-col items-end leading-tight">
-                        <span>{formatCurrency(sumRevenue)} <span className="text-[10px] font-normal text-muted-foreground">TTC</span></span>
-                        <span className="text-xs font-normal text-muted-foreground">{formatCurrency(sumRevenueHT)} <span className="text-[10px]">HT</span></span>
-                      </div>
-                    ) : formatCurrency(sumRevenue)}
+                    {formatCurrency(sumRevenue)}
                   </TableCell>
+                  {channelTab === "cash" && (
+                    <TableCell className="text-right font-bold whitespace-nowrap text-muted-foreground">
+                      {formatCurrency(sumRevenueHT)}
+                    </TableCell>
+                  )}
                   {showN1Comparison && isAll && (
                     <TableCell className="text-right">
                       {formatVariation(networkTotals.revenueVariation)}
