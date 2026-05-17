@@ -272,7 +272,7 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
                       "text-[10px] font-medium tabular-nums",
                       isPerfect ? "text-muted-foreground" : "text-rose-500"
                     )}>
-                      {formatMinutesToDisplay(stat.totalOfflineMinutes)} hors ligne
+                      {formatMinutesToDisplay(stat.totalOfflineMinutes)}
                     </div>
                   </div>
                 </motion.div>
