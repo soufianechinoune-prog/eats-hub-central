@@ -500,7 +500,7 @@ export function RestaurantComparisonTable({
                             uberShare={dataSourceMap.get(resto.id)!.uberShare}
                           />
                         )}
-                        {(() => {
+                        {cols.chips && (() => {
                           const cash = cashByRestaurant?.get(resto.id) ?? 0;
                           const active: ChannelId[] = [];
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
