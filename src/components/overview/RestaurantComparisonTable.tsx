@@ -456,12 +456,14 @@ export function RestaurantComparisonTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStats.map((resto, idx) => {
-              const ratingStatus = getMetricStatus("rating", resto.rating);
-              const profitStatus = getMetricStatus("profitability", resto.profitability);
-              const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", resto.totalDeliveryTime);
-              const errorStatus = getMetricStatus("errorRate", resto.errorRate);
-              const downtimeStatus = getMetricStatus("downtime", resto.downtime);
+            {filteredStats.map((row, idx) => {
+              const resto = row.resto;
+              const v = row.v;
+              const ratingStatus = getMetricStatus("rating", v.rating);
+              const profitStatus = getMetricStatus("profitability", v.profitability);
+              const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", v.totalDeliveryTime);
+              const errorStatus = getMetricStatus("errorRate", v.errorRate);
+              const downtimeStatus = getMetricStatus("downtime", v.downtime);
               const isExpanded = expandedRows.has(resto.id);
 
               return (
