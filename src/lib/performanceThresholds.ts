@@ -59,6 +59,7 @@ export function getMetricStatus(
     case "rating":
     case "profitability":
     case "revenueVariation":
+    case "availabilityRate":
       // Higher is better
       if (value >= thresholds.good) return "good";
       if (value >= thresholds.warning) return "warning";
