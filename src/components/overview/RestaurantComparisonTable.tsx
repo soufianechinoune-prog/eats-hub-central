@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals } from "@/hooks/useNetworkStats";
+import { type RestaurantCashStats } from "@/hooks/useRestaurantCashRevenue";
 import { ChannelBreakdownPanel, ChannelMixBar, ChannelChips, type ChannelId, type ChannelSegment } from "@/components/overview/ChannelBreakdownPanel";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
@@ -48,8 +49,8 @@ interface RestaurantComparisonTableProps {
   networkAdsSpend?: number;
   networkAdsRevenue?: number;
   networkAdsPct?: number | null;
-  /** CA caisse par restaurant (Splash360). */
-  cashByRestaurant?: Map<string, number>;
+  /** Stats Caisse par restaurant (Splash360) — CA, commandes, panier, variation N-1. */
+  cashByRestaurant?: Map<string, RestaurantCashStats>;
   /** Force le canal affiché (cache les tabs internes). */
   forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
 }
@@ -142,7 +143,7 @@ export function RestaurantComparisonTable({
   const hasDeliveroo = useMemo(() => stats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [stats]);
   const hasCash = useMemo(() => {
     if (!cashByRestaurant) return networkCashTotal > 0;
-    for (const v of cashByRestaurant.values()) if (v > 0) return true;
+    for (const v of cashByRestaurant.values()) if (v.cashRevenue > 0) return true;
     return networkCashTotal > 0;
   }, [cashByRestaurant, networkCashTotal]);
 
@@ -205,11 +206,12 @@ export function RestaurantComparisonTable({
       };
     }
     // cash
-    const cash = cashByRestaurant?.get(r.id) ?? 0;
+    const cashStats = cashByRestaurant?.get(r.id);
+    const cash = cashStats?.cashRevenue ?? 0;
     return {
       revenue: cash,
-      orders: 0,
-      avgBasket: 0,
+      orders: cashStats?.cashOrders ?? 0,
+      avgBasket: cashStats?.cashAvgBasket ?? 0,
       netPayout: 0,
       mealVoucher: 0,
       profitability: null,
@@ -218,6 +220,9 @@ export function RestaurantComparisonTable({
       totalDeliveryTime: null,
       downtime: null,
       availabilityRate: null,
+      cashShare: cashStats?.cashShare ?? 0,
+      cashVariation: cashStats?.cashVariation ?? null,
+      cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
   }, [channelTab, cashByRestaurant]);
@@ -233,8 +238,8 @@ export function RestaurantComparisonTable({
     if (channelTab === "deliveroo") {
       return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
     }
-    // cash
-    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
+    // cash — orders + basket + share + variation N-1
+    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
   }, [channelTab]);
 
 
@@ -465,6 +470,13 @@ export function RestaurantComparisonTable({
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
               {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
+              {channelTab === "cash" && (
+                <>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">Part / CA</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1 (CA)</TableHead>
+                  <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1 (Cmds)</TableHead>
+                </>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -512,7 +524,7 @@ export function RestaurantComparisonTable({
                           />
                         )}
                         {cols.chips && (() => {
-                          const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                          const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                           const active: ChannelId[] = [];
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
@@ -523,7 +535,7 @@ export function RestaurantComparisonTable({
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
                       {cols.caMix ? (() => {
-                        const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                        const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                         const segments: ChannelSegment[] = [
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
@@ -647,9 +659,25 @@ export function RestaurantComparisonTable({
                         </span>
                       </TableCell>
                     )}
+                    {channelTab === "cash" && (() => {
+                      const vc = v as typeof v & { cashShare?: number; cashVariation?: number | null; cashOrdersVariation?: number | null };
+                      return (
+                        <>
+                          <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                            {vc.cashShare != null ? `${vc.cashShare.toFixed(1)}%` : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatVariation(vc.cashVariation) ?? <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatVariation(vc.cashOrdersVariation) ?? <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                        </>
+                      );
+                    })()}
                   </TableRow>
                   {cols.expand && isExpanded && (() => {
-                    const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                    const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
                     // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
                     const visibleCols = 3
@@ -769,6 +797,13 @@ export function RestaurantComparisonTable({
                     <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
                       {formatHours(networkTotals.totalDowntime)}
                     </TableCell>
+                  )}
+                  {channelTab === "cash" && (
+                    <>
+                      <TableCell />
+                      <TableCell />
+                      <TableCell />
+                    </>
                   )}
                 </TableRow>
               );
