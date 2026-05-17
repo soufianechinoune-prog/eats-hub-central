@@ -143,7 +143,7 @@ export function RestaurantComparisonTable({
   const hasDeliveroo = useMemo(() => stats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [stats]);
   const hasCash = useMemo(() => {
     if (!cashByRestaurant) return networkCashTotal > 0;
-    for (const v of cashByRestaurant.values()) if (v > 0) return true;
+    for (const v of cashByRestaurant.values()) if (v.cashRevenue > 0) return true;
     return networkCashTotal > 0;
   }, [cashByRestaurant, networkCashTotal]);
 
