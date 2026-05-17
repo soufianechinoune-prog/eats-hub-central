@@ -553,15 +553,15 @@ export function RestaurantComparisonTable({
                             </div>
                           </div>
                         );
-                      })() : channelTab === "cash" ? (
-                        <div className="flex flex-col items-end leading-tight">
-                          <span>{formatCurrency(v.revenue)} <span className="text-[10px] font-normal text-muted-foreground">TTC</span></span>
-                          <span className="text-xs text-muted-foreground">{formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)} <span className="text-[10px]">HT</span></span>
-                        </div>
-                      ) : (
+                      })() : (
                         <span>{formatCurrency(v.revenue)}</span>
                       )}
                     </TableCell>
+                    {channelTab === "cash" && (
+                      <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                        {formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)}
+                      </TableCell>
+                    )}
                     {showN1Comparison && channelTab === "all" && (
                       <TableCell className="text-right">
                         {formatVariation(resto.revenueVariation)}
