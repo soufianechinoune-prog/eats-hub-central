@@ -124,6 +124,7 @@ export function RestaurantComparisonTable({
   networkAdsRevenue = 0,
   networkAdsPct = null,
   cashByRestaurant,
+  forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const { dateRange } = useAnalyticsContext();
@@ -133,7 +134,9 @@ export function RestaurantComparisonTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
-  const [channelTab, setChannelTab] = useState<ChannelTab>("all");
+  const [internalChannelTab, setInternalChannelTab] = useState<ChannelTab>("all");
+  const channelTab: ChannelTab = forcedChannel ?? internalChannelTab;
+  const setChannelTab = (v: ChannelTab) => setInternalChannelTab(v);
 
   const hasUber = useMemo(() => stats.some(r => r.platformBreakdown.uber.revenue > 0), [stats]);
   const hasDeliveroo = useMemo(() => stats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [stats]);
