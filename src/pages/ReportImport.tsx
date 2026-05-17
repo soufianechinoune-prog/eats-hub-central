@@ -1055,7 +1055,7 @@ export default function ReportImport() {
       let fullDataRecords: string[] = [];
       let fullHeaderFields: string[] = [];
       
-      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item"];
+      const LARGE_FILE_REPORT_TYPES = ["order_history", "inaccurate_orders", "payment_order_level", "payment_item_level", "reviews_item", "downtime_report"];
       if (LARGE_FILE_REPORT_TYPES.includes(reportType)) {
         const { records, headerIndex } = parseCSVRecords(csvContent);
         totalLinesCount = records.length - 1 - headerIndex; // Exclude header and metadata lines
