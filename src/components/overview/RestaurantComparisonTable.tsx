@@ -478,42 +478,22 @@ export function RestaurantComparisonTable({
                       </span>
                     </TableCell>
                   </TableRow>
-                  {isExpanded && (
-                    <>
-                      <PlatformSubRow
-                        platform="Uber Eats"
-                        data={resto.platformBreakdown.uber}
-                        showN1Comparison={showN1Comparison}
-                        isUber={true}
-                        revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.uber.revenue / resto.revenue) * 100 : 0}
-                        rating={resto.rating}
-                        errorRate={resto.errorRate}
-                        prepTime={resto.totalDeliveryTime}
-                        downtime={resto.downtime}
-                        showCashColumn={showCashColumn}
-                      />
-                      <PlatformSubRow
-                        platform="Deliveroo"
-                        data={resto.platformBreakdown.deliveroo}
-                        showN1Comparison={showN1Comparison}
-                        isUber={false}
-                        revenueShare={resto.revenue > 0 ? (resto.platformBreakdown.deliveroo.revenue / resto.revenue) * 100 : 0}
-                        showCashColumn={showCashColumn}
-                      />
-                      {(() => {
-                        const cash = cashByRestaurant?.get(resto.id) ?? 0;
-                        const totalWithCash = resto.revenue + cash;
-                        return (
-                          <CashSubRow
+                  {isExpanded && (() => {
+                    const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                    const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
+                    const totalCols = 13 + (showN1Comparison ? 1 : 0) + (showCashColumn ? 1 : 0);
+                    return (
+                      <TableRow className="bg-muted/5 hover:bg-muted/5 border-border/20">
+                        <TableCell colSpan={totalCols} className="p-3">
+                          <ChannelBreakdownPanel
+                            resto={resto}
                             cash={cash}
-                            revenueShare={totalWithCash > 0 ? (cash / totalWithCash) * 100 : 0}
-                            showN1Comparison={showN1Comparison}
-                            showCashColumn={showCashColumn}
+                            adsPct={adsPct}
                           />
-                        );
-                      })()}
-                    </>
-                  )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })()}
                 </>
               );
             })}
