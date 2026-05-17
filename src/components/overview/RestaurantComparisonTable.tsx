@@ -659,6 +659,22 @@ export function RestaurantComparisonTable({
                         </span>
                       </TableCell>
                     )}
+                    {channelTab === "cash" && (() => {
+                      const vc = v as typeof v & { cashShare?: number; cashVariation?: number | null; cashOrdersVariation?: number | null };
+                      return (
+                        <>
+                          <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                            {vc.cashShare != null ? `${vc.cashShare.toFixed(1)}%` : "—"}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatVariation(vc.cashVariation) ?? <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {formatVariation(vc.cashOrdersVariation) ?? <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                        </>
+                      );
+                    })()}
                   </TableRow>
                   {cols.expand && isExpanded && (() => {
                     const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
