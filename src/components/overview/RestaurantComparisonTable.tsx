@@ -721,6 +721,9 @@ export function RestaurantComparisonTable({
               // For other tabs compute totals from the visible projected rows.
               const isAll = channelTab === "all";
               const sumRevenue = isAll ? networkTotals.totalRevenue : filteredStats.reduce((s, r) => s + r.v.revenue, 0);
+              const sumRevenueHT = channelTab === "cash"
+                ? filteredStats.reduce((s, r) => s + ((r.v as typeof r.v & { revenueHT?: number }).revenueHT ?? 0), 0)
+                : 0;
               const sumOrders = isAll ? networkTotals.totalOrders : filteredStats.reduce((s, r) => s + r.v.orders, 0);
               const sumPayout = isAll ? networkTotals.totalNetPayout : filteredStats.reduce((s, r) => s + r.v.netPayout, 0);
               const sumMeal = isAll ? networkTotals.totalMealVoucher : filteredStats.reduce((s, r) => s + r.v.mealVoucher, 0);
@@ -733,7 +736,12 @@ export function RestaurantComparisonTable({
                     RÉSEAU <span className="text-muted-foreground font-normal text-sm">({restoCount} restos)</span>
                   </TableCell>
                   <TableCell className="text-right font-bold whitespace-nowrap">
-                    {formatCurrency(sumRevenue)}
+                    {channelTab === "cash" ? (
+                      <div className="flex flex-col items-end leading-tight">
+                        <span>{formatCurrency(sumRevenue)} <span className="text-[10px] font-normal text-muted-foreground">TTC</span></span>
+                        <span className="text-xs font-normal text-muted-foreground">{formatCurrency(sumRevenueHT)} <span className="text-[10px]">HT</span></span>
+                      </div>
+                    ) : formatCurrency(sumRevenue)}
                   </TableCell>
                   {showN1Comparison && isAll && (
                     <TableCell className="text-right">
