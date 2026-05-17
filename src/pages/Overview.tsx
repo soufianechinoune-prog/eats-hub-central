@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
@@ -104,6 +105,7 @@ const Overview = () => {
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
   const [showDataSource, setShowDataSource] = useState(true);
+  const [activeChannel, setActiveChannel] = useState<OverviewChannel>("global");
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { exportComprehensivePdf, exportComprehensiveExcel, isExporting } = useOverviewExport();
@@ -501,8 +503,19 @@ const Overview = () => {
     });
   };
 
+  // Detect which channels have data for the sidebar
+  const hasUberData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0), [comparisonStats]);
+  const hasDeliverooData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [comparisonStats]);
+  const hasCashData = cashConnected || (cashRevenueData?.totalCash ?? 0) > 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-8 space-y-8">
+    <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
+      <OverviewChannelSidebar
+        active={activeChannel}
+        onChange={setActiveChannel}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+      />
+      <div className="flex-1 min-w-0 p-8 space-y-8">
       {/* Header with glassmorphism */}
       <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
@@ -591,8 +604,9 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className="grid gap-8 lg:grid-cols-3">
+          <div className={cn("grid gap-8", activeChannel === "global" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
             {/* Global Card */}
+            {activeChannel === "global" && (
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
@@ -618,8 +632,10 @@ const Overview = () => {
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
             </Card>
+            )}
 
             {/* Uber Eats Card */}
+            {(activeChannel === "global" || activeChannel === "uber") && (
             <Card className="border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
@@ -653,8 +669,10 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+            )}
 
             {/* Deliveroo Card */}
+            {(activeChannel === "global" || activeChannel === "deliveroo") && (
             <Card className="border-2 border-deliveroo/30 shadow-2xl bg-gradient-to-br from-card via-card to-deliveroo/5 backdrop-blur-xl hover:shadow-deliveroo/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
@@ -678,10 +696,12 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+            )}
 
           </div>
 
           {/* Platform Revenue Split */}
+          {activeChannel === "global" && (
           <div className="mt-10">
             <PlatformRevenueSplit
               stats={comparisonStats}
@@ -692,8 +712,10 @@ const Overview = () => {
               cashConnected={cashConnected}
             />
           </div>
+          )}
 
           {/* Ratio Dépenses Pub / CA Uber Eats */}
+          {(activeChannel === "global" || activeChannel === "uber") && (
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <AdsRevenueRatioCard
               adsSpend={adsRatio.networkAdsSpend}
@@ -703,6 +725,7 @@ const Overview = () => {
               periodLabel={getPeriodLabel()}
             />
           </div>
+          )}
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
@@ -722,11 +745,13 @@ const Overview = () => {
               networkAdsPct={adsRatio.networkPct}
               networkCashTotal={cashRevenueData?.totalCash ?? 0}
               cashByRestaurant={cashByRestaurant}
+              forcedChannel={activeChannel === "global" ? "all" : activeChannel}
             />
           </div>
 
 
           {/* Avis Produits */}
+          {activeChannel === "global" && (
           <div className="grid gap-6 lg:grid-cols-2 mt-10">
             {/* Top Products */}
             <Card>
@@ -807,8 +832,10 @@ const Overview = () => {
               </CardContent>
             </Card>
           </div>
+          )}
         </div>
       )}
+      </div>
     </div>
   );
 };
