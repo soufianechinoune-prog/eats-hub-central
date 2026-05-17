@@ -696,10 +696,12 @@ const Overview = () => {
                 <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
+            )}
 
           </div>
 
           {/* Platform Revenue Split */}
+          {activeChannel === "global" && (
           <div className="mt-10">
             <PlatformRevenueSplit
               stats={comparisonStats}
@@ -710,8 +712,10 @@ const Overview = () => {
               cashConnected={cashConnected}
             />
           </div>
+          )}
 
           {/* Ratio Dépenses Pub / CA Uber Eats */}
+          {(activeChannel === "global" || activeChannel === "uber") && (
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <AdsRevenueRatioCard
               adsSpend={adsRatio.networkAdsSpend}
@@ -721,6 +725,7 @@ const Overview = () => {
               periodLabel={getPeriodLabel()}
             />
           </div>
+          )}
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
