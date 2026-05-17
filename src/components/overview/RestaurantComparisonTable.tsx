@@ -378,10 +378,33 @@ export function RestaurantComparisonTable({
                             uberShare={dataSourceMap.get(resto.id)!.uberShare}
                           />
                         )}
+                        {(() => {
+                          const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                          const active: ChannelId[] = [];
+                          if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
+                          if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
+                          if (cash > 0) active.push("cash");
+                          return <ChannelChips channels={active} />;
+                        })()}
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
-                      {formatCurrency(resto.revenue)}
+                      {(() => {
+                        const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                        const segments: ChannelSegment[] = [
+                          { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
+                          { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
+                          { id: "cash", revenue: cash },
+                        ];
+                        return (
+                          <div className="flex flex-col items-end gap-1">
+                            <span>{formatCurrency(resto.revenue + cash)}</span>
+                            <div className="w-20">
+                              <ChannelMixBar segments={segments} size="xs" />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     {showN1Comparison && (
                       <TableCell className="text-right">
