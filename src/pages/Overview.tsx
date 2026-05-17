@@ -732,8 +732,8 @@ const Overview = () => {
           </div>
           )}
 
-          {/* Ratio Dépenses Pub / CA Uber Eats */}
-          {(activeChannel === "global" || activeChannel === "uber") && (
+          {/* Ratio Dépenses Pub / CA — Global only (Uber view shows it inline above) */}
+          {activeChannel === "global" && (
           <div className="mt-6 grid gap-6 lg:grid-cols-3">
             <AdsRevenueRatioCard
               adsSpend={adsRatio.networkAdsSpend}
