@@ -131,8 +131,103 @@ export function RestaurantComparisonTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [channelTab, setChannelTab] = useState<ChannelTab>("all");
 
-  const showCashColumn = networkCashTotal > 0;
+  const hasUber = useMemo(() => stats.some(r => r.platformBreakdown.uber.revenue > 0), [stats]);
+  const hasDeliveroo = useMemo(() => stats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [stats]);
+  const hasCash = useMemo(() => {
+    if (!cashByRestaurant) return networkCashTotal > 0;
+    for (const v of cashByRestaurant.values()) if (v > 0) return true;
+    return networkCashTotal > 0;
+  }, [cashByRestaurant, networkCashTotal]);
+
+  // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
+  // and rely on the mix-bar + chips under the CA column instead.
+  const showCashColumn = false;
+
+  // Remap a restaurant row to the active channel view.
+  // Returns null when the restaurant has no data for that channel (filtered out).
+  const projectForTab = useCallback((r: RestaurantNetworkStats) => {
+    if (channelTab === "all") {
+      return {
+        revenue: r.revenue,
+        orders: r.orders,
+        avgBasket: r.avgBasket,
+        netPayout: r.netPayout,
+        mealVoucher: r.mealVoucher,
+        profitability: r.profitability,
+        rating: r.rating,
+        errorRate: r.errorRate,
+        totalDeliveryTime: r.totalDeliveryTime,
+        downtime: r.downtime,
+        hide: false,
+      };
+    }
+    if (channelTab === "uber") {
+      const p = r.platformBreakdown.uber;
+      return {
+        revenue: p.revenue,
+        orders: p.orders,
+        avgBasket: p.avgBasket,
+        netPayout: p.netPayout,
+        mealVoucher: p.mealVoucher,
+        profitability: p.profitability,
+        // Note/Erreurs/Prépa/Downtime sont Uber-driven dans nos données → on les conserve
+        rating: r.rating,
+        errorRate: r.errorRate,
+        totalDeliveryTime: r.totalDeliveryTime,
+        downtime: r.downtime,
+        hide: p.revenue <= 0,
+      };
+    }
+    if (channelTab === "deliveroo") {
+      const p = r.platformBreakdown.deliveroo;
+      return {
+        revenue: p.revenue,
+        orders: p.orders,
+        avgBasket: p.avgBasket,
+        netPayout: p.netPayout,
+        mealVoucher: 0,
+        profitability: p.profitability,
+        rating: null,
+        errorRate: null,
+        totalDeliveryTime: null,
+        downtime: null,
+        hide: p.revenue <= 0,
+      };
+    }
+    // cash
+    const cash = cashByRestaurant?.get(r.id) ?? 0;
+    return {
+      revenue: cash,
+      orders: 0,
+      avgBasket: 0,
+      netPayout: 0,
+      mealVoucher: 0,
+      profitability: null,
+      rating: null,
+      errorRate: null,
+      totalDeliveryTime: null,
+      downtime: null,
+      hide: cash <= 0,
+    };
+  }, [channelTab, cashByRestaurant]);
+
+  // Column visibility per tab
+  const cols = useMemo(() => {
+    if (channelTab === "all") {
+      return { caMix: true, chips: true, expand: true, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+    }
+    if (channelTab === "uber") {
+      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+    }
+    if (channelTab === "deliveroo") {
+      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+    }
+    // cash
+    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
+  }, [channelTab]);
+
 
   const toggleRow = useCallback((id: string) => {
     setExpandedRows(prev => {
