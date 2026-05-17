@@ -1,15 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Server, Play, CheckCircle2, AlertCircle } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
+import { Loader2, Server, Settings2, CheckCircle2, AlertCircle } from "lucide-react";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
+import { BackfillConfigDialog } from "./BackfillConfigDialog";
 
 interface ProgressRow {
   total: number;
