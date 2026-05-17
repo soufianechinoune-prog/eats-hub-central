@@ -798,6 +798,47 @@ const Overview = () => {
                       }
                     />
                     <MetricRow
+                      icon={Truck}
+                      label="Nb commandes Caisse"
+                      value={cashRevenueData?.totalCashOrders != null
+                        ? cashRevenueData.totalCashOrders.toLocaleString("fr-FR")
+                        : null}
+                      color="text-cyan-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Variation cmds vs N-1"
+                      value={cashRevenueData?.ordersVariation != null
+                        ? `${cashRevenueData.ordersVariation > 0 ? "+" : ""}${cashRevenueData.ordersVariation.toFixed(1)}`
+                        : null}
+                      unit="%"
+                      color={
+                        cashRevenueData?.ordersVariation == null
+                          ? "text-muted-foreground"
+                          : cashRevenueData.ordersVariation >= 0
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                      }
+                    />
+                    <MetricRow
+                      icon={Euro}
+                      label="Panier moyen Caisse"
+                      value={cashRevenueData?.cashAvgBasket != null && cashRevenueData.cashAvgBasket > 0
+                        ? cashRevenueData.cashAvgBasket.toFixed(2)
+                        : null}
+                      unit="€"
+                      color="text-amber-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="TVA collectée Caisse"
+                      value={cashRevenueData?.totalCashVAT != null && cashRevenueData.totalCashVAT > 0
+                        ? Math.round(cashRevenueData.totalCashVAT).toLocaleString("fr-FR")
+                        : null}
+                      unit="€"
+                      color="text-violet-500"
+                    />
+                    <MetricRow
                       icon={Clock}
                       label="Jours avec données"
                       value={cashRevenueData?.daysWithData ?? null}
