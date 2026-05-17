@@ -406,8 +406,6 @@ const DowntimeComparison = () => {
               </Alert>
             )}
 
-            {/* Insights Section */}
-            <DowntimeInsightsSection stats={restaurantStats} period={periodMode} />
 
             {/* Ranking - Full width */}
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
