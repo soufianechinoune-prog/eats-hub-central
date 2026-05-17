@@ -11,7 +11,7 @@ import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars, type SortDirection } from "@/components/compare/DowntimeRankingBars";
-import { DowntimeInsightsSection } from "@/components/compare/DowntimeInsightsSection";
+
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
 import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
