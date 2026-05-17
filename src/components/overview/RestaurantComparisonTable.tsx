@@ -528,7 +528,7 @@ export function RestaurantComparisonTable({
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
                       {cols.caMix ? (() => {
-                        const cash = cashByRestaurant?.get(resto.id) ?? 0;
+                        const cash = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                         const segments: ChannelSegment[] = [
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
