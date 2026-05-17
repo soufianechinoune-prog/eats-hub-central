@@ -400,59 +400,60 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
-              {showN1Comparison && (
+              {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
-              {showCashColumn && (
-                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 text-cash">
-                    <Store className="h-3 w-3" /> Caisse
-                  </span>
-                </TableHead>
+              {cols.payout && (
+                <HeaderCell column="netPayout" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">Versement <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Net réellement versé sur le compte bancaire = Payout Uber + Titres-restaurant + Versement Deliveroo. Hors ajustements (ads, eco-contribution, marketing) traités dans les onglets Finances / Frais.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
               )}
-              <HeaderCell column="netPayout" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">Versement <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Net réellement versé sur le compte bancaire = Payout Uber + Titres-restaurant + Versement Deliveroo. Hors ajustements (ads, eco-contribution, marketing) traités dans les onglets Finances / Frais.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="mealVoucher" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Montant des titres-restaurant Uber importé, inclus dans le Versement.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
-              <HeaderCell column="adsRatio" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
-              <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
-              <HeaderCell column="rating" className="text-right">Note</HeaderCell>
-              <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>
-              <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>
-              <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>
+              {cols.mealVoucher && (
+                <HeaderCell column="mealVoucher" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Montant des titres-restaurant Uber importé, inclus dans le Versement.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
+              )}
+              {cols.profitability && (
+                <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
+              )}
+              {cols.adsRatio && (
+                <HeaderCell column="adsRatio" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
+              )}
+              {cols.orders && <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>}
+              {cols.basket && <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating" className="text-right">Note</HeaderCell>}
+              {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
+              {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
+              {cols.downtime && <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
