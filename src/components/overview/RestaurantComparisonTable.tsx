@@ -409,7 +409,7 @@ export function RestaurantComparisonTable({
                 <TooltipProvider delayDuration={200}>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">CA <Info className="h-3 w-3 opacity-60" /></span>
+                      <span className="inline-flex items-center gap-1">{channelTab === "cash" ? "CA TTC" : "CA"} <Info className="h-3 w-3 opacity-60" /></span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
                       Chiffre d'affaires brut TTC, toutes commandes confondues (Uber + Deliveroo).
@@ -417,6 +417,9 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
+              {channelTab === "cash" && (
+                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">CA HT</TableHead>
+              )}
               {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
@@ -550,15 +553,15 @@ export function RestaurantComparisonTable({
                             </div>
                           </div>
                         );
-                      })() : channelTab === "cash" ? (
-                        <div className="flex flex-col items-end leading-tight">
-                          <span>{formatCurrency(v.revenue)} <span className="text-[10px] font-normal text-muted-foreground">TTC</span></span>
-                          <span className="text-xs text-muted-foreground">{formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)} <span className="text-[10px]">HT</span></span>
-                        </div>
-                      ) : (
+                      })() : (
                         <span>{formatCurrency(v.revenue)}</span>
                       )}
                     </TableCell>
+                    {channelTab === "cash" && (
+                      <TableCell className="text-right whitespace-nowrap text-muted-foreground">
+                        {formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)}
+                      </TableCell>
+                    )}
                     {showN1Comparison && channelTab === "all" && (
                       <TableCell className="text-right">
                         {formatVariation(resto.revenueVariation)}
@@ -687,6 +690,7 @@ export function RestaurantComparisonTable({
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
                     // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
                     const visibleCols = 3
+                      + (channelTab === "cash" ? 1 : 0)
                       + (showN1Comparison && channelTab === "all" ? 1 : 0)
                       + (cols.payout ? 1 : 0)
                       + (cols.mealVoucher ? 1 : 0)
@@ -736,13 +740,13 @@ export function RestaurantComparisonTable({
                     RÉSEAU <span className="text-muted-foreground font-normal text-sm">({restoCount} restos)</span>
                   </TableCell>
                   <TableCell className="text-right font-bold whitespace-nowrap">
-                    {channelTab === "cash" ? (
-                      <div className="flex flex-col items-end leading-tight">
-                        <span>{formatCurrency(sumRevenue)} <span className="text-[10px] font-normal text-muted-foreground">TTC</span></span>
-                        <span className="text-xs font-normal text-muted-foreground">{formatCurrency(sumRevenueHT)} <span className="text-[10px]">HT</span></span>
-                      </div>
-                    ) : formatCurrency(sumRevenue)}
+                    {formatCurrency(sumRevenue)}
                   </TableCell>
+                  {channelTab === "cash" && (
+                    <TableCell className="text-right font-bold whitespace-nowrap text-muted-foreground">
+                      {formatCurrency(sumRevenueHT)}
+                    </TableCell>
+                  )}
                   {showN1Comparison && isAll && (
                     <TableCell className="text-right">
                       {formatVariation(networkTotals.revenueVariation)}
