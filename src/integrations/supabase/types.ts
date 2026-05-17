@@ -4106,6 +4106,14 @@ export type Database = {
           uber_fee_after_promo_incl_vat: number
         }[]
       }
+      get_downtime_comparison: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: Json
+      }
       get_hourly_order_performance:
         | {
             Args: {
