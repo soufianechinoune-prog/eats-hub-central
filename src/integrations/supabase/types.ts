@@ -3937,6 +3937,17 @@ export type Database = {
         }
         Returns: number
       }
+      enqueue_splash_backfill_for_restaurants: {
+        Args: {
+          p_chain_id: string
+          p_end_month: number
+          p_end_year: number
+          p_splash_ids: number[]
+          p_start_month: number
+          p_start_year: number
+        }
+        Returns: number
+      }
       get_active_hours_summary:
         | {
             Args: {
@@ -4743,6 +4754,17 @@ export type Database = {
         }[]
       }
       splash_backfill_reset_stuck: { Args: never; Returns: number }
+      splash_mapping_overview: {
+        Args: { p_chain_id: string }
+        Returns: {
+          duplicate_splash_ids: number[]
+          is_mapped: boolean
+          restaurant_id: string
+          restaurant_name: string
+          restaurant_splash_id: number
+          splash_name: string
+        }[]
+      }
       splash360_auto_map_restaurants: {
         Args: never
         Returns: {
@@ -4752,6 +4774,10 @@ export type Database = {
         }[]
       }
       unaccent: { Args: { "": string }; Returns: string }
+      update_splash_mapping: {
+        Args: { p_restaurant_id: string; p_splash_id: number }
+        Returns: undefined
+      }
       update_uber_commission_rates: {
         Args: never
         Returns: {
