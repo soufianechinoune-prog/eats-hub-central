@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2 } from "lucide-react";
+import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2, Store, Plug, Euro } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -514,7 +514,8 @@ const Overview = () => {
   // Detect which channels have data for the sidebar
   const hasUberData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0), [comparisonStats]);
   const hasDeliverooData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [comparisonStats]);
-  const hasCashData = cashConnected || (cashRevenueData?.totalCash ?? 0) > 0;
+  // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
+  const hasCashData = true;
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
@@ -720,6 +721,90 @@ const Overview = () => {
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("deliveroo")} />
                 <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.deliveroo.availabilityRate != null ? networkData.deliveroo.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.deliveroo.availabilityRate)} onClick={navigateToDowntimeComparison} />
+              </CardContent>
+            </Card>
+            )}
+
+            {/* Caisse Card */}
+            {activeChannel === "cash" && (
+            <Card className="border-2 border-cash/30 shadow-2xl bg-gradient-to-br from-card via-card to-cash/5 backdrop-blur-xl hover:shadow-cash/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-cash/10 flex items-center justify-center">
+                      <Store className="h-6 w-6 text-cash" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Caisse</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {cashConnected
+                          ? `${activePosConnection?.connector?.name ?? "POS"} · ${getPeriodLabel()}`
+                          : getPeriodLabel()}
+                      </p>
+                    </div>
+                  </div>
+                  {!cashConnected && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/settings/integrations")}
+                      className="gap-1.5"
+                    >
+                      <Plug className="h-3.5 w-3.5" />
+                      Connecter
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!cashConnected && (cashRevenueData?.totalCash ?? 0) === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune caisse connectée pour cette marque.<br />
+                    Connectez votre logiciel de caisse (Splash360, Zelty…) pour activer les analyses sur place.
+                  </div>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={Euro}
+                      label="CA Caisse (TTC)"
+                      value={cashRevenueData?.totalCash != null
+                        ? Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")
+                        : null}
+                      unit="€"
+                      color="text-cash"
+                    />
+                    <MetricRow
+                      icon={TrendingUp}
+                      label="Part dans le CA réseau"
+                      value={cashRevenueData?.cashShare != null
+                        ? cashRevenueData.cashShare.toFixed(1)
+                        : null}
+                      unit="%"
+                      color="text-emerald-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Variation vs N-1"
+                      value={cashRevenueData?.cashVariation != null
+                        ? `${cashRevenueData.cashVariation > 0 ? "+" : ""}${cashRevenueData.cashVariation.toFixed(1)}`
+                        : null}
+                      unit="%"
+                      color={
+                        cashRevenueData?.cashVariation == null
+                          ? "text-muted-foreground"
+                          : cashRevenueData.cashVariation >= 0
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                      }
+                    />
+                    <MetricRow
+                      icon={Clock}
+                      label="Jours avec données"
+                      value={cashRevenueData?.daysWithData ?? null}
+                      color="text-indigo-500"
+                    />
+                  </>
+                )}
               </CardContent>
             </Card>
             )}
