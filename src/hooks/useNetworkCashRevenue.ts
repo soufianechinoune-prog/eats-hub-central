@@ -172,10 +172,11 @@ function aggregate(rows: DailyRow[]) {
     totalGlobalOrders += v.globalOrders;
     totalUberOrders += v.uberOrders;
     totalDeliverooOrders += v.deliverooOrders;
-    totalCash += Math.max(0, v.global - v.uber - v.deliveroo);
-    totalCashHT += Math.max(0, v.globalHT - v.uberHT - v.deliverooHT);
-    totalCashVAT += Math.max(0, v.globalVAT - v.uberVAT - v.deliverooVAT);
-    totalCashOrders += Math.max(0, v.globalOrders - v.uberOrders - v.deliverooOrders);
+    // La ligne `global` de Splash = Caisse uniquement (pas le total resto).
+    totalCash += v.global;
+    totalCashHT += v.globalHT;
+    totalCashVAT += v.globalVAT;
+    totalCashOrders += v.globalOrders;
     if (v.global > 0 || v.uber > 0 || v.deliveroo > 0) daysWithData++;
   }
 
