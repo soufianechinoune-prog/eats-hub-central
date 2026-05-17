@@ -54,7 +54,7 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
       while (true) {
         let query = supabase
           .from("splash360_daily_sales")
-          .select("restaurant_id, date, platform, revenue_ttc, order_count, n1_revenue_ttc, n1_order_count")
+          .select("restaurant_id, date, platform, revenue_ttc, revenue_ht, order_count, n1_revenue_ttc, n1_order_count")
           .neq("restaurant_splash_id", 0)
           .eq("granularity", "day")
           .gte("date", startStr)
