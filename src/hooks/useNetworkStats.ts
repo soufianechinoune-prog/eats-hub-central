@@ -438,6 +438,7 @@ export function useNetworkStats({
         totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
+        availabilityRate: availabilityRate != null ? parseFloat(availabilityRate.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
         mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
         prevRevenue: includeN1Comparison ? prevRevenue : undefined,
