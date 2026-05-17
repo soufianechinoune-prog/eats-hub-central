@@ -108,10 +108,8 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
           ? ((aggregated.totalCashOrders - previousPeriodCashOrders) / previousPeriodCashOrders) * 100
           : null;
 
-      const cashShare =
-        aggregated.totalGlobal > 0
-          ? (aggregated.totalCash / aggregated.totalGlobal) * 100
-          : 0;
+      const totalAll = aggregated.totalGlobal + aggregated.totalUber + aggregated.totalDeliveroo;
+      const cashShare = totalAll > 0 ? (aggregated.totalCash / totalAll) * 100 : 0;
 
       const cashAvgBasket =
         aggregated.totalCashOrders > 0
