@@ -188,129 +188,68 @@ const DowntimeComparison = () => {
   // Select restaurants based on view mode
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
 
-  // Fetch hourly availability data for selected restaurants with pagination
-  const { data: availabilityData, isLoading } = useQuery({
-    queryKey: ["downtime-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
+  // Fetch pre-aggregated downtime via server-side RPC (1 call instead of paginating raw rows)
+  const { data: aggregatedData, isLoading } = useQuery({
+    queryKey: ["downtime-comparison-rpc", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
-      if (!selectedRestaurants?.length) return [];
-      
-      const PAGE_SIZE = 1000;
-      let allData: any[] = [];
-      let page = 0;
-      let hasMore = true;
-
-      while (hasMore) {
-      const { data, error } = await supabase
-        .from("hourly_availability")
-        .select("*")
-        .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .eq("platform", "uber_eats")
-        .gte("hour_start", format(dateRange.start, "yyyy-MM-dd"))
-          .lte("hour_start", format(dateRange.end, "yyyy-MM-dd'T'23:59:59"))
-          .order("hour_start", { ascending: true })
-          .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
-        
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData = [...allData, ...data];
-          hasMore = data.length === PAGE_SIZE;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      return allData;
+      if (!selectedRestaurants?.length) return [] as any[];
+      const { data, error } = await supabase.rpc("get_downtime_comparison", {
+        p_restaurant_ids: selectedRestaurants.map(r => r.id),
+        p_start_date: format(dateRange.start, "yyyy-MM-dd"),
+        p_end_date: format(dateRange.end, "yyyy-MM-dd"),
+      });
+      if (error) throw error;
+      return (data as any[]) || [];
     },
     enabled: !!selectedRestaurants?.length,
   });
 
-  // Process data for each restaurant
+  // Process data for each restaurant (already aggregated server-side)
   const restaurantStats = useMemo(() => {
     if (!selectedRestaurants?.length) return [];
-    
-    const safeAvailabilityData = availabilityData || [];
-    
+    const byId = new Map<string, any>();
+    (aggregatedData || []).forEach((row: any) => byId.set(row.restaurant_id, row));
+
     const stats = selectedRestaurants.map(restaurant => {
-      const restaurantData = safeAvailabilityData.filter(d => d.restaurant_id === restaurant.id);
-      const totalOffline = restaurantData.reduce((sum, d) => sum + (d.offline_minutes || 0), 0);
-      const totalOnline = restaurantData.reduce((sum, d) => sum + (d.online_minutes || 0), 0);
-      
-      // Group by date for daily evolution
+      const row = byId.get(restaurant.id);
+      const daily = (row?.daily || {}) as Record<string, { online: number; offline: number; rate: number }>;
+      const hourlyByDayRaw = (row?.hourly_by_day || {}) as Record<string, Record<string, { online: number; offline: number; rate: number }>>;
+      const hourlyRaw = (row?.hourly || {}) as Record<string, number>;
+      const weekdayRaw = (row?.weekday || {}) as Record<string, number>;
+
+      // dailyData: date -> offline minutes
       const dailyData: Record<string, number> = {};
-      restaurantData.forEach(d => {
-        const date = d.hour_start.substring(0, 10);
-        dailyData[date] = (dailyData[date] || 0) + (d.offline_minutes || 0);
-      });
+      Object.entries(daily).forEach(([date, v]) => { dailyData[date] = v.offline; });
 
-      // Daily availability with online/offline/rate for bar charts
-      const dailyAvailability: Record<string, { online: number; offline: number; rate: number }> = {};
-      restaurantData.forEach(d => {
-        const date = d.hour_start.substring(0, 10);
-        if (!dailyAvailability[date]) {
-          dailyAvailability[date] = { online: 0, offline: 0, rate: 0 };
-        }
-        dailyAvailability[date].online += (d.online_minutes || 0);
-        dailyAvailability[date].offline += (d.offline_minutes || 0);
-      });
-      Object.values(dailyAvailability).forEach(v => {
-        const total = v.online + v.offline;
-        v.rate = total > 0 ? (v.online / total) * 100 : 100;
-      });
-
-      // Availability rate = average of daily rates (consistent with Analytics page)
-      const dailyRates = Object.values(dailyAvailability).map(v => v.rate);
-      const availabilityRate = dailyRates.length > 0
-        ? dailyRates.reduce((a, b) => a + b, 0) / dailyRates.length
-        : 100;
-
-      // Hourly availability grouped by day for hourly bar charts
+      // hourlyByDay keys must be numbers
       const hourlyByDay: Record<string, Record<number, { online: number; offline: number; rate: number }>> = {};
-      restaurantData.forEach(d => {
-        const date = d.hour_start.substring(0, 10);
-        const hour = parseInt(d.hour_start.substring(11, 13));
-        if (!hourlyByDay[date]) hourlyByDay[date] = {};
-        if (!hourlyByDay[date][hour]) hourlyByDay[date][hour] = { online: 0, offline: 0, rate: 0 };
-        hourlyByDay[date][hour].online += (d.online_minutes || 0);
-        hourlyByDay[date][hour].offline += (d.offline_minutes || 0);
-      });
-      Object.values(hourlyByDay).forEach(hours => {
-        Object.values(hours).forEach(v => {
-          const total = v.online + v.offline;
-          v.rate = total > 0 ? (v.online / total) * 100 : 100;
-        });
+      Object.entries(hourlyByDayRaw).forEach(([date, hours]) => {
+        const obj: Record<number, { online: number; offline: number; rate: number }> = {};
+        Object.entries(hours).forEach(([h, v]) => { obj[parseInt(h)] = v; });
+        hourlyByDay[date] = obj;
       });
 
-      // Group by hour for heatmap
       const hourlyData: Record<number, number> = {};
-      restaurantData.forEach(d => {
-        const hour = parseInt(d.hour_start.substring(11, 13));
-        hourlyData[hour] = (hourlyData[hour] || 0) + (d.offline_minutes || 0);
-      });
+      Object.entries(hourlyRaw).forEach(([h, v]) => { hourlyData[parseInt(h)] = v; });
 
-      // Group by day of week
       const weekdayData: Record<number, number> = {};
-      restaurantData.forEach(d => {
-        const weekday = new Date(d.hour_start.substring(0, 10) + "T12:00:00").getDay();
-        weekdayData[weekday] = (weekdayData[weekday] || 0) + (d.offline_minutes || 0);
-      });
-      
+      Object.entries(weekdayRaw).forEach(([d, v]) => { weekdayData[parseInt(d)] = v; });
+
       return {
         id: restaurant.id,
         name: restaurant.name,
-        totalOfflineMinutes: totalOffline,
-        availabilityRate,
+        totalOfflineMinutes: row?.total_offline_minutes ?? 0,
+        availabilityRate: row?.availability_rate ?? 100,
         dailyData,
-        dailyAvailability,
+        dailyAvailability: daily,
         hourlyByDay,
         hourlyData,
         weekdayData,
       };
     });
-    
+
     return stats.sort((a, b) => a.totalOfflineMinutes - b.totalOfflineMinutes);
-  }, [availabilityData, selectedRestaurants]);
+  }, [aggregatedData, selectedRestaurants]);
 
   const periodLabel = useMemo(() => {
     return `${format(dateRange.start, "d MMM", { locale: fr })} - ${format(dateRange.end, "d MMM yyyy", { locale: fr })}`;
