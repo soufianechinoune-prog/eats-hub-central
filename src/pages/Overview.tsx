@@ -809,6 +809,7 @@ const Overview = () => {
             </Card>
             )}
 
+          </div>
 
           {/* Platform Revenue Split */}
           {activeChannel === "global" && (
