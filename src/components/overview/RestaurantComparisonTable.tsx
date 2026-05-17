@@ -48,8 +48,8 @@ interface RestaurantComparisonTableProps {
   networkAdsSpend?: number;
   networkAdsRevenue?: number;
   networkAdsPct?: number | null;
-  /** CA caisse par restaurant (Splash360). */
-  cashByRestaurant?: Map<string, number>;
+  /** Stats Caisse par restaurant (Splash360) — CA, commandes, panier, variation N-1. */
+  cashByRestaurant?: Map<string, RestaurantCashStats>;
   /** Force le canal affiché (cache les tabs internes). */
   forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
 }
