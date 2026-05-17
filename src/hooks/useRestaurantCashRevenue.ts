@@ -44,24 +44,23 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
   const endStr = format(endDate, "yyyy-MM-dd");
 
   return useQuery({
-    queryKey: ["restaurant-cash-revenue", chainId, startStr, endStr],
-    enabled: !!chainId,
+    queryKey: ["restaurant-cash-revenue", chainId ?? "all", startStr, endStr],
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<Map<string, RestaurantCashStats>> => {
-      if (!chainId) return new Map();
-
       const all: DailyRow[] = [];
       let from = 0;
       while (true) {
-        const { data, error } = await supabase
+        let query = supabase
           .from("splash360_daily_sales")
           .select("restaurant_id, date, platform, revenue_ttc, order_count, n1_revenue_ttc, n1_order_count")
-          .eq("chain_id", chainId)
           .neq("restaurant_splash_id", 0)
           .eq("granularity", "day")
           .gte("date", startStr)
           .lte("date", endStr)
           .range(from, from + PAGE_SIZE - 1);
+        // chainId null → RLS scope déjà aux chains accessibles
+        if (chainId) query = query.eq("chain_id", chainId);
+        const { data, error } = await query;
         if (error) throw error;
         const rows = (data ?? []) as DailyRow[];
         all.push(...rows);
