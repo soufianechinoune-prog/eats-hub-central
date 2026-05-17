@@ -514,7 +514,8 @@ const Overview = () => {
   // Detect which channels have data for the sidebar
   const hasUberData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0), [comparisonStats]);
   const hasDeliverooData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [comparisonStats]);
-  const hasCashData = cashConnected || (cashRevenueData?.totalCash ?? 0) > 0;
+  // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
+  const hasCashData = true;
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
