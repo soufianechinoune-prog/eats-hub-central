@@ -28,6 +28,10 @@ export const PERFORMANCE_THRESHOLDS = {
     good: 1,      // < 1h = vert
     warning: 3,   // 1-3h = orange, > 3h = rouge
   },
+  availabilityRate: {
+    good: 99,     // ≥ 99% = vert
+    warning: 97,  // 97-99% = orange, < 97% = rouge
+  },
   revenueVariation: {
     good: 0,      // > 0% = vert
     warning: -5,  // -5% à 0% = orange, < -5% = rouge
@@ -55,6 +59,7 @@ export function getMetricStatus(
     case "rating":
     case "profitability":
     case "revenueVariation":
+    case "availabilityRate":
       // Higher is better
       if (value >= thresholds.good) return "good";
       if (value >= thresholds.warning) return "warning";

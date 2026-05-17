@@ -34,6 +34,7 @@ export interface RestaurantNetworkStats {
   totalDeliveryTime: number | null; // Temps prépa+livraison moyen
   errorRate: number | null;
   downtime: number | null;
+  availabilityRate: number | null;
   // N-1 comparison (optional)
   prevRevenue?: number | null;
   prevOrders?: number | null;
@@ -294,6 +295,7 @@ export function useNetworkStats({
       if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
+        total_online_minutes: Number(d.total_online_minutes || 0),
         total_offline_minutes: Number(d.total_offline_minutes),
       }));
     },
@@ -381,7 +383,12 @@ export function useNetworkStats({
       // Availability from RPC summary
       const restoAvail = availabilityData?.find((a) => a.restaurant_id === resto.id);
       const totalOfflineMinutes = restoAvail?.total_offline_minutes || 0;
+      const totalOnlineMinutes = restoAvail?.total_online_minutes || 0;
       const downtime = restoAvail ? totalOfflineMinutes / 60 : null;
+      const availabilityRate =
+        restoAvail && (totalOnlineMinutes + totalOfflineMinutes) > 0
+          ? (totalOnlineMinutes / (totalOnlineMinutes + totalOfflineMinutes)) * 100
+          : null;
 
       const revenueVariation =
         includeN1Comparison && prevRevenue > 0
@@ -431,6 +438,7 @@ export function useNetworkStats({
         totalDeliveryTime: totalDeliveryTime != null ? totalDeliveryTime : null,
         errorRate: errorRate != null ? parseFloat(errorRate.toFixed(2)) : null,
         downtime: downtime != null ? parseFloat(downtime.toFixed(1)) : null,
+        availabilityRate: availabilityRate != null ? parseFloat(availabilityRate.toFixed(1)) : null,
         netPayout: parseFloat(netPayout.toFixed(2)),
         mealVoucher: restoOrdersSummary ? parseFloat((restoOrdersSummary.total_meal_voucher || 0).toFixed(2)) : 0,
         prevRevenue: includeN1Comparison ? prevRevenue : undefined,

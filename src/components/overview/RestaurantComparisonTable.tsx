@@ -165,6 +165,7 @@ export function RestaurantComparisonTable({
         errorRate: r.errorRate,
         totalDeliveryTime: r.totalDeliveryTime,
         downtime: r.downtime,
+        availabilityRate: r.availabilityRate,
         hide: false,
       };
     }
@@ -182,6 +183,7 @@ export function RestaurantComparisonTable({
         errorRate: r.errorRate,
         totalDeliveryTime: r.totalDeliveryTime,
         downtime: r.downtime,
+        availabilityRate: r.availabilityRate,
         hide: p.revenue <= 0,
       };
     }
@@ -198,6 +200,7 @@ export function RestaurantComparisonTable({
         errorRate: null,
         totalDeliveryTime: null,
         downtime: null,
+        availabilityRate: null,
         hide: p.revenue <= 0,
       };
     }
@@ -214,6 +217,7 @@ export function RestaurantComparisonTable({
       errorRate: null,
       totalDeliveryTime: null,
       downtime: null,
+      availabilityRate: null,
       hide: cash <= 0,
     };
   }, [channelTab, cashByRestaurant]);
@@ -285,7 +289,7 @@ export function RestaurantComparisonTable({
         case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
-        case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
+        case "downtime": aVal = a.availabilityRate ?? -1; bVal = b.availabilityRate ?? -1; break;
         case "adsRatio": {
           aVal = adsRatioMap?.get(A.resto.id)?.adsPct ?? -1;
           bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
@@ -460,7 +464,7 @@ export function RestaurantComparisonTable({
               {cols.rating && <HeaderCell column="rating" className="text-right">Note</HeaderCell>}
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
-              {cols.downtime && <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>}
+              {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -471,7 +475,7 @@ export function RestaurantComparisonTable({
               const profitStatus = getMetricStatus("profitability", v.profitability);
               const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", v.totalDeliveryTime);
               const errorStatus = getMetricStatus("errorRate", v.errorRate);
-              const downtimeStatus = getMetricStatus("downtime", v.downtime);
+              const availabilityStatus = getMetricStatus("availabilityRate", v.availabilityRate);
               const isExpanded = expandedRows.has(resto.id);
 
               return (
@@ -638,8 +642,8 @@ export function RestaurantComparisonTable({
                     )}
                     {cols.downtime && (
                       <TableCell className="text-right">
-                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
-                          {formatHours(v.downtime)}
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(availabilityStatus))}>
+                          {v.availabilityRate != null ? `${v.availabilityRate.toFixed(1)}%` : "—"}
                         </span>
                       </TableCell>
                     )}
