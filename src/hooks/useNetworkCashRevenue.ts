@@ -45,22 +45,24 @@ const PAGE_SIZE = 1000;
  * scopées à la chain, en excluant la ligne réseau agrégée (restaurant_splash_id = 0).
  */
 async function fetchSplashRows(
-  chainId: string,
+  chainId: string | null,
   startStr: string,
   endStr: string,
 ): Promise<DailyRow[]> {
   const all: DailyRow[] = [];
   let from = 0;
   while (true) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("splash360_daily_sales")
       .select("date, platform, revenue_ttc, revenue_ht, vat_amount, order_count")
-      .eq("chain_id", chainId)
       .neq("restaurant_splash_id", 0)
       .eq("granularity", "day")
       .gte("date", startStr)
       .lte("date", endStr)
       .range(from, from + PAGE_SIZE - 1);
+    // Quand chainId est null (vue Réseau global), RLS scope déjà aux chains accessibles.
+    if (chainId) query = query.eq("chain_id", chainId);
+    const { data, error } = await query;
     if (error) throw error;
     const rows = (data ?? []) as DailyRow[];
     all.push(...rows);
@@ -82,12 +84,9 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
   const prevEndStr = format(prevEnd, "yyyy-MM-dd");
 
   return useQuery({
-    queryKey: ["network-cash-revenue", chainId, startStr, endStr],
-    enabled: !!chainId,
+    queryKey: ["network-cash-revenue", chainId ?? "all", startStr, endStr],
     staleTime: 5 * 60 * 1000,
     queryFn: async (): Promise<NetworkCashRevenueData | null> => {
-      if (!chainId) return null;
-
       const [currentRows, prevRows] = await Promise.all([
         fetchSplashRows(chainId, startStr, endStr),
         fetchSplashRows(chainId, prevStartStr, prevEndStr),

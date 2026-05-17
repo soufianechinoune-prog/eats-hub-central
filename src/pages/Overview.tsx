@@ -411,7 +411,8 @@ const Overview = () => {
     chainId: analyticsCtx.selectedChainId,
   });
   const { data: activePosConnection } = useActiveChainPOSConnection();
-  const cashConnected = !!activePosConnection && activePosConnection.is_active;
+  const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
+  const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
 
   const adsRatio = useAdsRevenueRatio({
     restaurantIds: activeIds,
