@@ -237,6 +237,12 @@ serve(async (req) => {
     let maxDate: Date | null = null;
 
     // Process data rows
+    // Caches to keep per-row matching O(1) and avoid log spam on large bulk imports
+    const restaurantsById = new Map<string, { id: string; name: string }>();
+    for (const r of restaurants || []) restaurantsById.set(r.id, { id: r.id, name: r.name });
+    const nameResolutionCache = new Map<string, { id: string; name: string } | null>();
+    const loggedAliasNames = new Set<string>();
+
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
@@ -248,9 +254,9 @@ serve(async (req) => {
 
       // If restaurantId override is provided, use it
       if (restaurantId) {
-        const restaurant = restaurants?.find(r => r.id === restaurantId);
+        const restaurant = restaurantsById.get(restaurantId);
         if (restaurant) {
-          matchedRestaurant = { id: restaurant.id, name: restaurant.name };
+          matchedRestaurant = restaurant;
         }
       } else {
         // Try to match by store ID
@@ -259,33 +265,41 @@ serve(async (req) => {
           matchedRestaurant = restaurantByStoreId.get(storeId)!;
         }
 
-        // Try to match by name
+        // Try to match by name (with cache)
         if (!matchedRestaurant && colIndices.restaurantName !== undefined) {
           const restaurantName = values[colIndices.restaurantName]?.trim();
           if (restaurantName) {
-            const normalizedName = normalizeRestaurantName(restaurantName);
-            if (restaurantByNormalizedName.has(normalizedName)) {
-              matchedRestaurant = restaurantByNormalizedName.get(normalizedName)!;
+            if (nameResolutionCache.has(restaurantName)) {
+              matchedRestaurant = nameResolutionCache.get(restaurantName)!;
             } else {
-              // Check name aliases
-              const aliasRestaurantId = restaurantByAlias.get(normalizedName);
-              if (aliasRestaurantId) {
-                const aliasRestaurant = restaurants?.find(r => r.id === aliasRestaurantId);
-                if (aliasRestaurant) {
-                  matchedRestaurant = { id: aliasRestaurant.id, name: aliasRestaurant.name };
-                  console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+              const normalizedName = normalizeRestaurantName(restaurantName);
+              if (restaurantByNormalizedName.has(normalizedName)) {
+                matchedRestaurant = restaurantByNormalizedName.get(normalizedName)!;
+              } else {
+                // Check name aliases
+                const aliasRestaurantId = restaurantByAlias.get(normalizedName);
+                if (aliasRestaurantId) {
+                  const aliasRestaurant = restaurantsById.get(aliasRestaurantId);
+                  if (aliasRestaurant) {
+                    matchedRestaurant = aliasRestaurant;
+                    if (!loggedAliasNames.has(restaurantName)) {
+                      loggedAliasNames.add(restaurantName);
+                      console.log(`Alias match: "${restaurantName}" -> ${aliasRestaurant.name}`);
+                    }
+                  }
                 }
-              }
-              
-              // Fuzzy match - find closest match
-              if (!matchedRestaurant) {
-                for (const [key, value] of restaurantByNormalizedName.entries()) {
-                  if (key.includes(normalizedName) || normalizedName.includes(key)) {
-                    matchedRestaurant = value;
-                    break;
+
+                // Fuzzy match - find closest match (only on first encounter of this name)
+                if (!matchedRestaurant) {
+                  for (const [key, value] of restaurantByNormalizedName.entries()) {
+                    if (key.includes(normalizedName) || normalizedName.includes(key)) {
+                      matchedRestaurant = value;
+                      break;
+                    }
                   }
                 }
               }
+              nameResolutionCache.set(restaurantName, matchedRestaurant);
             }
           }
         }

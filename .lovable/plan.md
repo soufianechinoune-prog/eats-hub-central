@@ -1,28 +1,43 @@
-# Retirer le sélecteur de plateforme dans les pages Analytics
+## Diagnostic
 
-## Contexte
+L'erreur "Edge Function returned a non-2xx status code" lors de l'import groupé des temps de disponibilité provient de l'edge function `parse-downtime-report`.
 
-Maintenant que la sidebar de droite (`OverviewChannelSidebar`) scope déjà l'utilisateur sur un canal (Uber Eats, Deliveroo, Caisse), le bandeau de pills « Uber Eats / Deliveroo / Global / Caisse » au sommet des pages Analytics (`/analytics/revenue`, `/analytics/conversion`, etc.) fait double emploi et embrouille la lecture.
+Les logs montrent clairement :
+```
+ERROR CPU Time exceeded
+```
+précédé de centaines de lignes répétitives :
+```
+INFO Alias match: "Tasty Crousty - L'Haÿ-les-Roses" -> Tasty Crousty - Chevilly La Rue
+```
 
-## Changement
+Ce n'est **pas** lié à des restaurants manquants : la résolution d'identité fonctionne (les alias matchent bien). C'est un problème de **performance** :
 
-Dans `src/components/analytics/AnalyticsHeader.tsx`, **supprimer purement et simplement le bloc des 4 pills plateforme** (lignes ~396-441 — `Uber Eats`, `Deliveroo`, `Global`, `Caisse`).
+1. La fonction loggue `console.log("Alias match: ...")` à **chaque ligne** du CSV. Un import groupé multi-restaurants × 30 jours × 24h = facilement 50 000+ lignes → 50 000+ logs.
+2. Pour chaque ligne non trouvée dans la map principale, elle fait une boucle linéaire sur tous les restaurants (`for (const [key, value] of restaurantByNormalizedName.entries())`), donc O(N×M).
+3. Pas de cache du résultat de matching par nom → le même nom est re-résolu pour chaque ligne d'un même restaurant.
 
-Comportement :
-- À l'arrivée sur une page Analytics depuis un sous-onglet Uber Eats, `selectedPlatform` est déjà forcé à `"uber_eats"` par `handleSubItemClick` (déjà implémenté dans la sidebar).
-- Toute la logique conditionnelle existante basée sur `selectedPlatform` reste intacte — seules les pills disparaissent visuellement.
-- Le sélecteur de restaurants (à gauche) et le sélecteur de période (à droite) restent en place.
+Le CPU des edge functions Supabase est plafonné, et avec ce volume la fonction est tuée avant d'arriver à l'insert.
 
-## Garde-fou
+## Correctif
 
-Pour éviter de casser un éventuel accès direct ou la sidebar gauche legacy (qui ne pré-sélectionne pas la plateforme), ajouter dans `AnalyticsContext` (ou au mount de la page Analytics) : si `selectedPlatform` est `null/undefined` au chargement → forcer `"uber_eats"` par défaut. Vérifier la valeur actuelle de l'init et ne modifier que si nécessaire.
+Modifier `supabase/functions/parse-downtime-report/index.ts` :
 
-## Hors scope
+1. **Cache de résolution par nom** : créer une `Map<string, Restaurant>` qui mémorise le résultat (succès ou échec) pour chaque `restaurantName` rencontré. Toutes les lignes suivantes du même resto deviennent O(1).
+2. **Logger uniquement la première occurrence** d'un alias match (une seule ligne `Alias match` par restaurant, pas par ligne CSV).
+3. **Supprimer les `console.log` dans la boucle par ligne** (déduplication, parsing, etc.) — ne garder que les logs d'étapes (start, phase 1.5, phase 2, end).
+4. **Pré-calcul des noms normalisés** : normaliser une seule fois tous les noms de restaurants au démarrage et stocker dans une Map directement requêtable, au lieu de scanner toutes les entrées.
 
-- La sidebar gauche reste en place (suppression prévue dans une itération ultérieure).
-- Aucune migration de Deliveroo / Caisse pour l'instant — quand l'utilisateur cliquera sur ces canaux dans la sidebar de droite, on traitera ça séparément (Phase 2 prévue).
+## Détails techniques
 
-## Fichiers modifiés
+Fichier : `supabase/functions/parse-downtime-report/index.ts`
+- Lignes ~240-355 : boucle de parsing à alléger.
+- Ligne 276 : `console.log("Alias match: ...")` → conditionner à un `Set<string>` des noms déjà loggués.
+- Lignes 282-289 : remplacer la boucle linéaire par une lookup directe + cache.
+- Garder l'upsert batch existant (lignes 410-430) qui est déjà correct.
 
-- `src/components/analytics/AnalyticsHeader.tsx` — retrait du bloc Platform Pills.
-- `src/contexts/AnalyticsContext.tsx` *(si nécessaire)* — défaut `selectedPlatform = "uber_eats"`.
+Aucun changement de schéma DB, aucun changement UI. Pas de migration.
+
+## Vérification après correctif
+
+Re-tenter l'import groupé du même CSV : la fonction doit terminer en < 30s et retourner les stats (inserted/updated). Les logs doivent montrer au maximum quelques dizaines de lignes (une par restaurant matché par alias), pas des milliers.
