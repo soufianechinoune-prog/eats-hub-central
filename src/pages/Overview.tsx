@@ -62,6 +62,14 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
   return `${h}h ${mins}min`;
 };
 
+// Couleur du % de disponibilité réseau selon le seuil
+const availabilityColor = (rate: number | null | undefined): string => {
+  if (rate == null) return "text-muted-foreground";
+  if (rate >= 99) return "text-emerald-500";
+  if (rate >= 97) return "text-amber-500";
+  return "text-orange-500";
+};
+
 // Load saved state from localStorage (brand-aware)
 const getInitialOverviewState = (chainId: string | null) => {
   try {
