@@ -355,14 +355,16 @@ export function RestaurantComparisonTable({
             Comparatif des restaurants
           </CardTitle>
           <div className="flex items-center gap-3 flex-wrap">
-            <Tabs value={channelTab} onValueChange={(v) => { setChannelTab(v as ChannelTab); setExpandedRows(new Set()); }}>
-              <TabsList className="h-8">
-                <TabsTrigger value="all" className="text-xs px-3">Tous</TabsTrigger>
-                {hasUber && <TabsTrigger value="uber" className="text-xs px-3 data-[state=active]:text-uber">Uber Eats</TabsTrigger>}
-                {hasDeliveroo && <TabsTrigger value="deliveroo" className="text-xs px-3 data-[state=active]:text-deliveroo">Deliveroo</TabsTrigger>}
-                {hasCash && <TabsTrigger value="cash" className="text-xs px-3 data-[state=active]:text-cash">Caisse</TabsTrigger>}
-              </TabsList>
-            </Tabs>
+            {!forcedChannel && (
+              <Tabs value={channelTab} onValueChange={(v) => { setChannelTab(v as ChannelTab); setExpandedRows(new Set()); }}>
+                <TabsList className="h-8">
+                  <TabsTrigger value="all" className="text-xs px-3">Tous</TabsTrigger>
+                  {hasUber && <TabsTrigger value="uber" className="text-xs px-3 data-[state=active]:text-uber">Uber Eats</TabsTrigger>}
+                  {hasDeliveroo && <TabsTrigger value="deliveroo" className="text-xs px-3 data-[state=active]:text-deliveroo">Deliveroo</TabsTrigger>}
+                  {hasCash && <TabsTrigger value="cash" className="text-xs px-3 data-[state=active]:text-cash">Caisse</TabsTrigger>}
+                </TabsList>
+              </Tabs>
+            )}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
