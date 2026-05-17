@@ -165,6 +165,7 @@ export function RestaurantComparisonTable({
         errorRate: r.errorRate,
         totalDeliveryTime: r.totalDeliveryTime,
         downtime: r.downtime,
+        availabilityRate: r.availabilityRate,
         hide: false,
       };
     }
@@ -182,6 +183,7 @@ export function RestaurantComparisonTable({
         errorRate: r.errorRate,
         totalDeliveryTime: r.totalDeliveryTime,
         downtime: r.downtime,
+        availabilityRate: r.availabilityRate,
         hide: p.revenue <= 0,
       };
     }
@@ -198,6 +200,7 @@ export function RestaurantComparisonTable({
         errorRate: null,
         totalDeliveryTime: null,
         downtime: null,
+        availabilityRate: null,
         hide: p.revenue <= 0,
       };
     }
@@ -214,6 +217,7 @@ export function RestaurantComparisonTable({
       errorRate: null,
       totalDeliveryTime: null,
       downtime: null,
+      availabilityRate: null,
       hide: cash <= 0,
     };
   }, [channelTab, cashByRestaurant]);
