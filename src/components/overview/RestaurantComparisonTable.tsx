@@ -254,14 +254,23 @@ export function RestaurantComparisonTable({
     }).format(value) + " €";
   };
 
+  // Build channel-projected rows then sort + filter
+  type Row = { resto: RestaurantNetworkStats; v: ReturnType<typeof projectForTab> };
+  const projectedRows = useMemo<Row[]>(() => {
+    return stats
+      .map(r => ({ resto: r, v: projectForTab(r) }))
+      .filter(row => !row.v.hide);
+  }, [stats, projectForTab]);
+
   const sortedStats = useMemo(() => {
-    return [...stats].sort((a, b) => {
+    return [...projectedRows].sort((A, B) => {
+      const a = A.v, b = B.v;
       let aVal: number | string | null = null;
       let bVal: number | string | null = null;
 
       switch (sortColumn) {
-        case "name": aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
-        case "city": aVal = (a.city || "").toLowerCase(); bVal = (b.city || "").toLowerCase(); break;
+        case "name": aVal = A.resto.name.toLowerCase(); bVal = B.resto.name.toLowerCase(); break;
+        case "city": aVal = (A.resto.city || "").toLowerCase(); bVal = (B.resto.city || "").toLowerCase(); break;
         case "revenue": aVal = a.revenue; bVal = b.revenue; break;
         case "orders": aVal = a.orders; bVal = b.orders; break;
         case "avgBasket": aVal = a.avgBasket; bVal = b.avgBasket; break;
@@ -273,8 +282,8 @@ export function RestaurantComparisonTable({
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
         case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
         case "adsRatio": {
-          aVal = adsRatioMap?.get(a.id)?.adsPct ?? -1;
-          bVal = adsRatioMap?.get(b.id)?.adsPct ?? -1;
+          aVal = adsRatioMap?.get(A.resto.id)?.adsPct ?? -1;
+          bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
           break;
         }
       }
@@ -286,13 +295,14 @@ export function RestaurantComparisonTable({
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
     });
-  }, [stats, sortColumn, sortDirection]);
+  }, [projectedRows, sortColumn, sortDirection, adsRatioMap]);
 
   const filteredStats = useMemo(() => {
     if (!searchQuery.trim()) return sortedStats;
     const q = searchQuery.toLowerCase();
-    return sortedStats.filter(r => r.name.toLowerCase().includes(q));
+    return sortedStats.filter(row => row.resto.name.toLowerCase().includes(q));
   }, [sortedStats, searchQuery]);
+
 
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
