@@ -398,7 +398,7 @@ export function RestaurantComparisonTable({
                         ];
                         return (
                           <div className="flex flex-col items-end gap-1">
-                            <span>{formatCurrency(resto.revenue + cash)}</span>
+                            <span>{formatCurrency(resto.revenue)}</span>
                             <div className="w-20">
                               <ChannelMixBar segments={segments} size="xs" />
                             </div>
