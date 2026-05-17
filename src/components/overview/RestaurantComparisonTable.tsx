@@ -206,11 +206,12 @@ export function RestaurantComparisonTable({
       };
     }
     // cash
-    const cash = cashByRestaurant?.get(r.id) ?? 0;
+    const cashStats = cashByRestaurant?.get(r.id);
+    const cash = cashStats?.cashRevenue ?? 0;
     return {
       revenue: cash,
-      orders: 0,
-      avgBasket: 0,
+      orders: cashStats?.cashOrders ?? 0,
+      avgBasket: cashStats?.cashAvgBasket ?? 0,
       netPayout: 0,
       mealVoucher: 0,
       profitability: null,
@@ -219,6 +220,9 @@ export function RestaurantComparisonTable({
       totalDeliveryTime: null,
       downtime: null,
       availabilityRate: null,
+      cashShare: cashStats?.cashShare ?? 0,
+      cashVariation: cashStats?.cashVariation ?? null,
+      cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
   }, [channelTab, cashByRestaurant]);
