@@ -7,6 +7,7 @@ interface DailyRow {
   date: string;
   platform: string;
   revenue_ttc: number;
+  revenue_ht: number;
   order_count: number;
   n1_revenue_ttc: number | null;
   n1_order_count: number | null;
@@ -14,10 +15,11 @@ interface DailyRow {
 
 export interface RestaurantCashStats {
   cashRevenue: number;
+  cashRevenueHT: number;
   cashOrders: number;
   cashAvgBasket: number;
   globalRevenue: number;
-  cashShare: number; // % de la caisse dans le CA total du resto
+  cashShare: number;
   prevCashRevenue: number | null;
   cashVariation: number | null;
   prevCashOrders: number | null;
@@ -52,7 +54,7 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
       while (true) {
         let query = supabase
           .from("splash360_daily_sales")
-          .select("restaurant_id, date, platform, revenue_ttc, order_count, n1_revenue_ttc, n1_order_count")
+          .select("restaurant_id, date, platform, revenue_ttc, revenue_ht, order_count, n1_revenue_ttc, n1_order_count")
           .neq("restaurant_splash_id", 0)
           .eq("granularity", "day")
           .gte("date", startStr)
@@ -70,12 +72,14 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
 
       type DayEntry = {
         global: number; uber: number; deliveroo: number;
+        globalHT: number; uberHT: number; deliverooHT: number;
         globalOrders: number; uberOrders: number; deliverooOrders: number;
         n1Global: number; n1Uber: number; n1Deliveroo: number;
         n1GlobalOrders: number; n1UberOrders: number; n1DeliverooOrders: number;
       };
       const empty = (): DayEntry => ({
         global: 0, uber: 0, deliveroo: 0,
+        globalHT: 0, uberHT: 0, deliverooHT: 0,
         globalOrders: 0, uberOrders: 0, deliverooOrders: 0,
         n1Global: 0, n1Uber: 0, n1Deliveroo: 0,
         n1GlobalOrders: 0, n1UberOrders: 0, n1DeliverooOrders: 0,
@@ -91,17 +95,18 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
         }
         const entry = dayMap.get(r.date) ?? empty();
         const ttc = Number(r.revenue_ttc) || 0;
+        const ht = Number(r.revenue_ht) || 0;
         const orders = Number(r.order_count) || 0;
         const n1Ttc = Number(r.n1_revenue_ttc) || 0;
         const n1Orders = Number(r.n1_order_count) || 0;
         if (r.platform === "global") {
-          entry.global += ttc; entry.globalOrders += orders;
+          entry.global += ttc; entry.globalHT += ht; entry.globalOrders += orders;
           entry.n1Global += n1Ttc; entry.n1GlobalOrders += n1Orders;
         } else if (r.platform === "uber_eats") {
-          entry.uber += ttc; entry.uberOrders += orders;
+          entry.uber += ttc; entry.uberHT += ht; entry.uberOrders += orders;
           entry.n1Uber += n1Ttc; entry.n1UberOrders += n1Orders;
         } else if (r.platform === "deliveroo") {
-          entry.deliveroo += ttc; entry.deliverooOrders += orders;
+          entry.deliveroo += ttc; entry.deliverooHT += ht; entry.deliverooOrders += orders;
           entry.n1Deliveroo += n1Ttc; entry.n1DeliverooOrders += n1Orders;
         }
         dayMap.set(r.date, entry);
@@ -109,13 +114,14 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
 
       const result = new Map<string, RestaurantCashStats>();
       for (const [restoId, dayMap] of byRestoDay) {
-        let cash = 0, cashOrders = 0, globalRev = 0;
+        let cash = 0, cashHT = 0, cashOrders = 0, globalRev = 0;
         let n1Cash = 0, n1CashOrders = 0;
         let hasN1Cash = false, hasN1Orders = false;
         let daysWithData = 0;
         for (const v of dayMap.values()) {
           // La ligne `global` de Splash = Caisse uniquement (pas le total resto).
           cash += v.global;
+          cashHT += v.globalHT;
           cashOrders += v.globalOrders;
           globalRev += v.global + v.uber + v.deliveroo;
           const dayN1Cash = v.n1Global;
@@ -130,6 +136,7 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
         const prevCashOrders = hasN1Orders ? n1CashOrders : null;
         result.set(restoId, {
           cashRevenue: cash,
+          cashRevenueHT: cashHT,
           cashOrders,
           cashAvgBasket: cashOrders > 0 ? cash / cashOrders : 0,
           globalRevenue: globalRev,
