@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { type RestaurantNetworkStats, type NetworkTotals } from "@/hooks/useNetworkStats";
+import { type RestaurantCashStats } from "@/hooks/useRestaurantCashRevenue";
 import { ChannelBreakdownPanel, ChannelMixBar, ChannelChips, type ChannelId, type ChannelSegment } from "@/components/overview/ChannelBreakdownPanel";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
 import { DataSourceBadge } from "@/components/overview/DataSourceBadge";
