@@ -256,7 +256,7 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
                       />
                     </div>
                     <span className={cn(
-                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider whitespace-nowrap",
+                      "px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider whitespace-nowrap text-center w-[96px] shrink-0",
                       statusBgClass
                     )}>
                       {status.text}
