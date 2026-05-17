@@ -51,10 +51,6 @@ export function SplashResilientBackfillCard() {
   const errors = progress?.error ?? 0;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
 
-  const now = new Date();
-  const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth() + 1;
-
   return (
     <Card className="border-primary/30">
       <CardHeader>
@@ -126,47 +122,33 @@ export function SplashResilientBackfillCard() {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Aucun backfill lancé. Cliquez sur l'un des boutons ci-dessous pour démarrer.
+            Aucun backfill lancé. Configure un backfill ci-dessous pour démarrer.
           </p>
         )}
 
         <div className="flex flex-wrap gap-2 pt-2 border-t">
           <Button
             size="sm"
-            onClick={() => handleEnqueue("24 mois (2024-05 → aujourd'hui)", 2024, 5, currentYear, currentMonth)}
-            disabled={enqueuing || isRunning}
+            onClick={() => setConfigOpen(true)}
+            disabled={!selectedChainId}
             className="gap-2"
           >
-            {enqueuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Backfill 2024-05 → aujourd'hui
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => handleEnqueue("historique 2021-2023", 2021, 1, 2024, 4)}
-            disabled={enqueuing || isRunning}
-            className="gap-2"
-          >
-            {enqueuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Backfill historique 2021-01 → 2024-04
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleEnqueue("complet 2021 → aujourd'hui", 2021, 1, currentYear, currentMonth)}
-            disabled={enqueuing || isRunning}
-            className="gap-2"
-          >
-            {enqueuing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            Tout (2021 → aujourd'hui)
+            <Settings2 className="h-4 w-4" />
+            Configurer un backfill
           </Button>
         </div>
 
         <p className="text-xs text-muted-foreground italic">
-          ℹ️ ~5 jobs traités par minute (≈ 300 jobs/h). Pour 104 restos × 24 mois = 2 500 jobs ≈ 8 h.
-          Pour 60 mois ≈ 21 h. Tu peux fermer l'onglet, le backfill continue côté serveur.
+          ℹ️ Choisis les restaurants et la période. Vérifie le matching Splash ↔ resto avant de lancer.
+          ~5 jobs traités par minute (≈ 300 jobs/h). Tu peux fermer l'onglet, ça continue côté serveur.
         </p>
       </CardContent>
+
+      <BackfillConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        chainId={selectedChainId}
+      />
     </Card>
   );
 }
