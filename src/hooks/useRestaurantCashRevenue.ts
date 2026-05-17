@@ -114,11 +114,12 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
         let hasN1Cash = false, hasN1Orders = false;
         let daysWithData = 0;
         for (const v of dayMap.values()) {
-          cash += Math.max(0, v.global - v.uber - v.deliveroo);
-          cashOrders += Math.max(0, v.globalOrders - v.uberOrders - v.deliverooOrders);
-          globalRev += v.global;
-          const dayN1Cash = Math.max(0, v.n1Global - v.n1Uber - v.n1Deliveroo);
-          const dayN1Orders = Math.max(0, v.n1GlobalOrders - v.n1UberOrders - v.n1DeliverooOrders);
+          // La ligne `global` de Splash = Caisse uniquement (pas le total resto).
+          cash += v.global;
+          cashOrders += v.globalOrders;
+          globalRev += v.global + v.uber + v.deliveroo;
+          const dayN1Cash = v.n1Global;
+          const dayN1Orders = v.n1GlobalOrders;
           n1Cash += dayN1Cash;
           n1CashOrders += dayN1Orders;
           if (v.n1Global > 0) hasN1Cash = true;
