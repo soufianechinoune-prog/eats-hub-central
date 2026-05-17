@@ -1,72 +1,28 @@
-# Sous-onglets par canal — Uber Eats
+# Retirer le sélecteur de plateforme dans les pages Analytics
 
-## Objectif
+## Contexte
 
-Ajouter une arborescence sous l'item **Uber Eats** de la sidebar de droite, avec les mêmes sections que celles aujourd'hui présentes dans la sidebar de gauche (Analytics), mais scopées au canal Uber Eats. Ainsi, on prépare la disparition de la sidebar de gauche : tout sera accessible depuis la sidebar canal.
+Maintenant que la sidebar de droite (`OverviewChannelSidebar`) scope déjà l'utilisateur sur un canal (Uber Eats, Deliveroo, Caisse), le bandeau de pills « Uber Eats / Deliveroo / Global / Caisse » au sommet des pages Analytics (`/analytics/revenue`, `/analytics/conversion`, etc.) fait double emploi et embrouille la lecture.
 
-## Sous-onglets proposés (sous Uber Eats)
+## Changement
 
-1. **Synthèse** *(actif par défaut — vue actuelle : KPI card + Dépenses pub + Comparatif)*
-2. **Revenus & Ventes**
-3. **Ventes Articles**
-4. **Conversion**
-5. **Finances & Frais**
-6. **Offres & Frais**
-7. **Opérations**
-8. **Avis**
-9. **Score de Réussite**
-10. **Éco-Contribution**
+Dans `src/components/analytics/AnalyticsHeader.tsx`, **supprimer purement et simplement le bloc des 4 pills plateforme** (lignes ~396-441 — `Uber Eats`, `Deliveroo`, `Global`, `Caisse`).
 
-L'ordre reprend exactement celui de la sidebar gauche pour faciliter le repérage pendant la transition.
+Comportement :
+- À l'arrivée sur une page Analytics depuis un sous-onglet Uber Eats, `selectedPlatform` est déjà forcé à `"uber_eats"` par `handleSubItemClick` (déjà implémenté dans la sidebar).
+- Toute la logique conditionnelle existante basée sur `selectedPlatform` reste intacte — seules les pills disparaissent visuellement.
+- Le sélecteur de restaurants (à gauche) et le sélecteur de période (à droite) restent en place.
 
-## Comportement UX
+## Garde-fou
 
-- Quand l'utilisateur clique sur **Uber Eats** dans la sidebar, l'item se déplie (chevron) et révèle les sous-onglets. **Synthèse** est sélectionnée par défaut → c'est la vue actuelle.
-- Cliquer sur un sous-onglet (ex. *Revenus & Ventes*) :
-  - **Phase 1 (cette itération)** : navigue vers la page Analytics correspondante (`/analytics?view=revenue`) avec **plateforme = Uber Eats pré-sélectionnée** dans `AnalyticsContext`, et conserve la période active. C'est la solution la plus rapide et qui ne casse rien.
-  - **Phase 2 (plus tard)** : on intègrera ces vues directement dans le layout Overview (rendu inline à droite, sans changer d'URL), puis on supprimera la sidebar gauche.
-- L'item **Vue réseau** et **Caisse** restent inchangés (pas de sous-onglets dans cette itération).
-- Deliveroo recevra le même traitement dans une étape suivante (mêmes sous-onglets sauf *Ventes Articles* qui restera indisponible — contrainte item-level Deliveroo).
+Pour éviter de casser un éventuel accès direct ou la sidebar gauche legacy (qui ne pré-sélectionne pas la plateforme), ajouter dans `AnalyticsContext` (ou au mount de la page Analytics) : si `selectedPlatform` est `null/undefined` au chargement → forcer `"uber_eats"` par défaut. Vérifier la valeur actuelle de l'init et ne modifier que si nécessaire.
 
-## Détails techniques
+## Hors scope
 
-### `OverviewChannelSidebar.tsx`
-- Ajouter une prop optionnelle `subItems?: SubNavItem[]` à `NavItem`.
-- Quand l'item actif a des sub-items, afficher un chevron + déplier les sous-onglets en dessous, indentés de ~20 px.
-- Mémoriser localement l'état `expanded` (uniquement pour Uber dans cette phase).
-- Highlight visuel du sous-onglet actif (barre verticale primaire, fond `bg-primary/10`).
-- Définir la liste des sous-onglets Uber dans le composant (constante locale) avec : `id`, `label`, `route` (route Analytics cible), `view` (param `?view=...`).
+- La sidebar gauche reste en place (suppression prévue dans une itération ultérieure).
+- Aucune migration de Deliveroo / Caisse pour l'instant — quand l'utilisateur cliquera sur ces canaux dans la sidebar de droite, on traitera ça séparément (Phase 2 prévue).
 
-### `Overview.tsx`
-- Si `activeChannel === "uber"` et qu'un sous-onglet ≠ "synthese" est sélectionné → handler qui :
-  1. Appelle `setSelectedPlatform("uber_eats")` sur `AnalyticsContext`.
-  2. Conserve `periodMode`, `selectedYear`, `selectedMonth`, `dateRange` (déjà synchronisés via `AnalyticsContext`).
-  3. Navigate vers `/analytics?view=<view>` (ou route dédiée pour Finances, Avis, etc. — à mapper).
-- La page `/overview` reste sur la **Synthèse** par défaut ; aucun changement de layout sur cette vue.
+## Fichiers modifiés
 
-### Mapping sous-onglet → route Analytics
-| Sous-onglet         | Route cible                              |
-|---------------------|------------------------------------------|
-| Synthèse            | `/overview` (vue actuelle, in-place)     |
-| Revenus & Ventes    | `/analytics?view=revenue`                |
-| Ventes Articles     | `/analytics?view=items`                  |
-| Conversion          | `/analytics?view=conversion`             |
-| Finances & Frais    | `/analytics/finances`                    |
-| Offres & Frais      | `/analytics?view=offers`                 |
-| Opérations          | `/analytics?view=operations`             |
-| Avis                | `/analytics?view=reviews`                |
-| Score de Réussite   | `/success-score`                         |
-| Éco-Contribution    | `/analytics?view=eco`                    |
-
-*Le mapping exact (`?view=...`) sera vérifié dans `AnalyticsTabs`/`App.tsx` avant implémentation.*
-
-## Fichiers à modifier
-
-- `src/components/overview/OverviewChannelSidebar.tsx` — UI sous-onglets + état déplié.
-- `src/pages/Overview.tsx` — handler de navigation par sous-onglet, pré-sélection plateforme Uber.
-
-## Hors scope (itérations suivantes)
-
-- Sous-onglets pour Deliveroo et Caisse.
-- Intégration inline des vues Analytics dans le layout Overview (Phase 2).
-- Suppression de la sidebar gauche (Phase 3, une fois tous les canaux migrés).
+- `src/components/analytics/AnalyticsHeader.tsx` — retrait du bloc Platform Pills.
+- `src/contexts/AnalyticsContext.tsx` *(si nécessaire)* — défaut `selectedPlatform = "uber_eats"`.

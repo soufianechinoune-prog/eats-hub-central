@@ -393,52 +393,8 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
           </Popover>
         </div>
 
-        {/* Platform Pills — étirés pour remplir l'espace entre restaurant et période */}
-        <div className="flex-1 flex gap-2 min-w-[400px]">
-          <Button
-            variant={selectedPlatform === "uber_eats" ? "default" : "outline"}
-            onClick={() => setSelectedPlatform("uber_eats")}
-            className={cn(
-              "flex-1 h-10 gap-2 transition-all duration-200",
-              selectedPlatform === "uber_eats" && "bg-[#06C167] hover:bg-[#06C167]/90 text-white border-0"
-            )}
-          >
-            <img src={uberEatsLogo} alt="Uber Eats" className="h-4 w-4" />
-            <span>Uber Eats</span>
-          </Button>
-          <Button
-            variant={selectedPlatform === "deliveroo" ? "default" : "outline"}
-            onClick={() => setSelectedPlatform("deliveroo")}
-            className={cn(
-              "flex-1 h-10 gap-2 transition-all duration-200",
-              selectedPlatform === "deliveroo" && "bg-[#00CCBC] hover:bg-[#00CCBC]/90 text-white border-0"
-            )}
-          >
-            <img src={deliverooLogo} alt="Deliveroo" className="h-4 w-4" />
-            <span>Deliveroo</span>
-          </Button>
-          <Button
-            variant={selectedPlatform === "global" ? "default" : "outline"}
-            onClick={() => setSelectedPlatform("global")}
-            className={cn(
-              "flex-1 h-10 transition-all duration-200",
-              selectedPlatform === "global" && "bg-primary hover:bg-primary/90"
-            )}
-          >
-            Global
-          </Button>
-          <Button
-            variant={selectedPlatform === "pos" ? "default" : "outline"}
-            onClick={() => setSelectedPlatform("pos")}
-            className={cn(
-              "flex-1 h-10 gap-2 transition-all duration-200",
-              selectedPlatform === "pos" && "bg-amber-600 hover:bg-amber-700 text-white border-0"
-            )}
-          >
-            <Store className="h-4 w-4" />
-            <span>Caisse</span>
-          </Button>
-        </div>
+        {/* Sélecteur plateforme retiré : le canal est défini par la sidebar de droite (OverviewChannelSidebar). */}
+        <div className="flex-1" />
 
         {!hidePeriodSelector && <div className="flex items-center gap-2 ml-auto">
           <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
