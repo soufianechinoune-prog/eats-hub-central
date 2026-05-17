@@ -173,6 +173,14 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
 
       {/* Restaurant list */}
       <div className="rounded-lg border border-border/60 bg-card overflow-hidden">
+        {/* Column headers */}
+        <div className="flex items-center gap-4 md:gap-6 px-4 md:px-5 py-2 bg-muted/30 border-b border-border/40 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <div className="w-7 shrink-0 text-center">#</div>
+          <div className="w-40 md:w-52 shrink-0">Restaurant</div>
+          <div className="flex-1">Disponibilité</div>
+          <div className="w-[96px] shrink-0 text-center">Statut</div>
+          <div className="w-24 md:w-28 text-right shrink-0">% · Hors ligne</div>
+        </div>
         <div className="max-h-[640px] overflow-y-auto divide-y divide-border/40">
           {filteredAndSortedStats.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
@@ -272,7 +280,7 @@ export const DowntimeRankingBars = ({ stats, dateRange, sortDirection, onSortDir
                       "text-[10px] font-medium tabular-nums",
                       isPerfect ? "text-muted-foreground" : "text-rose-500"
                     )}>
-                      {formatMinutesToDisplay(stat.totalOfflineMinutes)} hors ligne
+                      {formatMinutesToDisplay(stat.totalOfflineMinutes)}
                     </div>
                   </div>
                 </motion.div>
