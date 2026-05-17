@@ -475,7 +475,7 @@ export function RestaurantComparisonTable({
               const profitStatus = getMetricStatus("profitability", v.profitability);
               const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", v.totalDeliveryTime);
               const errorStatus = getMetricStatus("errorRate", v.errorRate);
-              const downtimeStatus = getMetricStatus("downtime", v.downtime);
+              const availabilityStatus = getMetricStatus("availabilityRate", v.availabilityRate);
               const isExpanded = expandedRows.has(resto.id);
 
               return (
