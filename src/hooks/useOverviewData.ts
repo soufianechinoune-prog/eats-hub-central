@@ -627,6 +627,7 @@ export function useOverviewData(
         incorrectOrderRate,
         profitability: globalProfitability,
         downtime: downtimeHours,
+        availabilityRate,
         productApprovalRate,
       },
       uber: {
@@ -636,6 +637,7 @@ export function useOverviewData(
         incorrectOrderRate,
         profitability: uberProfitability,
         downtime: uberDowntimeHours,
+        availabilityRate: uberAvailabilityRate,
       },
       deliveroo: {
         rating: deliverooRating,
@@ -644,6 +646,7 @@ export function useOverviewData(
         incorrectOrderRate: null,
         profitability: deliverooProfitability,
         downtime: null,
+        availabilityRate: null,
       },
       topByRating,
       flopByRating,
