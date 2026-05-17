@@ -503,8 +503,19 @@ const Overview = () => {
     });
   };
 
+  // Detect which channels have data for the sidebar
+  const hasUberData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0), [comparisonStats]);
+  const hasDeliverooData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [comparisonStats]);
+  const hasCashData = cashConnected || (cashRevenueData?.totalCash ?? 0) > 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-8 space-y-8">
+    <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
+      <OverviewChannelSidebar
+        active={activeChannel}
+        onChange={setActiveChannel}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+      />
+      <div className="flex-1 min-w-0 p-8 space-y-8">
       {/* Header with glassmorphism */}
       <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
