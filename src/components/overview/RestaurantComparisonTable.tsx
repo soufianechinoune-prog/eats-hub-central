@@ -690,6 +690,7 @@ export function RestaurantComparisonTable({
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
                     // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
                     const visibleCols = 3
+                      + (channelTab === "cash" ? 1 : 0)
                       + (showN1Comparison && channelTab === "all" ? 1 : 0)
                       + (cols.payout ? 1 : 0)
                       + (cols.mealVoucher ? 1 : 0)
