@@ -604,7 +604,7 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className={cn("grid gap-8", activeChannel === "global" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+          <div className={cn("grid gap-8", activeChannel === "global" ? "lg:grid-cols-3" : activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
             {/* Global Card */}
             {activeChannel === "global" && (
             <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
