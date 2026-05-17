@@ -62,6 +62,14 @@ const formatHoursToTime = (hours: number | null | undefined): string | null => {
   return `${h}h ${mins}min`;
 };
 
+// Couleur du % de disponibilité réseau selon le seuil
+const availabilityColor = (rate: number | null | undefined): string => {
+  if (rate == null) return "text-muted-foreground";
+  if (rate >= 99) return "text-emerald-500";
+  if (rate >= 97) return "text-amber-500";
+  return "text-orange-500";
+};
+
 // Load saved state from localStorage (brand-aware)
 const getInitialOverviewState = (chainId: string | null) => {
   try {
@@ -627,7 +635,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("global")} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.global.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
+                <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.global.availabilityRate != null ? networkData.global.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.global.availabilityRate)} onClick={navigateToDowntimeComparison} />
                 <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
@@ -669,7 +677,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("uber_eats")} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.uber.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
+                <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.uber.availabilityRate != null ? networkData.uber.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.uber.availabilityRate)} onClick={navigateToDowntimeComparison} />
                 <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
@@ -711,7 +719,7 @@ const Overview = () => {
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.deliveroo.profitability != null ? networkData.deliveroo.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("deliveroo")} />
-                <MetricRow icon={PauseCircle} label="Temps inactivité" value={formatHoursToTime(networkData?.deliveroo.downtime)} color="text-orange-500" onClick={navigateToDowntimeComparison} />
+                <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.deliveroo.availabilityRate != null ? networkData.deliveroo.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.deliveroo.availabilityRate)} onClick={navigateToDowntimeComparison} />
               </CardContent>
             </Card>
             )}

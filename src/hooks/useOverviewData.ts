@@ -350,6 +350,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
     productApprovalRate: number | null;
   };
   uber: {
@@ -359,6 +360,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
   };
   deliveroo: {
     rating: number | null;
@@ -367,6 +369,7 @@ export interface OverviewData {
     incorrectOrderRate: number | null;
     profitability: number | null;
     downtime: number | null;
+    availabilityRate: number | null;
   };
   topByRating: any[];
   flopByRating: any[];
@@ -467,8 +470,22 @@ export function useOverviewData(
     const totalOfflineMinutes = availabilityData.reduce((sum, a: any) => sum + Number(a.total_offline_minutes || 0), 0);
     const downtimeHours = totalOfflineMinutes > 0 ? Math.round(totalOfflineMinutes / 6) / 10 : null;
 
+    // Per-restaurant availability rate (simple average across restaurants with data)
+    const perRestoRates = availabilityData
+      .map((a: any) => {
+        const online = Number(a.total_online_minutes || 0);
+        const offline = Number(a.total_offline_minutes || 0);
+        const total = online + offline;
+        return total > 0 ? (online / total) * 100 : null;
+      })
+      .filter((r: number | null): r is number => r != null);
+    const availabilityRate = perRestoRates.length > 0
+      ? parseFloat((perRestoRates.reduce((s, r) => s + r, 0) / perRestoRates.length).toFixed(1))
+      : null;
+
     // Uber-specific availability (not available from per-restaurant RPC without platform filter — use total for now)
     const uberDowntimeHours = downtimeHours; // TODO: add platform filter to RPC if needed
+    const uberAvailabilityRate = availabilityRate;
 
     const totalPayoutSales = payoutsData.reduce((sum, p: any) => sum + Number(p.sales_incl_vat || 0), 0);
     const totalNetPayout = payoutsData.reduce((sum, p: any) => sum + Number(p.net_payout || 0), 0);
@@ -610,6 +627,7 @@ export function useOverviewData(
         incorrectOrderRate,
         profitability: globalProfitability,
         downtime: downtimeHours,
+        availabilityRate,
         productApprovalRate,
       },
       uber: {
@@ -619,6 +637,7 @@ export function useOverviewData(
         incorrectOrderRate,
         profitability: uberProfitability,
         downtime: uberDowntimeHours,
+        availabilityRate: uberAvailabilityRate,
       },
       deliveroo: {
         rating: deliverooRating,
@@ -627,6 +646,7 @@ export function useOverviewData(
         incorrectOrderRate: null,
         profitability: deliverooProfitability,
         downtime: null,
+        availabilityRate: null,
       },
       topByRating,
       flopByRating,

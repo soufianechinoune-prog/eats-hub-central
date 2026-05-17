@@ -1,46 +1,47 @@
-# Pourquoi c'est long aujourd'hui
+## Objectif
+Sur la page **Vue d'ensemble**, remplacer la métrique « Temps inactivité » affichée en `Xh Ymin` (somme des heures hors ligne du réseau, peu parlante) par un **% de disponibilité moyen**, plus immédiatement lisible.
 
-Sur `/compare/downtime` en mode **Réseau (168 restaurants) × année 2026** :
+## Calcul retenu
+**Moyenne simple** des taux de disponibilité par restaurant :
 
-- La page récupère **toutes les lignes brutes** de `hourly_availability` (1 ligne par restaurant × jour × heure).
-- Volume estimé : **168 × ~131 jours × 24h ≈ 528 000 lignes**.
-- Le client pagine par **1 000 lignes/requête** en **séquentiel** → ~**530 allers-retours réseau** avant que le moindre pixel ne s'affiche.
-- Tout l'agrégat (taux dispo journalier, heatmap, classement) est ensuite calculé **côté navigateur** sur ce gros tableau.
+```
+dispoResto_i = total_online_minutes_i / (total_online_minutes_i + total_offline_minutes_i) × 100
+dispoRéseau   = moyenne(dispoResto_i) sur les restos ayant des données
+```
 
-Conclusion : ce n'est pas "normal", c'est un vrai goulot d'étranglement, le même pattern qu'on a déjà optimisé ailleurs (Overview, Finances yearly).
+Restaurants sans données d'historique disponibilité → exclus de la moyenne (comme aujourd'hui).
 
-# Plan d'optimisation
+## Changements
 
-## 1. Créer une RPC d'agrégation serveur
+### 1. `src/hooks/useOverviewData.ts`
+- Dans le bloc qui agrège `availabilityData` (~ligne 466-471), calculer un **`availabilityRate`** par restaurant puis faire la moyenne simple → exposer `availabilityRate: number | null` (en %, 1 décimale) au lieu de `downtimeHours`.
+- Renommer le champ exposé dans `global` / `uber` (et `deliveroo` → reste `null`, comme aujourd'hui) : `downtime` devient `availabilityRate`.
+- Mettre à jour le type `NetworkOverviewData` (lignes 352/361/369).
 
-Nouvelle fonction Postgres `get_downtime_comparison(restaurant_ids uuid[], start_date date, end_date date)` (SECURITY DEFINER, filtre `chain_id` via `has_restaurant_access`) qui renvoie **déjà agrégé** :
+### 2. `src/pages/Overview.tsx`
+- Remplacer les 3 `MetricRow` "Temps inactivité" (lignes 630, 672, 714) par :
+  ```tsx
+  <MetricRow
+    icon={PauseCircle}
+    label="Disponibilité"
+    value={networkData?.global.availabilityRate != null
+      ? networkData.global.availabilityRate.toFixed(1)
+      : null}
+    unit="%"
+    color={/* vert si ≥99, ambre si ≥97, orange sinon */}
+    onClick={navigateToDowntimeComparison}
+  />
+  ```
+- Adapter les 3 mapping `downtime: networkData?.X.downtime` (lignes 447/455/463 et 482/490/498) qui alimentent `useOverviewExport` → renommer en `availabilityRate` et propager côté export.
 
-- Par restaurant : `total_offline_minutes`, `total_online_minutes`, `availability_rate` (moyenne des taux journaliers).
-- Par restaurant × jour : `online`, `offline`, `rate`.
-- Par restaurant × jour × heure : `online`, `offline`, `rate` (pour les barres horaires).
-- Par restaurant × heure de la journée et × jour de semaine : minutes offline (heatmap).
+### 3. `src/hooks/useOverviewExport.ts`
+- Adapter la ligne PDF/Excel "Temps inactivité" pour afficher "Disponibilité" en %.
 
-Tout est fait en SQL avec `date_trunc` / `extract`, donc 1 seule requête réseau au lieu de 530.
+## Hors scope
+- La page **Comparaison Temps d'inactivité** (`/compare/downtime`) garde ses heures détaillées + barres — c'est là qu'on veut le détail.
+- `useNetworkStats` (`stats[].downtime`) reste inchangé : utilisé ailleurs (tableau de comparaison).
 
-## 2. Brancher `DowntimeComparison.tsx` sur la RPC
-
-- Remplacer la boucle `while (hasMore) { range(...) }` dans `useQuery` par un `supabase.rpc("get_downtime_comparison", { ... })`.
-- Adapter `restaurantStats` pour consommer la structure déjà agrégée (les `useMemo` deviennent triviaux).
-- Garder le même comportement côté UI (tri, vues Épinglés/Réseau, filtres période, exports PDF/Excel).
-
-## 3. Garde-fous
-
-- Sentinelle multi-tenant : ne déclencher la RPC qu'après résolution du `chain_id` (pattern `useActiveRestaurants`).
-- Index attendu : `hourly_availability (restaurant_id, platform, hour_start)` — à vérifier, ajouter si manquant.
-- Conserver les requêtes `earliest-date` / `latest-date` (légères, déjà en `limit(1)`).
-
-# Détails techniques
-
-- Aucun changement de schéma de données, juste une fonction SQL en plus.
-- Aucun changement visuel : mêmes composants `DowntimeRankingBars`, `DowntimeHeatmapGrid`, `DowntimeInsightsSection`.
-- Gain attendu : passage de **~530 requêtes + ~50 Mo JSON** à **1 requête + quelques dizaines de Ko**, chargement de plusieurs dizaines de secondes → 1–2 s.
-
-# Hors scope
-
-- Pas de modification des imports CSV ni de l'edge function `parse-downtime-report`.
-- Pas de refonte UI.
+## Couleur du seuil
+- `≥ 99 %` → `text-emerald-500`
+- `≥ 97 %` → `text-amber-500`
+- `< 97 %` → `text-orange-500`
