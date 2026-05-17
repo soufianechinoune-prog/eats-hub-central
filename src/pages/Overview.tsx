@@ -632,8 +632,10 @@ const Overview = () => {
                 <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
               </CardContent>
             </Card>
+            )}
 
             {/* Uber Eats Card */}
+            {(activeChannel === "global" || activeChannel === "uber") && (
             <Card className="border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
