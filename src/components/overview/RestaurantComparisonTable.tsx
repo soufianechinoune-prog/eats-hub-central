@@ -642,8 +642,8 @@ export function RestaurantComparisonTable({
                     )}
                     {cols.downtime && (
                       <TableCell className="text-right">
-                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
-                          {formatHours(v.downtime)}
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(availabilityStatus))}>
+                          {v.availabilityRate != null ? `${v.availabilityRate.toFixed(1)}%` : "—"}
                         </span>
                       </TableCell>
                     )}
