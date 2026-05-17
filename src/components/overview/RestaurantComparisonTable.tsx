@@ -798,6 +798,13 @@ export function RestaurantComparisonTable({
                       {formatHours(networkTotals.totalDowntime)}
                     </TableCell>
                   )}
+                  {channelTab === "cash" && (
+                    <>
+                      <TableCell />
+                      <TableCell />
+                      <TableCell />
+                    </>
+                  )}
                 </TableRow>
               );
             })()}
