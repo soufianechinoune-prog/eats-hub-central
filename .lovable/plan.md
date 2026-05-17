@@ -1,69 +1,87 @@
-# Sous-ligne Caisse (Splash) au dépliage des restaurants
+# Refonte du Comparatif des restaurants — multi-canaux
 
-## Contexte
+## Problème
+Aujourd'hui chaque restaurant déplié affiche une sous-ligne par canal sur **toutes les colonnes** du tableau. Avec 4-5 canaux, ça devient :
+- visuellement saturé (5 sous-lignes × 13 colonnes),
+- illisible (la moitié des cellules vaut "—" : Caisse/eShop/WhatsApp n'ont pas de Note, Erreurs, Prépa…),
+- lent à scanner.
 
-Aujourd'hui, dans le tableau « Comparatif des restaurants » (page Overview), quand on déroule un restaurant via le chevron, deux sous-lignes apparaissent : **Uber Eats** (vert) et **Deliveroo** (cyan), via le composant `PlatformSubRow`. Elles affichent la part du CA, le CA, le versement, la rentab., les commandes, le panier, la note, etc.
+## Principe directeur
+**La ligne principale reste un tableau triable (CA, Versement, Rentab., etc.), agrégée tous canaux.**
+**Le dépli devient un mini-dashboard par canal**, où chaque canal n'affiche QUE les KPIs qui ont du sens pour lui. Pas de "—".
 
-Tu te souviens bien : on a fait Uber + Deliveroo, mais **on n'a jamais ajouté la 3ᵉ ligne Caisse (Splash)**. La colonne « Caisse » existe au niveau RÉSEAU (en haut, agrégée via `useNetworkCashRevenue`), mais sur chaque ligne restaurant et dans le dépliage, on affiche simplement « — ».
+## Ligne principale (vue fermée) — inchangée dans sa structure
 
-C'est pile le bon moment pour la brancher maintenant que Reims est en cours de backfill.
+Toutes les colonnes actuelles restent triables (c'est ta contrainte forte). On ajoute juste :
 
-## Ce qu'on va faire
+- **Colonne CA enrichie** : sous le montant, une mini barre empilée colorée par canal (Uber violet / Deliveroo turquoise / Caisse rose / eShop bleu / WhatsApp vert). Au survol → tooltip avec le détail.
+- **Petits chips canaux** à droite du nom du resto : pastilles miniatures (logo seul) pour signaler les canaux actifs. Donne une lecture instantanée de la couverture omnicanal sans rien dérouler.
 
-Ajouter une 3ᵉ sous-ligne **Caisse** au dépliage d'un restaurant, alimentée par `splash360_daily_sales`, avec le même style visuel que Uber/Deliveroo mais en couleur "cash" (token déjà présent : `text-cash`).
+Aucune sous-ligne par défaut. La densité de la table de premier niveau est préservée.
 
-### Comportement
+## Dépli (vue ouverte) — refondu
 
-- Quand on déroule un restaurant :
-  - Sous-ligne **Uber Eats** (existante)
-  - Sous-ligne **Deliveroo** (existante)
-  - **Nouvelle sous-ligne Caisse** : affichée uniquement si le restaurant a au moins 1 € de caisse sur la période (sinon masquée, comme on le fait déjà pour Uber/Deliveroo via `if (data.orders === 0 && data.revenue === 0) return null`).
-- Colonnes alimentées sur la sous-ligne Caisse :
-  - `% du CA` (part Caisse / CA total du resto incluant Caisse)
-  - `Caisse` (CA TTC Splash, colonne dédiée)
-  - `CA` (= même valeur que Caisse, pour cohérence visuelle)
-  - Toutes les autres colonnes (Versement, Titre resto, Rentab., %Pub, Cmds, Panier, Note, Erreurs, Prépa+Livr, Inactiv.) → « — » (Splash ne fournit pas ces métriques)
-- Sur la ligne **principale** du restaurant : la colonne « Caisse » (aujourd'hui « — ») doit afficher la valeur réelle par restaurant (et non plus uniquement au niveau Réseau).
+Quand on clique sur le chevron, **on n'affiche plus de sous-lignes tabulaires**. À la place, dans une zone "encartée" sous le restaurant :
 
-### Implication sur le CA total
+### Bloc 1 — Mix canaux (en haut, full width)
+Une barre horizontale empilée XL avec, pour chaque segment :
+- logo + nom du canal,
+- CA TTC,
+- % du CA total du resto.
+C'est la vue "d'où vient mon CA".
 
-À discuter (voir question ouverte plus bas) : faut-il **ajouter** le CA caisse au CA total affiché du restaurant, ou le garder séparé comme une colonne parallèle (comme aujourd'hui) ? Recommandation : **garder séparé** dans un premier temps pour ne pas casser les comparaisons N-1 et les autres pages qui se basent sur le CA plateformes uniquement. La ligne Caisse afficherait alors sa propre valeur dans la colonne dédiée + une part « % du CA + Caisse » à titre indicatif.
+### Bloc 2 — Grille de mini-cards par canal
+Une carte par canal actif, en grille responsive (3-4 colonnes selon largeur). Chaque carte affiche **uniquement les KPIs pertinents** pour ce canal :
+
+```text
+┌─ Uber Eats ─────────┐  ┌─ Deliveroo ─────────┐  ┌─ Caisse ────────────┐
+│ CA      55 230 €    │  │ CA      18 400 €    │  │ CA      32 100 €    │
+│ Cmds    2 058       │  │ Cmds    640         │  │ Cmds    1 720       │
+│ Panier  26,80 €     │  │ Panier  28,75 €     │  │ Panier  18,65 €     │
+│ Versement 31 200 €  │  │ Versement 11 800 €  │  │ Rentab.   72 %      │
+│ Rentab.   66 %      │  │ Rentab.   58 %      │  │                     │
+│ ─────────────────── │  │ ─────────────────── │  │                     │
+│ ★ Note   4,7        │  │ ★ Note   4,5        │  │ (pas de Note)       │
+│ Erreurs  0,8 %      │  │ Erreurs  1,1 %      │  │                     │
+│ Prépa    12 min     │  │ Prépa    14 min     │  │                     │
+│ % Pub    1,5 %      │  │ % Pub    —          │  │                     │
+└─────────────────────┘  └─────────────────────┘  └─────────────────────┘
+
+┌─ eShop ─────────────┐  ┌─ WhatsApp ──────────┐
+│ CA       8 400 €    │  │ CA      4 200 €     │
+│ Cmds     290        │  │ Cmds    180         │
+│ Panier   28,95 €    │  │ Panier  23,30 €     │
+└─────────────────────┘  └─────────────────────┘
+```
+
+Règles d'affichage par canal :
+- **Uber Eats / Deliveroo** : Financier (CA, Versement, Rentab.) + Volume (Cmds, Panier) + Ops (Note, Erreurs, Prépa) + Pub
+- **Caisse (Splash360)** : Financier (CA, Rentab. si dispo) + Volume (Cmds, Panier). Pas d'ops.
+- **eShop** : Financier + Volume. Ops à voir plus tard si la source les fournit.
+- **WhatsApp** : juste CA + Cmds (+ Panier dérivé).
+
+Chaque carte = même hauteur visuelle (grid auto-rows), même typo, accent de couleur en haut = couleur du canal. Au clic sur la carte → navigation vers la page canal du resto (déjà existante pour Uber/Deliveroo, à venir pour les autres).
+
+### Bloc 3 (optionnel, plus tard) — Comparatif N-1 par canal
+Petit toggle local "vs N-1" qui transforme chaque carte en affichant la variation à côté de chaque KPI.
+
+## Gains
+- **Zéro cellule vide** : chaque canal ne montre que ce qu'il sait faire.
+- **Densité divisée par ~3** : 1 grille de 5 cards ≈ hauteur de 2 sous-lignes actuelles, mais bien plus lisible.
+- **Modulaire** : ajouter un 6e canal = ajouter une carte, aucun impact sur les colonnes du tableau.
+- **Tri préservé** : la ligne principale garde tous ses tris (CA, Versement, Rentab., Note, etc., agrégés).
+- **Lecture du mix omnicanal** instantanée via la barre empilée + les chips de la ligne principale.
 
 ## Détails techniques
+- Fichier impacté : `src/components/overview/RestaurantComparisonTable.tsx`.
+- Suppression des composants `PlatformSubRow` et `CashSubRow` (sous-lignes tableau) → remplacés par un composant `<ChannelBreakdownPanel restaurant={...} />` rendu dans une cellule `colSpan={fullWidth}` quand `isExpanded`.
+- Le nouveau composant prend la `RestaurantNetworkStats` existante + `cashByRestaurant` + futurs `eshopByRestaurant` / `whatsappByRestaurant` (mêmes Maps que pour la caisse, on les branche au fil de l'arrivée des canaux).
+- Type `Channel` central : `{ id, label, color, kpis: { financial?, volume?, ops?, marketing? } }` → la même grille rend tous les canaux sans condition disséminée.
+- Les couleurs réutilisent les tokens sémantiques existants (`uber`, `deliveroo`, `cash`) + ajout de tokens `eshop`, `whatsapp` dans `index.css` / `tailwind.config.ts`.
+- Mini barre empilée de la colonne CA : composant `<ChannelMixBar segments={[...]} />` réutilisé par la ligne principale et le bloc "Mix canaux" du dépli (tailles différentes).
+- Aucun changement de hooks de data : on consomme déjà `stats.platformBreakdown` (Uber/Deliveroo) et `cashByRestaurant`. Les futurs canaux suivront le même schéma (Map<restaurantId, KPIs>).
 
-### Source de données
-
-Table `splash360_daily_sales` :
-- Filtrer par `chain_id`, `granularity = 'day'`, `platform = 'global' | 'uber_eats' | 'deliveroo'`, `restaurant_splash_id != 0` (lignes par restaurant)
-- Mapping `restaurant_splash_id` → `restaurants.id` via `restaurants.splash_restaurant_id` (à confirmer : colonne existante)
-- Formule par jour et par resto : `caisse = max(0, global - uber_eats - deliveroo)`
-- Agrégation sur la période sélectionnée
-
-### Nouveau hook
-
-`src/hooks/useRestaurantCashRevenue.ts` :
-- Input : `chainId`, `restaurantIds[]`, `startDate`, `endDate`
-- Output : `Map<restaurantId, { totalCash: number; daysWithData: number }>`
-- Pagination via `while + .range()` (standard projet, `PAGE_SIZE = 1000`)
-- `staleTime: 5 min`
-- Réutilise la même logique d'agrégation que `useNetworkCashRevenue` mais groupée par `restaurant_splash_id` au lieu de globale
-
-### Modifications de composants
-
-1. **`useRestaurantCashRevenue.ts`** (nouveau) — fetch + agrégation par resto.
-2. **`Overview.tsx`** (page parent) — appeler le hook et passer `cashByRestaurant: Map<string, number>` à `<RestaurantComparisonTable>`.
-3. **`RestaurantComparisonTable.tsx`** :
-   - Nouveau prop `cashByRestaurant?: Map<string, number>`
-   - Remplacer le `—` de la colonne Caisse (ligne resto) par la valeur du map
-   - Ajouter une 3ᵉ sous-ligne `<CashSubRow>` dans le bloc `isExpanded`, ou étendre `PlatformSubRow` avec un mode `cash` (préférable : nouveau petit composant `CashSubRow` car les colonnes alimentées sont très différentes).
-
-### Style
-
-- Badge platform : `Caisse` avec bordure couleur `text-cash` (token déjà défini), icône `Store` de lucide-react
-- Même typo / tailles que les sous-lignes existantes
-
-## Question ouverte avant implémentation
-
-- **Périmètre data** : Reims est encore en cours de backfill (~25 jobs). On affiche la sous-ligne Caisse pour **tous les restaurants** qui ont de la data Splash (donc dès maintenant : Reims + ce qui aura été conservé), ou bien on la garde **masquée tant que la donnée est incomplète** ? Recommandation : afficher dès qu'il y a >0 €, le filtre `if revenue === 0 return null` masquera naturellement les restos sans data.
-
-Si tu valides, j'implémente d'un coup les 3 fichiers.
+## Hors scope (à itérer plus tard)
+- L'éventuel "vs N-1" par canal.
+- Le drilldown vers les pages canal eShop/WhatsApp (les pages n'existent pas encore).
+- L'ajout réel des canaux eShop et WhatsApp côté data — ici on prépare juste le contenant.
