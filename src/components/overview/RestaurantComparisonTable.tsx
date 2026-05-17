@@ -23,6 +23,7 @@ import { format } from "date-fns";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
+type ChannelTab = "all" | "uber" | "deliveroo" | "cash";
 
 import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
