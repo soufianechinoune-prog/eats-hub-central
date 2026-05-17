@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Star, ChevronRight, ShoppingCart, Search, Store } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +23,7 @@ import { format } from "date-fns";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
+type ChannelTab = "all" | "uber" | "deliveroo" | "cash";
 
 import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
@@ -129,8 +131,103 @@ export function RestaurantComparisonTable({
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [channelTab, setChannelTab] = useState<ChannelTab>("all");
 
-  const showCashColumn = networkCashTotal > 0;
+  const hasUber = useMemo(() => stats.some(r => r.platformBreakdown.uber.revenue > 0), [stats]);
+  const hasDeliveroo = useMemo(() => stats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [stats]);
+  const hasCash = useMemo(() => {
+    if (!cashByRestaurant) return networkCashTotal > 0;
+    for (const v of cashByRestaurant.values()) if (v > 0) return true;
+    return networkCashTotal > 0;
+  }, [cashByRestaurant, networkCashTotal]);
+
+  // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
+  // and rely on the mix-bar + chips under the CA column instead.
+  const showCashColumn = false;
+
+  // Remap a restaurant row to the active channel view.
+  // Returns null when the restaurant has no data for that channel (filtered out).
+  const projectForTab = useCallback((r: RestaurantNetworkStats) => {
+    if (channelTab === "all") {
+      return {
+        revenue: r.revenue,
+        orders: r.orders,
+        avgBasket: r.avgBasket,
+        netPayout: r.netPayout,
+        mealVoucher: r.mealVoucher,
+        profitability: r.profitability,
+        rating: r.rating,
+        errorRate: r.errorRate,
+        totalDeliveryTime: r.totalDeliveryTime,
+        downtime: r.downtime,
+        hide: false,
+      };
+    }
+    if (channelTab === "uber") {
+      const p = r.platformBreakdown.uber;
+      return {
+        revenue: p.revenue,
+        orders: p.orders,
+        avgBasket: p.avgBasket,
+        netPayout: p.netPayout,
+        mealVoucher: p.mealVoucher,
+        profitability: p.profitability,
+        // Note/Erreurs/Prépa/Downtime sont Uber-driven dans nos données → on les conserve
+        rating: r.rating,
+        errorRate: r.errorRate,
+        totalDeliveryTime: r.totalDeliveryTime,
+        downtime: r.downtime,
+        hide: p.revenue <= 0,
+      };
+    }
+    if (channelTab === "deliveroo") {
+      const p = r.platformBreakdown.deliveroo;
+      return {
+        revenue: p.revenue,
+        orders: p.orders,
+        avgBasket: p.avgBasket,
+        netPayout: p.netPayout,
+        mealVoucher: 0,
+        profitability: p.profitability,
+        rating: null,
+        errorRate: null,
+        totalDeliveryTime: null,
+        downtime: null,
+        hide: p.revenue <= 0,
+      };
+    }
+    // cash
+    const cash = cashByRestaurant?.get(r.id) ?? 0;
+    return {
+      revenue: cash,
+      orders: 0,
+      avgBasket: 0,
+      netPayout: 0,
+      mealVoucher: 0,
+      profitability: null,
+      rating: null,
+      errorRate: null,
+      totalDeliveryTime: null,
+      downtime: null,
+      hide: cash <= 0,
+    };
+  }, [channelTab, cashByRestaurant]);
+
+  // Column visibility per tab
+  const cols = useMemo(() => {
+    if (channelTab === "all") {
+      return { caMix: true, chips: true, expand: true, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+    }
+    if (channelTab === "uber") {
+      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+    }
+    if (channelTab === "deliveroo") {
+      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+    }
+    // cash
+    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
+  }, [channelTab]);
+
 
   const toggleRow = useCallback((id: string) => {
     setExpandedRows(prev => {
@@ -157,14 +254,23 @@ export function RestaurantComparisonTable({
     }).format(value) + " €";
   };
 
+  // Build channel-projected rows then sort + filter
+  type Row = { resto: RestaurantNetworkStats; v: ReturnType<typeof projectForTab> };
+  const projectedRows = useMemo<Row[]>(() => {
+    return stats
+      .map(r => ({ resto: r, v: projectForTab(r) }))
+      .filter(row => !row.v.hide);
+  }, [stats, projectForTab]);
+
   const sortedStats = useMemo(() => {
-    return [...stats].sort((a, b) => {
+    return [...projectedRows].sort((A, B) => {
+      const a = A.v, b = B.v;
       let aVal: number | string | null = null;
       let bVal: number | string | null = null;
 
       switch (sortColumn) {
-        case "name": aVal = a.name.toLowerCase(); bVal = b.name.toLowerCase(); break;
-        case "city": aVal = (a.city || "").toLowerCase(); bVal = (b.city || "").toLowerCase(); break;
+        case "name": aVal = A.resto.name.toLowerCase(); bVal = B.resto.name.toLowerCase(); break;
+        case "city": aVal = (A.resto.city || "").toLowerCase(); bVal = (B.resto.city || "").toLowerCase(); break;
         case "revenue": aVal = a.revenue; bVal = b.revenue; break;
         case "orders": aVal = a.orders; bVal = b.orders; break;
         case "avgBasket": aVal = a.avgBasket; bVal = b.avgBasket; break;
@@ -176,8 +282,8 @@ export function RestaurantComparisonTable({
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
         case "downtime": aVal = a.downtime ?? 999; bVal = b.downtime ?? 999; break;
         case "adsRatio": {
-          aVal = adsRatioMap?.get(a.id)?.adsPct ?? -1;
-          bVal = adsRatioMap?.get(b.id)?.adsPct ?? -1;
+          aVal = adsRatioMap?.get(A.resto.id)?.adsPct ?? -1;
+          bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
           break;
         }
       }
@@ -189,13 +295,14 @@ export function RestaurantComparisonTable({
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
     });
-  }, [stats, sortColumn, sortDirection]);
+  }, [projectedRows, sortColumn, sortDirection, adsRatioMap]);
 
   const filteredStats = useMemo(() => {
     if (!searchQuery.trim()) return sortedStats;
     const q = searchQuery.toLowerCase();
-    return sortedStats.filter(r => r.name.toLowerCase().includes(q));
+    return sortedStats.filter(row => row.resto.name.toLowerCase().includes(q));
   }, [sortedStats, searchQuery]);
+
 
   const SortIcon = ({ column }: { column: SortColumn }) => {
     if (sortColumn !== column) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
@@ -237,12 +344,20 @@ export function RestaurantComparisonTable({
   return (
     <Card className="border-border/50 shadow-lg backdrop-blur-xl bg-card/80">
       <CardHeader className="pb-4 border-b border-border/50">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
           <CardTitle className="text-xl flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-primary" />
             Comparatif des restaurants
           </CardTitle>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <Tabs value={channelTab} onValueChange={(v) => { setChannelTab(v as ChannelTab); setExpandedRows(new Set()); }}>
+              <TabsList className="h-8">
+                <TabsTrigger value="all" className="text-xs px-3">Tous</TabsTrigger>
+                {hasUber && <TabsTrigger value="uber" className="text-xs px-3 data-[state=active]:text-uber">Uber Eats</TabsTrigger>}
+                {hasDeliveroo && <TabsTrigger value="deliveroo" className="text-xs px-3 data-[state=active]:text-deliveroo">Deliveroo</TabsTrigger>}
+                {hasCash && <TabsTrigger value="cash" className="text-xs px-3 data-[state=active]:text-cash">Caisse</TabsTrigger>}
+              </TabsList>
+            </Tabs>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
               <Input
@@ -252,7 +367,7 @@ export function RestaurantComparisonTable({
                 className="h-8 w-[200px] pl-8 text-sm"
               />
             </div>
-            {onToggleDataSource && (
+            {onToggleDataSource && channelTab === "all" && (
               <>
                 <Switch id="data-source-toggle" checked={showDataSource} onCheckedChange={onToggleDataSource} />
                 <Label htmlFor="data-source-toggle" className="text-sm text-muted-foreground cursor-pointer">
@@ -285,68 +400,71 @@ export function RestaurantComparisonTable({
                   </Tooltip>
                 </TooltipProvider>
               </HeaderCell>
-              {showN1Comparison && (
+              {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
-              {showCashColumn && (
-                <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1 text-cash">
-                    <Store className="h-3 w-3" /> Caisse
-                  </span>
-                </TableHead>
+              {cols.payout && (
+                <HeaderCell column="netPayout" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">Versement <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Net réellement versé sur le compte bancaire = Payout Uber + Titres-restaurant + Versement Deliveroo. Hors ajustements (ads, eco-contribution, marketing) traités dans les onglets Finances / Frais.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
               )}
-              <HeaderCell column="netPayout" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">Versement <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Net réellement versé sur le compte bancaire = Payout Uber + Titres-restaurant + Versement Deliveroo. Hors ajustements (ads, eco-contribution, marketing) traités dans les onglets Finances / Frais.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="mealVoucher" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Montant des titres-restaurant Uber importé, inclus dans le Versement.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
-              <HeaderCell column="adsRatio" className="text-right">
-                <TooltipProvider delayDuration={200}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-xs text-xs">
-                      Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </HeaderCell>
-              <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>
-              <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>
-              <HeaderCell column="rating" className="text-right">Note</HeaderCell>
-              <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>
-              <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>
-              <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>
+              {cols.mealVoucher && (
+                <HeaderCell column="mealVoucher" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">Titre restaurant <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Montant des titres-restaurant Uber importé, inclus dans le Versement.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
+              )}
+              {cols.profitability && (
+                <HeaderCell column="profitability" className="text-right">Rentab.</HeaderCell>
+              )}
+              {cols.adsRatio && (
+                <HeaderCell column="adsRatio" className="text-right">
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1">% Pub <Info className="h-3 w-3 opacity-60" /></span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-xs text-xs">
+                        Dépenses publicitaires Uber Eats / CA TTC sur la période. Calculé à partir des lignes « advertising » des versements Uber.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </HeaderCell>
+              )}
+              {cols.orders && <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>}
+              {cols.basket && <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating" className="text-right">Note</HeaderCell>}
+              {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
+              {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
+              {cols.downtime && <HeaderCell column="downtime" className="text-right">Inactiv.</HeaderCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredStats.map((resto, idx) => {
-              const ratingStatus = getMetricStatus("rating", resto.rating);
-              const profitStatus = getMetricStatus("profitability", resto.profitability);
-              const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", resto.totalDeliveryTime);
-              const errorStatus = getMetricStatus("errorRate", resto.errorRate);
-              const downtimeStatus = getMetricStatus("downtime", resto.downtime);
+            {filteredStats.map((row, idx) => {
+              const resto = row.resto;
+              const v = row.v;
+              const ratingStatus = getMetricStatus("rating", v.rating);
+              const profitStatus = getMetricStatus("profitability", v.profitability);
+              const totalDeliveryStatus = getMetricStatus("totalDeliveryTime", v.totalDeliveryTime);
+              const errorStatus = getMetricStatus("errorRate", v.errorRate);
+              const downtimeStatus = getMetricStatus("downtime", v.downtime);
               const isExpanded = expandedRows.has(resto.id);
 
               return (
@@ -358,12 +476,16 @@ export function RestaurantComparisonTable({
                   >
                     <TableCell>
                       <div className="flex items-center gap-1">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); toggleRow(resto.id); }}
-                          className="p-0.5 rounded hover:bg-muted transition-transform"
-                        >
-                          <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")} />
-                        </button>
+                        {cols.expand ? (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); toggleRow(resto.id); }}
+                            className="p-0.5 rounded hover:bg-muted transition-transform"
+                          >
+                            <ChevronRight className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform duration-200", isExpanded && "rotate-90")} />
+                          </button>
+                        ) : (
+                          <span className="w-[18px] inline-block" />
+                        )}
                         <Badge variant="secondary" className="bg-muted text-muted-foreground text-xs h-6 w-6 flex items-center justify-center rounded-md">
                           {idx + 1}
                         </Badge>
@@ -378,7 +500,7 @@ export function RestaurantComparisonTable({
                             uberShare={dataSourceMap.get(resto.id)!.uberShare}
                           />
                         )}
-                        {(() => {
+                        {cols.chips && (() => {
                           const cash = cashByRestaurant?.get(resto.id) ?? 0;
                           const active: ChannelId[] = [];
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
@@ -389,7 +511,7 @@ export function RestaurantComparisonTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-right font-semibold whitespace-nowrap">
-                      {(() => {
+                      {cols.caMix ? (() => {
                         const cash = cashByRestaurant?.get(resto.id) ?? 0;
                         const segments: ChannelSegment[] = [
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
@@ -398,116 +520,142 @@ export function RestaurantComparisonTable({
                         ];
                         return (
                           <div className="flex flex-col items-end gap-1">
-                            <span>{formatCurrency(resto.revenue)}</span>
+                            <span>{formatCurrency(v.revenue)}</span>
                             <div className="w-20">
                               <ChannelMixBar segments={segments} size="xs" />
                             </div>
                           </div>
                         );
-                      })()}
+                      })() : (
+                        <span>{formatCurrency(v.revenue)}</span>
+                      )}
                     </TableCell>
-                    {showN1Comparison && (
+                    {showN1Comparison && channelTab === "all" && (
                       <TableCell className="text-right">
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
-                    {showCashColumn && (() => {
-                      const cash = cashByRestaurant?.get(resto.id) ?? 0;
-                      return (
-                        <TableCell className={cn("text-right whitespace-nowrap", cash > 0 ? "text-cash font-semibold" : "text-muted-foreground")}>
-                          {cash > 0 ? formatCurrency(cash) : "—"}
-                        </TableCell>
-                      );
-                    })()}
-                    <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                      {formatNetPayout(resto.netPayout)}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
-                      {resto.mealVoucher > 0 ? formatCurrencyPrecise(resto.mealVoucher) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                      {resto.negotiatedCofinancement > 0 && startDateStr && endDateStr ? (
-                        <NegotiatedCofinPopover
-                          restaurantId={resto.id}
-                          restaurantName={resto.name}
-                          startDate={startDateStr}
-                          endDate={endDateStr}
-                          totalAmount={resto.negotiatedCofinancement}
-                        >
-                          <button
-                            type="button"
-                            onClick={(e) => e.stopPropagation()}
-                            className={cn(
-                              "font-medium cursor-pointer inline-flex items-center gap-1 hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1",
-                              getStatusTextClass(profitStatus)
-                            )}
-                            title={`Inclut ${formatCurrency(resto.negotiatedCofinancement)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                    {cols.payout && (
+                      <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                        {formatNetPayout(v.netPayout)}
+                      </TableCell>
+                    )}
+                    {cols.mealVoucher && (
+                      <TableCell className="text-right font-semibold text-primary whitespace-nowrap">
+                        {v.mealVoucher > 0 ? formatCurrencyPrecise(v.mealVoucher) : "—"}
+                      </TableCell>
+                    )}
+                    {cols.profitability && (
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {channelTab === "all" && resto.negotiatedCofinancement > 0 && startDateStr && endDateStr ? (
+                          <NegotiatedCofinPopover
+                            restaurantId={resto.id}
+                            restaurantName={resto.name}
+                            startDate={startDateStr}
+                            endDate={endDateStr}
+                            totalAmount={resto.negotiatedCofinancement}
                           >
-                            {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
-                            <Info className="h-3 w-3 text-amber-500" />
-                          </button>
-                        </NegotiatedCofinPopover>
-                      ) : (
-                        <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
-                          {resto.profitability != null ? `${resto.profitability.toFixed(1)}%` : "—"}
+                            <button
+                              type="button"
+                              onClick={(e) => e.stopPropagation()}
+                              className={cn(
+                                "font-medium cursor-pointer inline-flex items-center gap-1 hover:underline focus:outline-none focus:ring-2 focus:ring-ring rounded px-1",
+                                getStatusTextClass(profitStatus)
+                              )}
+                              title={`Inclut ${formatCurrency(resto.negotiatedCofinancement)} de cofinancement marketing négocié. Cliquer pour le détail.`}
+                            >
+                              {v.profitability != null ? `${v.profitability.toFixed(1)}%` : "—"}
+                              <Info className="h-3 w-3 text-amber-500" />
+                            </button>
+                          </NegotiatedCofinPopover>
+                        ) : (
+                          <span className={cn("font-medium", getStatusTextClass(profitStatus))}>
+                            {v.profitability != null ? `${v.profitability.toFixed(1)}%` : "—"}
+                          </span>
+                        )}
+                      </TableCell>
+                    )}
+                    {cols.adsRatio && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        {(() => {
+                          const r = adsRatioMap?.get(resto.id);
+                          if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
+                          return (
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <span className="font-medium cursor-help">
+                                    {r.adsPct.toFixed(2).replace(".", ",")}%
+                                  </span>
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="text-xs">
+                                  {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
+                      </TableCell>
+                    )}
+                    {cols.orders && (
+                      <TableCell className="text-right text-muted-foreground">
+                        {v.orders.toLocaleString("fr-FR")}
+                      </TableCell>
+                    )}
+                    {cols.basket && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        {v.avgBasket.toFixed(2)} €
+                      </TableCell>
+                    )}
+                    {cols.rating && (
+                      <TableCell className="text-right">
+                        <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
+                          <Star className="h-3 w-3" />
+                          {v.rating?.toFixed(1) ?? "—"}
                         </span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {(() => {
-                        const r = adsRatioMap?.get(resto.id);
-                        if (!r || r.adsPct == null) return <span className="text-muted-foreground">—</span>;
-                        return (
-                          <TooltipProvider delayDuration={200}>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <span className="font-medium cursor-help">
-                                  {r.adsPct.toFixed(2).replace(".", ",")}%
-                                </span>
-                              </TooltipTrigger>
-                              <TooltipContent side="top" className="text-xs">
-                                {formatCurrency(r.adsSpend)} de pub / {formatCurrency(r.revenueTtc)} de CA TTC
-                              </TooltipContent>
-                            </Tooltip>
-                          </TooltipProvider>
-                        );
-                      })()}
-                    </TableCell>
-                    <TableCell className="text-right text-muted-foreground">
-                      {resto.orders.toLocaleString("fr-FR")}
-                    </TableCell>
-                    <TableCell className="text-right whitespace-nowrap">
-                      {resto.avgBasket.toFixed(2)} €
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
-                        <Star className="h-3 w-3" />
-                        {resto.rating?.toFixed(1) ?? "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
-                        {resto.errorRate != null ? `${resto.errorRate.toFixed(1)}%` : "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
-                        {formatMinutesLong(resto.totalDeliveryTime)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
-                        {formatHours(resto.downtime)}
-                      </span>
-                    </TableCell>
+                      </TableCell>
+                    )}
+                    {cols.errorRate && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium", getStatusTextClass(errorStatus))}>
+                          {v.errorRate != null ? `${v.errorRate.toFixed(1)}%` : "—"}
+                        </span>
+                      </TableCell>
+                    )}
+                    {cols.delivery && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(totalDeliveryStatus))}>
+                          {formatMinutesLong(v.totalDeliveryTime)}
+                        </span>
+                      </TableCell>
+                    )}
+                    {cols.downtime && (
+                      <TableCell className="text-right">
+                        <span className={cn("font-medium whitespace-nowrap", getStatusTextClass(downtimeStatus))}>
+                          {formatHours(v.downtime)}
+                        </span>
+                      </TableCell>
+                    )}
                   </TableRow>
-                  {isExpanded && (() => {
+                  {cols.expand && isExpanded && (() => {
                     const cash = cashByRestaurant?.get(resto.id) ?? 0;
                     const adsPct = adsRatioMap?.get(resto.id)?.adsPct ?? null;
-                    const totalCols = 13 + (showN1Comparison ? 1 : 0) + (showCashColumn ? 1 : 0);
+                    // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
+                    const visibleCols = 3
+                      + (showN1Comparison && channelTab === "all" ? 1 : 0)
+                      + (cols.payout ? 1 : 0)
+                      + (cols.mealVoucher ? 1 : 0)
+                      + (cols.profitability ? 1 : 0)
+                      + (cols.adsRatio ? 1 : 0)
+                      + (cols.orders ? 1 : 0)
+                      + (cols.basket ? 1 : 0)
+                      + (cols.rating ? 1 : 0)
+                      + (cols.errorRate ? 1 : 0)
+                      + (cols.delivery ? 1 : 0)
+                      + (cols.downtime ? 1 : 0);
                     return (
                       <TableRow className="bg-muted/5 hover:bg-muted/5 border-border/20">
-                        <TableCell colSpan={totalCols} className="p-3">
+                        <TableCell colSpan={visibleCols} className="p-3">
                           <ChannelBreakdownPanel
                             resto={resto}
                             cash={cash}
@@ -516,75 +664,104 @@ export function RestaurantComparisonTable({
                         </TableCell>
                       </TableRow>
                     );
+
                   })()}
                 </>
               );
             })}
 
             {/* Network totals row */}
-            <TableRow className="bg-muted/30 font-semibold border-t-2 border-border hover:bg-muted/40">
-              <TableCell></TableCell>
-              <TableCell className="font-bold text-primary">
-                RÉSEAU <span className="text-muted-foreground font-normal text-sm">({stats.length} restos)</span>
-              </TableCell>
-              <TableCell className="text-right font-bold whitespace-nowrap">
-                {formatCurrency(networkTotals.totalRevenue)}
-              </TableCell>
-              {showN1Comparison && (
-                <TableCell className="text-right">
-                  {formatVariation(networkTotals.revenueVariation)}
-                </TableCell>
-              )}
-              {showCashColumn && (
-                <TableCell className="text-right font-bold text-cash whitespace-nowrap">
-                  {formatCurrency(networkCashTotal)}
-                </TableCell>
-              )}
-              <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                {formatNetPayout(networkTotals.totalNetPayout)}
-              </TableCell>
-              <TableCell className="text-right font-bold text-primary whitespace-nowrap">
-                {networkTotals.totalMealVoucher > 0 ? formatCurrencyPrecise(networkTotals.totalMealVoucher) : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
-              </TableCell>
-              <TableCell className="text-right font-bold text-uber whitespace-nowrap">
-                {networkAdsPct != null ? (
-                  <TooltipProvider delayDuration={200}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="text-xs">
-                        {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold">
-                {networkTotals.totalOrders.toLocaleString("fr-FR")}
-              </TableCell>
-              <TableCell className="text-right font-semibold whitespace-nowrap">
-                {networkTotals.avgBasket.toFixed(2)} €
-              </TableCell>
-              <TableCell className="text-right">
-                <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
-                  <Star className="h-3 w-3" />
-                  {networkTotals.avgRating?.toFixed(1) ?? "—"}
-                </span>
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground">
-                {networkTotals.avgErrorRate != null ? `${networkTotals.avgErrorRate.toFixed(1)}%` : "—"}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
-                {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
-              </TableCell>
-              <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
-                {formatHours(networkTotals.totalDowntime)}
-              </TableCell>
-            </TableRow>
+            {(() => {
+              // For "all" use networkTotals (network-wide aggregates).
+              // For other tabs compute totals from the visible projected rows.
+              const isAll = channelTab === "all";
+              const sumRevenue = isAll ? networkTotals.totalRevenue : filteredStats.reduce((s, r) => s + r.v.revenue, 0);
+              const sumOrders = isAll ? networkTotals.totalOrders : filteredStats.reduce((s, r) => s + r.v.orders, 0);
+              const sumPayout = isAll ? networkTotals.totalNetPayout : filteredStats.reduce((s, r) => s + r.v.netPayout, 0);
+              const sumMeal = isAll ? networkTotals.totalMealVoucher : filteredStats.reduce((s, r) => s + r.v.mealVoucher, 0);
+              const avgBasket = sumOrders > 0 ? sumRevenue / sumOrders : 0;
+              const restoCount = filteredStats.length;
+              return (
+                <TableRow className="bg-muted/30 font-semibold border-t-2 border-border hover:bg-muted/40">
+                  <TableCell></TableCell>
+                  <TableCell className="font-bold text-primary">
+                    RÉSEAU <span className="text-muted-foreground font-normal text-sm">({restoCount} restos)</span>
+                  </TableCell>
+                  <TableCell className="text-right font-bold whitespace-nowrap">
+                    {formatCurrency(sumRevenue)}
+                  </TableCell>
+                  {showN1Comparison && isAll && (
+                    <TableCell className="text-right">
+                      {formatVariation(networkTotals.revenueVariation)}
+                    </TableCell>
+                  )}
+                  {cols.payout && (
+                    <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                      {formatNetPayout(sumPayout)}
+                    </TableCell>
+                  )}
+                  {cols.mealVoucher && (
+                    <TableCell className="text-right font-bold text-primary whitespace-nowrap">
+                      {sumMeal > 0 ? formatCurrencyPrecise(sumMeal) : "—"}
+                    </TableCell>
+                  )}
+                  {cols.profitability && (
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {isAll && networkTotals.avgProfitability != null ? `${networkTotals.avgProfitability.toFixed(1)}%` : "—"}
+                    </TableCell>
+                  )}
+                  {cols.adsRatio && (
+                    <TableCell className="text-right font-bold text-uber whitespace-nowrap">
+                      {networkAdsPct != null ? (
+                        <TooltipProvider delayDuration={200}>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="cursor-help">{networkAdsPct.toFixed(2).replace(".", ",")}%</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top" className="text-xs">
+                              {formatCurrency(networkAdsSpend)} de pub / {formatCurrency(networkAdsRevenue)} de CA TTC
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      ) : "—"}
+                    </TableCell>
+                  )}
+                  {cols.orders && (
+                    <TableCell className="text-right font-semibold">
+                      {sumOrders.toLocaleString("fr-FR")}
+                    </TableCell>
+                  )}
+                  {cols.basket && (
+                    <TableCell className="text-right font-semibold whitespace-nowrap">
+                      {avgBasket.toFixed(2)} €
+                    </TableCell>
+                  )}
+                  {cols.rating && (
+                    <TableCell className="text-right">
+                      <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
+                        <Star className="h-3 w-3" />
+                        {networkTotals.avgRating?.toFixed(1) ?? "—"}
+                      </span>
+                    </TableCell>
+                  )}
+                  {cols.errorRate && (
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {networkTotals.avgErrorRate != null ? `${networkTotals.avgErrorRate.toFixed(1)}%` : "—"}
+                    </TableCell>
+                  )}
+                  {cols.delivery && (
+                    <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
+                      {formatMinutesLong(networkTotals.avgTotalDeliveryTime)}
+                    </TableCell>
+                  )}
+                  {cols.downtime && (
+                    <TableCell className="text-right font-semibold text-muted-foreground whitespace-nowrap">
+                      {formatHours(networkTotals.totalDowntime)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })()}
           </TableBody>
         </Table>
 
