@@ -11,6 +11,7 @@ import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunkRecovery";
 
 // Static imports (critical for startup)
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
@@ -66,6 +67,39 @@ const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 const UberBackfillHistorique = React.lazy(() => import("./pages/UberBackfillHistorique"));
 const UberBackfillCA = React.lazy(() => import("./pages/UberBackfillCA"));
+
+class ChunkLoadBoundary extends React.Component<{ children: React.ReactNode }, { error: unknown }> {
+  state = { error: null };
+
+  static getDerivedStateFromError(error: unknown) {
+    return { error };
+  }
+
+  componentDidCatch(error: unknown) {
+    if (isChunkLoadError(error)) reloadOnceForChunkError();
+  }
+
+  render() {
+    if (this.state.error) {
+      if (!isChunkLoadError(this.state.error)) throw this.state.error;
+
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <div className="space-y-1">
+            <p className="text-sm font-medium">Mise à jour de l'application en cours…</p>
+            <p className="text-xs text-muted-foreground">La page va se recharger automatiquement.</p>
+          </div>
+          <button type="button" className="text-sm font-medium text-primary underline" onClick={() => window.location.reload()}>
+            Recharger maintenant
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -124,8 +158,9 @@ const App = () => {
               <Toaster />
               <Sonner />
               <BrowserRouter>
-                <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
-                  <Routes>
+                <ChunkLoadBoundary>
+                  <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
+                    <Routes>
                     {/* Public routes */}
                     <Route path="/" element={<SmartHome />} />
                     <Route path="/login" element={<Login />} />
@@ -185,8 +220,9 @@ const App = () => {
                     <Route path="/admin/uber-backfill-historique" element={<P><AppLayout><UberBackfillHistorique /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill-ca" element={<P><AppLayout><UberBackfillCA /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
+                    </Routes>
+                  </Suspense>
+                </ChunkLoadBoundary>
               </BrowserRouter>
             </AnalyticsProvider>
           </AIAdvisorProvider>
