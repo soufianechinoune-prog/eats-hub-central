@@ -20,23 +20,26 @@ interface Params {
   startDate: Date;
   endDate: Date;
   chainId: string | null;
+  restaurantIds?: string[];
 }
 
 /**
  * Stats Caisse par restaurant via la RPC serveur get_restaurant_cash_revenue.
  * Renvoie 1 ligne par restaurant — bien plus rapide que la pagination client.
  */
-export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params) {
+export function useRestaurantCashRevenue({ startDate, endDate, chainId, restaurantIds = [] }: Params) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
+  const hasScope = !!chainId || restaurantIds.length > 0;
 
   return useQuery({
-    queryKey: ["restaurant-cash-revenue", "rpc-v1", chainId ?? "all", startStr, endStr],
+    queryKey: ["restaurant-cash-revenue", "rpc-v2", chainId ?? "all", restaurantIds, startStr, endStr],
     staleTime: 5 * 60 * 1000,
-    enabled: !!chainId,
+    enabled: hasScope,
     queryFn: async (): Promise<Map<string, RestaurantCashStats>> => {
-      const { data, error } = await supabase.rpc("get_restaurant_cash_revenue", {
-        p_chain_id: chainId!,
+      const { data, error } = await (supabase as any).rpc("get_restaurant_cash_revenue_v2", {
+        p_chain_id: chainId,
+        p_restaurant_ids: restaurantIds,
         p_start_date: startStr,
         p_end_date: endStr,
       });
