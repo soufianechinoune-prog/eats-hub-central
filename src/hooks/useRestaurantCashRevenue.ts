@@ -48,6 +48,7 @@ export function useRestaurantCashRevenue({ startDate, endDate, chainId }: Params
   return useQuery({
     queryKey: ["restaurant-cash-revenue", "v2-ht", chainId ?? "all", startStr, endStr],
     staleTime: 5 * 60 * 1000,
+    enabled: !!chainId,
     queryFn: async (): Promise<Map<string, RestaurantCashStats>> => {
       const all: DailyRow[] = [];
       let from = 0;
