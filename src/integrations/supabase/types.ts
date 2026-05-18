@@ -4245,6 +4245,23 @@ export type Database = {
           year: number
         }[]
       }
+      get_network_cash_revenue: {
+        Args: { p_chain_id: string; p_end_date: string; p_start_date: string }
+        Returns: {
+          days_with_data: number
+          prev_days_with_data: number
+          prev_total_cash: number
+          prev_total_cash_orders: number
+          total_cash_ht: number
+          total_cash_vat: number
+          total_deliveroo: number
+          total_deliveroo_orders: number
+          total_global: number
+          total_global_orders: number
+          total_uber: number
+          total_uber_orders: number
+        }[]
+      }
       get_network_deliveroo_summary: {
         Args: {
           p_end_date: string
@@ -4532,6 +4549,19 @@ export type Database = {
           payout: number
           restaurant_id: string
           sales: number
+        }[]
+      }
+      get_restaurant_cash_revenue: {
+        Args: { p_chain_id: string; p_end_date: string; p_start_date: string }
+        Returns: {
+          cash_orders: number
+          cash_revenue: number
+          cash_revenue_ht: number
+          days_with_data: number
+          global_revenue: number
+          prev_cash_orders: number
+          prev_cash_revenue: number
+          restaurant_id: string
         }[]
       }
       get_restaurant_data_source_calendar: {
