@@ -1,86 +1,37 @@
-## Objectif
+## Constat
 
-Remplacer les boutons "Backfill 24 mois / historique / tout" qui ratissent tout aveuglément par un **sélecteur de restos avec aperçu du matching**. Tu vois ce que le système croit savoir, tu coches ce que tu veux, et tu lances seulement ces restos-là sur la période choisie.
+J'ai vérifié la base : **la data Caisse est bien présente** pour Chicken Street en 2026.
 
-## Ce qu'on voit aujourd'hui
+- Période 2026 (01/01 → 18/05) : **33,16 M€ TTC** sur la ligne `global` (= caisse Splash360), 14 076 lignes journalières
+- 108 restaurants Splash mappés à des restaurants app
+- Connexion POS Splash360 active sur la chain (`last_sync_at` = 18/05 04:19)
+- RLS OK (`user_has_chain_access(chain_id)`)
 
-Sur `/settings/integrations`, carte "Backfill Splash360 résilient" :
-- 3 gros boutons qui enqueue d'office **les 170 restos Splash de la chain**
-- Aucune visibilité sur le matching avant d'appuyer
-- Aucun moyen de relancer juste 1 ou 2 restos
+Donc le souci n'est **pas côté data**, mais côté frontend : les hooks `useNetworkCashRevenue` / `useRestaurantCashRevenue` ne ramènent rien (toutes les KPI à "--", "RÉSEAU (0 restos)").
 
-## Ce qu'on va construire
+## Hypothèses probables (par ordre de probabilité)
 
-### Nouveau bouton "Configurer le backfill"
+1. **`selectedChainId` vaut `null` au moment du render** (le brand n'est pas encore résolu côté `AnalyticsContext`) → le hook tourne mais avec `chainId=null`, et la requête sans `.eq("chain_id", …)` est filtrée à vide par RLS si l'utilisateur n'est pas super_admin sur "toutes les chains".
+2. **La query React Query est en cache avec une clé périmée** depuis un changement de chain (clé = `["network-cash-revenue", chainId ?? "all", …]`) et ne se réinvalide pas correctement.
+3. **Une erreur silencieuse** dans le `queryFn` (ex: typage Supabase qui throw) qui ne remonte pas en toast.
 
-Remplace les 3 boutons actuels par : **`Configurer un backfill →`** qui ouvre un dialog.
+## Étapes du plan
 
-### Dialog "Lancer un backfill Splash360"
+1. Reproduire en preview, ouvrir devtools, et regarder :
+   - la requête `splash360_daily_sales` côté Network (status + payload + filtre `chain_id`)
+   - les erreurs console
+2. Selon le résultat :
+   - **Si pas de requête du tout** → bug de `enabled` / `selectedChainId` null → ajouter un guard `enabled: !!chainId` et logger la valeur reçue.
+   - **Si requête avec `chain_id=null`** → forcer la dépendance sur `analyticsCtx.selectedChainId` une fois résolu, et garder le hook désactivé tant que `selectedChainId` n'est pas défini.
+   - **Si requête OK mais 0 lignes** → c'est un souci RLS de l'utilisateur courant (à confirmer avec son `user_id`).
+   - **Si erreur dans le `queryFn`** → la corriger + ajouter un toast d'erreur visible.
+3. Une fois la cause identifiée, fixer le hook (ajout du guard `enabled` + invalidation correcte du cache au switch de chain) dans `src/hooks/useNetworkCashRevenue.ts` et `src/hooks/useRestaurantCashRevenue.ts`.
+4. Vérifier en preview que les KPI Caisse et le tableau "Comparatif des restaurants" se remplissent.
 
-**Bloc 1 — Période**
-- Date "De" (mois/année) — défaut `2024-05`
-- Date "À" (mois/année) — défaut mois courant
-- Presets rapides : "24 derniers mois" · "Historique 2021-2024" · "Tout"
+## Question pour toi
 
-**Bloc 2 — Restaurants à backfiller** (le cœur)
+Peux-tu :
+- ouvrir la console (F12) sur cette page et me dire s'il y a une erreur rouge ?
+- ou rafraîchir la page (Cmd+Shift+R) pour voir si la data apparaît ?
 
-Tableau avec checkbox + recherche + filtres "Tout / Mappés / ⚠️ Problèmes" :
-
-```text
-☐  Resto Splash                          →  Resto app                    Statut
-─────────────────────────────────────────────────────────────────────────────────
-☑  #374 CHICKEN STREET AMIENS            →  Chicken Street - Amiens      ✅ OK
-☑  #427 CHICKEN STREET ANGERS            →  Chicken Street - Angers      ✅ OK
-☑  #528 CHICKEN STREET BORDEAUX          →  Chicken Street Bordeaux      ⚠️ Doublon (aussi #1376)
-☑  #1376 CHICKEN STREET BORDEAUX         →  Chicken Street Bordeaux      ⚠️ Doublon (aussi #528)
-☑  #813 CHICKEN STREET AVIGNON           →  Chicken Street Avignon Cap Sud  ⚠️ Nom ambigu
-☐  #1432 CHICKEN STREET OPARINOR         →  —                            ❌ Non mappé
-☐  #1300 CHICKEN STREET DISHOP           →  —                            ❌ Non mappé
-...
-```
-
-Comportements :
-- En-tête : `[☐ Tout] [✅ Mappés uniquement (148)] [⚠️ Problèmes (3)] [❌ Non mappés (22)]`
-- Recherche libre sur les 2 noms
-- Cliquer sur "Resto app" pour un non-mappé → ouvre un combobox pour **mapper sur place** (recherche dans `restaurants` de la chain). Sauve direct en BDD et le badge passe à ✅.
-- Sur un doublon, badge cliquable qui ouvre un menu : "Garder #528, désactiver #1376" (set `restaurant_id = NULL` sur l'autre).
-- Par défaut : tous les ✅ OK cochés, ⚠️ cochés mais en jaune, ❌ décochés (et grisés tant que pas mappés).
-
-**Bloc 3 — Récap + lancement**
-
-```text
-✓ 148 restos × 24 mois = 3 552 jobs (~12 h)
-[Annuler]  [Lancer le backfill]
-```
-
-### Carte principale (reste affichée derrière)
-
-- Bouton "Configurer un backfill" au-dessus de la progression
-- La liste détaillée des jobs en cours (du plan précédent) reste pertinente : on voit en temps réel les restos en train d'être traités
-
-## Côté technique
-
-**Pas de migration BDD nécessaire** — tout existe déjà :
-- `splash360_restaurant_mapping` (splash_id ↔ restaurant_id, splash_name, chain_id)
-- `restaurants` (nom app)
-- RPC `enqueue_splash_backfill_for_chain` existant → on en ajoute **une variante** qui accepte une liste de `restaurant_splash_id` ciblée
-
-**Nouvelles fonctions SQL (1 migration)**
-- `splash_mapping_overview(p_chain_id uuid)` (SECURITY DEFINER) : retourne pour la chain `restaurant_splash_id, splash_name, restaurant_id, restaurant_name, duplicate_of_splash_ids[], is_mapped` (calcul des doublons en SQL via window function).
-- `enqueue_splash_backfill_for_restaurants(p_chain_id, p_splash_ids[], p_start_year, p_start_month, p_end_year, p_end_month)` : même logique que la fonction existante mais filtrée sur la liste fournie.
-- `update_splash_mapping(p_splash_id, p_restaurant_id)` : helper pour le mapping inline (UPDATE simple, SECURITY DEFINER + check super_admin/chain_access).
-
-**Frontend** (3 fichiers)
-- Nouveau `src/components/integrations/BackfillConfigDialog.tsx` (le dialog)
-- Nouveau `src/components/integrations/SplashMappingTable.tsx` (le tableau avec checkboxes, recherche, filtres, mapping inline via Combobox shadcn)
-- Modif `SplashResilientBackfillCard.tsx` : remplace les 3 boutons par "Configurer un backfill"
-
-## Hors scope (volontairement)
-
-- Auto-matching fuzzy par nom (étape 2 si tu veux, pour les 22 non mappés en masse)
-- Résolution automatique des doublons (toujours décision métier)
-- Édition des autres champs du mapping (chain_id etc.)
-
-## Estimation
-
-1 migration SQL (~80 lignes), 2 nouveaux composants React (~350 lignes), modif mineure de la carte existante. Pas de breaking change : si tu fermes le dialog sans rien faire, comportement identique.
+Ça me permettra de confirmer entre l'hypothèse #1 (guard manquant) et #2 (cache). Sinon je pars par défaut sur le fix #1 (guard `enabled: !!chainId`) qui est le plus probable vu le code actuel.
