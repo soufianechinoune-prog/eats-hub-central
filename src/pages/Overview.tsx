@@ -404,11 +404,13 @@ const Overview = () => {
     startDate,
     endDate,
     chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
   });
-  const { data: cashByRestaurant } = useRestaurantCashRevenue({
+  const { data: cashByRestaurant, isLoading: cashByRestaurantLoading } = useRestaurantCashRevenue({
     startDate,
     endDate,
     chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
   });
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
@@ -887,7 +889,7 @@ const Overview = () => {
               networkTotals={networkTotals}
               showN1Comparison={showN1Comparison}
               onToggleN1={setShowN1Comparison}
-              isLoading={statsLoading}
+              isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
               onRestaurantClick={navigateToFinances}
               showDataSource={showDataSource}
               onToggleDataSource={setShowDataSource}

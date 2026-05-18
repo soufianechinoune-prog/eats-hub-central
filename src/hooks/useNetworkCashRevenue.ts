@@ -26,23 +26,26 @@ interface Params {
   startDate: Date;
   endDate: Date;
   chainId: string | null;
+  restaurantIds?: string[];
 }
 
 /**
  * Charge le KPI Caisse réseau via la RPC serveur get_network_cash_revenue
  * (agrégation côté Postgres → 1 ligne renvoyée, affichage instantané).
  */
-export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
+export function useNetworkCashRevenue({ startDate, endDate, chainId, restaurantIds = [] }: Params) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
+  const hasScope = !!chainId || restaurantIds.length > 0;
 
   return useQuery({
-    queryKey: ["network-cash-revenue", "rpc-v1", chainId ?? "all", startStr, endStr],
+    queryKey: ["network-cash-revenue", "rpc-v2", chainId ?? "all", restaurantIds, startStr, endStr],
     staleTime: 5 * 60 * 1000,
-    enabled: !!chainId,
+    enabled: hasScope,
     queryFn: async (): Promise<NetworkCashRevenueData | null> => {
-      const { data, error } = await supabase.rpc("get_network_cash_revenue", {
-        p_chain_id: chainId!,
+      const { data, error } = await (supabase as any).rpc("get_network_cash_revenue_v2", {
+        p_chain_id: chainId,
+        p_restaurant_ids: restaurantIds,
         p_start_date: startStr,
         p_end_date: endStr,
       });
