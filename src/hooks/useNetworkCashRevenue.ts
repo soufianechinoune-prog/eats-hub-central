@@ -86,6 +86,7 @@ export function useNetworkCashRevenue({ startDate, endDate, chainId }: Params) {
   return useQuery({
     queryKey: ["network-cash-revenue", chainId ?? "all", startStr, endStr],
     staleTime: 5 * 60 * 1000,
+    enabled: !!chainId,
     queryFn: async (): Promise<NetworkCashRevenueData | null> => {
       const [currentRows, prevRows] = await Promise.all([
         fetchSplashRows(chainId, startStr, endStr),
