@@ -621,7 +621,7 @@ export function useFinancesDrilldown({
 
       return allItems;
     },
-    enabled: enabled && granularity === "product",
+    enabled: ready && granularity === "product", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -654,7 +654,7 @@ export function useFinancesDrilldown({
       }
       return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter);
     },
-    enabled: enabled && granularity === "order",
+    enabled: ready && granularity === "order", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -708,7 +708,7 @@ export function useFinancesDrilldown({
         pickup: { count: pickupCount, pct: totalCount > 0 ? (pickupCount / totalCount) * 100 : 0, revenue: pickupRevenue },
       };
     },
-    enabled: enabled && granularity === "order" && platform !== "deliveroo",
+    enabled: ready && granularity === "order" && platform !== "deliveroo", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
