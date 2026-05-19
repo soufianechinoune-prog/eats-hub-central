@@ -1,37 +1,43 @@
-## Constat
+## Diagnostic
 
-J'ai vérifié la base : **la data Caisse est bien présente** pour Chicken Street en 2026.
+Le backend répond normalement. Le ralentissement vient surtout de requêtes trop lourdes lancées côté client et de certaines RPC qui timeoutent :
 
-- Période 2026 (01/01 → 18/05) : **33,16 M€ TTC** sur la ligne `global` (= caisse Splash360), 14 076 lignes journalières
-- 108 restaurants Splash mappés à des restaurants app
-- Connexion POS Splash360 active sur la chain (`last_sync_at` = 18/05 04:19)
-- RLS OK (`user_has_chain_access(chain_id)`)
+- `get_ads_revenue_ratio` timeout en base (`statement timeout`) sur la page Overview.
+- `useFinancesDrilldown` télécharge toutes les commandes en pagination client pour “Analyse par Commandes”, même sur de longues périodes / tous restaurants.
+- Plusieurs requêtes Analytics partent avec le sentinel `00000000-0000-0000-0000-000000000000` avant résolution des vrais restaurants, ce qui génère des appels inutiles / erreurs réseau.
+- Le composant “Analyse par Commandes” affiche un spinner sans timeout UI ni fallback, donc l’utilisateur voit juste un chargement interminable.
 
-Donc le souci n'est **pas côté data**, mais côté frontend : les hooks `useNetworkCashRevenue` / `useRestaurantCashRevenue` ne ramènent rien (toutes les KPI à "--", "RÉSEAU (0 restos)").
+## Plan d’implémentation
 
-## Hypothèses probables (par ordre de probabilité)
+1. **Optimiser le ratio Ads / CA**
+   - Remplacer `get_ads_revenue_ratio` par une version plus rapide basée sur des bornes timestamp indexables.
+   - Ajouter/ajuster les index nécessaires sur `payout_adjustments` et `orders` pour ce cas.
+   - Garder les mêmes colonnes renvoyées pour ne pas casser l’UI.
 
-1. **`selectedChainId` vaut `null` au moment du render** (le brand n'est pas encore résolu côté `AnalyticsContext`) → le hook tourne mais avec `chainId=null`, et la requête sans `.eq("chain_id", …)` est filtrée à vide par RLS si l'utilisateur n'est pas super_admin sur "toutes les chains".
-2. **La query React Query est en cache avec une clé périmée** depuis un changement de chain (clé = `["network-cash-revenue", chainId ?? "all", …]`) et ne se réinvalide pas correctement.
-3. **Une erreur silencieuse** dans le `queryFn` (ex: typage Supabase qui throw) qui ne remonte pas en toast.
+2. **Remplacer les chargements client “Analyse par Commandes” par des RPC agrégées**
+   - Ajouter des fonctions backend pour :
+     - données par jour,
+     - données par heure,
+     - données par produit,
+     - liste de commandes paginée côté serveur.
+   - Le navigateur ne téléchargera plus des dizaines de milliers de lignes pour ensuite agréger localement.
 
-## Étapes du plan
+3. **Mettre à jour `useFinancesDrilldown`**
+   - Utiliser les nouvelles RPC selon l’onglet actif.
+   - Limiter “Par Commande” à une pagination serveur initiale, au lieu de charger toute la période.
+   - Conserver les champs existants pour éviter de modifier toute l’interface.
 
-1. Reproduire en preview, ouvrir devtools, et regarder :
-   - la requête `splash360_daily_sales` côté Network (status + payload + filtre `chain_id`)
-   - les erreurs console
-2. Selon le résultat :
-   - **Si pas de requête du tout** → bug de `enabled` / `selectedChainId` null → ajouter un guard `enabled: !!chainId` et logger la valeur reçue.
-   - **Si requête avec `chain_id=null`** → forcer la dépendance sur `analyticsCtx.selectedChainId` une fois résolu, et garder le hook désactivé tant que `selectedChainId` n'est pas défini.
-   - **Si requête OK mais 0 lignes** → c'est un souci RLS de l'utilisateur courant (à confirmer avec son `user_id`).
-   - **Si erreur dans le `queryFn`** → la corriger + ajouter un toast d'erreur visible.
-3. Une fois la cause identifiée, fixer le hook (ajout du guard `enabled` + invalidation correcte du cache au switch de chain) dans `src/hooks/useNetworkCashRevenue.ts` et `src/hooks/useRestaurantCashRevenue.ts`.
-4. Vérifier en preview que les KPI Caisse et le tableau "Comparatif des restaurants" se remplissent.
+4. **Bloquer les requêtes tant que le scope restaurants n’est pas prêt**
+   - Ajouter une garde explicite contre le sentinel UUID dans les appels lourds.
+   - Ne pas lancer les données Ads / Analyse commandes tant que les vrais IDs restaurants ne sont pas résolus.
 
-## Question pour toi
+5. **Améliorer le feedback UI**
+   - Remplacer le spinner infini par un message clair si la requête prend trop longtemps.
+   - Afficher une action “Réessayer” / “Réduire la période” si besoin.
 
-Peux-tu :
-- ouvrir la console (F12) sur cette page et me dire s'il y a une erreur rouge ?
-- ou rafraîchir la page (Cmd+Shift+R) pour voir si la data apparaît ?
+## Résultat attendu
 
-Ça me permettra de confirmer entre l'hypothèse #1 (guard manquant) et #2 (cache). Sinon je pars par défaut sur le fix #1 (guard `enabled: !!chainId`) qui est le plus probable vu le code actuel.
+- Overview plus stable au refresh.
+- Le bloc Ads ne bloque plus le rendu et ne timeout plus.
+- “Analyse par Commandes” charge beaucoup plus vite, surtout sur “Tous les restaurants”.
+- Moins d’erreurs `TypeError: Load failed` causées par surcharge / appels prématurés.
