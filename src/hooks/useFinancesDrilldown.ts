@@ -539,6 +539,14 @@ export function useFinancesDrilldown({
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
+  // Sentinel guard: ne lance pas les requêtes lourdes tant que les vrais restaurants
+  // ne sont pas résolus (évite des fetchs inutiles qui timeoutent).
+  const hasRealIds =
+    !!restaurantIds &&
+    restaurantIds.length > 0 &&
+    !restaurantIds.includes("00000000-0000-0000-0000-000000000000");
+  const ready = enabled && hasRealIds;
+
   // Fetch orders data for daily/hourly breakdown - include financial fields with pagination
   const { data: ordersData, isLoading: loadingOrders } = useQuery({
     queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity, platform],
@@ -555,8 +563,9 @@ export function useFinancesDrilldown({
       }
       return fetchUberOrdersData(restaurantIds, startStr, endStr);
     },
-    enabled: enabled && (granularity === "daily" || granularity === "hourly"),
+    enabled: ready && (granularity === "daily" || granularity === "hourly"),
     retry: false,
+    staleTime: 2 * 60 * 1000,
   });
 
   // Fetch order items for product breakdown with pagination
@@ -612,7 +621,7 @@ export function useFinancesDrilldown({
 
       return allItems;
     },
-    enabled: enabled && granularity === "product",
+    enabled: ready && granularity === "product", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -645,7 +654,7 @@ export function useFinancesDrilldown({
       }
       return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter);
     },
-    enabled: enabled && granularity === "order",
+    enabled: ready && granularity === "order", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -699,7 +708,7 @@ export function useFinancesDrilldown({
         pickup: { count: pickupCount, pct: totalCount > 0 ? (pickupCount / totalCount) * 100 : 0, revenue: pickupRevenue },
       };
     },
-    enabled: enabled && granularity === "order" && platform !== "deliveroo",
+    enabled: ready && granularity === "order" && platform !== "deliveroo", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
