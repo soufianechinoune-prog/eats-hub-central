@@ -269,9 +269,9 @@ export function FinancesSection({
         />
       )}
 
-      {/* Orders Analysis Section */}
+      {/* Orders Analysis Section — lazy-loaded when scrolled into view */}
       {restaurants && restaurants.length > 0 && (
-        <OrdersAnalysisSection
+        <LazyOrdersAnalysis
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants}
           startDate={startDate}
