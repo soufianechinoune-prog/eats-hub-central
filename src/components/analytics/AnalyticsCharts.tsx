@@ -224,7 +224,65 @@ interface DailyProfitabilityRow {
   net_payout: number; // What Uber pays (without meal vouchers)
   meal_voucher: number; // External payment from Swile/Edenred
   orders_count: number;
+  item_promo_incl_vat?: number;
 }
+
+interface DailyFinanceChartRow {
+  date: string;
+  label: string;
+  sales_incl_vat: number;
+  refund_incl_vat: number;
+  order_count: number;
+  avg_basket: number;
+  uber_fee_incl_vat: number;
+  promo_incl_vat: number;
+  net_payout: number;
+  meal_voucher_amount: number;
+  total_payout: number;
+}
+
+const mapProfitabilityRowsToDailyData = (rows?: DailyProfitabilityRow[]): DailyFinanceChartRow[] | undefined => {
+  if (!rows) return undefined;
+
+  const byDate: Record<string, Omit<DailyFinanceChartRow, "label" | "avg_basket" | "refund_incl_vat" | "uber_fee_incl_vat">> = {};
+
+  rows.forEach((row) => {
+    const date = String(row.day).slice(0, 10);
+    if (!byDate[date]) {
+      byDate[date] = {
+        date,
+        sales_incl_vat: 0,
+        order_count: 0,
+        promo_incl_vat: 0,
+        net_payout: 0,
+        meal_voucher_amount: 0,
+        total_payout: 0,
+      };
+    }
+
+    const sales = Number(row.sales) || 0;
+    const orders = Number(row.orders_count) || 0;
+    const netPayout = Number(row.net_payout) || 0;
+    const mealVoucher = Number(row.meal_voucher) || 0;
+
+    byDate[date].sales_incl_vat += sales;
+    byDate[date].order_count += orders;
+    byDate[date].promo_incl_vat += Number(row.item_promo_incl_vat) || 0;
+    byDate[date].net_payout += netPayout;
+    byDate[date].meal_voucher_amount += mealVoucher;
+    byDate[date].total_payout += Number(row.payout) || netPayout + mealVoucher;
+  });
+
+  return Object.values(byDate)
+    .map((day) => ({
+      ...day,
+      label: day.date,
+      refund_incl_vat: 0,
+      uber_fee_incl_vat: 0,
+      avg_basket: day.order_count > 0 ? day.sales_incl_vat / day.order_count : 0,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+};
 
 interface AnalyticsChartsProps {
   revenueData: MonthlyRevenue[] | undefined;
@@ -621,6 +679,16 @@ export function AnalyticsCharts({
     }
     return new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
   }, [profitEndDate, comparisonMode]);
+
+  const shouldUseAggregatedProfitability = viewMode === "revenue" && selectedPlatform === "uber_eats";
+  const aggregatedRevenueProfitabilityData = useMemo(
+    () => mapProfitabilityRowsToDailyData(chartProfitabilityData),
+    [chartProfitabilityData]
+  );
+  const aggregatedRevenueProfitabilityPrevData = useMemo(
+    () => mapProfitabilityRowsToDailyData(chartPrevProfitabilityData),
+    [chartPrevProfitabilityData]
+  );
   
   // Fetch profitability data for the chart in Revenue section
   const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
@@ -628,7 +696,7 @@ export function AnalyticsCharts({
     startDate: profitStartDate,
     endDate: profitEndDate,
     granularity: 'daily',
-    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    enabled: viewMode === 'revenue' && !shouldUseAggregatedProfitability && restaurantIds.length > 0,
     platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
@@ -638,9 +706,19 @@ export function AnalyticsCharts({
     startDate: profitPrevStartDate,
     endDate: profitPrevEndDate,
     granularity: 'daily',
-    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    enabled: viewMode === 'revenue' && !shouldUseAggregatedProfitability && restaurantIds.length > 0,
     platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
+
+  const effectiveRevenueProfitabilityData = shouldUseAggregatedProfitability
+    ? aggregatedRevenueProfitabilityData
+    : revenueProfitabilityData;
+  const effectiveRevenueProfitabilityPrevData = shouldUseAggregatedProfitability
+    ? aggregatedRevenueProfitabilityPrevData
+    : revenueProfitabilityPrevData;
+  const effectiveProfitabilityLoading = shouldUseAggregatedProfitability
+    ? !aggregatedRevenueProfitabilityData
+    : isProfitabilityLoading || isProfitabilityPrevLoading || !revenueProfitabilityData;
   
   // Fetch Uber One stats for the Cross Data Analysis chart
   const { evolution: uberOneEvolution, isLoading: isUberOneLoading } = useUberOneStats({
@@ -3044,8 +3122,8 @@ export function AnalyticsCharts({
         <Card>
           <CardContent className="pt-6">
             <ProfitabilityComparisonChart
-              dailyOrdersData={revenueProfitabilityData || []}
-              previousDailyOrdersData={revenueProfitabilityPrevData || []}
+              dailyOrdersData={effectiveRevenueProfitabilityData || []}
+              previousDailyOrdersData={effectiveRevenueProfitabilityPrevData || []}
               dateRange={{
                 start: profitStartDate,
                 end: profitEndDate,
@@ -3054,7 +3132,7 @@ export function AnalyticsCharts({
                 start: profitPrevStartDate,
                 end: profitPrevEndDate,
               }}
-              isLoading={isProfitabilityLoading || isProfitabilityPrevLoading || !revenueProfitabilityData}
+              isLoading={effectiveProfitabilityLoading}
               comparisonMode={comparisonMode}
               onComparisonModeChange={onComparisonModeChange}
               onMonthClick={handleProfitabilityClick}
@@ -3069,23 +3147,23 @@ export function AnalyticsCharts({
       )}
 
       {/* Promotion Evolution Chart */}
-      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+      {showRevenue && effectiveRevenueProfitabilityData && effectiveRevenueProfitabilityData.length > 0 && (
         <PromotionEvolutionChart
-          data={revenueProfitabilityData}
-          previousData={revenueProfitabilityPrevData || undefined}
+          data={effectiveRevenueProfitabilityData}
+          previousData={effectiveRevenueProfitabilityPrevData || undefined}
           granularity={granularity}
-          isLoading={isProfitabilityLoading}
+          isLoading={effectiveProfitabilityLoading}
           selectedYear={selectedYear}
         />
       )}
 
       {/* Cross Data Analysis Chart (CA / Promos / Rentabilité / Uber One) */}
-      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+      {showRevenue && effectiveRevenueProfitabilityData && effectiveRevenueProfitabilityData.length > 0 && (
         <CrossDataAnalysisChart
-          data={revenueProfitabilityData}
-          previousData={revenueProfitabilityPrevData || undefined}
+          data={effectiveRevenueProfitabilityData}
+          previousData={effectiveRevenueProfitabilityPrevData || undefined}
           granularity={granularity}
-          isLoading={isProfitabilityLoading}
+          isLoading={effectiveProfitabilityLoading}
           uberOneData={uberOneDataForChart}
         />
       )}

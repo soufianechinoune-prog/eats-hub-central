@@ -260,16 +260,21 @@ export default function Analytics() {
 
   const chainRestaurantIds = useMemo(() => restaurants?.map(r => r.id) || [], [restaurants]);
 
-  const restaurantFilter = useMemo(() => (
-    resolveBrandScopedRestaurantIds({
+  const restaurantFilter = useMemo(() => {
+    if (!restaurants) return EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+
+    const resolvedIds = resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
       selectedChainId,
       chainRestaurantIds,
-    })
-  ), [selectedRestaurants, selectedChainId, chainRestaurantIds]);
+    });
 
-  const isRestaurantScopeReady = !restaurantFilter || 
-    restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+    // Même en vue "Toutes les marques", on passe des IDs explicites aux RPC lourdes
+    // pour éviter un scan global non indexé de la table orders.
+    return resolvedIds ?? (chainRestaurantIds.length > 0 ? chainRestaurantIds : EMPTY_BRAND_SCOPE_RESTAURANT_IDS);
+  }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
+
+  const isRestaurantScopeReady = !!restaurants && restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
 
   // Fetch payouts data from payouts table (aggregated by month)
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
