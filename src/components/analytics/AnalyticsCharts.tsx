@@ -3122,8 +3122,8 @@ export function AnalyticsCharts({
         <Card>
           <CardContent className="pt-6">
             <ProfitabilityComparisonChart
-              dailyOrdersData={revenueProfitabilityData || []}
-              previousDailyOrdersData={revenueProfitabilityPrevData || []}
+              dailyOrdersData={effectiveRevenueProfitabilityData || []}
+              previousDailyOrdersData={effectiveRevenueProfitabilityPrevData || []}
               dateRange={{
                 start: profitStartDate,
                 end: profitEndDate,
@@ -3132,7 +3132,7 @@ export function AnalyticsCharts({
                 start: profitPrevStartDate,
                 end: profitPrevEndDate,
               }}
-              isLoading={isProfitabilityLoading || isProfitabilityPrevLoading || !revenueProfitabilityData}
+              isLoading={effectiveProfitabilityLoading}
               comparisonMode={comparisonMode}
               onComparisonModeChange={onComparisonModeChange}
               onMonthClick={handleProfitabilityClick}
@@ -3147,23 +3147,23 @@ export function AnalyticsCharts({
       )}
 
       {/* Promotion Evolution Chart */}
-      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+      {showRevenue && effectiveRevenueProfitabilityData && effectiveRevenueProfitabilityData.length > 0 && (
         <PromotionEvolutionChart
-          data={revenueProfitabilityData}
-          previousData={revenueProfitabilityPrevData || undefined}
+          data={effectiveRevenueProfitabilityData}
+          previousData={effectiveRevenueProfitabilityPrevData || undefined}
           granularity={granularity}
-          isLoading={isProfitabilityLoading}
+          isLoading={effectiveProfitabilityLoading}
           selectedYear={selectedYear}
         />
       )}
 
       {/* Cross Data Analysis Chart (CA / Promos / Rentabilité / Uber One) */}
-      {showRevenue && revenueProfitabilityData && revenueProfitabilityData.length > 0 && (
+      {showRevenue && effectiveRevenueProfitabilityData && effectiveRevenueProfitabilityData.length > 0 && (
         <CrossDataAnalysisChart
-          data={revenueProfitabilityData}
-          previousData={revenueProfitabilityPrevData || undefined}
+          data={effectiveRevenueProfitabilityData}
+          previousData={effectiveRevenueProfitabilityPrevData || undefined}
           granularity={granularity}
-          isLoading={isProfitabilityLoading}
+          isLoading={effectiveProfitabilityLoading}
           uberOneData={uberOneDataForChart}
         />
       )}
