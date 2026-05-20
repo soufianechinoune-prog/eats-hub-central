@@ -1,119 +1,123 @@
+## Diagnostic
 
-# Plan — Comparaison à périmètre constant (LFL) — Revenus & Ventes
+La lenteur vient principalement des requêtes backend de `/analytics/finances`, pas du rendu React :
 
-## 1. Principe de calcul (la règle d'or)
+- `get_orders_finance_summary` prend jusqu'à ~43-45s et peut finir en timeout.
+- `get_profitability_monthly` prend ~29-43s.
+- `get_profitability_daily` est encore appelé en doublon depuis `FinancesSection` et prend ~43s.
+- `get_orders_finance_yearly_detail` est lancé 3 années en parallèle, paginé, et timeout systématiquement quand le périmètre contient beaucoup de restaurants.
+- La section `Analyse par Commandes` est déjà visuellement lazy, mais les données financières lourdes sont quand même déclenchées dès l'arrivée sur la page.
+- Il y a aussi un appel avec le sentinel UUID `00000000-0000-0000-0000-000000000000`, ce qui confirme qu'une partie des requêtes part avant résolution complète du périmètre.
 
-Pour chaque mois M de la période sélectionnée :
-- on calcule l'ensemble `R_N(M)` = restos avec ≥ 1 commande en M de l'année N
-- on calcule `R_N-1(M)` = restos avec ≥ 1 commande en M de l'année N-1
-- **périmètre LFL du mois M = `R_N(M) ∩ R_N-1(M)`**
-- on agrège N et N-1 sur ce périmètre, mois par mois
-- au total annuel : on additionne les 12 totaux mensuels LFL (donc un resto peut compter dans certains mois et pas d'autres — comportement retail standard)
+## Objectif
 
-Le périmètre LFL est **dynamique par mois**, jamais figé sur l'année.
+Faire apparaître rapidement la page Finances avec les graphiques et KPIs essentiels, puis charger les détails uniquement quand l'utilisateur les demande.
 
-## 2. Backend — 2 nouvelles RPC
+## Plan technique
 
-### `get_lfl_scope_monthly(chain_id, restaurant_ids, year)`
-Renvoie pour chaque mois (1-12) :
-- `month`
-- `restaurants_in_n` (uuid[])
-- `restaurants_in_n_minus_1` (uuid[])
-- `lfl_restaurants` (uuid[] — l'intersection)
-- `total_restaurants_in_scope` (count des restos avec activité N ou N-1)
-- `lfl_count`
+### 1. Bloquer tous les appels tant que le périmètre restaurants n'est pas réellement prêt
 
-Source : `SELECT DISTINCT restaurant_id FROM orders WHERE order_datetime AT TIME ZONE 'Europe/Paris'` groupé par (mois, année). Une seule requête, deux années. RBAC via `is_super_admin() OR user_has_chain_access`. `SET statement_timeout='30s'`.
+- Renforcer `isRestaurantScopeReady` pour refuser :
+  - tableau vide,
+  - sentinel UUID,
+  - périmètre non résolu.
+- Appliquer cette garde aux requêtes actuellement insuffisamment protégées :
+  - `advertisingData`,
+  - `dailyPayoutsData`,
+  - `deliverooPayoutsData`,
+  - `profitabilityData`,
+  - `prevProfitabilityData`.
 
-### `get_profitability_monthly_lfl(chain_id, restaurant_ids, year)`
-Mêmes colonnes que `get_profitability_monthly` (sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat) **mais agrégées uniquement sur le périmètre LFL de chaque mois**, pour N **et** N-1 en une seule réponse :
-- 12 lignes × 2 ans
-- chaque ligne porte aussi `lfl_restaurant_ids` (pour transparence)
+Effet attendu : suppression des requêtes inutiles/erronées qui scannent ou timeoutent avant que la chaîne soit résolue.
 
-Logique interne : CTE qui calcule l'intersection mois par mois, puis JOIN sur `orders` avec `unnest()` pour forcer l'index `idx_orders_restaurant_datetime`.
+### 2. Supprimer le doublon `get_profitability_daily` dans `FinancesSection`
 
-→ Les KPIs annuels LFL sont obtenus en sommant les 12 lignes.
+Actuellement :
 
-## 3. Frontend
+- `Analytics.tsx` calcule déjà `profitabilityData` / `prevProfitabilityData`.
+- `FinancesSection.tsx` relance en plus `get_profitability_daily` pour alimenter le graphique.
 
-### 3.1 État global — `AnalyticsContext.tsx`
-Ajout :
-```ts
-lflMode: boolean;
-setLflMode: (b: boolean) => void;
+Changement :
+
+- Faire passer `profitabilityData` et `prevProfitabilityData` à `FinancesSection`.
+- Mapper ces données directement pour `ProfitabilityComparisonChart`.
+- Ne plus appeler `get_profitability_daily` depuis `FinancesSection`.
+
+Effet attendu : une requête lourde en moins, souvent ~40s économisées.
+
+### 3. Remplacer le détail annuel 3 ans au chargement par un chargement à la demande
+
+Aujourd'hui, en vue annuelle Finances, l'app lance :
+
+```text
+get_orders_finance_yearly_detail(selectedYear)
+get_orders_finance_yearly_detail(selectedYear - 1)
+get_orders_finance_yearly_detail(selectedYear - 2)
 ```
-Persisté en localStorage avec les autres préférences (sans hydration race).
 
-### 3.2 Toggle UI — `Analytics.tsx` (header Revenus & Ventes)
-À droite du sélecteur d'année :
+dès l'ouverture de la page.
+
+Changement :
+
+- Ne plus charger `dailyPayoutsData` automatiquement pour l'année complète.
+- Garder le chargement automatique uniquement quand un mois est sélectionné (`drillDownMonth`).
+- Pour l'année complète, afficher le graphique/synthèse avec les RPC agrégées mensuelles.
+- Dans `Analyse par Commandes`, conserver le bouton `Charger l'analyse des commandes`; déclencher les détails uniquement après clic/expansion.
+
+Effet attendu : suppression des timeouts `get_orders_finance_yearly_detail` au chargement initial.
+
+### 4. Créer une RPC agrégée unique pour la finance annuelle si nécessaire
+
+Si la table de comparaison mensuelle a encore besoin de champs détaillés non couverts par `get_orders_finance_summary`, créer/remplacer une RPC agrégée mensuelle unique qui renvoie uniquement 12 mois × restaurants, pas le détail journalier.
+
+Elle devra renvoyer au minimum :
+
+- CA HT/TTC selon les colonnes nécessaires,
+- promos HT/TTC,
+- frais Uber HT/TTC,
+- `net_payout`,
+- `meal_voucher_amount`,
+- `order_count`,
+- marketing/ads si nécessaire.
+
+Note : cette étape sera aussi l'endroit naturel pour aligner la formule de rentabilité que tu as définie :
+
+```text
+Rentabilité = (net_payout + meal_voucher_amount)
+              / (sales_excl_vat - item_promo_excl_vat - uber_fee_after_promo_excl_vat)
 ```
-[Switch] Périmètre constant (LFL)   [Info ⓘ tooltip]
-```
-Quand actif : badge vert "X / Y restos comparables" (clic → ouvre `LflScopeDialog`).
 
-### 3.3 Nouveau composant — `LflScopeDialog.tsx`
-Sheet/Dialog listant pour chaque mois :
-- "Mars 2026 — 18 / 22 restos comparables"
-- Exclus : nom + raison (`Pas d'activité en mars 2025` / `Pas d'activité en mars 2026` — déduit via les 2 ensembles)
+Mais je ne mélange pas encore la refonte formule/LFL tant que l'objectif immédiat est le temps de chargement.
 
-### 3.4 Hook — `useLflProfitability.ts`
-- `enabled: lflMode === true`
-- Appelle `get_profitability_monthly_lfl` + `get_lfl_scope_monthly` en parallèle
-- Renvoie `{ monthlyLfl, scopeByMonth, totalsLfl }`
-- `staleTime: 5 min`, `retry: false`
+### 5. Optimiser les RPC existantes
 
-### 3.5 Branchement dans `Analytics.tsx`
-- `effectiveProfitabilityData` = `lflMode ? lflData.monthlyLfl : profitabilityData`
-- Idem pour `prevProfitabilityData` (déjà inclus dans la réponse LFL)
-- Pas d'appel doublon : si LFL ON, on **désactive** `get_profitability_monthly` standard pour éviter 2 RPC
+Pour `get_orders_finance_summary` et `get_profitability_monthly` :
 
-### 3.6 KPIs — affichage du double delta
-Composant `KPIComparisonBadge` :
-- Mode normal : `+12,3% vs N-1`
-- Mode LFL ON : `+12,3% brut · +7,1% LFL` (deux pills côte à côte, LFL en couleur primary)
+- garder `SECURITY DEFINER`,
+- résoudre les restaurants autorisés une seule fois,
+- joindre via `unnest(v_ids)` + `orders.restaurant_id`,
+- filtrer sur `order_datetime`,
+- éviter les chemins `p_restaurant_ids IS NULL` sur gros scans,
+- conserver les dates selon le standard déjà défini pour cette page.
 
-### 3.7 Graphiques (`AnalyticsCharts.tsx`)
-3 graphiques concernés (Rentabilité globale, Évolution CA, Évolution Promos, Analyse Croisée) :
-- Reçoivent `effectiveProfitabilityData` (déjà mensualisé)
-- Aucun changement de structure, juste la source
-- Sous-titre dynamique : "Périmètre constant — N restos comparables" quand LFL ON
+### 6. Vérification après implémentation
 
-## 4. Garanties data
+Je validerai avec les signaux suivants :
 
-- **Aucune migration destructive** : 2 nouvelles RPC, rien n'est modifié sur les RPC existantes
-- **Aucun changement** sur `orders`, `monthly_revenue`, `daily_sales_uber`
-- Toggle OFF par défaut → comportement **identique à aujourd'hui**, zero régression possible
-- Multi-tenant : RBAC standard via `user_has_chain_access`, sentinel UUID `0000...` respecté
-- TZ Paris dans toutes les agrégations (mémoire `network-stats-tz-paris`)
-- Pattern `unnest()` + ID arrays explicites (mémoire `rpc-empty-selection-handling-pattern`)
+- réseau navigateur sur `/analytics/finances`,
+- plus aucun appel initial à `get_orders_finance_yearly_detail` en vue annuelle,
+- plus aucun appel avec sentinel UUID,
+- disparition du doublon `get_profitability_daily`,
+- chargement initial ramené à quelques secondes au lieu de 30-45s+,
+- la section `Analyse par Commandes` reste chargée à la demande.
 
-## 5. Hors scope (à confirmer plus tard si tu valides ce socle)
+## Fichiers probablement concernés
 
-- LFL sur Finances & Frais, Conversion, Avis : même mécanique réplicable mais on attend ton OK sur Revenus & Ventes d'abord
-- Export PDF avec mention "périmètre constant" : trivial à ajouter une fois le toggle stable
-- Mode "Manuel" (choisir restos à exclure) : peut être ajouté plus tard sans casser
+- `src/pages/Analytics.tsx`
+- `src/components/analytics/AnalyticsCharts.tsx`
+- `src/components/analytics/FinancesSection.tsx`
+- éventuellement une migration backend pour optimiser/remplacer les RPC financières agrégées
 
-## 6. Détails techniques (section technique)
+## Point important
 
-**Fichiers créés :**
-- `supabase/migrations/<ts>_lfl_rpcs.sql` — `get_lfl_scope_monthly` + `get_profitability_monthly_lfl`
-- `src/hooks/useLflProfitability.ts`
-- `src/components/analytics/LflScopeDialog.tsx`
-- `src/components/analytics/LflToggle.tsx`
-- `src/components/analytics/KPIComparisonBadge.tsx` (ou extension d'un composant existant)
-
-**Fichiers modifiés :**
-- `src/contexts/AnalyticsContext.tsx` — ajout `lflMode`
-- `src/pages/Analytics.tsx` — toggle dans header + branchement `effectiveProfitabilityData`
-- `src/components/analytics/AnalyticsCharts.tsx` — sous-titre + source dynamique
-
-**Important comme demandé** : avant chaque écriture de fichier, je te montrerai le code en bloc dans le chat pour validation. Tu valides → je crée. On commence par la migration SQL, puis le hook, puis l'UI.
-
-## 7. Ordre d'implémentation proposé
-
-1. Migration SQL (2 RPC) — je te montre le SQL, tu valides
-2. Hook `useLflProfitability` — je te montre le TS
-3. Toggle + contexte — je te montre les diffs
-4. Branchement dans `Analytics.tsx` + KPIs double delta
-5. Dialog "X / Y restos" avec liste exclus
-6. Test visuel ensemble sur 2026 vs 2025
+Avant d'appliquer une migration SQL, je te montrerai le SQL exact comme demandé précédemment.
