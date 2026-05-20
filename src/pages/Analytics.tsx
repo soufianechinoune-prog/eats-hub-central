@@ -338,8 +338,9 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsFinances,
+    enabled: needsFinances && isRestaurantScopeReady,
   });
+
 
   // Fetch detailed payouts data - always fetch for the full year in finances mode
   // For Deliveroo: fetch from deliveroo_orders and map to PayoutData format
