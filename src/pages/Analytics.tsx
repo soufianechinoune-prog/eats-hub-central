@@ -305,7 +305,9 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsPayouts,
+    enabled: needsPayouts && isRestaurantScopeReady,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // Fetch advertising expenses from payout_adjustments (3 years for year view)
