@@ -282,3 +282,46 @@ export function FinancesSection({
     </div>
   );
 }
+
+interface LazyOrdersAnalysisProps {
+  restaurants: { id: string; name: string; city?: string }[];
+  selectedRestaurants: string[];
+  startDate: Date;
+  endDate: Date;
+  platform?: "uber_eats" | "deliveroo" | "global";
+}
+
+function LazyOrdersAnalysis(props: LazyOrdersAnalysisProps) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (visible) return;
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [visible]);
+
+  return (
+    <div ref={ref} className="min-h-[120px]">
+      {visible ? (
+        <OrdersAnalysisSection {...props} />
+      ) : (
+        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          Analyse par commandes — chargement au défilement…
+        </div>
+      )}
+    </div>
+  );
+}
