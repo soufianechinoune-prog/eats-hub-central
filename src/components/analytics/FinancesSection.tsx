@@ -91,6 +91,8 @@ export function FinancesSection({
     [selectedRestaurants, restaurants]
   );
 
+  const hasRealIds = activeIds.length > 0 && !activeIds.includes(SENTINEL_UUID);
+
   // Use RPC for fast server-side aggregation instead of fetching all individual orders
   const { data: rpcData, isLoading: isChartLoading } = useQuery({
     queryKey: ['profitability-daily-rpc', activeIds, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
@@ -103,7 +105,8 @@ export function FinancesSection({
       if (error) throw error;
       return data || [];
     },
-    enabled: activeIds.length > 0,
+    enabled: hasRealIds,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
