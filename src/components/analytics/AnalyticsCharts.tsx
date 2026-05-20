@@ -3525,7 +3525,10 @@ export function AnalyticsCharts({
           onFootballMatchesToggle={onFootballMatchesToggle}
           granularity={granularity}
           isPayoutsLoading={isPayoutsLoading}
+          profitabilityData={chartProfitabilityData}
+          prevProfitabilityData={chartPrevProfitabilityData}
         />
+
       )}
     </div>
   );
