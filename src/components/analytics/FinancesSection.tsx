@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
@@ -10,6 +10,8 @@ import { ActionFilterPopover } from "./ActionFilterPopover";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
+
+const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
 
 interface RestaurantAction {
   id: string;
@@ -89,6 +91,8 @@ export function FinancesSection({
     [selectedRestaurants, restaurants]
   );
 
+  const hasRealIds = activeIds.length > 0 && !activeIds.includes(SENTINEL_UUID);
+
   // Use RPC for fast server-side aggregation instead of fetching all individual orders
   const { data: rpcData, isLoading: isChartLoading } = useQuery({
     queryKey: ['profitability-daily-rpc', activeIds, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
@@ -101,7 +105,8 @@ export function FinancesSection({
       if (error) throw error;
       return data || [];
     },
-    enabled: activeIds.length > 0,
+    enabled: hasRealIds,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -264,15 +269,58 @@ export function FinancesSection({
         />
       )}
 
-      {/* Orders Analysis Section */}
+      {/* Orders Analysis Section — lazy-loaded when scrolled into view */}
       {restaurants && restaurants.length > 0 && (
-        <OrdersAnalysisSection
+        <LazyOrdersAnalysis
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants}
           startDate={startDate}
           endDate={endDate}
           platform={selectedPlatform}
         />
+      )}
+    </div>
+  );
+}
+
+interface LazyOrdersAnalysisProps {
+  restaurants: { id: string; name: string; city?: string }[];
+  selectedRestaurants: string[];
+  startDate: Date;
+  endDate: Date;
+  platform?: "uber_eats" | "deliveroo" | "global";
+}
+
+function LazyOrdersAnalysis(props: LazyOrdersAnalysisProps) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    if (visible) return;
+    const el = ref.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setVisible(true);
+          obs.disconnect();
+        }
+      },
+      { rootMargin: "300px" }
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [visible]);
+
+  return (
+    <div ref={ref} className="min-h-[120px]">
+      {visible ? (
+        <OrdersAnalysisSection {...props} />
+      ) : (
+        <div className="flex items-center justify-center py-10 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+          Analyse par commandes — chargement au défilement…
+        </div>
       )}
     </div>
   );

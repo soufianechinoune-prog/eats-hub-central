@@ -286,7 +286,9 @@ export default function Analytics() {
       console.log("[Analytics] Orders finance summary:", data?.length, "rows", data);
       return data || [];
     },
-    enabled: needsPayouts,
+    enabled: needsPayouts && isRestaurantScopeReady,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // Fetch previous year payouts for comparison
@@ -303,7 +305,9 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsPayouts,
+    enabled: needsPayouts && isRestaurantScopeReady,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // Fetch advertising expenses from payout_adjustments (3 years for year view)
@@ -542,7 +546,8 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsProfitability && (restaurants?.length || 0) > 0,
+    enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
@@ -564,7 +569,8 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsProfitability && (restaurants?.length || 0) > 0,
+    enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
