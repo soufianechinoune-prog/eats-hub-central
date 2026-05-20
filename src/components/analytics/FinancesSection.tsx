@@ -49,7 +49,12 @@ interface FinancesSectionProps {
   onFootballMatchesToggle?: (value: boolean) => void;
   granularity?: "daily" | "weekly" | "monthly";
   isPayoutsLoading?: boolean;
+  // Profitability data already fetched by parent (Analytics.tsx) - avoid duplicate RPC calls
+  profitabilityData?: any[];
+  prevProfitabilityData?: any[];
+  isProfitabilityLoading?: boolean;
 }
+
 
 export function FinancesSection({
   dailyPayoutsData,
