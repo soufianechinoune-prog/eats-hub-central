@@ -546,8 +546,8 @@ export default function Analytics() {
       }
       return data || [];
     },
-    enabled: needsProfitability && (restaurants?.length || 0) > 0,
-    retry: false,
+    enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,
+    staleTime: 2 * 60 * 1000,
   });
 
   // Fetch profitability data for previous period
