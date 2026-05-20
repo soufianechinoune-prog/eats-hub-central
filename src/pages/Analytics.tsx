@@ -286,7 +286,9 @@ export default function Analytics() {
       console.log("[Analytics] Orders finance summary:", data?.length, "rows", data);
       return data || [];
     },
-    enabled: needsPayouts,
+    enabled: needsPayouts && isRestaurantScopeReady,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // Fetch previous year payouts for comparison
