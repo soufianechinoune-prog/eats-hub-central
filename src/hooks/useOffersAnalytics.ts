@@ -130,6 +130,8 @@ export function useOffersAnalytics(
   const { data: scores } = useQuery({
     queryKey: ["success-scores-latest", restaurantIds],
     staleTime: 5 * 60 * 1000,
+    enabled: restaurantIds.length > 0
+      && !restaurantIds.includes('00000000-0000-0000-0000-000000000000'),
     queryFn: async () => {
       let query = supabase
         .from("success_scores")
