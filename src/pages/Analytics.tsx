@@ -342,24 +342,16 @@ export default function Analytics() {
   });
 
 
-  // Fetch detailed payouts data - always fetch for the full year in finances mode
+  // Fetch detailed payouts data - only when drilling down into a specific month
+  // (the full 3-year yearly detail is too expensive to load automatically)
   // For Deliveroo: fetch from deliveroo_orders and map to PayoutData format
   const { data: deliverooPayoutsData, isLoading: loadingDeliverooPayouts } = useQuery({
-    queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
+    queryKey: ["analytics_deliveroo_payouts_detail", restaurantFilter, selectedYear, drillDownMonth],
     queryFn: async () => {
-      // Determine date range
-      let queryStartDate: string;
-      let queryEndDate: string;
-      if (drillDownMonth) {
-        queryStartDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-01`;
-        const lastDay = new Date(selectedYear, drillDownMonth, 0).getDate();
-        queryEndDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-${lastDay}`;
-      } else {
-        // Fetch 3 years for year view support
-        const startYear = selectedYear - 2;
-        queryStartDate = `${startYear}-01-01`;
-        queryEndDate = `${selectedYear}-12-31`;
-      }
+      // Only month drill-down is supported now (yearly detail was too slow)
+      const queryStartDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-01`;
+      const lastDay = new Date(selectedYear, drillDownMonth!, 0).getDate();
+      const queryEndDate = `${selectedYear}-${String(drillDownMonth).padStart(2, '0')}-${lastDay}`;
 
       // Use server-side RPC aggregation instead of client-side pagination
       const PAGE_SIZE = 1000;
@@ -390,71 +382,28 @@ export default function Analytics() {
 
       return allRows;
     },
-    enabled: (selectedPlatform === "deliveroo" || selectedPlatform === "global") && (!!drillDownMonth || viewMode === "finances"),
+    enabled: (selectedPlatform === "deliveroo" || selectedPlatform === "global") && !!drillDownMonth && isRestaurantScopeReady,
   });
 
   const { data: dailyPayoutsData } = useQuery({
-    queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth, viewMode],
+    queryKey: ["analytics_payouts_detail", restaurantFilter, selectedYear, drillDownMonth],
     queryFn: async () => {
-      if (viewMode === "finances") {
-        // If a specific month is selected, fetch only that month
-        if (drillDownMonth) {
-          const { data, error } = await supabase.rpc('get_orders_finance_detail', {
-            p_year: selectedYear,
-            p_month: drillDownMonth,
-            p_restaurant_ids: restaurantFilter || null,
-          });
-          if (error) {
-            console.error("[Analytics] get_orders_finance_detail error:", error);
-            throw error;
-          }
-          return data || [];
-        }
-        // Full year: fetch 3 years in parallel using yearly RPC with pagination to bypass 1000-row limit
-        const PAGE_SIZE = 1000;
-        const fetchAllForYear = async (year: number) => {
-          let all: any[] = [];
-          let from = 0;
-          while (true) {
-            const { data, error } = await supabase
-              .rpc('get_orders_finance_yearly_detail', {
-                p_year: year,
-                p_restaurant_ids: restaurantFilter || null,
-              })
-              .range(from, from + PAGE_SIZE - 1);
-            if (error) {
-              console.error("[Analytics] get_orders_finance_yearly_detail error:", error);
-              throw error;
-            }
-            if (data) all.push(...data);
-            if (!data || data.length < PAGE_SIZE) break;
-            from += PAGE_SIZE;
-          }
-          return all;
-        };
-        const yearsToFetch = [selectedYear, selectedYear - 1, selectedYear - 2];
-        const results = await Promise.all(yearsToFetch.map(fetchAllForYear));
-        return results.flat();
+      // Only fetch detail when a specific month is drilled into
+      if (!drillDownMonth) return null;
+      const { data, error } = await supabase.rpc('get_orders_finance_detail', {
+        p_year: selectedYear,
+        p_month: drillDownMonth,
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      if (error) {
+        console.error("[Analytics] get_orders_finance_detail error:", error);
+        throw error;
       }
-      
-      // For non-finances views, if we have a specific month, fetch just that month
-      if (drillDownMonth) {
-        const { data, error } = await supabase.rpc('get_orders_finance_detail', {
-          p_year: selectedYear,
-          p_month: drillDownMonth,
-          p_restaurant_ids: restaurantFilter || null,
-        });
-        if (error) {
-          console.error("[Analytics] get_orders_finance_detail error:", error);
-          throw error;
-        }
-        return data || [];
-      }
-      
-      return null;
+      return data || [];
     },
-    enabled: (selectedPlatform !== "deliveroo") && (!!drillDownMonth || viewMode === "finances"),
+    enabled: (selectedPlatform !== "deliveroo") && !!drillDownMonth && isRestaurantScopeReady,
   });
+
 
   // Select the right payouts data based on platform
   const effectiveDailyPayoutsData = useMemo(() => {
