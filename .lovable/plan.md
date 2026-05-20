@@ -1,45 +1,119 @@
-## Le vrai problème
 
-La console montre clairement l'erreur :
+# Plan — Comparaison à périmètre constant (LFL) — Revenus & Ventes
 
+## 1. Principe de calcul (la règle d'or)
+
+Pour chaque mois M de la période sélectionnée :
+- on calcule l'ensemble `R_N(M)` = restos avec ≥ 1 commande en M de l'année N
+- on calcule `R_N-1(M)` = restos avec ≥ 1 commande en M de l'année N-1
+- **périmètre LFL du mois M = `R_N(M) ∩ R_N-1(M)`**
+- on agrège N et N-1 sur ce périmètre, mois par mois
+- au total annuel : on additionne les 12 totaux mensuels LFL (donc un resto peut compter dans certains mois et pas d'autres — comportement retail standard)
+
+Le périmètre LFL est **dynamique par mois**, jamais figé sur l'année.
+
+## 2. Backend — 2 nouvelles RPC
+
+### `get_lfl_scope_monthly(chain_id, restaurant_ids, year)`
+Renvoie pour chaque mois (1-12) :
+- `month`
+- `restaurants_in_n` (uuid[])
+- `restaurants_in_n_minus_1` (uuid[])
+- `lfl_restaurants` (uuid[] — l'intersection)
+- `total_restaurants_in_scope` (count des restos avec activité N ou N-1)
+- `lfl_count`
+
+Source : `SELECT DISTINCT restaurant_id FROM orders WHERE order_datetime AT TIME ZONE 'Europe/Paris'` groupé par (mois, année). Une seule requête, deux années. RBAC via `is_super_admin() OR user_has_chain_access`. `SET statement_timeout='30s'`.
+
+### `get_profitability_monthly_lfl(chain_id, restaurant_ids, year)`
+Mêmes colonnes que `get_profitability_monthly` (sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat) **mais agrégées uniquement sur le périmètre LFL de chaque mois**, pour N **et** N-1 en une seule réponse :
+- 12 lignes × 2 ans
+- chaque ligne porte aussi `lfl_restaurant_ids` (pour transparence)
+
+Logique interne : CTE qui calcule l'intersection mois par mois, puis JOIN sur `orders` avec `unnest()` pour forcer l'index `idx_orders_restaurant_datetime`.
+
+→ Les KPIs annuels LFL sont obtenus en sommant les 12 lignes.
+
+## 3. Frontend
+
+### 3.1 État global — `AnalyticsContext.tsx`
+Ajout :
+```ts
+lflMode: boolean;
+setLflMode: (b: boolean) => void;
 ```
-[Analytics] get_profitability_daily error: { code: "57014", message: "canceling statement due to statement timeout" }
+Persisté en localStorage avec les autres préférences (sans hydration race).
+
+### 3.2 Toggle UI — `Analytics.tsx` (header Revenus & Ventes)
+À droite du sélecteur d'année :
 ```
+[Switch] Périmètre constant (LFL)   [Info ⓘ tooltip]
+```
+Quand actif : badge vert "X / Y restos comparables" (clic → ouvre `LflScopeDialog`).
 
-Concrètement : quand on affiche l'année 2026 entière (ou plusieurs marques), la fonction SQL `get_profitability_daily` demande au serveur d'agréger **jour par jour** plusieurs millions de commandes. Elle dépasse les 45 secondes et est annulée par Postgres.
+### 3.3 Nouveau composant — `LflScopeDialog.tsx`
+Sheet/Dialog listant pour chaque mois :
+- "Mars 2026 — 18 / 22 restos comparables"
+- Exclus : nom + raison (`Pas d'activité en mars 2025` / `Pas d'activité en mars 2026` — déduit via les 2 ensembles)
 
-Comme la requête plante, les graphiques (Rentabilité globale, Évolution des Promotions, Analyse Croisée) reçoivent un tableau vide ou les données partielles d'un cache antérieur — d'où l'impression qu'ils sont "bloqués sur janvier".
+### 3.4 Hook — `useLflProfitability.ts`
+- `enabled: lflMode === true`
+- Appelle `get_profitability_monthly_lfl` + `get_lfl_scope_monthly` en parallèle
+- Renvoie `{ monthlyLfl, scopeByMonth, totalsLfl }`
+- `staleTime: 5 min`, `retry: false`
 
-Ce n'est **pas** la fenêtre de période qui a été réduite : c'est la donnée qui n'arrive jamais.
+### 3.5 Branchement dans `Analytics.tsx`
+- `effectiveProfitabilityData` = `lflMode ? lflData.monthlyLfl : profitabilityData`
+- Idem pour `prevProfitabilityData` (déjà inclus dans la réponse LFL)
+- Pas d'appel doublon : si LFL ON, on **désactive** `get_profitability_monthly` standard pour éviter 2 RPC
 
-## Ce que je vais faire
+### 3.6 KPIs — affichage du double delta
+Composant `KPIComparisonBadge` :
+- Mode normal : `+12,3% vs N-1`
+- Mode LFL ON : `+12,3% brut · +7,1% LFL` (deux pills côte à côte, LFL en couleur primary)
 
-### 1. Nouvelle RPC `get_profitability_monthly`
-- Même calculs que `get_profitability_daily` (sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat) mais agrégés **par mois** au lieu de par jour.
-- 12× moins de lignes à grouper → s'exécute en quelques secondes même sur une année entière × tout le réseau.
-- Mêmes règles RBAC (`is_super_admin` / `user_has_chain_access`), mêmes timezone Europe/Paris, mêmes formules.
+### 3.7 Graphiques (`AnalyticsCharts.tsx`)
+3 graphiques concernés (Rentabilité globale, Évolution CA, Évolution Promos, Analyse Croisée) :
+- Reçoivent `effectiveProfitabilityData` (déjà mensualisé)
+- Aucun changement de structure, juste la source
+- Sous-titre dynamique : "Périmètre constant — N restos comparables" quand LFL ON
 
-### 2. RPC `get_profitability_daily` conservée
-- Toujours utilisée pour les vues courtes (mois, plage < 60 jours) où l'agrégation journalière est nécessaire et rapide.
-- Aucun changement de logique ou de chiffres.
+## 4. Garanties data
 
-### 3. Sélection automatique côté front (`Analytics.tsx`)
-- Si la période > ~60 jours **et** que la granularité demandée est "monthly" → on appelle la version mensuelle.
-- Sinon → on garde la version journalière (vue mois/semaine).
-- Le résultat mensuel est mappé vers le même format `DailyFinanceChartRow` (1 entrée par mois, datée au 1er du mois) que consomment déjà `ProfitabilityComparisonChart`, `PromotionEvolutionChart` et `CrossDataAnalysisChart`.
+- **Aucune migration destructive** : 2 nouvelles RPC, rien n'est modifié sur les RPC existantes
+- **Aucun changement** sur `orders`, `monthly_revenue`, `daily_sales_uber`
+- Toggle OFF par défaut → comportement **identique à aujourd'hui**, zero régression possible
+- Multi-tenant : RBAC standard via `user_has_chain_access`, sentinel UUID `0000...` respecté
+- TZ Paris dans toutes les agrégations (mémoire `network-stats-tz-paris`)
+- Pattern `unnest()` + ID arrays explicites (mémoire `rpc-empty-selection-handling-pattern`)
 
-### 4. Aucun impact sur les chiffres
-- Mêmes colonnes sources sur `orders` (sales_incl_vat, net_payout, meal_voucher_amount, item_promo_incl_vat).
-- Mêmes filtres de période, même TZ.
-- Les 3 graphiques afficheront les 12 mois de l'année comme avant, simplement nourris par une RPC plus légère.
+## 5. Hors scope (à confirmer plus tard si tu valides ce socle)
 
-### 5. Garde-fou
-- Garder `staleTime` et `retry: false` pour éviter de relancer en boucle si jamais ça timeout encore.
-- Logguer côté navigateur le temps de réponse pour vérifier.
+- LFL sur Finances & Frais, Conversion, Avis : même mécanique réplicable mais on attend ton OK sur Revenus & Ventes d'abord
+- Export PDF avec mention "périmètre constant" : trivial à ajouter une fois le toggle stable
+- Mode "Manuel" (choisir restos à exclure) : peut être ajouté plus tard sans casser
 
-## Vérification après implémentation
+## 6. Détails techniques (section technique)
 
-1. Ouvrir `/analytics/revenue` sur "Année 2026" — le graphique Rentabilité globale doit afficher janvier → mai 2026 avec la courbe N-1 complète.
-2. Vérifier que les graphiques Promotions et Analyse Croisée affichent aussi tous les mois.
-3. Console : plus d'erreur `57014`.
-4. Aucun écart de chiffres sur janvier (déjà visible aujourd'hui) vs avant.
+**Fichiers créés :**
+- `supabase/migrations/<ts>_lfl_rpcs.sql` — `get_lfl_scope_monthly` + `get_profitability_monthly_lfl`
+- `src/hooks/useLflProfitability.ts`
+- `src/components/analytics/LflScopeDialog.tsx`
+- `src/components/analytics/LflToggle.tsx`
+- `src/components/analytics/KPIComparisonBadge.tsx` (ou extension d'un composant existant)
+
+**Fichiers modifiés :**
+- `src/contexts/AnalyticsContext.tsx` — ajout `lflMode`
+- `src/pages/Analytics.tsx` — toggle dans header + branchement `effectiveProfitabilityData`
+- `src/components/analytics/AnalyticsCharts.tsx` — sous-titre + source dynamique
+
+**Important comme demandé** : avant chaque écriture de fichier, je te montrerai le code en bloc dans le chat pour validation. Tu valides → je crée. On commence par la migration SQL, puis le hook, puis l'UI.
+
+## 7. Ordre d'implémentation proposé
+
+1. Migration SQL (2 RPC) — je te montre le SQL, tu valides
+2. Hook `useLflProfitability` — je te montre le TS
+3. Toggle + contexte — je te montre les diffs
+4. Branchement dans `Analytics.tsx` + KPIs double delta
+5. Dialog "X / Y restos" avec liste exclus
+6. Test visuel ensemble sur 2026 vs 2025
