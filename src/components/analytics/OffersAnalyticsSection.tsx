@@ -46,7 +46,8 @@ export function OffersAnalyticsSection() {
     return { startDate: format(s, "yyyy-MM-dd"), endDate: format(e, "yyyy-MM-dd") };
   }, [selectedYear, selectedMonth, periodMode, dateRange]);
 
-  const restaurantIds = useMemo(() => (
+  const SENTINEL = "00000000-0000-0000-0000-000000000000";
+  const resolvedIds = useMemo(() => (
     resolveBrandScopedRestaurantIds({
       selectedRestaurantIds: selectedRestaurants,
       selectedChainId,
@@ -54,13 +55,15 @@ export function OffersAnalyticsSection() {
     }) ?? []
   ), [selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
+  const hasSentinelScope = resolvedIds.length === 1 && resolvedIds[0] === SENTINEL;
+  const isScopeReady = resolvedIds.length > 0 && !hasSentinelScope;
+  const restaurantIds = isScopeReady ? resolvedIds : [];
+
   const offersData = useOffersAnalytics(restaurantIds, startDate, endDate, restaurants);
 
-  // Attendre que les restaurants de la marque soient chargés avant de fetch
-  // (sinon resolveBrandScopedRestaurantIds renvoie le sentinel '0000…' et la RPC est cachée à vide)
-  const isReady = !selectedChainId || chainRestaurantIds.length > 0;
-
-  if (restaurantsLoading || !isReady || offersData.isLoading) {
+  // Spinner uniquement tant que les restaurants de la marque ne sont pas chargés
+  // OU que la requête principale (vraiment lancée) est encore en cours.
+  if (restaurantsLoading || !isScopeReady || offersData.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
