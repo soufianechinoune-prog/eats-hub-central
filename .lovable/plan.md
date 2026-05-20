@@ -1,43 +1,49 @@
 ## Diagnostic
 
-Le backend répond normalement. Le ralentissement vient surtout de requêtes trop lourdes lancées côté client et de certaines RPC qui timeoutent :
+Le backend répond normalement et je ne vois pas de nouveau timeout côté logs. Le blocage visible sur ta capture vient surtout d’un point précis dans le frontend :
 
-- `get_ads_revenue_ratio` timeout en base (`statement timeout`) sur la page Overview.
-- `useFinancesDrilldown` télécharge toutes les commandes en pagination client pour “Analyse par Commandes”, même sur de longues périodes / tous restaurants.
-- Plusieurs requêtes Analytics partent avec le sentinel `00000000-0000-0000-0000-000000000000` avant résolution des vrais restaurants, ce qui génère des appels inutiles / erreurs réseau.
-- Le composant “Analyse par Commandes” affiche un spinner sans timeout UI ni fallback, donc l’utilisateur voit juste un chargement interminable.
+- Le graphique **Rentabilité globale** de la page `/analytics/revenue` continue d’utiliser `useFinancesDrilldown`.
+- Ce hook va chercher les **commandes brutes paginées** dans `orders`, parfois sur une grande période et sur beaucoup de restaurants.
+- Donc même si on a optimisé les RPC principales, ce graphique lance encore une lecture lourde côté navigateur.
+- En plus, `Analytics.tsx` charge déjà les données agrégées via `get_profitability_daily`, mais `AnalyticsCharts.tsx` ne les réutilise pas pour ce graphique : il refait son propre chargement lourd.
 
-## Plan d’implémentation
+Conclusion simple : **la data existe, mais le graphique attend une requête trop lourde qui n’a plus lieu d’être.**
 
-1. **Optimiser le ratio Ads / CA**
-   - Remplacer `get_ads_revenue_ratio` par une version plus rapide basée sur des bornes timestamp indexables.
-   - Ajouter/ajuster les index nécessaires sur `payout_adjustments` et `orders` pour ce cas.
-   - Garder les mêmes colonnes renvoyées pour ne pas casser l’UI.
+## Plan de correction
 
-2. **Remplacer les chargements client “Analyse par Commandes” par des RPC agrégées**
-   - Ajouter des fonctions backend pour :
-     - données par jour,
-     - données par heure,
-     - données par produit,
-     - liste de commandes paginée côté serveur.
-   - Le navigateur ne téléchargera plus des dizaines de milliers de lignes pour ensuite agréger localement.
+1. **Brancher le graphique Rentabilité sur les données déjà agrégées**
+   - Utiliser `profitabilityData` et `prevProfitabilityData` déjà chargées dans `Analytics.tsx`.
+   - Ne plus utiliser `useFinancesDrilldown` pour ce graphique dans la page Revenue.
 
-3. **Mettre à jour `useFinancesDrilldown`**
-   - Utiliser les nouvelles RPC selon l’onglet actif.
-   - Limiter “Par Commande” à une pagination serveur initiale, au lieu de charger toute la période.
-   - Conserver les champs existants pour éviter de modifier toute l’interface.
+2. **Convertir ces données au format attendu par le graphique**
+   - Transformer les lignes `get_profitability_daily` en données journalières compatibles avec `ProfitabilityComparisonChart`.
+   - Garder les mêmes champs : ventes, versement net, titres resto, promos, nombre de commandes.
 
-4. **Bloquer les requêtes tant que le scope restaurants n’est pas prêt**
-   - Ajouter une garde explicite contre le sentinel UUID dans les appels lourds.
-   - Ne pas lancer les données Ads / Analyse commandes tant que les vrais IDs restaurants ne sont pas résolus.
+3. **Préserver les calculs actuels**
+   - Ne pas changer les formules de rentabilité.
+   - Ne pas changer les montants, commissions, promos, remboursements ou panier moyen.
+   - On change seulement la source technique : données agrégées serveur au lieu de commandes brutes côté navigateur.
 
-5. **Améliorer le feedback UI**
-   - Remplacer le spinner infini par un message clair si la requête prend trop longtemps.
-   - Afficher une action “Réessayer” / “Réduire la période” si besoin.
+4. **Garder le chargement précédent pour les sections détaillées seulement**
+   - `useFinancesDrilldown` restera utilisé pour les tableaux/drilldowns quand l’utilisateur ouvre une analyse détaillée.
+   - Mais le graphique principal ne doit plus dépendre de cette requête lourde.
 
-## Résultat attendu
+5. **Corriger l’état de chargement**
+   - Le spinner de `Rentabilité globale` devra dépendre des queries agrégées déjà chargées.
+   - Si la requête retourne vide, le composant ne doit pas rester bloqué indéfiniment.
 
-- Overview plus stable au refresh.
-- Le bloc Ads ne bloque plus le rendu et ne timeout plus.
-- “Analyse par Commandes” charge beaucoup plus vite, surtout sur “Tous les restaurants”.
-- Moins d’erreurs `TypeError: Load failed` causées par surcharge / appels prématurés.
+6. **Validation**
+   - Vérifier que le graphique Rentabilité s’affiche sur `/analytics/revenue`.
+   - Vérifier qu’il ne déclenche plus les requêtes lourdes `finances-drilldown-orders` au chargement initial.
+   - Vérifier que les chiffres restent cohérents avec les données déjà calculées par `get_profitability_daily`.
+
+## Impact sur la data
+
+Aucun changement de data ni de formule. On remplace simplement :
+
+```text
+Avant : navigateur lit beaucoup de commandes brutes puis agrège
+Après : backend renvoie déjà les données agrégées, le graphique les affiche
+```
+
+C’est exactement le même objectif fonctionnel, mais avec beaucoup moins de données à charger côté page.
