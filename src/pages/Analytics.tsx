@@ -519,8 +519,9 @@ export default function Analytics() {
   const { data: prevProfitabilityData } = useQuery({
     queryKey: ["analytics_profitability_prev", profitabilityRpcName, restaurantFilter, format(profitabilityPrevRange.start, "yyyy-MM-dd"), format(profitabilityPrevRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
-      const ids = restaurantFilter || restaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
+      const ids = (restaurantFilter && restaurantFilter !== EMPTY_BRAND_SCOPE_RESTAURANT_IDS) ? restaurantFilter : [];
       if (!ids.length) return [];
+
 
       const { data, error } = await supabase.rpc(profitabilityRpcName, {
         p_restaurant_ids: ids,
