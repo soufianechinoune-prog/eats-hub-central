@@ -122,7 +122,8 @@ export function useOffersAnalytics(
       return (data || []) as OffersRawRow[];
     },
     enabled: !!prevStart && !!prevEnd
-      && !(restaurantIds.length === 1 && restaurantIds[0] === '00000000-0000-0000-0000-000000000000'),
+      && restaurantIds.length > 0
+      && !restaurantIds.includes('00000000-0000-0000-0000-000000000000'),
   });
 
   // Success scores - scoped to the provided restaurantIds
