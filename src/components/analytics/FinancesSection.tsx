@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
 
 
-const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
+
 
 interface RestaurantAction {
   id: string;
