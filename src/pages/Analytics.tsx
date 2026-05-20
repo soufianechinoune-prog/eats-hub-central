@@ -571,6 +571,7 @@ export default function Analytics() {
     },
     enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,
     staleTime: 2 * 60 * 1000,
+    retry: false,
   });
 
   // ========== UBER EATS DATA (Current Year) — always from orders table ==========
