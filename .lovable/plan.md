@@ -1,105 +1,58 @@
+# Pourquoi l'onglet "Historique frais 0,89€" affiche 0€
 
-## Objectif
+## Constat
+- Tu es sur `/analytics/offers`, marque **Chicken Street**, période **Mars 2026**.
+- L'écran montre `0€` partout (frais, commandes taxées, sparkline vide).
+- **La donnée existe pourtant en base** : j'ai testé la RPC `get_offers_analytics` côté serveur avec les 104 restaurants actifs de Chicken Street sur mars 2026 → **11 560,27 € de frais, 11 156 commandes taxées, 92 lignes mensuelles**.
 
-Mettre en évidence les frais d'offres Uber (0,89€ HT par commande promo taxée) via un **suivi continu et historique**, croisable avec le CA et la rentabilité.
+Donc le bug est **côté front** : la RPC n'est pas appelée avec les bons paramètres au bon moment.
 
-L'onglet `/analytics/offers` existe déjà mais affiche surtout des KPI ponctuels sur la période sélectionnée. On va le **restructurer en sous-onglets** pour ajouter une vraie vue "suivi historique".
+## Cause la plus probable
+Dans `OffersAnalyticsSection.tsx`, le hook fire **immédiatement** sans attendre que `useActiveRestaurants` ait résolu :
 
-## Architecture proposée
-
-Dans la page `/analytics/offers`, ajouter un `Tabs` à 3 sous-onglets :
-
-```text
-[ Synthèse ]   [ Historique frais 0,89€ ]   [ Croisements ]
-   ↑ existant         ↑ NOUVEAU                ↑ NOUVEAU
+```
+restaurantIds = resolveBrandScopedRestaurantIds(...) ?? []
+useOffersAnalytics(restaurantIds, startDate, endDate, restaurants)
 ```
 
-- **Synthèse** = vue actuelle (KPI cards + table + heatmap)
-- **Historique frais 0,89€** = nouveau, dédié au suivi continu
-- **Croisements** = nouveau, mise en relation avec CA / rentabilité
+Au premier render :
+- `activeRestaurants = []` (encore en chargement)
+- `chainRestaurantIds = []`
+- `selectedChainId = "110e05b8…"` (Chicken Street)
+- `resolveBrandScopedRestaurantIds` renvoie alors le **sentinel** `['00000000-0000-0000-0000-000000000000']`
+- La RPC fire avec ce sentinel → 0 lignes → **résultat mis en cache 5 min via `staleTime`**
 
-Pas de nouvelle entrée sidebar — on enrichit l'onglet existant pour rester cohérent.
+Quand `activeRestaurants` arrive 200 ms plus tard, la queryKey change et une nouvelle query devrait partir avec les 104 vrais IDs. Mais selon l'état React Query / l'ordre des rerenders, la première réponse vide reste affichée jusqu'au prochain refetch manuel. C'est exactement le pattern documenté dans la mémoire projet (`analytics-ready-guard` + `useActiveRestaurants` sentinel).
 
-## Sous-onglet 1 — "Historique frais 0,89€"
+C'est aussi pour ça que la **page Synthèse** (ancienne) ne montrait pas le bug avant : elle bénéficiait d'un refetch après navigation. La nouvelle hero du tab Historique rend immédiatement les KPI à 0 et c'est très visible.
 
-Trois blocs verticaux :
+## Plan de correction
 
-**1. Bandeau hero**
-- Total frais sur la période sélectionnée (gros chiffre)
-- Évolution vs N-1 (delta % + flèche)
-- Sparkline 12 derniers mois (mini courbe sous le chiffre)
-- Nombre de commandes taxées + frais moyen réel (vs 0,89€ attendu)
+### 1. Gate du hook sur les restaurants chargés
+Dans `src/components/analytics/OffersAnalyticsSection.tsx` :
+- Récupérer aussi `isLoading: restaurantsLoading` depuis `useActiveRestaurants()`.
+- Garder un état "ready" qui ne devient `true` que lorsque :
+  - `selectedChainId === null` (mode multi-marques admin), **ou**
+  - `chainRestaurantIds.length > 0`.
+- Tant que pas ready : afficher le spinner existant à la place de `<Tabs>`.
 
-**2. Courbe historique globale (toute la marque)**
-- ComposedChart : barres = frais €, ligne = nb commandes taxées
-- **Toggle de granularité** : Mois / Semaine / Jour (chips au-dessus du chart)
-- Tooltip riche : frais, cmds taxées, frais/cmd
-- Respecte la période globale (`AnalyticsContext`)
+Effet : la RPC ne part **jamais** avec le sentinel `0000…`, plus de cache vide bloquant.
 
-**3. Courbes par restaurant**
-- Multi-line chart : 1 courbe par restaurant (top 8 + "Autres")
-- Même toggle de granularité que ci-dessus
-- Légende cliquable pour masquer/afficher
-- Bouton "Voir tous" → table déroulante avec total par resto
+### 2. Filet de sécurité dans `useOffersAnalytics`
+Dans `src/hooks/useOffersAnalytics.ts`, ajouter à `enabled` :
+```
+enabled: !!startDate && !!endDate
+  && !(restaurantIds.length === 1 && restaurantIds[0] === '00000000-0000-0000-0000-000000000000')
+```
+Idem pour la query prev-year et `success_scores`.
 
-## Sous-onglet 2 — "Croisements"
-
-Deux graphiques côte à côte (responsive : empilés < 1280px) :
-
-**1. Frais 0,89€ vs CA HT**
-- ComposedChart mensuel
-- Axe Y gauche : CA HT (`sales_excl_vat - item_promo_excl_vat`)
-- Axe Y droit : frais offres
-- Ligne secondaire : ratio `frais / CA` en %
-- Permet de voir si les frais croissent plus vite que le CA
-
-**2. Frais 0,89€ vs Rentabilité**
-- Même format
-- Axe Y gauche : versement total (`net_payout + meal_voucher_amount`)
-- Axe Y droit : frais offres
-- Ligne : taux de rentabilité réseau %
-- Montre l'impact direct des frais sur la rentabilité
-
-Scope : niveau réseau (agrégation globale), respect du filtre restaurant si pinning actif.
-
-## Détail technique
-
-**Données — `useOffersAnalytics` (hook existant)**
-- Déjà tout présent : `monthlyStats` (frais + cmds taxées par mois × restaurant)
-- Étendre pour supporter `granularity: 'day' | 'week' | 'month'` (paramètre du hook)
-- Ajouter `weeklyStats` et `dailyStats` calculés depuis la requête source
-
-**Croisement CA / rentabilité**
-- Nouveau hook `useOfferFeesCorrelation(restaurantIds, startDate, endDate)`
-- Source : RPC déjà existante `get_profitability_monthly` (renvoie `sales_excl_vat`, `item_promo_excl_vat`, `net_payout`, `meal_voucher_amount` par mois × resto)
-- Croisement local : joindre par `month_key` avec `monthlyStats.totalFees`
-- Pas de nouvelle RPC nécessaire
-
-**Fichiers à créer / modifier**
-- `src/components/analytics/OffersAnalyticsSection.tsx` — wrapper Tabs (3 sous-onglets)
-- `src/components/analytics/offers/OffersSummaryTab.tsx` — extraction du contenu actuel
-- `src/components/analytics/offers/OfferFeesHistoryTab.tsx` — NOUVEAU (sous-onglet 1)
-- `src/components/analytics/offers/OfferFeesCorrelationTab.tsx` — NOUVEAU (sous-onglet 2)
-- `src/hooks/useOffersAnalytics.ts` — ajout `granularity` + `weeklyStats` / `dailyStats`
-- `src/hooks/useOfferFeesCorrelation.ts` — NOUVEAU
-
-**Cohérence**
-- Période globale via `useAnalyticsContext` (déjà en place)
-- Sentinel UUID + `useActiveRestaurants` (rules mémoire respectées)
-- Formatage dates locales `format(date, "yyyy-MM-dd")`, pas d'UTC
+### 3. Vérification
+- Recharger `/analytics/offers` sur Chicken Street / Mars 2026.
+- Vérifier dans Network qu'**une seule** requête `get_offers_analytics` part, avec les 104 IDs réels.
+- KPIs attendus : ~11 560 € de frais, 11 156 commandes taxées, frais moyen ≈ 1,04 €.
+- Tester aussi : sélection mono-restaurant, sélection multi-restaurants explicite, période "Année".
 
 ## Hors scope
-
-- Pas de modif des KPI cards actuelles ni de la table "Analyse par restaurant"
-- Pas de simulation "passer Gold"
-- Pas d'export PDF dédié (ajout possible plus tard)
-- Pas de migration SQL (toutes les données existent déjà)
-
-## Livrable
-
-Onglet `/analytics/offers` enrichi avec :
-- Sous-onglet "Synthèse" (existant)
-- Sous-onglet "Historique frais 0,89€" : bandeau + 2 courbes (global + par resto) avec toggle Jour/Semaine/Mois
-- Sous-onglet "Croisements" : 2 graphiques (vs CA HT, vs Rentabilité)
-
-Aucune modif backend, aucun risque de régression sur les vues existantes.
+- Pas de modif RPC (elle est correcte).
+- Pas de modif des autres tabs (Synthèse, Croisements) — ils consomment la même `OffersAnalyticsResult`, ils bénéficieront automatiquement du fix.
+- Pas de migration LFL ni autre changement business.
