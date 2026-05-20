@@ -84,6 +84,9 @@ export function FinancesSection({
   onFootballMatchesToggle,
   granularity = "monthly",
   isPayoutsLoading = false,
+  profitabilityData,
+  prevProfitabilityData,
+  isProfitabilityLoading = false,
 }: FinancesSectionProps) {
   const hasActions = globalActions.length > 0;
 
@@ -94,24 +97,11 @@ export function FinancesSection({
     [selectedRestaurants, restaurants]
   );
 
-  const hasRealIds = activeIds.length > 0 && !activeIds.includes(SENTINEL_UUID);
+  // Use profitability data already fetched by the parent (Analytics.tsx) to avoid a duplicate
+  // get_profitability_daily/monthly RPC call (was adding ~30-45s on the Finances page).
+  const rpcData = profitabilityData;
+  const isChartLoading = isProfitabilityLoading;
 
-  // Use RPC for fast server-side aggregation instead of fetching all individual orders
-  const { data: rpcData, isLoading: isChartLoading } = useQuery({
-    queryKey: ['profitability-daily-rpc', activeIds, format(startDate, 'yyyy-MM-dd'), format(endDate, 'yyyy-MM-dd')],
-    queryFn: async () => {
-      const { data, error } = await supabase.rpc('get_profitability_daily', {
-        p_restaurant_ids: activeIds,
-        p_start_date: format(startDate, 'yyyy-MM-dd'),
-        p_end_date: format(endDate, 'yyyy-MM-dd'),
-      });
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: hasRealIds,
-    staleTime: 2 * 60 * 1000,
-    retry: false,
-  });
 
   // Map RPC data to DailyOrderData format for the chart
   const { chartDailyData, dailyDataByRestaurant } = useMemo(() => {
