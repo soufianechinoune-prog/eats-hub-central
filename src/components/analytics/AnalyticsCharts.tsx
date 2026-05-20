@@ -679,6 +679,16 @@ export function AnalyticsCharts({
     }
     return new Date(profitEndDate.getFullYear() - 1, profitEndDate.getMonth(), profitEndDate.getDate());
   }, [profitEndDate, comparisonMode]);
+
+  const shouldUseAggregatedProfitability = viewMode === "revenue" && selectedPlatform === "uber_eats";
+  const aggregatedRevenueProfitabilityData = useMemo(
+    () => mapProfitabilityRowsToDailyData(chartProfitabilityData),
+    [chartProfitabilityData]
+  );
+  const aggregatedRevenueProfitabilityPrevData = useMemo(
+    () => mapProfitabilityRowsToDailyData(chartPrevProfitabilityData),
+    [chartPrevProfitabilityData]
+  );
   
   // Fetch profitability data for the chart in Revenue section
   const { dailyData: revenueProfitabilityData, isLoading: isProfitabilityLoading } = useFinancesDrilldown({
@@ -686,7 +696,7 @@ export function AnalyticsCharts({
     startDate: profitStartDate,
     endDate: profitEndDate,
     granularity: 'daily',
-    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    enabled: viewMode === 'revenue' && !shouldUseAggregatedProfitability && restaurantIds.length > 0,
     platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
   
@@ -696,9 +706,19 @@ export function AnalyticsCharts({
     startDate: profitPrevStartDate,
     endDate: profitPrevEndDate,
     granularity: 'daily',
-    enabled: viewMode === 'revenue' && restaurantIds.length > 0,
+    enabled: viewMode === 'revenue' && !shouldUseAggregatedProfitability && restaurantIds.length > 0,
     platform: (selectedPlatform === "pos" ? "global" : selectedPlatform),
   });
+
+  const effectiveRevenueProfitabilityData = shouldUseAggregatedProfitability
+    ? aggregatedRevenueProfitabilityData
+    : revenueProfitabilityData;
+  const effectiveRevenueProfitabilityPrevData = shouldUseAggregatedProfitability
+    ? aggregatedRevenueProfitabilityPrevData
+    : revenueProfitabilityPrevData;
+  const effectiveProfitabilityLoading = shouldUseAggregatedProfitability
+    ? !aggregatedRevenueProfitabilityData
+    : isProfitabilityLoading || isProfitabilityPrevLoading || !revenueProfitabilityData;
   
   // Fetch Uber One stats for the Cross Data Analysis chart
   const { evolution: uberOneEvolution, isLoading: isUberOneLoading } = useUberOneStats({
