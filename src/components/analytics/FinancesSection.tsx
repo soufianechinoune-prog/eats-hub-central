@@ -7,9 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { ActionFilterPopover } from "./ActionFilterPopover";
-import { supabase } from "@/integrations/supabase/client";
-import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+
 
 const SENTINEL_UUID = "00000000-0000-0000-0000-000000000000";
 
