@@ -1,123 +1,105 @@
-## Diagnostic
-
-La lenteur vient principalement des requêtes backend de `/analytics/finances`, pas du rendu React :
-
-- `get_orders_finance_summary` prend jusqu'à ~43-45s et peut finir en timeout.
-- `get_profitability_monthly` prend ~29-43s.
-- `get_profitability_daily` est encore appelé en doublon depuis `FinancesSection` et prend ~43s.
-- `get_orders_finance_yearly_detail` est lancé 3 années en parallèle, paginé, et timeout systématiquement quand le périmètre contient beaucoup de restaurants.
-- La section `Analyse par Commandes` est déjà visuellement lazy, mais les données financières lourdes sont quand même déclenchées dès l'arrivée sur la page.
-- Il y a aussi un appel avec le sentinel UUID `00000000-0000-0000-0000-000000000000`, ce qui confirme qu'une partie des requêtes part avant résolution complète du périmètre.
 
 ## Objectif
 
-Faire apparaître rapidement la page Finances avec les graphiques et KPIs essentiels, puis charger les détails uniquement quand l'utilisateur les demande.
+Mettre en évidence les frais d'offres Uber (0,89€ HT par commande promo taxée) via un **suivi continu et historique**, croisable avec le CA et la rentabilité.
 
-## Plan technique
+L'onglet `/analytics/offers` existe déjà mais affiche surtout des KPI ponctuels sur la période sélectionnée. On va le **restructurer en sous-onglets** pour ajouter une vraie vue "suivi historique".
 
-### 1. Bloquer tous les appels tant que le périmètre restaurants n'est pas réellement prêt
+## Architecture proposée
 
-- Renforcer `isRestaurantScopeReady` pour refuser :
-  - tableau vide,
-  - sentinel UUID,
-  - périmètre non résolu.
-- Appliquer cette garde aux requêtes actuellement insuffisamment protégées :
-  - `advertisingData`,
-  - `dailyPayoutsData`,
-  - `deliverooPayoutsData`,
-  - `profitabilityData`,
-  - `prevProfitabilityData`.
-
-Effet attendu : suppression des requêtes inutiles/erronées qui scannent ou timeoutent avant que la chaîne soit résolue.
-
-### 2. Supprimer le doublon `get_profitability_daily` dans `FinancesSection`
-
-Actuellement :
-
-- `Analytics.tsx` calcule déjà `profitabilityData` / `prevProfitabilityData`.
-- `FinancesSection.tsx` relance en plus `get_profitability_daily` pour alimenter le graphique.
-
-Changement :
-
-- Faire passer `profitabilityData` et `prevProfitabilityData` à `FinancesSection`.
-- Mapper ces données directement pour `ProfitabilityComparisonChart`.
-- Ne plus appeler `get_profitability_daily` depuis `FinancesSection`.
-
-Effet attendu : une requête lourde en moins, souvent ~40s économisées.
-
-### 3. Remplacer le détail annuel 3 ans au chargement par un chargement à la demande
-
-Aujourd'hui, en vue annuelle Finances, l'app lance :
+Dans la page `/analytics/offers`, ajouter un `Tabs` à 3 sous-onglets :
 
 ```text
-get_orders_finance_yearly_detail(selectedYear)
-get_orders_finance_yearly_detail(selectedYear - 1)
-get_orders_finance_yearly_detail(selectedYear - 2)
+[ Synthèse ]   [ Historique frais 0,89€ ]   [ Croisements ]
+   ↑ existant         ↑ NOUVEAU                ↑ NOUVEAU
 ```
 
-dès l'ouverture de la page.
+- **Synthèse** = vue actuelle (KPI cards + table + heatmap)
+- **Historique frais 0,89€** = nouveau, dédié au suivi continu
+- **Croisements** = nouveau, mise en relation avec CA / rentabilité
 
-Changement :
+Pas de nouvelle entrée sidebar — on enrichit l'onglet existant pour rester cohérent.
 
-- Ne plus charger `dailyPayoutsData` automatiquement pour l'année complète.
-- Garder le chargement automatique uniquement quand un mois est sélectionné (`drillDownMonth`).
-- Pour l'année complète, afficher le graphique/synthèse avec les RPC agrégées mensuelles.
-- Dans `Analyse par Commandes`, conserver le bouton `Charger l'analyse des commandes`; déclencher les détails uniquement après clic/expansion.
+## Sous-onglet 1 — "Historique frais 0,89€"
 
-Effet attendu : suppression des timeouts `get_orders_finance_yearly_detail` au chargement initial.
+Trois blocs verticaux :
 
-### 4. Créer une RPC agrégée unique pour la finance annuelle si nécessaire
+**1. Bandeau hero**
+- Total frais sur la période sélectionnée (gros chiffre)
+- Évolution vs N-1 (delta % + flèche)
+- Sparkline 12 derniers mois (mini courbe sous le chiffre)
+- Nombre de commandes taxées + frais moyen réel (vs 0,89€ attendu)
 
-Si la table de comparaison mensuelle a encore besoin de champs détaillés non couverts par `get_orders_finance_summary`, créer/remplacer une RPC agrégée mensuelle unique qui renvoie uniquement 12 mois × restaurants, pas le détail journalier.
+**2. Courbe historique globale (toute la marque)**
+- ComposedChart : barres = frais €, ligne = nb commandes taxées
+- **Toggle de granularité** : Mois / Semaine / Jour (chips au-dessus du chart)
+- Tooltip riche : frais, cmds taxées, frais/cmd
+- Respecte la période globale (`AnalyticsContext`)
 
-Elle devra renvoyer au minimum :
+**3. Courbes par restaurant**
+- Multi-line chart : 1 courbe par restaurant (top 8 + "Autres")
+- Même toggle de granularité que ci-dessus
+- Légende cliquable pour masquer/afficher
+- Bouton "Voir tous" → table déroulante avec total par resto
 
-- CA HT/TTC selon les colonnes nécessaires,
-- promos HT/TTC,
-- frais Uber HT/TTC,
-- `net_payout`,
-- `meal_voucher_amount`,
-- `order_count`,
-- marketing/ads si nécessaire.
+## Sous-onglet 2 — "Croisements"
 
-Note : cette étape sera aussi l'endroit naturel pour aligner la formule de rentabilité que tu as définie :
+Deux graphiques côte à côte (responsive : empilés < 1280px) :
 
-```text
-Rentabilité = (net_payout + meal_voucher_amount)
-              / (sales_excl_vat - item_promo_excl_vat - uber_fee_after_promo_excl_vat)
-```
+**1. Frais 0,89€ vs CA HT**
+- ComposedChart mensuel
+- Axe Y gauche : CA HT (`sales_excl_vat - item_promo_excl_vat`)
+- Axe Y droit : frais offres
+- Ligne secondaire : ratio `frais / CA` en %
+- Permet de voir si les frais croissent plus vite que le CA
 
-Mais je ne mélange pas encore la refonte formule/LFL tant que l'objectif immédiat est le temps de chargement.
+**2. Frais 0,89€ vs Rentabilité**
+- Même format
+- Axe Y gauche : versement total (`net_payout + meal_voucher_amount`)
+- Axe Y droit : frais offres
+- Ligne : taux de rentabilité réseau %
+- Montre l'impact direct des frais sur la rentabilité
 
-### 5. Optimiser les RPC existantes
+Scope : niveau réseau (agrégation globale), respect du filtre restaurant si pinning actif.
 
-Pour `get_orders_finance_summary` et `get_profitability_monthly` :
+## Détail technique
 
-- garder `SECURITY DEFINER`,
-- résoudre les restaurants autorisés une seule fois,
-- joindre via `unnest(v_ids)` + `orders.restaurant_id`,
-- filtrer sur `order_datetime`,
-- éviter les chemins `p_restaurant_ids IS NULL` sur gros scans,
-- conserver les dates selon le standard déjà défini pour cette page.
+**Données — `useOffersAnalytics` (hook existant)**
+- Déjà tout présent : `monthlyStats` (frais + cmds taxées par mois × restaurant)
+- Étendre pour supporter `granularity: 'day' | 'week' | 'month'` (paramètre du hook)
+- Ajouter `weeklyStats` et `dailyStats` calculés depuis la requête source
 
-### 6. Vérification après implémentation
+**Croisement CA / rentabilité**
+- Nouveau hook `useOfferFeesCorrelation(restaurantIds, startDate, endDate)`
+- Source : RPC déjà existante `get_profitability_monthly` (renvoie `sales_excl_vat`, `item_promo_excl_vat`, `net_payout`, `meal_voucher_amount` par mois × resto)
+- Croisement local : joindre par `month_key` avec `monthlyStats.totalFees`
+- Pas de nouvelle RPC nécessaire
 
-Je validerai avec les signaux suivants :
+**Fichiers à créer / modifier**
+- `src/components/analytics/OffersAnalyticsSection.tsx` — wrapper Tabs (3 sous-onglets)
+- `src/components/analytics/offers/OffersSummaryTab.tsx` — extraction du contenu actuel
+- `src/components/analytics/offers/OfferFeesHistoryTab.tsx` — NOUVEAU (sous-onglet 1)
+- `src/components/analytics/offers/OfferFeesCorrelationTab.tsx` — NOUVEAU (sous-onglet 2)
+- `src/hooks/useOffersAnalytics.ts` — ajout `granularity` + `weeklyStats` / `dailyStats`
+- `src/hooks/useOfferFeesCorrelation.ts` — NOUVEAU
 
-- réseau navigateur sur `/analytics/finances`,
-- plus aucun appel initial à `get_orders_finance_yearly_detail` en vue annuelle,
-- plus aucun appel avec sentinel UUID,
-- disparition du doublon `get_profitability_daily`,
-- chargement initial ramené à quelques secondes au lieu de 30-45s+,
-- la section `Analyse par Commandes` reste chargée à la demande.
+**Cohérence**
+- Période globale via `useAnalyticsContext` (déjà en place)
+- Sentinel UUID + `useActiveRestaurants` (rules mémoire respectées)
+- Formatage dates locales `format(date, "yyyy-MM-dd")`, pas d'UTC
 
-## Fichiers probablement concernés
+## Hors scope
 
-- `src/pages/Analytics.tsx`
-- `src/components/analytics/AnalyticsCharts.tsx`
-- `src/components/analytics/FinancesSection.tsx`
-- éventuellement une migration backend pour optimiser/remplacer les RPC financières agrégées
+- Pas de modif des KPI cards actuelles ni de la table "Analyse par restaurant"
+- Pas de simulation "passer Gold"
+- Pas d'export PDF dédié (ajout possible plus tard)
+- Pas de migration SQL (toutes les données existent déjà)
 
-## Point important
+## Livrable
 
-Avant d'appliquer une migration SQL, je te montrerai le SQL exact comme demandé précédemment.
+Onglet `/analytics/offers` enrichi avec :
+- Sous-onglet "Synthèse" (existant)
+- Sous-onglet "Historique frais 0,89€" : bandeau + 2 courbes (global + par resto) avec toggle Jour/Semaine/Mois
+- Sous-onglet "Croisements" : 2 graphiques (vs CA HT, vs Rentabilité)
+
+Aucune modif backend, aucun risque de régression sur les vues existantes.
