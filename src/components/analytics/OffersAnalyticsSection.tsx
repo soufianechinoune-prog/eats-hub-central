@@ -56,7 +56,11 @@ export function OffersAnalyticsSection() {
 
   const offersData = useOffersAnalytics(restaurantIds, startDate, endDate, restaurants);
 
-  if (offersData.isLoading) {
+  // Attendre que les restaurants de la marque soient chargés avant de fetch
+  // (sinon resolveBrandScopedRestaurantIds renvoie le sentinel '0000…' et la RPC est cachée à vide)
+  const isReady = !selectedChainId || chainRestaurantIds.length > 0;
+
+  if (restaurantsLoading || !isReady || offersData.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
