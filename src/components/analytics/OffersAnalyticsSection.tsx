@@ -20,7 +20,7 @@ export function OffersAnalyticsSection() {
     selectedChainId,
   } = useAnalyticsContext();
 
-  const { data: activeRestaurants = [] } = useActiveRestaurants();
+  const { data: activeRestaurants = [], isLoading: restaurantsLoading } = useActiveRestaurants();
 
   const restaurants = useMemo(
     () => activeRestaurants.map((r) => ({ id: r.id, name: r.name })),
