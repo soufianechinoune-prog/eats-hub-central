@@ -1,49 +1,45 @@
-## Diagnostic
+## Le vrai problème
 
-Le backend répond normalement et je ne vois pas de nouveau timeout côté logs. Le blocage visible sur ta capture vient surtout d’un point précis dans le frontend :
+La console montre clairement l'erreur :
 
-- Le graphique **Rentabilité globale** de la page `/analytics/revenue` continue d’utiliser `useFinancesDrilldown`.
-- Ce hook va chercher les **commandes brutes paginées** dans `orders`, parfois sur une grande période et sur beaucoup de restaurants.
-- Donc même si on a optimisé les RPC principales, ce graphique lance encore une lecture lourde côté navigateur.
-- En plus, `Analytics.tsx` charge déjà les données agrégées via `get_profitability_daily`, mais `AnalyticsCharts.tsx` ne les réutilise pas pour ce graphique : il refait son propre chargement lourd.
-
-Conclusion simple : **la data existe, mais le graphique attend une requête trop lourde qui n’a plus lieu d’être.**
-
-## Plan de correction
-
-1. **Brancher le graphique Rentabilité sur les données déjà agrégées**
-   - Utiliser `profitabilityData` et `prevProfitabilityData` déjà chargées dans `Analytics.tsx`.
-   - Ne plus utiliser `useFinancesDrilldown` pour ce graphique dans la page Revenue.
-
-2. **Convertir ces données au format attendu par le graphique**
-   - Transformer les lignes `get_profitability_daily` en données journalières compatibles avec `ProfitabilityComparisonChart`.
-   - Garder les mêmes champs : ventes, versement net, titres resto, promos, nombre de commandes.
-
-3. **Préserver les calculs actuels**
-   - Ne pas changer les formules de rentabilité.
-   - Ne pas changer les montants, commissions, promos, remboursements ou panier moyen.
-   - On change seulement la source technique : données agrégées serveur au lieu de commandes brutes côté navigateur.
-
-4. **Garder le chargement précédent pour les sections détaillées seulement**
-   - `useFinancesDrilldown` restera utilisé pour les tableaux/drilldowns quand l’utilisateur ouvre une analyse détaillée.
-   - Mais le graphique principal ne doit plus dépendre de cette requête lourde.
-
-5. **Corriger l’état de chargement**
-   - Le spinner de `Rentabilité globale` devra dépendre des queries agrégées déjà chargées.
-   - Si la requête retourne vide, le composant ne doit pas rester bloqué indéfiniment.
-
-6. **Validation**
-   - Vérifier que le graphique Rentabilité s’affiche sur `/analytics/revenue`.
-   - Vérifier qu’il ne déclenche plus les requêtes lourdes `finances-drilldown-orders` au chargement initial.
-   - Vérifier que les chiffres restent cohérents avec les données déjà calculées par `get_profitability_daily`.
-
-## Impact sur la data
-
-Aucun changement de data ni de formule. On remplace simplement :
-
-```text
-Avant : navigateur lit beaucoup de commandes brutes puis agrège
-Après : backend renvoie déjà les données agrégées, le graphique les affiche
+```
+[Analytics] get_profitability_daily error: { code: "57014", message: "canceling statement due to statement timeout" }
 ```
 
-C’est exactement le même objectif fonctionnel, mais avec beaucoup moins de données à charger côté page.
+Concrètement : quand on affiche l'année 2026 entière (ou plusieurs marques), la fonction SQL `get_profitability_daily` demande au serveur d'agréger **jour par jour** plusieurs millions de commandes. Elle dépasse les 45 secondes et est annulée par Postgres.
+
+Comme la requête plante, les graphiques (Rentabilité globale, Évolution des Promotions, Analyse Croisée) reçoivent un tableau vide ou les données partielles d'un cache antérieur — d'où l'impression qu'ils sont "bloqués sur janvier".
+
+Ce n'est **pas** la fenêtre de période qui a été réduite : c'est la donnée qui n'arrive jamais.
+
+## Ce que je vais faire
+
+### 1. Nouvelle RPC `get_profitability_monthly`
+- Même calculs que `get_profitability_daily` (sales, payout, net_payout, meal_voucher, orders_count, item_promo_incl_vat) mais agrégés **par mois** au lieu de par jour.
+- 12× moins de lignes à grouper → s'exécute en quelques secondes même sur une année entière × tout le réseau.
+- Mêmes règles RBAC (`is_super_admin` / `user_has_chain_access`), mêmes timezone Europe/Paris, mêmes formules.
+
+### 2. RPC `get_profitability_daily` conservée
+- Toujours utilisée pour les vues courtes (mois, plage < 60 jours) où l'agrégation journalière est nécessaire et rapide.
+- Aucun changement de logique ou de chiffres.
+
+### 3. Sélection automatique côté front (`Analytics.tsx`)
+- Si la période > ~60 jours **et** que la granularité demandée est "monthly" → on appelle la version mensuelle.
+- Sinon → on garde la version journalière (vue mois/semaine).
+- Le résultat mensuel est mappé vers le même format `DailyFinanceChartRow` (1 entrée par mois, datée au 1er du mois) que consomment déjà `ProfitabilityComparisonChart`, `PromotionEvolutionChart` et `CrossDataAnalysisChart`.
+
+### 4. Aucun impact sur les chiffres
+- Mêmes colonnes sources sur `orders` (sales_incl_vat, net_payout, meal_voucher_amount, item_promo_incl_vat).
+- Mêmes filtres de période, même TZ.
+- Les 3 graphiques afficheront les 12 mois de l'année comme avant, simplement nourris par une RPC plus légère.
+
+### 5. Garde-fou
+- Garder `staleTime` et `retry: false` pour éviter de relancer en boucle si jamais ça timeout encore.
+- Logguer côté navigateur le temps de réponse pour vérifier.
+
+## Vérification après implémentation
+
+1. Ouvrir `/analytics/revenue` sur "Année 2026" — le graphique Rentabilité globale doit afficher janvier → mai 2026 avec la courbe N-1 complète.
+2. Vérifier que les graphiques Promotions et Analyse Croisée affichent aussi tous les mois.
+3. Console : plus d'erreur `57014`.
+4. Aucun écart de chiffres sur janvier (déjà visible aujourd'hui) vs avant.
