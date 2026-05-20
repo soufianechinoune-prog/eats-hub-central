@@ -533,20 +533,28 @@ export default function Analytics() {
     return { start: subYears(startDate, 1), end: subYears(endDate, 1) };
   }, [startDate, endDate, profitabilityComparisonMode]);
 
+  // Pick monthly RPC for long periods (>60d) to avoid timeouts, daily otherwise
+  const profitabilityRpcName = useMemo<"get_profitability_daily" | "get_profitability_monthly">(() => {
+    const days = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    return days > 60 ? "get_profitability_monthly" : "get_profitability_daily";
+  }, [startDate, endDate]);
+
   // Fetch profitability data for current period
   const { data: profitabilityData } = useQuery({
-    queryKey: ["analytics_profitability", restaurantFilter, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
+    queryKey: ["analytics_profitability", profitabilityRpcName, restaurantFilter, format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd")],
     queryFn: async () => {
       const ids = restaurantFilter || restaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
       if (!ids.length) return [];
-      
-      const { data, error } = await supabase.rpc("get_profitability_daily", {
+
+      const t0 = performance.now();
+      const { data, error } = await supabase.rpc(profitabilityRpcName, {
         p_restaurant_ids: ids,
         p_start_date: format(startDate, "yyyy-MM-dd"),
         p_end_date: format(endDate, "yyyy-MM-dd"),
       });
+      console.log(`[Analytics] ${profitabilityRpcName} took ${Math.round(performance.now() - t0)}ms`, { rows: data?.length });
       if (error) {
-        console.error("[Analytics] get_profitability_daily error:", error);
+        console.error(`[Analytics] ${profitabilityRpcName} error:`, error);
         throw error;
       }
       return data || [];
@@ -558,18 +566,18 @@ export default function Analytics() {
 
   // Fetch profitability data for previous period
   const { data: prevProfitabilityData } = useQuery({
-    queryKey: ["analytics_profitability_prev", restaurantFilter, format(profitabilityPrevRange.start, "yyyy-MM-dd"), format(profitabilityPrevRange.end, "yyyy-MM-dd")],
+    queryKey: ["analytics_profitability_prev", profitabilityRpcName, restaurantFilter, format(profitabilityPrevRange.start, "yyyy-MM-dd"), format(profitabilityPrevRange.end, "yyyy-MM-dd")],
     queryFn: async () => {
       const ids = restaurantFilter || restaurants?.filter(r => r.is_pinned).map(r => r.id) || [];
       if (!ids.length) return [];
-      
-      const { data, error } = await supabase.rpc("get_profitability_daily", {
+
+      const { data, error } = await supabase.rpc(profitabilityRpcName, {
         p_restaurant_ids: ids,
         p_start_date: format(profitabilityPrevRange.start, "yyyy-MM-dd"),
         p_end_date: format(profitabilityPrevRange.end, "yyyy-MM-dd"),
       });
       if (error) {
-        console.error("[Analytics] get_profitability_daily prev error:", error);
+        console.error(`[Analytics] ${profitabilityRpcName} prev error:`, error);
         throw error;
       }
       return data || [];

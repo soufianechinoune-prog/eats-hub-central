@@ -4573,6 +4573,23 @@ export type Database = {
           sales: number
         }[]
       }
+      get_profitability_monthly: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          day: string
+          item_promo_incl_vat: number
+          meal_voucher: number
+          net_payout: number
+          orders_count: number
+          payout: number
+          restaurant_id: string
+          sales: number
+        }[]
+      }
       get_restaurant_cash_revenue: {
         Args: { p_chain_id: string; p_end_date: string; p_start_date: string }
         Returns: {
