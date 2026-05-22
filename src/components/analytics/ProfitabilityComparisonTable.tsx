@@ -1031,7 +1031,37 @@ export function ProfitabilityComparisonTable({
       ecoChargeAmount: avgEcoChargeAmount,
       totalPayoutAmount: avgTotalPayoutAmount,
       advertisingAmount: avgAdvertisingAmount,
-    };
+  };
+
+  // Cellule Remboursements : 3 valeurs empilées (Clients / Annul. Uber / Net à ma charge)
+  const RefundCell = ({ clients, cancellation, net }: { clients: number; cancellation: number; net: number }) => {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-end gap-0.5 tabular-nums leading-tight cursor-help">
+              <span className="text-red-600 text-xs" title="Remb. clients (volume envoyé)">
+                {clients > 0 ? `-${formatCurrency(clients)}` : '-'}
+              </span>
+              <span className="text-emerald-600 text-xs" title="Annulations Uber (reprises)">
+                {cancellation > 0 ? `+${formatCurrency(cancellation)}` : '-'}
+              </span>
+              <span className={cn("font-semibold text-xs", net > 0 ? "text-red-700" : net < 0 ? "text-emerald-700" : "text-muted-foreground")}>
+                {net === 0 ? '0 €' : (net > 0 ? `-${formatCurrency(Math.abs(net))}` : `+${formatCurrency(Math.abs(net))}`)}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <div className="text-xs space-y-1">
+              <p><span className="text-red-600 font-medium">Remb. clients</span> : argent envoyé aux clients</p>
+              <p><span className="text-emerald-600 font-medium">Annulations Uber</span> : reprises Uber qui annulent un remboursement</p>
+              <p><span className="font-semibold">Net à ma charge</span> : Clients − Annulations = impact réel</p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
   }, [comparisonData, profitabilityBase, payouts]);
   
   if (comparisonData.length === 0) return null;
