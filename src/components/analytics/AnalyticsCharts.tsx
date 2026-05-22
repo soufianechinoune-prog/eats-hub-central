@@ -3493,16 +3493,16 @@ export function AnalyticsCharts({
           advertisingData={advertisingData}
           restaurants={restaurants}
           selectedRestaurants={selectedRestaurants || []}
-          startDate={propStartDate || (() => {
+          startDate={drillDownMonth ? new Date(selectedYear, drillDownMonth - 1, 1) : (propStartDate || (() => {
             const year = selectedYear;
-            const month = drillDownMonth ?? startMonth ?? 1;
+            const month = startMonth ?? 1;
             return new Date(year, month - 1, 1);
-          })()}
-          endDate={propEndDate || (() => {
+          })())}
+          endDate={drillDownMonth ? new Date(selectedYear, drillDownMonth, 0) : (propEndDate || (() => {
             const year = selectedYear;
-            const month = drillDownMonth ?? endMonth ?? 12;
+            const month = endMonth ?? 12;
             return new Date(year, month, 0);
-          })()}
+          })())}
           dateRange={profitabilityDateRange}
           previousDateRange={profitabilityPrevDateRange}
           profitabilityComparisonMode={profitabilityComparisonMode}
