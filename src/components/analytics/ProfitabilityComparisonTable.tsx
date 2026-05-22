@@ -124,7 +124,10 @@ interface ComparisonRow {
   otherRate: number;
   // Amounts for toggling display
   promoAmount: number;
-  refundAmount: number;
+  refundAmount: number;            // = refundToCustomer (volume envoyé aux clients)
+  refundToCustomer: number;
+  refundUberCancellation: number;
+  refundNet: number;
   orderCount: number;
   avgBasket: number;
   weekNumber: number;
