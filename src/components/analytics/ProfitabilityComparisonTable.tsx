@@ -822,6 +822,9 @@ export function ProfitabilityComparisonTable({
           totalUberFee: totalUberFeeHT,
           totalPromo,
           totalRefund,
+          totalRefundToCustomer,
+          totalRefundUberCancellation,
+          totalRefundNet,
           totalOrders,
           restaurantData,
         };
