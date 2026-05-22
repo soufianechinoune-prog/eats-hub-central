@@ -2144,7 +2144,7 @@ export function ProfitabilityComparisonTable({
                               </Button>
                             </div>
                             <div className="text-xs text-muted-foreground">
-                              {group.rows.length} versement{group.rows.length > 1 ? 's' : ''} • {group.totalOrders} cmd • Ø {group.totalOrders > 0 ? formatCurrency(group.totalSales / group.totalOrders) : '0 €'}
+                              {group.rows.length} ligne{group.rows.length > 1 ? 's' : ''} jour×resto • {group.totalOrders} cmd • Ø {group.totalOrders > 0 ? formatCurrency(group.totalSales / group.totalOrders) : '0 €'}
                             </div>
                           </TableCell>
                           <TableCell className="text-right font-medium tabular-nums">
