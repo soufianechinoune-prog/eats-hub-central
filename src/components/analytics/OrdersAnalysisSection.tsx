@@ -91,7 +91,8 @@ export function OrdersAnalysisSection({
   endDate,
   platform = "uber_eats",
 }: OrdersAnalysisSectionProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(true);
+  const [orderPageIndex, setOrderPageIndex] = useState(0);
   const [activeTab, setActiveTab] = useState<DrilldownGranularity>('daily');
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string | null>(
     selectedRestaurants.length === 1 ? selectedRestaurants[0] : null
@@ -155,6 +156,8 @@ export function OrdersAnalysisSection({
     orderSortDirection: orderSortDir,
     platform,
     fulfillmentFilter,
+    pageIndex: orderPageIndex,
+    pageSize: 100,
   });
   
   // Handle order sort toggle
@@ -338,19 +341,8 @@ export function OrdersAnalysisSection({
     return data;
   }, [orderData, showOffersOnly]);
 
-  if (!isExpanded) {
-    return (
-      <Card className="border-dashed">
-        <CardContent className="py-8 flex flex-col items-center gap-3">
-          <Package className="h-8 w-8 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">Analyse détaillée des commandes individuelles</p>
-          <Button variant="outline" onClick={() => setIsExpanded(true)}>
-            Charger l'analyse des commandes
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  // (Chargement automatique : le bouton manuel a été supprimé pour éviter le double-click,
+  // les agrégations sont maintenant faites côté base et restent rapides.)
 
   return (
     <Card>

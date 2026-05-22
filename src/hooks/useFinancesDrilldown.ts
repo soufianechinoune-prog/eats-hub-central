@@ -1,10 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
-import { format, startOfWeek, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 
-// Deliveroo history_type categories for mapping
+// =====================================================================
+// Deliveroo history_type categories for mapping (legacy client-side path)
+// =====================================================================
 const DELIVEROO_MEAL_VOUCHER_TYPES = [
   "Montant commande Edenred",
   "Montant commande Swile",
@@ -12,436 +14,34 @@ const DELIVEROO_MEAL_VOUCHER_TYPES = [
   "Montant commande Up",
   "Montant commande Bimpli",
 ];
-
-const DELIVEROO_REFUND_TYPES = [
-  "Remboursement client",
-];
-
+const DELIVEROO_REFUND_TYPES = ["Remboursement client"];
 const DELIVEROO_PROMO_TYPES = [
   "Partner funding from agreed voucher campaign",
   "Contribution marketing",
   "Bon de réduction à payer par le restaurant",
   "Publicités Marketer",
 ];
+const DELIVEROO_CREDIT_ADJUSTMENT_TYPES = ["Crédit pour rectification de facture"];
+const DELIVEROO_CANCELLATION_ORDER_TYPES = ["Montant commande annulée"];
+const DELIVEROO_CANCELLATION_COMMISSION_TYPES = ["Commission Deliveroo sur la commande annulée"];
+const DELIVEROO_CANCELLATION_FEE_TYPES = ["Frais d'annulation de commande"];
+const DELIVEROO_ECO_CONTRIBUTION_TYPES = ["Eco-contribution – article L.541-10 du Code de l'environnement"];
+const DELIVEROO_ORDER_TYPES = ["Livraison", "À emporter", "Nouvelle livraison"];
 
-const DELIVEROO_CREDIT_ADJUSTMENT_TYPES = [
-  "Crédit pour rectification de facture",
-];
+const SENTINEL = "00000000-0000-0000-0000-000000000000";
 
-const DELIVEROO_CANCELLATION_ORDER_TYPES = [
-  "Montant commande annulée",
-];
-
-const DELIVEROO_CANCELLATION_COMMISSION_TYPES = [
-  "Commission Deliveroo sur la commande annulée",
-];
-
-const DELIVEROO_CANCELLATION_FEE_TYPES = [
-  "Frais d'annulation de commande",
-];
-
-const DELIVEROO_ECO_CONTRIBUTION_TYPES = [
-  "Eco-contribution – article L.541-10 du Code de l'environnement",
-];
-
-const DELIVEROO_ORDER_TYPES = [
-  "Livraison",
-  "À emporter",
-  "Nouvelle livraison",
-];
-
-// Helper: fetch Uber orders data with pagination
-async function fetchUberOrdersData(restaurantIds: string[] | undefined, startStr: string, endStr: string) {
-  const PAGE_SIZE = 1000;
-  const allOrders: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from("orders")
-      .select("order_datetime, sales_incl_vat, refund_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, net_payout, meal_voucher_amount, restaurant_id")
-      .gte("order_datetime", `${startStr}T00:00:00`)
-      .lte("order_datetime", `${endStr}T23:59:59`)
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (restaurantIds && restaurantIds.length > 0) {
-      query = query.in("restaurant_id", restaurantIds);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    if (data) {
-      allOrders.push(...data);
-      hasMore = data.length === PAGE_SIZE;
-      from += PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  return allOrders;
-}
-
-// Helper: fetch Deliveroo orders data and map to common format
-async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, startStr: string, endStr: string) {
-  const PAGE_SIZE = 1000;
-  const allRows: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from("deliveroo_orders")
-      .select("delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, vat_amount, history_type, restaurant_id")
-      .gte("delivery_datetime", `${startStr}T00:00:00`)
-      .lte("delivery_datetime", `${endStr}T23:59:59`)
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (restaurantIds && restaurantIds.length > 0) {
-      query = query.in("restaurant_id", restaurantIds);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    if (data) {
-      allRows.push(...data);
-      hasMore = data.length === PAGE_SIZE;
-      from += PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  // Group by date+restaurant and aggregate by history_type
-  const groupKey = (row: any) => {
-    const date = row.delivery_datetime?.split("T")[0] || "unknown";
-    return `${date}|${row.restaurant_id}`;
-  };
-
-  const grouped: Record<string, {
-    order_datetime: string;
-    restaurant_id: string;
-    sales_incl_vat: number;
-    uber_fee_after_promo_incl_vat: number;
-    item_promo_incl_vat: number;
-    refund_incl_vat: number;
-    net_payout: number;
-    meal_voucher_amount: number;
-    order_count: number;
-  }> = {};
-
-  allRows.forEach(row => {
-    const key = groupKey(row);
-    if (!grouped[key]) {
-      grouped[key] = {
-        order_datetime: row.delivery_datetime,
-        restaurant_id: row.restaurant_id,
-        sales_incl_vat: 0,
-        uber_fee_after_promo_incl_vat: 0,
-        item_promo_incl_vat: 0,
-        refund_incl_vat: 0,
-        net_payout: 0,
-        meal_voucher_amount: 0,
-        order_count: 0,
-      };
-    }
-    const g = grouped[key];
-    const ht = row.history_type;
-
-    if (DELIVEROO_ORDER_TYPES.includes(ht)) {
-      g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
-      g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-      g.order_count += 1;
-    } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
-      g.meal_voucher_amount += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
-      g.refund_incl_vat += Math.abs(Number(row.order_amount) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
-      g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
-      // Crédits de rectification : ajout direct au net sans Math.abs (positif = crédit)
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_ORDER_TYPES.includes(ht)) {
-      // Montant commande annulée : remboursement (négatif)
-      g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_COMMISSION_TYPES.includes(ht)) {
-      // Commission sur commande annulée : crédit commission
-      g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_FEE_TYPES.includes(ht)) {
-      // Frais d'annulation : débit
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_ECO_CONTRIBUTION_TYPES.includes(ht)) {
-      // Éco-contribution : débit
-      g.net_payout += Number(row.total_payable) || 0;
-    } else {
-      // Other types (Remboursement de commission, etc.) → add to net_payout
-      g.net_payout += Number(row.total_payable) || 0;
-    }
-  });
-
-  return Object.values(grouped);
-}
-
-export type OrderSortField = "order_datetime" | "sales_excl_vat" | "sales_incl_vat" | "profitability" | "uber_fee" | "promo" | "refund" | "net_payout" | "meal_voucher" | "total_payout";
+export type OrderSortField =
+  | "order_datetime"
+  | "sales_excl_vat"
+  | "sales_incl_vat"
+  | "profitability"
+  | "uber_fee"
+  | "promo"
+  | "refund"
+  | "net_payout"
+  | "meal_voucher"
+  | "total_payout";
 export type SortDirection = "asc" | "desc";
-
-// Helper: fetch Uber individual orders (extracted from old inline code)
-async function fetchUberIndividualOrders(
-  restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, sortField: OrderSortField, sortDirection: SortDirection,
-  fulfillmentFilter: "all" | "delivery" | "pickup" = "all"
-) {
-  const sortColumnMap: Record<OrderSortField, string> = {
-    order_datetime: "order_datetime",
-    sales_excl_vat: "sales_excl_vat",
-    sales_incl_vat: "sales_incl_vat",
-    profitability: "sales_incl_vat",
-    uber_fee: "uber_fee_after_promo_incl_vat",
-    promo: "item_promo_incl_vat",
-    refund: "refund_incl_vat",
-    net_payout: "net_payout",
-    meal_voucher: "meal_voucher_amount",
-    total_payout: "net_payout",
-  };
-  const dbSortColumn = sortColumnMap[sortField];
-  const isAscending = sortDirection === "asc";
-
-  let orderIdsFromItemSearch: string[] | null = null;
-  if (searchQuery) {
-    let orderIdsInRange: string[] = [];
-    let orderQuery = supabase
-      .from("orders").select("id")
-      .gte("order_datetime", `${startStr}T00:00:00`)
-      .lte("order_datetime", `${endStr}T23:59:59`);
-    if (restaurantIds?.length) orderQuery = orderQuery.in("restaurant_id", restaurantIds);
-    const { data: ordersInRange } = await orderQuery;
-    if (ordersInRange) orderIdsInRange = ordersInRange.map(o => o.id);
-
-    if (orderIdsInRange.length > 0) {
-      const BATCH_SIZE = 500;
-      const matchingOrderIds: Set<string> = new Set();
-      for (let i = 0; i < orderIdsInRange.length; i += BATCH_SIZE) {
-        const batchIds = orderIdsInRange.slice(i, i + BATCH_SIZE);
-        const { data: matchingItems } = await supabase
-          .from("order_items").select("order_id")
-          .in("order_id", batchIds)
-          .ilike("item_title", `%${searchQuery}%`);
-        if (matchingItems) matchingItems.forEach(item => matchingOrderIds.add(item.order_id));
-      }
-      if (matchingOrderIds.size > 0) orderIdsFromItemSearch = [...matchingOrderIds];
-    }
-  }
-
-  // Fetch ALL orders with pagination (while loop)
-  const PAGE_SIZE = 1000;
-  const allOrders: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from("orders")
-      .select(`id, uber_order_id, order_datetime, sales_excl_vat, vat_1_sales, vat_2_sales, vat_3_sales, sales_incl_vat, uber_fee_after_promo_incl_vat, item_promo_incl_vat, refund_incl_vat, net_payout, meal_voucher_amount, promotion_discount, fulfillment_type, offer_usage_fee, vat_offer_usage_fee, marketing_fee_adjustment`)
-      .gte("order_datetime", `${startStr}T00:00:00`)
-      .lte("order_datetime", `${endStr}T23:59:59`)
-      .order(dbSortColumn, { ascending: isAscending })
-      .range(from, from + PAGE_SIZE - 1);
-    if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
-    if (searchQuery) {
-      if (orderIdsFromItemSearch?.length) {
-        query = query.or(`uber_order_id.ilike.%${searchQuery}%,id.in.(${orderIdsFromItemSearch.join(",")})`);
-      } else {
-        query = query.ilike("uber_order_id", `%${searchQuery}%`);
-      }
-    }
-    if (fulfillmentFilter === "delivery") {
-      query = query.or("fulfillment_type.ilike.%Livraison%,fulfillment_type.ilike.%Delivery%,fulfillment_type.ilike.%coursier%");
-    } else if (fulfillmentFilter === "pickup") {
-      query = query.or("fulfillment_type.ilike.%emporter%,fulfillment_type.ilike.%Pickup%");
-    }
-    const { data, error } = await query;
-    if (error) throw error;
-    if (data) {
-      allOrders.push(...data);
-      hasMore = data.length === PAGE_SIZE;
-      from += PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  const orderIds = allOrders.map(o => o.id);
-  let orderIdsWithItems: string[] = [];
-  if (orderIds.length > 0) {
-    // Batch the orderIdsWithItems check too
-    const BATCH = 500;
-    const itemOrderIds = new Set<string>();
-    for (let i = 0; i < orderIds.length; i += BATCH) {
-      const batch = orderIds.slice(i, i + BATCH);
-      const { data: itemsData } = await supabase
-        .from("order_items").select("order_id").in("order_id", batch);
-      if (itemsData) itemsData.forEach(item => itemOrderIds.add(item.order_id));
-    }
-    orderIdsWithItems = [...itemOrderIds];
-  }
-
-  return {
-    orders: allOrders,
-    totalCount: allOrders.length,
-    hasMore: false,
-    orderIdsWithItems,
-  };
-}
-
-// Helper: fetch Deliveroo individual orders grouped by deliveroo_order_id
-async function fetchDeliverooIndividualOrders(
-  restaurantIds: string[] | undefined, startStr: string, endStr: string,
-  searchQuery: string, sortField: OrderSortField, sortDirection: SortDirection
-) {
-  const PAGE_SIZE = 1000;
-  const allRows: any[] = [];
-  let from = 0;
-  let hasMore = true;
-
-  while (hasMore) {
-    let query = supabase
-      .from("deliveroo_orders")
-      .select("id, deliveroo_order_id, delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, history_type, restaurant_id, note")
-      .gte("delivery_datetime", `${startStr}T00:00:00`)
-      .lte("delivery_datetime", `${endStr}T23:59:59`)
-      .range(from, from + PAGE_SIZE - 1);
-
-    if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
-    const { data, error } = await query;
-    if (error) throw error;
-    if (data) {
-      allRows.push(...data);
-      hasMore = data.length === PAGE_SIZE;
-      from += PAGE_SIZE;
-    } else {
-      hasMore = false;
-    }
-  }
-
-  // Group by deliveroo_order_id
-  const grouped: Record<string, {
-    id: string;
-    uber_order_id: string;
-    order_datetime: string;
-    sales_incl_vat: number;
-    uber_fee_after_promo_incl_vat: number;
-    item_promo_incl_vat: number;
-    refund_incl_vat: number;
-    net_payout: number;
-    meal_voucher_amount: number;
-    has_offer: boolean;
-    offer_note: string;
-    deliveroo_funding: number;
-  }> = {};
-
-  allRows.forEach(row => {
-    const orderId = row.deliveroo_order_id || row.id;
-    if (!grouped[orderId]) {
-      grouped[orderId] = {
-        id: row.id,
-        uber_order_id: row.deliveroo_order_id || row.id,
-        order_datetime: row.delivery_datetime,
-        sales_incl_vat: 0,
-        uber_fee_after_promo_incl_vat: 0,
-        item_promo_incl_vat: 0,
-        refund_incl_vat: 0,
-        net_payout: 0,
-        meal_voucher_amount: 0,
-        has_offer: false,
-        offer_note: "",
-        deliveroo_funding: 0,
-      };
-    }
-    const g = grouped[orderId];
-    const ht = row.history_type;
-    const note = row.note || "";
-
-    if (ht === "Contribution marketing") {
-      g.has_offer = true;
-      g.deliveroo_funding += Math.abs(Number(row.total_payable) || 0);
-    }
-
-    if (note.includes("Remise sur offre Marketer")) {
-      g.has_offer = true;
-      const match = note.match(/Remise sur offre Marketer[^,\n]*/);
-      if (match && !g.offer_note) {
-        g.offer_note = match[0].trim();
-      }
-    }
-
-    if (DELIVEROO_ORDER_TYPES.includes(ht)) {
-      g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
-      g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
-      g.meal_voucher_amount += Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
-      g.refund_incl_vat += Math.abs(Number(row.order_amount) || Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
-      g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_ORDER_TYPES.includes(ht)) {
-      g.refund_incl_vat += Math.abs(Number(row.order_amount) || Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_COMMISSION_TYPES.includes(ht)) {
-      g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_CANCELLATION_FEE_TYPES.includes(ht)) {
-      g.net_payout += Number(row.total_payable) || 0;
-    } else if (DELIVEROO_ECO_CONTRIBUTION_TYPES.includes(ht)) {
-      g.net_payout += Number(row.total_payable) || 0;
-    } else {
-      g.net_payout += Number(row.total_payable) || 0;
-    }
-  });
-
-  let orders = Object.values(grouped).filter(o => {
-    if (o.uber_order_id === "0") return false;
-    if (Math.abs(o.sales_incl_vat) < 0.01 && Math.abs(o.uber_fee_after_promo_incl_vat) < 0.01 && Math.abs(o.meal_voucher_amount) > 0) return false;
-    return true;
-  });
-
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    orders = orders.filter(o => o.uber_order_id.toLowerCase().includes(q));
-  }
-
-  const isAsc = sortDirection === "asc";
-  orders.sort((a, b) => {
-    let cmp = 0;
-    if (sortField === "order_datetime") cmp = (a.order_datetime || "").localeCompare(b.order_datetime || "");
-    else if (sortField === "sales_incl_vat") cmp = a.sales_incl_vat - b.sales_incl_vat;
-    else if (sortField === "uber_fee") cmp = a.uber_fee_after_promo_incl_vat - b.uber_fee_after_promo_incl_vat;
-    else if (sortField === "net_payout") cmp = a.net_payout - b.net_payout;
-    else cmp = a.sales_incl_vat - b.sales_incl_vat;
-    return isAsc ? cmp : -cmp;
-  });
-
-  return {
-    orders,
-    totalCount: orders.length,
-    hasMore: false,
-    orderIdsWithItems: [] as string[],
-  };
-}
-
 export type DrilldownGranularity = "daily" | "hourly" | "product" | "order";
 
 interface DailyFinanceData {
@@ -451,12 +51,12 @@ interface DailyFinanceData {
   refund_incl_vat: number;
   order_count: number;
   avg_basket: number;
-  // Additional financial fields
   uber_fee_incl_vat: number;
   promo_incl_vat: number;
   net_payout: number;
   meal_voucher_amount: number;
   total_payout: number;
+  restaurant_id?: string;
 }
 
 interface HourlyFinanceData {
@@ -466,7 +66,6 @@ interface HourlyFinanceData {
   refund_incl_vat: number;
   order_count: number;
   avg_basket: number;
-  // Additional financial fields
   uber_fee_incl_vat: number;
   promo_incl_vat: number;
   net_payout: number;
@@ -484,7 +83,6 @@ interface ProductFinanceData {
   order_count: number;
   avg_unit_price: number;
   refund_rate: number;
-  // Additional financial field
   promo_incl_vat: number;
 }
 
@@ -510,7 +108,192 @@ export interface OrderFinanceData {
   marketing_cofunding?: number;
 }
 
+// =====================================================================
+// Deliveroo client-side helpers (kept for daily/hourly/order on Deliveroo)
+// =====================================================================
+async function fetchDeliverooOrdersData(restaurantIds: string[] | undefined, startStr: string, endStr: string) {
+  const PAGE_SIZE = 1000;
+  const allRows: any[] = [];
+  let from = 0;
+  let hasMore = true;
+  while (hasMore) {
+    let query = supabase
+      .from("deliveroo_orders")
+      .select("delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, vat_amount, history_type, restaurant_id")
+      .gte("delivery_datetime", `${startStr}T00:00:00`)
+      .lte("delivery_datetime", `${endStr}T23:59:59`)
+      .range(from, from + PAGE_SIZE - 1);
+    if (restaurantIds && restaurantIds.length > 0) query = query.in("restaurant_id", restaurantIds);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (data) {
+      allRows.push(...data);
+      hasMore = data.length === PAGE_SIZE;
+      from += PAGE_SIZE;
+    } else hasMore = false;
+  }
 
+  const grouped: Record<string, any> = {};
+  allRows.forEach(row => {
+    const date = row.delivery_datetime?.split("T")[0] || "unknown";
+    const key = `${date}|${row.restaurant_id}`;
+    if (!grouped[key]) {
+      grouped[key] = {
+        order_datetime: row.delivery_datetime,
+        restaurant_id: row.restaurant_id,
+        sales_incl_vat: 0,
+        uber_fee_after_promo_incl_vat: 0,
+        item_promo_incl_vat: 0,
+        refund_incl_vat: 0,
+        net_payout: 0,
+        meal_voucher_amount: 0,
+        order_count: 0,
+      };
+    }
+    const g = grouped[key];
+    const ht = row.history_type;
+    if (DELIVEROO_ORDER_TYPES.includes(ht)) {
+      g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
+      g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+      g.order_count += 1;
+    } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
+      g.meal_voucher_amount += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
+      g.refund_incl_vat += Math.abs(Number(row.order_amount) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
+      g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CREDIT_ADJUSTMENT_TYPES.includes(ht)) {
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_ORDER_TYPES.includes(ht)) {
+      g.refund_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_COMMISSION_TYPES.includes(ht)) {
+      g.uber_fee_after_promo_incl_vat -= Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_CANCELLATION_FEE_TYPES.includes(ht)) {
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_ECO_CONTRIBUTION_TYPES.includes(ht)) {
+      g.net_payout += Number(row.total_payable) || 0;
+    } else {
+      g.net_payout += Number(row.total_payable) || 0;
+    }
+  });
+  return Object.values(grouped);
+}
+
+async function fetchDeliverooIndividualOrders(
+  restaurantIds: string[] | undefined,
+  startStr: string,
+  endStr: string,
+  searchQuery: string,
+  sortField: OrderSortField,
+  sortDirection: SortDirection
+) {
+  const PAGE_SIZE = 1000;
+  const allRows: any[] = [];
+  let from = 0;
+  let hasMore = true;
+  while (hasMore) {
+    let query = supabase
+      .from("deliveroo_orders")
+      .select("id, deliveroo_order_id, delivery_datetime, order_amount, commission_amount, total_payable, adjustment_amount, history_type, restaurant_id, note")
+      .gte("delivery_datetime", `${startStr}T00:00:00`)
+      .lte("delivery_datetime", `${endStr}T23:59:59`)
+      .range(from, from + PAGE_SIZE - 1);
+    if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
+    const { data, error } = await query;
+    if (error) throw error;
+    if (data) {
+      allRows.push(...data);
+      hasMore = data.length === PAGE_SIZE;
+      from += PAGE_SIZE;
+    } else hasMore = false;
+  }
+
+  const grouped: Record<string, any> = {};
+  allRows.forEach(row => {
+    const orderId = row.deliveroo_order_id || row.id;
+    if (!grouped[orderId]) {
+      grouped[orderId] = {
+        id: row.id,
+        uber_order_id: row.deliveroo_order_id || row.id,
+        order_datetime: row.delivery_datetime,
+        sales_incl_vat: 0,
+        uber_fee_after_promo_incl_vat: 0,
+        item_promo_incl_vat: 0,
+        refund_incl_vat: 0,
+        net_payout: 0,
+        meal_voucher_amount: 0,
+        has_offer: false,
+        offer_note: "",
+        deliveroo_funding: 0,
+      };
+    }
+    const g = grouped[orderId];
+    const ht = row.history_type;
+    const note = row.note || "";
+    if (ht === "Contribution marketing") {
+      g.has_offer = true;
+      g.deliveroo_funding += Math.abs(Number(row.total_payable) || 0);
+    }
+    if (note.includes("Remise sur offre Marketer")) {
+      g.has_offer = true;
+      const match = note.match(/Remise sur offre Marketer[^,\n]*/);
+      if (match && !g.offer_note) g.offer_note = match[0].trim();
+    }
+    if (DELIVEROO_ORDER_TYPES.includes(ht)) {
+      g.sales_incl_vat += Math.abs(Number(row.order_amount) || 0);
+      g.uber_fee_after_promo_incl_vat += Math.abs(Number(row.commission_amount) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_MEAL_VOUCHER_TYPES.includes(ht)) {
+      g.meal_voucher_amount += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_REFUND_TYPES.includes(ht)) {
+      g.refund_incl_vat += Math.abs(Number(row.order_amount) || Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else if (DELIVEROO_PROMO_TYPES.includes(ht)) {
+      g.item_promo_incl_vat += Math.abs(Number(row.total_payable) || 0);
+      g.net_payout += Number(row.total_payable) || 0;
+    } else {
+      g.net_payout += Number(row.total_payable) || 0;
+    }
+  });
+
+  let orders = Object.values(grouped).filter((o: any) => {
+    if (o.uber_order_id === "0") return false;
+    if (Math.abs(o.sales_incl_vat) < 0.01 && Math.abs(o.uber_fee_after_promo_incl_vat) < 0.01 && Math.abs(o.meal_voucher_amount) > 0) return false;
+    return true;
+  }) as any[];
+
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    orders = orders.filter((o: any) => o.uber_order_id.toLowerCase().includes(q));
+  }
+  const isAsc = sortDirection === "asc";
+  orders.sort((a: any, b: any) => {
+    let cmp = 0;
+    if (sortField === "order_datetime") cmp = (a.order_datetime || "").localeCompare(b.order_datetime || "");
+    else if (sortField === "sales_incl_vat") cmp = a.sales_incl_vat - b.sales_incl_vat;
+    else if (sortField === "uber_fee") cmp = a.uber_fee_after_promo_incl_vat - b.uber_fee_after_promo_incl_vat;
+    else if (sortField === "net_payout") cmp = a.net_payout - b.net_payout;
+    else cmp = a.sales_incl_vat - b.sales_incl_vat;
+    return isAsc ? cmp : -cmp;
+  });
+
+  return {
+    orders,
+    totalCount: orders.length,
+    hasMore: false,
+    orderIdsWithItems: [] as string[],
+  };
+}
+
+// =====================================================================
+// Main hook
+// =====================================================================
 interface UseFinancesDrilldownParams {
   restaurantIds?: string[];
   startDate: Date;
@@ -522,6 +305,8 @@ interface UseFinancesDrilldownParams {
   orderSortDirection?: SortDirection;
   platform?: "uber_eats" | "deliveroo" | "global";
   fulfillmentFilter?: "all" | "delivery" | "pickup";
+  pageIndex?: number;
+  pageSize?: number;
 }
 
 export function useFinancesDrilldown({
@@ -535,454 +320,334 @@ export function useFinancesDrilldown({
   orderSortDirection = "desc",
   platform = "uber_eats",
   fulfillmentFilter = "all",
+  pageIndex = 0,
+  pageSize = 100,
 }: UseFinancesDrilldownParams) {
   const startStr = format(startDate, "yyyy-MM-dd");
   const endStr = format(endDate, "yyyy-MM-dd");
 
-  // Sentinel guard: ne lance pas les requêtes lourdes tant que les vrais restaurants
-  // ne sont pas résolus (évite des fetchs inutiles qui timeoutent).
   const hasRealIds =
     !!restaurantIds &&
     restaurantIds.length > 0 &&
-    !restaurantIds.includes("00000000-0000-0000-0000-000000000000");
+    !restaurantIds.includes(SENTINEL);
   const ready = enabled && hasRealIds;
 
-  // Fetch orders data for daily/hourly breakdown - include financial fields with pagination
-  const { data: ordersData, isLoading: loadingOrders } = useQuery({
-    queryKey: ["finances-drilldown-orders", restaurantIds, startStr, endStr, granularity, platform],
+  const isUber = platform === "uber_eats" || platform === "global";
+  const isDeliveroo = platform === "deliveroo" || platform === "global";
+
+  // ============ DAILY (Uber via RPC) ============
+  const { data: uberDailyData = [], isLoading: loadingUberDaily } = useQuery({
+    queryKey: ["finances-daily-uber", restaurantIds, startStr, endStr],
     queryFn: async () => {
-      if (platform === "deliveroo") {
-        return fetchDeliverooOrdersData(restaurantIds, startStr, endStr);
-      }
-      if (platform === "global") {
-        const [uberData, deliverooData] = await Promise.all([
-          fetchUberOrdersData(restaurantIds, startStr, endStr),
-          fetchDeliverooOrdersData(restaurantIds, startStr, endStr),
-        ]);
-        return [...uberData, ...deliverooData];
-      }
-      return fetchUberOrdersData(restaurantIds, startStr, endStr);
+      const { data, error } = await supabase.rpc("get_finances_daily_uber", {
+        p_restaurant_ids: restaurantIds!,
+        p_start_date: startStr,
+        p_end_date: endStr,
+      });
+      if (error) throw error;
+      return data || [];
     },
-    enabled: ready && (granularity === "daily" || granularity === "hourly"),
-    retry: false,
+    enabled: ready && granularity === "daily" && isUber,
     staleTime: 2 * 60 * 1000,
-  });
-
-  // Fetch order items for product breakdown with pagination
-  const { data: itemsData, isLoading: loadingItems } = useQuery({
-    queryKey: ["finances-drilldown-items", restaurantIds, startStr, endStr],
-    queryFn: async () => {
-      const PAGE_SIZE = 1000;
-      const allOrderIds: string[] = [];
-      let from = 0;
-      let hasMore = true;
-
-      // First get ALL orders in date range with pagination
-      while (hasMore) {
-        let ordersQuery = supabase
-          .from("orders")
-          .select("id")
-          .gte("order_datetime", `${startStr}T00:00:00`)
-          .lte("order_datetime", `${endStr}T23:59:59`)
-          .range(from, from + PAGE_SIZE - 1);
-
-        if (restaurantIds && restaurantIds.length > 0) {
-          ordersQuery = ordersQuery.in("restaurant_id", restaurantIds);
-        }
-
-        const { data: ordersInRange, error: ordersError } = await ordersQuery;
-        if (ordersError) throw ordersError;
-
-        if (ordersInRange) {
-          allOrderIds.push(...ordersInRange.map(o => o.id));
-          hasMore = ordersInRange.length === PAGE_SIZE;
-          from += PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      if (!allOrderIds.length) return [];
-
-      // Fetch items in batches
-      const BATCH_SIZE = 500;
-      const allItems: any[] = [];
-
-      for (let i = 0; i < allOrderIds.length; i += BATCH_SIZE) {
-        const batchIds = allOrderIds.slice(i, i + BATCH_SIZE);
-        const { data: items, error: itemsError } = await supabase
-          .from("order_items")
-          .select("item_id, item_title, category, quantity, sales_incl_vat, refund_incl_vat, item_promo_incl_vat, order_id")
-          .in("order_id", batchIds);
-
-        if (itemsError) throw itemsError;
-        if (items) allItems.push(...items);
-      }
-
-      return allItems;
-    },
-    enabled: ready && granularity === "product", staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
-  // Fetch ALL individual orders (no pagination limit)
-  const { data: individualOrdersData, isLoading: loadingIndividualOrders } = useQuery({
-    queryKey: ["finances-drilldown-individual-orders", restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, platform, fulfillmentFilter],
-    queryFn: async () => {
-      if (platform === "deliveroo") {
-        return fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection);
-      }
-      if (platform === "global") {
-        const [uber, deliveroo] = await Promise.all([
-          fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter),
-          fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection),
-        ]);
-        const merged = [...uber.orders, ...deliveroo.orders];
-        const sortCol = orderSortField === "order_datetime" ? "order_datetime" : "sales_incl_vat";
-        merged.sort((a: any, b: any) => {
-          const va = sortCol === "order_datetime" ? (a.order_datetime || "") : (Number(a[sortCol]) || 0);
-          const vb = sortCol === "order_datetime" ? (b.order_datetime || "") : (Number(b[sortCol]) || 0);
-          const cmp = va < vb ? -1 : va > vb ? 1 : 0;
-          return orderSortDirection === "asc" ? cmp : -cmp;
-        });
-        return {
-          orders: merged,
-          totalCount: uber.totalCount + deliveroo.totalCount,
-          hasMore: false,
-          orderIdsWithItems: uber.orderIdsWithItems,
-        };
-      }
-      return fetchUberIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter);
-    },
-    enabled: ready && granularity === "order", staleTime: 2 * 60 * 1000,
+  // ============ DAILY (Deliveroo legacy) ============
+  const { data: deliverooDailyRaw = [], isLoading: loadingDeliverooDaily } = useQuery({
+    queryKey: ["finances-daily-deliveroo", restaurantIds, startStr, endStr],
+    queryFn: () => fetchDeliverooOrdersData(restaurantIds, startStr, endStr),
+    enabled: ready && granularity === "daily" && isDeliveroo,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
-  // Fetch fulfillment stats (server-side aggregation on ALL orders, not paginated)
-  const { data: fulfillmentStatsData } = useQuery({
-    queryKey: ["finances-fulfillment-stats", restaurantIds, startStr, endStr, platform],
+  // ============ HOURLY (Uber via RPC) ============
+  const { data: uberHourlyData = [], isLoading: loadingUberHourly } = useQuery({
+    queryKey: ["finances-hourly-uber", restaurantIds, startStr, endStr],
     queryFn: async () => {
-      // Only Uber orders have fulfillment_type
-      if (platform === "deliveroo") return null;
-
-      let query = supabase
-        .from("orders")
-        .select("fulfillment_type, sales_incl_vat")
-        .gte("order_datetime", `${startStr}T00:00:00`)
-        .lte("order_datetime", `${endStr}T23:59:59`);
-
-      if (restaurantIds?.length) query = query.in("restaurant_id", restaurantIds);
-
-      // Paginate to get all
-      const PAGE_SIZE = 1000;
-      let from = 0;
-      let hasMore = true;
-      let deliveryCount = 0, pickupCount = 0, deliveryRevenue = 0, pickupRevenue = 0, totalCount = 0;
-
-      while (hasMore) {
-        const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
-        if (error) throw error;
-        if (data) {
-          data.forEach(row => {
-            totalCount++;
-            const ft = (row.fulfillment_type || "").toLowerCase();
-            const rev = Math.abs(Number(row.sales_incl_vat) || 0);
-            if (ft.includes("livraison") || ft.includes("delivery") || ft.includes("coursier")) {
-              deliveryCount++;
-              deliveryRevenue += rev;
-            } else if (ft.includes("emporter") || ft.includes("pickup")) {
-              pickupCount++;
-              pickupRevenue += rev;
-            }
-          });
-          hasMore = data.length === PAGE_SIZE;
-          from += PAGE_SIZE;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      if (totalCount === 0) return null;
-      return {
-        delivery: { count: deliveryCount, pct: totalCount > 0 ? (deliveryCount / totalCount) * 100 : 0, revenue: deliveryRevenue },
-        pickup: { count: pickupCount, pct: totalCount > 0 ? (pickupCount / totalCount) * 100 : 0, revenue: pickupRevenue },
-      };
+      const { data, error } = await supabase.rpc("get_finances_hourly_uber", {
+        p_restaurant_ids: restaurantIds!,
+        p_start_date: startStr,
+        p_end_date: endStr,
+      });
+      if (error) throw error;
+      return data || [];
     },
-    enabled: ready && granularity === "order" && platform !== "deliveroo", staleTime: 2 * 60 * 1000,
+    enabled: ready && granularity === "hourly" && isUber,
+    staleTime: 2 * 60 * 1000,
     retry: false,
   });
 
-  // Process daily data with additional financial columns
+  // ============ HOURLY (Deliveroo legacy) ============
+  const { data: deliverooHourlyRaw = [], isLoading: loadingDeliverooHourly } = useQuery({
+    queryKey: ["finances-hourly-deliveroo", restaurantIds, startStr, endStr],
+    queryFn: () => fetchDeliverooOrdersData(restaurantIds, startStr, endStr),
+    enabled: ready && granularity === "hourly" && isDeliveroo,
+    staleTime: 2 * 60 * 1000,
+    retry: false,
+  });
+
+  // ============ PRODUCT (Uber via RPC) ============
+  const { data: productRpcData = [], isLoading: loadingProducts } = useQuery({
+    queryKey: ["finances-products-uber", restaurantIds, startStr, endStr],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_finances_products_uber", {
+        p_restaurant_ids: restaurantIds!,
+        p_start_date: startStr,
+        p_end_date: endStr,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: ready && granularity === "product" && platform !== "deliveroo",
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  // ============ ORDER (Uber via paginated RPC) ============
+  const { data: uberOrdersPage, isLoading: loadingUberOrders } = useQuery({
+    queryKey: [
+      "finances-orders-uber",
+      restaurantIds, startStr, endStr,
+      orderSearchQuery, orderSortField, orderSortDirection, fulfillmentFilter,
+      pageIndex, pageSize,
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_finances_orders_paginated_uber", {
+        p_restaurant_ids: restaurantIds!,
+        p_start_date: startStr,
+        p_end_date: endStr,
+        p_search: orderSearchQuery || null,
+        p_sort_field: orderSortField,
+        p_sort_dir: orderSortDirection,
+        p_fulfillment: fulfillmentFilter,
+        p_limit: pageSize,
+        p_offset: pageIndex * pageSize,
+      });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: ready && granularity === "order" && isUber,
+    staleTime: 60 * 1000,
+    retry: false,
+  });
+
+  // ============ ORDER (Deliveroo legacy) ============
+  const { data: deliverooOrdersData, isLoading: loadingDeliverooOrders } = useQuery({
+    queryKey: ["finances-orders-deliveroo", restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection],
+    queryFn: () =>
+      fetchDeliverooIndividualOrders(restaurantIds, startStr, endStr, orderSearchQuery, orderSortField, orderSortDirection),
+    enabled: ready && granularity === "order" && platform === "deliveroo",
+    staleTime: 2 * 60 * 1000,
+    retry: false,
+  });
+
+  // ============ Fulfillment stats (Uber only, server-side via daily RPC sum) ============
+  const fulfillmentStatsData = null; // Désactivé: data lourde, peut être ré-ajoutée via une RPC dédiée
+
+  // =====================================================================
+  // Memo: dailyData
+  // =====================================================================
   const dailyData = useMemo((): DailyFinanceData[] => {
-    if (granularity !== "daily" || !ordersData?.length) return [];
+    if (granularity !== "daily") return [];
+    const byDate: Record<string, any> = {};
 
-    const byDate: Record<string, { 
-      sales: number; 
-      refund: number; 
-      count: number;
-      uberFee: number;
-      promo: number;
-      netPayout: number;
-      mealVoucher: number;
-    }> = {};
-
-    ordersData.forEach(order => {
-      if (!order.order_datetime) return;
-      const date = order.order_datetime.split("T")[0];
-      
+    // Uber RPC rows
+    (uberDailyData as any[]).forEach(r => {
+      const date = String(r.day).slice(0, 10);
       if (!byDate[date]) {
         byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
       }
-      
-      byDate[date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
-      byDate[date].refund += Math.abs(Number(order.refund_incl_vat) || 0);
-      byDate[date].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
-      byDate[date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
-      byDate[date].netPayout += Number(order.net_payout) || 0;
-      byDate[date].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byDate[date].count += (order as any).order_count || 1;
+      byDate[date].sales += Number(r.sales_incl_vat) || 0;
+      byDate[date].refund += Number(r.refund_incl_vat) || 0;
+      byDate[date].uberFee += Number(r.uber_fee_incl_vat) || 0;
+      byDate[date].promo += Number(r.promo_incl_vat) || 0;
+      byDate[date].netPayout += Number(r.net_payout) || 0;
+      byDate[date].mealVoucher += Number(r.meal_voucher_amount) || 0;
+      byDate[date].count += Number(r.order_count) || 0;
+    });
+
+    // Deliveroo rows (legacy shape)
+    (deliverooDailyRaw as any[]).forEach((o: any) => {
+      if (!o.order_datetime) return;
+      const date = o.order_datetime.split("T")[0];
+      if (!byDate[date]) {
+        byDate[date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
+      }
+      byDate[date].sales += Math.abs(Number(o.sales_incl_vat) || 0);
+      byDate[date].refund += Math.abs(Number(o.refund_incl_vat) || 0);
+      byDate[date].uberFee += Math.abs(Number(o.uber_fee_after_promo_incl_vat) || 0);
+      byDate[date].promo += Math.abs(Number(o.item_promo_incl_vat) || 0);
+      byDate[date].netPayout += Number(o.net_payout) || 0;
+      byDate[date].mealVoucher += Number(o.meal_voucher_amount) || 0;
+      byDate[date].count += Number(o.order_count) || 1;
     });
 
     return Object.entries(byDate)
-      .map(([date, stats]) => ({
+      .map(([date, s]: [string, any]) => ({
         date,
         label: format(new Date(date), "EEE dd MMM", { locale: fr }),
-        sales_incl_vat: stats.sales,
-        refund_incl_vat: stats.refund,
-        order_count: stats.count,
-        avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
-        uber_fee_incl_vat: stats.uberFee,
-        promo_incl_vat: stats.promo,
-        net_payout: stats.netPayout,
-        meal_voucher_amount: stats.mealVoucher,
-        total_payout: stats.netPayout + stats.mealVoucher,
+        sales_incl_vat: s.sales,
+        refund_incl_vat: s.refund,
+        order_count: s.count,
+        avg_basket: s.count > 0 ? s.sales / s.count : 0,
+        uber_fee_incl_vat: s.uberFee,
+        promo_incl_vat: s.promo,
+        net_payout: s.netPayout,
+        meal_voucher_amount: s.mealVoucher,
+        total_payout: s.netPayout + s.mealVoucher,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [ordersData, granularity]);
+  }, [granularity, uberDailyData, deliverooDailyRaw]);
 
-  // Process daily data BY RESTAURANT for detailed chart view
+  // Per-restaurant breakdown (used by chart)
   const dailyDataByRestaurant = useMemo((): Record<string, DailyFinanceData[]> => {
-    if (granularity !== "daily" || !ordersData?.length) return {};
+    if (granularity !== "daily") return {};
+    const out: Record<string, Record<string, any>> = {};
 
-    // Group by restaurant then by date
-    const byRestaurantAndDate: Record<string, Record<string, { 
-      sales: number; 
-      refund: number; 
-      count: number;
-      uberFee: number;
-      promo: number;
-      netPayout: number;
-      mealVoucher: number;
-    }>> = {};
-
-    ordersData.forEach(order => {
-      if (!order.order_datetime || !order.restaurant_id) return;
-      const date = order.order_datetime.split("T")[0];
-      const restaurantId = order.restaurant_id;
-      
-      if (!byRestaurantAndDate[restaurantId]) {
-        byRestaurantAndDate[restaurantId] = {};
-      }
-      
-      if (!byRestaurantAndDate[restaurantId][date]) {
-        byRestaurantAndDate[restaurantId][date] = { 
-          sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 
-        };
-      }
-      
-      byRestaurantAndDate[restaurantId][date].sales += Math.abs(Number(order.sales_incl_vat) || 0);
-      byRestaurantAndDate[restaurantId][date].refund += Math.abs(Number(order.refund_incl_vat) || 0);
-      byRestaurantAndDate[restaurantId][date].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
-      byRestaurantAndDate[restaurantId][date].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
-      byRestaurantAndDate[restaurantId][date].netPayout += Number(order.net_payout) || 0;
-      byRestaurantAndDate[restaurantId][date].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byRestaurantAndDate[restaurantId][date].count += (order as any).order_count || 1;
+    (uberDailyData as any[]).forEach(r => {
+      const rid = r.restaurant_id;
+      const date = String(r.day).slice(0, 10);
+      if (!out[rid]) out[rid] = {};
+      if (!out[rid][date]) out[rid][date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
+      const x = out[rid][date];
+      x.sales += Number(r.sales_incl_vat) || 0;
+      x.refund += Number(r.refund_incl_vat) || 0;
+      x.uberFee += Number(r.uber_fee_incl_vat) || 0;
+      x.promo += Number(r.promo_incl_vat) || 0;
+      x.netPayout += Number(r.net_payout) || 0;
+      x.mealVoucher += Number(r.meal_voucher_amount) || 0;
+      x.count += Number(r.order_count) || 0;
     });
 
-    // Convert to output format
+    (deliverooDailyRaw as any[]).forEach((o: any) => {
+      const rid = o.restaurant_id;
+      if (!rid || !o.order_datetime) return;
+      const date = o.order_datetime.split("T")[0];
+      if (!out[rid]) out[rid] = {};
+      if (!out[rid][date]) out[rid][date] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
+      const x = out[rid][date];
+      x.sales += Math.abs(Number(o.sales_incl_vat) || 0);
+      x.refund += Math.abs(Number(o.refund_incl_vat) || 0);
+      x.uberFee += Math.abs(Number(o.uber_fee_after_promo_incl_vat) || 0);
+      x.promo += Math.abs(Number(o.item_promo_incl_vat) || 0);
+      x.netPayout += Number(o.net_payout) || 0;
+      x.mealVoucher += Number(o.meal_voucher_amount) || 0;
+      x.count += Number(o.order_count) || 1;
+    });
+
     const result: Record<string, DailyFinanceData[]> = {};
-    
-    Object.entries(byRestaurantAndDate).forEach(([restaurantId, dateData]) => {
-      result[restaurantId] = Object.entries(dateData)
-        .map(([date, stats]) => ({
+    Object.entries(out).forEach(([rid, byDate]) => {
+      result[rid] = Object.entries(byDate)
+        .map(([date, s]: [string, any]) => ({
           date,
           label: format(new Date(date), "EEE dd MMM", { locale: fr }),
-          sales_incl_vat: stats.sales,
-          refund_incl_vat: stats.refund,
-          order_count: stats.count,
-          avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
-          uber_fee_incl_vat: stats.uberFee,
-          promo_incl_vat: stats.promo,
-          net_payout: stats.netPayout,
-          meal_voucher_amount: stats.mealVoucher,
-          total_payout: stats.netPayout + stats.mealVoucher,
+          sales_incl_vat: s.sales,
+          refund_incl_vat: s.refund,
+          order_count: s.count,
+          avg_basket: s.count > 0 ? s.sales / s.count : 0,
+          uber_fee_incl_vat: s.uberFee,
+          promo_incl_vat: s.promo,
+          net_payout: s.netPayout,
+          meal_voucher_amount: s.mealVoucher,
+          total_payout: s.netPayout + s.mealVoucher,
+          restaurant_id: rid,
         }))
         .sort((a, b) => a.date.localeCompare(b.date));
     });
-
     return result;
-  }, [ordersData, granularity]);
+  }, [granularity, uberDailyData, deliverooDailyRaw]);
 
-  // Process hourly data with additional financial columns
+  // =====================================================================
+  // Memo: hourlyData
+  // =====================================================================
   const hourlyData = useMemo((): HourlyFinanceData[] => {
-    if (granularity !== "hourly" || !ordersData?.length) return [];
+    if (granularity !== "hourly") return [];
+    const byHour: Record<number, any> = {};
+    for (let h = 0; h < 24; h++) byHour[h] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
 
-    const byHour: Record<number, { 
-      sales: number; 
-      refund: number; 
-      count: number;
-      uberFee: number;
-      promo: number;
-      netPayout: number;
-      mealVoucher: number;
-    }> = {};
+    (uberHourlyData as any[]).forEach(r => {
+      const h = Number(r.hour);
+      if (!Number.isFinite(h)) return;
+      byHour[h].sales += Number(r.sales_incl_vat) || 0;
+      byHour[h].refund += Number(r.refund_incl_vat) || 0;
+      byHour[h].uberFee += Number(r.uber_fee_incl_vat) || 0;
+      byHour[h].promo += Number(r.promo_incl_vat) || 0;
+      byHour[h].netPayout += Number(r.net_payout) || 0;
+      byHour[h].mealVoucher += Number(r.meal_voucher_amount) || 0;
+      byHour[h].count += Number(r.order_count) || 0;
+    });
 
-    // Initialize all hours
-    for (let h = 0; h < 24; h++) {
-      byHour[h] = { sales: 0, refund: 0, count: 0, uberFee: 0, promo: 0, netPayout: 0, mealVoucher: 0 };
-    }
-
-    ordersData.forEach(order => {
-      if (!order.order_datetime) return;
-      const hour = new Date(order.order_datetime).getHours();
-      
-      byHour[hour].sales += Math.abs(Number(order.sales_incl_vat) || 0);
-      byHour[hour].refund += Math.abs(Number(order.refund_incl_vat) || 0);
-      byHour[hour].uberFee += Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
-      byHour[hour].promo += Math.abs(Number(order.item_promo_incl_vat) || 0);
-      byHour[hour].netPayout += Number(order.net_payout) || 0;
-      byHour[hour].mealVoucher += Number(order.meal_voucher_amount) || 0;
-      byHour[hour].count += (order as any).order_count || 1;
+    (deliverooHourlyRaw as any[]).forEach((o: any) => {
+      if (!o.order_datetime) return;
+      const h = new Date(o.order_datetime).getHours();
+      byHour[h].sales += Math.abs(Number(o.sales_incl_vat) || 0);
+      byHour[h].refund += Math.abs(Number(o.refund_incl_vat) || 0);
+      byHour[h].uberFee += Math.abs(Number(o.uber_fee_after_promo_incl_vat) || 0);
+      byHour[h].promo += Math.abs(Number(o.item_promo_incl_vat) || 0);
+      byHour[h].netPayout += Number(o.net_payout) || 0;
+      byHour[h].mealVoucher += Number(o.meal_voucher_amount) || 0;
+      byHour[h].count += Number(o.order_count) || 1;
     });
 
     return Object.entries(byHour)
-      .map(([hour, stats]) => ({
+      .map(([hour, s]: [string, any]) => ({
         hour: Number(hour),
         label: `${hour}h`,
-        sales_incl_vat: stats.sales,
-        refund_incl_vat: stats.refund,
-        order_count: stats.count,
-        avg_basket: stats.count > 0 ? stats.sales / stats.count : 0,
-        uber_fee_incl_vat: stats.uberFee,
-        promo_incl_vat: stats.promo,
-        net_payout: stats.netPayout,
-        meal_voucher_amount: stats.mealVoucher,
-        total_payout: stats.netPayout + stats.mealVoucher,
+        sales_incl_vat: s.sales,
+        refund_incl_vat: s.refund,
+        order_count: s.count,
+        avg_basket: s.count > 0 ? s.sales / s.count : 0,
+        uber_fee_incl_vat: s.uberFee,
+        promo_incl_vat: s.promo,
+        net_payout: s.netPayout,
+        meal_voucher_amount: s.mealVoucher,
+        total_payout: s.netPayout + s.mealVoucher,
       }))
-      .filter(h => h.order_count > 0) // Only show hours with orders
+      .filter(h => h.order_count > 0)
       .sort((a, b) => a.hour - b.hour);
-  }, [ordersData, granularity]);
+  }, [granularity, uberHourlyData, deliverooHourlyRaw]);
 
-  // Process product data with promo field
+  // =====================================================================
+  // Memo: productData
+  // =====================================================================
   const productData = useMemo((): ProductFinanceData[] => {
-    if (granularity !== "product" || !itemsData?.length) return [];
-
-    const byProduct: Record<string, {
-      item_title: string;
-      category: string | null;
-      quantity: number;
-      sales: number;
-      refund: number;
-      promo: number;
-      orderIds: Set<string>;
-    }> = {};
-
-    itemsData.forEach(item => {
-      const key = item.item_id;
-      
-      if (!byProduct[key]) {
-        byProduct[key] = {
-          item_title: item.item_title || "Produit inconnu",
-          category: item.category,
-          quantity: 0,
-          sales: 0,
-          refund: 0,
-          promo: 0,
-          orderIds: new Set(),
-        };
-      }
-      
-      byProduct[key].quantity += Number(item.quantity) || 1;
-      byProduct[key].sales += Math.abs(Number(item.sales_incl_vat) || 0);
-      byProduct[key].refund += Math.abs(Number(item.refund_incl_vat) || 0);
-      byProduct[key].promo += Math.abs(Number(item.item_promo_incl_vat) || 0);
-      byProduct[key].orderIds.add(item.order_id);
+    if (granularity !== "product") return [];
+    if (platform === "deliveroo") return [];
+    return (productRpcData as any[]).map((r: any) => {
+      const sales = Number(r.sales_incl_vat) || 0;
+      const refund = Number(r.refund_incl_vat) || 0;
+      const qty = Number(r.quantity) || 0;
+      return {
+        item_id: r.item_id,
+        item_title: r.item_title || "Produit inconnu",
+        category: r.category || null,
+        quantity: qty,
+        sales_incl_vat: sales,
+        refund_incl_vat: refund,
+        promo_incl_vat: Number(r.promo_incl_vat) || 0,
+        order_count: Number(r.order_count) || 0,
+        avg_unit_price: qty > 0 ? sales / qty : 0,
+        refund_rate: sales > 0 ? (refund / sales) * 100 : 0,
+      };
     });
+  }, [granularity, productRpcData, platform]);
 
-    return Object.entries(byProduct)
-      .map(([item_id, stats]) => ({
-        item_id,
-        item_title: stats.item_title,
-        category: stats.category,
-        quantity: stats.quantity,
-        sales_incl_vat: stats.sales,
-        refund_incl_vat: stats.refund,
-        promo_incl_vat: stats.promo,
-        order_count: stats.orderIds.size,
-        avg_unit_price: stats.quantity > 0 ? stats.sales / stats.quantity : 0,
-        refund_rate: stats.sales > 0 ? (stats.refund / stats.sales) * 100 : 0,
-      }))
-      .sort((a, b) => b.sales_incl_vat - a.sales_incl_vat);
-  }, [itemsData, granularity]);
-
-  // Summary stats
-  const summary = useMemo(() => {
-    if (granularity === "daily" && dailyData.length > 0) {
-      const totalSales = dailyData.reduce((sum, d) => sum + d.sales_incl_vat, 0);
-      const totalRefund = dailyData.reduce((sum, d) => sum + d.refund_incl_vat, 0);
-      const totalOrders = dailyData.reduce((sum, d) => sum + d.order_count, 0);
-      
-      return {
-        totalSales,
-        totalRefund,
-        totalOrders,
-        avgBasket: totalOrders > 0 ? totalSales / totalOrders : 0,
-        periodCount: dailyData.length,
-      };
-    }
-
-    if (granularity === "hourly" && hourlyData.length > 0) {
-      const totalSales = hourlyData.reduce((sum, d) => sum + d.sales_incl_vat, 0);
-      const totalRefund = hourlyData.reduce((sum, d) => sum + d.refund_incl_vat, 0);
-      const totalOrders = hourlyData.reduce((sum, d) => sum + d.order_count, 0);
-      const peakHour = hourlyData.reduce((max, d) => d.order_count > max.order_count ? d : max, hourlyData[0]);
-      
-      return {
-        totalSales,
-        totalRefund,
-        totalOrders,
-        avgBasket: totalOrders > 0 ? totalSales / totalOrders : 0,
-        peakHour: peakHour?.hour,
-        peakHourOrders: peakHour?.order_count,
-      };
-    }
-
-    if (granularity === "product" && productData.length > 0) {
-      const totalSales = productData.reduce((sum, d) => sum + d.sales_incl_vat, 0);
-      const totalRefund = productData.reduce((sum, d) => sum + d.refund_incl_vat, 0);
-      const totalQuantity = productData.reduce((sum, d) => sum + d.quantity, 0);
-      const topProduct = productData[0];
-      
-      return {
-        totalSales,
-        totalRefund,
-        totalQuantity,
-        productCount: productData.length,
-        topProduct: topProduct?.item_title,
-        topProductSales: topProduct?.sales_incl_vat,
-      };
-    }
-
-    return null;
-  }, [granularity, dailyData, hourlyData, productData]);
-
-  // Process order data
+  // =====================================================================
+  // Memo: orderData + pagination
+  // =====================================================================
   const orderData = useMemo((): OrderFinanceData[] => {
-    if (granularity !== "order" || !individualOrdersData?.orders?.length) return [];
+    if (granularity !== "order") return [];
+    const rawList: any[] =
+      platform === "deliveroo"
+        ? deliverooOrdersData?.orders || []
+        : (uberOrdersPage as any[]) || [];
 
-    return individualOrdersData.orders.map(order => {
-      const salesExclVat = Math.abs(Number((order as any).sales_excl_vat) || 0);
-      const vatAmount = Math.abs((Number((order as any).vat_1_sales) || 0) + (Number((order as any).vat_2_sales) || 0) + (Number((order as any).vat_3_sales) || 0));
+    return rawList.map((order: any) => {
+      const salesExclVat = Math.abs(Number(order.sales_excl_vat) || 0);
+      const vatAmount = Math.abs(
+        (Number(order.vat_1_sales) || 0) + (Number(order.vat_2_sales) || 0) + (Number(order.vat_3_sales) || 0)
+      );
       const salesInclVat = Math.abs(Number(order.sales_incl_vat) || 0);
       const uberFeeInclVat = Math.abs(Number(order.uber_fee_after_promo_incl_vat) || 0);
       const promoInclVat = Math.abs(Number(order.item_promo_incl_vat) || 0);
@@ -991,7 +656,6 @@ export function useFinancesDrilldown({
       const mealVoucherAmount = Number(order.meal_voucher_amount) || 0;
       const totalPayout = netPayout + mealVoucherAmount;
       const profitability = salesInclVat > 0 ? (totalPayout / salesInclVat) * 100 : 0;
-
       return {
         id: order.id,
         uber_order_id: order.uber_order_id,
@@ -1006,15 +670,81 @@ export function useFinancesDrilldown({
         meal_voucher_amount: mealVoucherAmount,
         total_payout: totalPayout,
         profitability,
-        has_offer: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 || Math.abs(Number((order as any).promotion_discount) || 0) > 0,
-        offer_note: Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString('fr-FR', { minimumFractionDigits: 2 })} €` : "",
-        deliveroo_funding: Number((order as any).deliveroo_funding) || 0,
-        fulfillment_type: (order as any).fulfillment_type || null,
-        offer_fee_incl_vat: Math.abs(Number((order as any).offer_usage_fee) || 0) + Math.abs(Number((order as any).vat_offer_usage_fee) || 0),
-        marketing_cofunding: Number((order as any).marketing_fee_adjustment) || 0,
+        has_offer:
+          Math.abs(Number(order.item_promo_incl_vat) || 0) > 0 ||
+          Math.abs(Number(order.promotion_discount) || 0) > 0,
+        offer_note:
+          Math.abs(Number(order.item_promo_incl_vat) || 0) > 0
+            ? `Promo article : ${Number(order.item_promo_incl_vat).toLocaleString("fr-FR", { minimumFractionDigits: 2 })} €`
+            : order.offer_note || "",
+        deliveroo_funding: Number(order.deliveroo_funding) || 0,
+        fulfillment_type: order.fulfillment_type || null,
+        offer_fee_incl_vat:
+          Math.abs(Number(order.offer_usage_fee) || 0) + Math.abs(Number(order.vat_offer_usage_fee) || 0),
+        marketing_cofunding: Number(order.marketing_fee_adjustment) || 0,
       };
     });
-  }, [individualOrdersData, granularity]);
+  }, [granularity, uberOrdersPage, deliverooOrdersData, platform]);
+
+  const orderIdsWithItems = useMemo(() => {
+    if (granularity !== "order") return [] as string[];
+    if (platform === "deliveroo") return [];
+    return ((uberOrdersPage as any[]) || [])
+      .filter((o: any) => o.has_items)
+      .map((o: any) => o.id);
+  }, [granularity, uberOrdersPage, platform]);
+
+  const orderTotalCount = useMemo(() => {
+    if (granularity !== "order") return 0;
+    if (platform === "deliveroo") return deliverooOrdersData?.totalCount ?? 0;
+    const first = (uberOrdersPage as any[])?.[0];
+    return Number(first?.total_count) || 0;
+  }, [granularity, uberOrdersPage, deliverooOrdersData, platform]);
+
+  // Summary stats (light)
+  const summary = useMemo(() => {
+    if (granularity === "daily" && dailyData.length > 0) {
+      const totalSales = dailyData.reduce((sum, d) => sum + d.sales_incl_vat, 0);
+      const totalOrders = dailyData.reduce((sum, d) => sum + d.order_count, 0);
+      return {
+        totalSales,
+        totalRefund: dailyData.reduce((sum, d) => sum + d.refund_incl_vat, 0),
+        totalOrders,
+        avgBasket: totalOrders > 0 ? totalSales / totalOrders : 0,
+        periodCount: dailyData.length,
+      };
+    }
+    if (granularity === "hourly" && hourlyData.length > 0) {
+      const totalSales = hourlyData.reduce((sum, d) => sum + d.sales_incl_vat, 0);
+      const totalOrders = hourlyData.reduce((sum, d) => sum + d.order_count, 0);
+      const peak = hourlyData.reduce((max, d) => (d.order_count > max.order_count ? d : max), hourlyData[0]);
+      return {
+        totalSales,
+        totalRefund: hourlyData.reduce((sum, d) => sum + d.refund_incl_vat, 0),
+        totalOrders,
+        avgBasket: totalOrders > 0 ? totalSales / totalOrders : 0,
+        peakHour: peak?.hour,
+        peakHourOrders: peak?.order_count,
+      };
+    }
+    if (granularity === "product" && productData.length > 0) {
+      return {
+        totalSales: productData.reduce((sum, d) => sum + d.sales_incl_vat, 0),
+        totalRefund: productData.reduce((sum, d) => sum + d.refund_incl_vat, 0),
+        totalQuantity: productData.reduce((sum, d) => sum + d.quantity, 0),
+        productCount: productData.length,
+        topProduct: productData[0]?.item_title,
+        topProductSales: productData[0]?.sales_incl_vat,
+      };
+    }
+    return null;
+  }, [granularity, dailyData, hourlyData, productData]);
+
+  const isLoading =
+    (granularity === "daily" && ((isUber && loadingUberDaily) || (isDeliveroo && loadingDeliverooDaily))) ||
+    (granularity === "hourly" && ((isUber && loadingUberHourly) || (isDeliveroo && loadingDeliverooHourly))) ||
+    (granularity === "product" && loadingProducts) ||
+    (granularity === "order" && ((isUber && loadingUberOrders) || (platform === "deliveroo" && loadingDeliverooOrders)));
 
   return {
     dailyData,
@@ -1022,13 +752,15 @@ export function useFinancesDrilldown({
     hourlyData,
     productData,
     orderData,
-    orderPagination: individualOrdersData ? {
-      totalCount: individualOrdersData.totalCount,
-      hasMore: individualOrdersData.hasMore,
-    } : null,
-    orderIdsWithItems: individualOrdersData?.orderIdsWithItems || [],
-    fulfillmentStats: fulfillmentStatsData || null,
+    orderPagination: {
+      totalCount: orderTotalCount,
+      hasMore: (pageIndex + 1) * pageSize < orderTotalCount,
+      pageIndex,
+      pageSize,
+    },
+    orderIdsWithItems,
+    fulfillmentStats: fulfillmentStatsData,
     summary,
-    isLoading: loadingOrders || loadingItems || loadingIndividualOrders,
+    isLoading,
   };
 }
