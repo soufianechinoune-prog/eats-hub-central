@@ -59,6 +59,10 @@ interface PayoutData {
   item_promo_incl_vat: number;
   refund_incl_vat: number;
   refund_excl_vat?: number;
+  // Nouveaux champs détaillés Remboursements (RPC get_orders_finance_detail)
+  refund_to_customer?: number;          // Argent envoyé aux clients (lignes négatives en abs)
+  refund_uber_cancellation?: number;    // Reprises Uber (lignes positives)
+  refund_net?: number;                  // Net à ma charge (clients - annulations)
   other_payments_incl_vat: number;
   marketing_fee_adjustment: number;
   order_count: number;
@@ -120,7 +124,10 @@ interface ComparisonRow {
   otherRate: number;
   // Amounts for toggling display
   promoAmount: number;
-  refundAmount: number;
+  refundAmount: number;            // = refundToCustomer (volume envoyé aux clients)
+  refundToCustomer: number;
+  refundUberCancellation: number;
+  refundNet: number;
   orderCount: number;
   avgBasket: number;
   weekNumber: number;
@@ -154,7 +161,10 @@ interface MonthRestaurantData {
   refundRate: number;
   uberFee: number;
   promo: number;
-  refund: number;
+  refund: number;                  // legacy = refundToCustomer
+  refundToCustomer?: number;
+  refundUberCancellation?: number;
+  refundNet?: number;
   orderCount: number;
   advertisingAmount: number;
 }
@@ -176,6 +186,9 @@ interface MonthGroup {
   totalUberFee: number;
   totalPromo: number;
   totalRefund: number;
+  totalRefundToCustomer?: number;
+  totalRefundUberCancellation?: number;
+  totalRefundNet?: number;
   totalOrders: number;
   restaurantData: MonthRestaurantData[];
 }
@@ -194,6 +207,9 @@ interface YearGroup {
   totalUberFee: number;
   totalPromo: number;
   totalRefund: number;
+  totalRefundToCustomer?: number;
+  totalRefundUberCancellation?: number;
+  totalRefundNet?: number;
   totalOrders: number;
   restaurantData: MonthRestaurantData[];
 }
@@ -472,7 +488,20 @@ export function ProfitabilityComparisonTable({
       const uberFeeGross = uberFeeGrossHT > 0 ? uberFeeGrossHT + (vatUberFee * (uberFeeGrossHT / (uberFeeGrossHT - uberFeeReductionHT || 1))) : uberFeeNet;
       const uberFeeReduction = uberFeeReductionHT > 0 ? uberFeeReductionHT * 1.2 : 0; // Approximation TVA 20%
       const promoAmount = Math.abs(Number(payout.item_promo_incl_vat) || 0);
-      const refundAmount = Math.abs(Number(payout.refund_incl_vat) || 0);
+      const refundLegacyAbs = Math.abs(Number(payout.refund_incl_vat) || 0);
+      // Si la RPC fournit les 3 champs détaillés (Uber Eats), on les utilise.
+      // Sinon (Deliveroo / source legacy), fallback : tout est "remb. clients", pas d'annulation.
+      const hasDetailed = payout.refund_to_customer !== undefined || payout.refund_uber_cancellation !== undefined;
+      const refundToCustomer = hasDetailed
+        ? Math.abs(Number(payout.refund_to_customer) || 0)
+        : refundLegacyAbs;
+      const refundUberCancellation = hasDetailed
+        ? Math.abs(Number(payout.refund_uber_cancellation) || 0)
+        : 0;
+      const refundNet = hasDetailed
+        ? Number(payout.refund_net) || (refundToCustomer - refundUberCancellation)
+        : refundLegacyAbs;
+      const refundAmount = refundToCustomer;
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
@@ -535,6 +564,9 @@ export function ProfitabilityComparisonTable({
         otherRate: sales > 0 ? (other / sales) * 100 : 0,
         promoAmount,
         refundAmount,
+        refundToCustomer,
+        refundUberCancellation,
+        refundNet,
         orderCount,
         avgBasket: orderCount > 0 ? sales / orderCount : 0,
         weekNumber: weekNum,
@@ -639,6 +671,9 @@ export function ProfitabilityComparisonTable({
         }, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalRefundToCustomer = rows.reduce((sum, r) => sum + r.refundToCustomer, 0);
+        const totalRefundUberCancellation = rows.reduce((sum, r) => sum + r.refundUberCancellation, 0);
+        const totalRefundNet = rows.reduce((sum, r) => sum + r.refundNet, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
         // Deliveroo: rate on gross sales; Uber: rate on net sales (after promos)
@@ -667,6 +702,9 @@ export function ProfitabilityComparisonTable({
           ecoCharge: number;
           promo: number;
           refund: number;
+          refundToCustomer: number;
+          refundUberCancellation: number;
+          refundNet: number;
           uberFee: number;
           orderCount: number;
           advertisingAmount: number;
@@ -680,10 +718,13 @@ export function ProfitabilityComparisonTable({
               sales: 0,
               netPayout: 0,
               mealVoucher: 0,
-            ecoContribution: 0,
-            ecoCharge: 0,
-            promo: 0,
+              ecoContribution: 0,
+              ecoCharge: 0,
+              promo: 0,
               refund: 0,
+              refundToCustomer: 0,
+              refundUberCancellation: 0,
+              refundNet: 0,
               uberFee: 0,
               orderCount: 0,
               advertisingAmount: 0,
@@ -697,6 +738,9 @@ export function ProfitabilityComparisonTable({
           agg.ecoCharge += row.ecoCharge;
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
+          agg.refundToCustomer += row.refundToCustomer;
+          agg.refundUberCancellation += row.refundUberCancellation;
+          agg.refundNet += row.refundNet;
           agg.orderCount += row.orderCount;
           agg.advertisingAmount += row.advertisingAmount;
           // Find matching payout for uber fee HT
@@ -727,6 +771,9 @@ export function ProfitabilityComparisonTable({
               uberFee: agg.uberFee,
               promo: agg.promo,
               refund: agg.refund,
+              refundToCustomer: agg.refundToCustomer,
+              refundUberCancellation: agg.refundUberCancellation,
+              refundNet: agg.refundNet,
               orderCount: agg.orderCount,
               advertisingAmount: agg.advertisingAmount,
             };
@@ -775,6 +822,9 @@ export function ProfitabilityComparisonTable({
           totalUberFee: totalUberFeeHT,
           totalPromo,
           totalRefund,
+          totalRefundToCustomer,
+          totalRefundUberCancellation,
+          totalRefundNet,
           totalOrders,
           restaurantData,
         };
@@ -811,6 +861,9 @@ export function ProfitabilityComparisonTable({
         }, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalRefundToCustomer = rows.reduce((sum, r) => sum + r.refundToCustomer, 0);
+        const totalRefundUberCancellation = rows.reduce((sum, r) => sum + r.refundUberCancellation, 0);
+        const totalRefundNet = rows.reduce((sum, r) => sum + r.refundNet, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
         const netSales = totalSales - totalPromo;
@@ -918,6 +971,9 @@ export function ProfitabilityComparisonTable({
           totalUberFee: totalUberFeeHT,
           totalPromo,
           totalRefund,
+          totalRefundToCustomer,
+          totalRefundUberCancellation,
+          totalRefundNet,
           totalOrders,
           restaurantData,
         };
@@ -977,6 +1033,36 @@ export function ProfitabilityComparisonTable({
       advertisingAmount: avgAdvertisingAmount,
     };
   }, [comparisonData, profitabilityBase, payouts]);
+
+  // Cellule Remboursements : 3 valeurs empilées (Clients / Annul. Uber / Net à ma charge)
+  const RefundCell = ({ clients, cancellation, net }: { clients: number; cancellation: number; net: number }) => {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex flex-col items-end gap-0.5 tabular-nums leading-tight cursor-help">
+              <span className="text-red-600 text-xs" title="Remb. clients (volume envoyé)">
+                {clients > 0 ? `-${formatCurrency(clients)}` : '-'}
+              </span>
+              <span className="text-emerald-600 text-xs" title="Annulations Uber (reprises)">
+                {cancellation > 0 ? `+${formatCurrency(cancellation)}` : '-'}
+              </span>
+              <span className={cn("font-semibold text-xs", net > 0 ? "text-red-700" : net < 0 ? "text-emerald-700" : "text-muted-foreground")}>
+                {net === 0 ? '0 €' : (net > 0 ? `-${formatCurrency(Math.abs(net))}` : `+${formatCurrency(Math.abs(net))}`)}
+              </span>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent className="max-w-xs">
+            <div className="text-xs space-y-1">
+              <p><span className="text-red-600 font-medium">Remb. clients</span> : argent envoyé aux clients</p>
+              <p><span className="text-emerald-600 font-medium">Annulations Uber</span> : reprises Uber qui annulent un remboursement</p>
+              <p><span className="font-semibold">Net à ma charge</span> : Clients − Annulations = impact réel</p>
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  };
   
   if (comparisonData.length === 0) return null;
   
@@ -1518,7 +1604,7 @@ export function ProfitabilityComparisonTable({
                         <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
                       </TableCell>
                       <TableCell className="text-right text-muted-foreground">
-                        <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
+                        <RefundCell clients={row.refundToCustomer} cancellation={row.refundUberCancellation} net={row.refundNet} />
                       </TableCell>
                       <TableCell className="text-right font-medium text-green-600 tabular-nums">
                         {formatCurrency(row.netPayout)}

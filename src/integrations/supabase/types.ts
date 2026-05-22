@@ -4508,6 +4508,9 @@ export type Database = {
           price_adjustment_incl_vat: number
           refund_excl_vat: number
           refund_incl_vat: number
+          refund_net: number
+          refund_to_customer: number
+          refund_uber_cancellation: number
           restaurant_id: string
           sales_excl_vat: number
           sales_incl_vat: number
