@@ -861,6 +861,9 @@ export function ProfitabilityComparisonTable({
         }, 0);
         const totalPromo = rows.reduce((sum, r) => sum + r.promoAmount, 0);
         const totalRefund = rows.reduce((sum, r) => sum + r.refundAmount, 0);
+        const totalRefundToCustomer = rows.reduce((sum, r) => sum + r.refundToCustomer, 0);
+        const totalRefundUberCancellation = rows.reduce((sum, r) => sum + r.refundUberCancellation, 0);
+        const totalRefundNet = rows.reduce((sum, r) => sum + r.refundNet, 0);
         const totalOrders = rows.reduce((sum, r) => sum + r.orderCount, 0);
         
         const netSales = totalSales - totalPromo;
