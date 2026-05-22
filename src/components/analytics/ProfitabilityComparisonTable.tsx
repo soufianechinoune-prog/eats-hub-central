@@ -886,6 +886,9 @@ export function ProfitabilityComparisonTable({
           ecoCharge: number;
           promo: number;
           refund: number;
+          refundToCustomer: number;
+          refundUberCancellation: number;
+          refundNet: number;
           uberFee: number;
           orderCount: number;
           advertisingAmount: number;
@@ -898,7 +901,9 @@ export function ProfitabilityComparisonTable({
               restaurantName: row.restaurantName,
               sales: 0, netPayout: 0, mealVoucher: 0,
               ecoContribution: 0, ecoCharge: 0,
-              promo: 0, refund: 0, uberFee: 0,
+              promo: 0, refund: 0,
+              refundToCustomer: 0, refundUberCancellation: 0, refundNet: 0,
+              uberFee: 0,
               orderCount: 0, advertisingAmount: 0,
             };
           }
