@@ -58,12 +58,30 @@ interface Restaurant {
   name: string;
 }
 
+interface PrecomputedDailyRow {
+  restaurant_id: string;
+  payout_date: string;
+  sales_incl_vat: number;
+  refund_incl_vat: number;
+  item_promo_incl_vat: number;
+  uber_fee_after_promo_incl_vat: number;
+  net_payout: number;
+  meal_voucher_amount?: number;
+  order_count: number;
+}
+
 interface OrdersAnalysisSectionProps {
   restaurants: Restaurant[];
   selectedRestaurants: string[];
   startDate: Date;
   endDate: Date;
   platform?: "uber_eats" | "deliveroo" | "global";
+  /**
+   * Lignes journalières déjà récupérées par le comparatif haut (get_orders_finance_detail).
+   * Quand fournies, l'onglet "Par Jour" est calculé à partir de ces lignes pour garantir
+   * une cohérence parfaite avec le comparatif (mêmes totaux, pas de troncature 1000 lignes).
+   */
+  precomputedDailyRows?: PrecomputedDailyRow[];
 }
 
 const formatCurrency = (value: number) => {
@@ -90,6 +108,7 @@ export function OrdersAnalysisSection({
   startDate,
   endDate,
   platform = "uber_eats",
+  precomputedDailyRows,
 }: OrdersAnalysisSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [orderPageIndex, setOrderPageIndex] = useState(0);
@@ -135,9 +154,15 @@ export function OrdersAnalysisSection({
     return restaurants.map(r => r.id);
   }, [selectedRestaurantId, selectedRestaurants, restaurants]);
   
+  // Quand on dispose des lignes pré-calculées du comparatif (get_orders_finance_detail),
+  // on désactive l'appel "daily" du hook pour éviter la troncature 1000 lignes et garantir
+  // la cohérence avec le tableau du haut.
+  const hasPrecomputedDaily = !!precomputedDailyRows && precomputedDailyRows.length > 0 && platform !== "deliveroo";
+  
+
   // Fetch drilldown data
   const { 
-    dailyData, 
+    dailyData: dailyDataRpc, 
     hourlyData, 
     productData,
     orderData,
@@ -150,7 +175,7 @@ export function OrdersAnalysisSection({
     startDate,
     endDate,
     granularity: activeTab,
-    enabled: isExpanded,
+    enabled: isExpanded && !(hasPrecomputedDaily && activeTab === 'daily'),
     orderSearchQuery: debouncedSearch,
     orderSortField,
     orderSortDirection: orderSortDir,
@@ -159,6 +184,48 @@ export function OrdersAnalysisSection({
     pageIndex: orderPageIndex,
     pageSize: 100,
   });
+
+  // Daily data dérivée des lignes pré-calculées (alignée sur le comparatif haut).
+  const dailyDataFromPrecomputed = useMemo(() => {
+    if (!hasPrecomputedDaily) return null;
+    const idSet = new Set(queryRestaurantIds);
+    const byDate: Record<string, {
+      sales: number; refund: number; promo: number; uberFee: number;
+      netPayout: number; mealVoucher: number; count: number;
+    }> = {};
+    for (const row of precomputedDailyRows!) {
+      if (!idSet.has(row.restaurant_id)) continue;
+      const date = String(row.payout_date).slice(0, 10);
+      if (!byDate[date]) {
+        byDate[date] = { sales: 0, refund: 0, promo: 0, uberFee: 0, netPayout: 0, mealVoucher: 0, count: 0 };
+      }
+      const d = byDate[date];
+      d.sales += Math.abs(Number(row.sales_incl_vat) || 0);
+      d.refund += Math.abs(Number(row.refund_incl_vat) || 0);
+      d.promo += Math.abs(Number(row.item_promo_incl_vat) || 0);
+      d.uberFee += Math.abs(Number(row.uber_fee_after_promo_incl_vat) || 0);
+      d.netPayout += Number(row.net_payout) || 0;
+      d.mealVoucher += Number(row.meal_voucher_amount) || 0;
+      d.count += Number(row.order_count) || 0;
+    }
+    return Object.entries(byDate)
+      .map(([date, s]) => ({
+        date,
+        label: format(new Date(date), "EEE dd MMM", { locale: fr }),
+        sales_incl_vat: s.sales,
+        refund_incl_vat: s.refund,
+        order_count: s.count,
+        avg_basket: s.count > 0 ? s.sales / s.count : 0,
+        uber_fee_incl_vat: s.uberFee,
+        promo_incl_vat: s.promo,
+        net_payout: s.netPayout,
+        meal_voucher_amount: s.mealVoucher,
+        total_payout: s.netPayout + s.mealVoucher,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [hasPrecomputedDaily, precomputedDailyRows, queryRestaurantIds]);
+
+  const dailyData = dailyDataFromPrecomputed ?? dailyDataRpc;
   
   // Handle order sort toggle
   const handleOrderSort = (field: OrderSortField) => {

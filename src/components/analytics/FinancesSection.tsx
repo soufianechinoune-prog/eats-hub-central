@@ -270,6 +270,7 @@ export function FinancesSection({
           startDate={startDate}
           endDate={endDate}
           platform={selectedPlatform}
+          precomputedDailyRows={dailyPayoutsData as any}
         />
       )}
     </div>
