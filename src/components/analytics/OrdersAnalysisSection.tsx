@@ -158,7 +158,7 @@ export function OrdersAnalysisSection({
   // on désactive l'appel "daily" du hook pour éviter la troncature 1000 lignes et garantir
   // la cohérence avec le tableau du haut.
   const hasPrecomputedDaily = !!precomputedDailyRows && precomputedDailyRows.length > 0 && platform !== "deliveroo";
-  const effectiveGranularityForRpc = (hasPrecomputedDaily && activeTab === 'daily') ? 'hourly' /* placeholder no-op */ : activeTab;
+  
 
   // Fetch drilldown data
   const { 
