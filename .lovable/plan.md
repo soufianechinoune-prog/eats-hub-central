@@ -1,59 +1,85 @@
-Constat
+## Diagnostic
 
-Le bouton “Charger l’analyse des commandes” existe volontairement aujourd’hui : le composant est doublement lazy-loaded.
+Trois problèmes distincts cohabitent sur `/analytics/finances` quand on est sur « Mars 2026 / Tous les restaurants ».
 
-1. `FinancesSection` n’affiche `OrdersAnalysisSection` qu’au défilement.
-2. `OrdersAnalysisSection` bloque ensuite les requêtes tant que `isExpanded = false`, donc tant que tu n’as pas cliqué sur “Charger l’analyse des commandes”.
+### 1. « 1000 versements » = troncature silencieuse (root cause des écarts de chiffres)
 
-La raison historique était d’éviter de lancer automatiquement des requêtes très lourdes sur la page Finances. Mais le problème actuel, c’est que même après clic, le chargement reste trop lourd.
+Le tableau **Comparatif de Rentabilité** (haut) appelle la RPC `get_orders_finance_detail`, qui renvoie **une ligne par (restaurant × jour)**. Sur ~33 restos × 31 jours = ~1023 lignes → on tape **le plafond PostgREST par défaut (`db-max-rows = 1000`)**. Le client `supabase.rpc()` ne pagine pas, donc on reçoit 1000 lignes max, silencieusement tronquées.
 
-Cause technique principale
+Conséquence : tous les totaux du haut sont **sous-estimés** par rapport au bas qui, lui, utilise désormais les RPC pré-agrégées (`get_finances_daily_uber`, etc.) qui retournent ~31 lignes (jamais tronqué).
 
-Aujourd’hui, `useFinancesDrilldown` récupère énormément de lignes brutes côté navigateur :
+Preuve dans la capture :
+- Haut : 2 440 717 € CA / 130 466 cmd / 11 647 € remb.
+- Bas (Total mars partiel) : 2 468 093 € / 132 491 cmd / 16 099 € remb.
 
-- Onglet “Par Jour” / “Par Heure” : charge toutes les commandes de la période, par pages de 1000, puis agrège en JavaScript.
-- Onglet “Par Produit” : charge d’abord tous les IDs de commandes, puis récupère les `order_items` par lots.
-- Onglet “Par Commande” : charge toutes les commandes individuelles, sans vraie pagination serveur, puis vérifie les articles associés par lots.
-- En scope “Tous les restaurants” + année complète, ça peut représenter des dizaines/centaines de milliers de lignes à transférer et traiter côté client.
+Le bas est **plus gros** que le haut alors qu'il couvre moins de jours → preuve de la troncature.
 
-Donc oui : la donnée existe, mais la méthode de remontée est trop coûteuse.
+### 2. Périodes désynchronisées entre haut et bas
 
-Plan de correction
+- Haut (`get_orders_finance_detail(p_year, p_month)`) : **mars entier** (01 → 31).
+- Bas (`OrdersAnalysisSection`) : reçoit `startDate` / `endDate` venant du sélecteur global `useDataGranularity` (ex. « 7 derniers jours » → 24–31 mars).
 
-1. Supprimer le besoin du bouton pour les vues agrégées
-   - Charger automatiquement l’analyse “Par Jour” dès que la page Finances est prête.
-   - Garder uniquement les vues réellement lourdes sous chargement contrôlé si nécessaire.
-   - Remplacer le wording par un état clair : “Chargement des agrégats…” / “Aucune donnée” / erreur visible.
+Donc même sans troncature, les deux blocs ne couvrent pas la même fenêtre et ne peuvent pas être confrontés.
 
-2. Passer les agrégations en base de données
-   - Créer une RPC dédiée pour l’analyse journalière/horaire qui agrège côté backend au lieu de renvoyer toutes les commandes.
-   - Utiliser le pattern déjà efficace du projet : `unnest(p_restaurant_ids)` + `LATERAL` pour forcer l’index `idx_orders_restaurant_datetime` restaurant par restaurant.
-   - Retourner seulement les lignes utiles : jour, heure, restaurant, CA, commandes, commissions, promos, remboursements, versements.
+### 3. Libellé « 1000 versements » trompeur
 
-3. Optimiser l’onglet produits
-   - Créer une RPC de ventilation produit côté backend.
-   - Agréger `order_items` par produit avec filtre restaurant + dates côté SQL.
-   - Ne retourner que les produits agrégés, pas tous les items bruts.
-   - Conserver la règle métier : Deliveroo n’a pas de détail produit, donc afficher “Donnée non disponible” pour Deliveroo.
+Le compteur affiche `payouts.length` brut. Avec la troncature, c'est un round-number suspect. Une fois la pagination en place il faudra l'afficher correctement, et idéalement le renommer en « lignes jour×resto » puisque ce ne sont pas des versements Uber mais des agrégats jour×resto issus de `orders`.
 
-4. Corriger l’onglet commandes individuelles
-   - Remplacer le chargement de toutes les commandes par une vraie pagination serveur.
-   - Charger seulement la page visible, par exemple 100 commandes à la fois.
-   - Ajouter `limit`, `offset`, tri, recherche, filtre livraison/emporter côté backend.
-   - Ne vérifier les articles disponibles que pour les commandes visibles, pas pour toute la période.
+## Plan de correction
 
-5. Corriger les états de chargement
-   - Afficher un loader spécifique par onglet au lieu d’un bloc global qui peut donner l’impression que tout est bloqué.
-   - Ajouter un état d’erreur exploitable si une requête échoue ou timeout.
-   - Éviter les requêtes quand le scope restaurant contient encore le sentinel `00000000-0000-0000-0000-000000000000`.
+### A. Paginer la récupération du Comparatif
 
-6. Validation
-   - Tester `/analytics/finances` en scope “Tous les restaurants” sur 2026.
-   - Vérifier que “Par Jour” arrive sans clic manuel.
-   - Vérifier que l’onglet produits répond rapidement sur Uber Eats.
-   - Vérifier que l’onglet commandes individuelles charge une première page rapidement et ne tente plus de récupérer toute l’année.
-   - Vérifier qu’aucune requête ne part avec un scope restaurant non résolu.
+Dans `src/pages/Analytics.tsx`, remplacer l'appel unique `supabase.rpc('get_orders_finance_detail', ...)` par une boucle de pagination conforme au standard projet (mémoire « Pagination Standard ») :
 
-Résultat attendu
+```text
+PAGE_SIZE = 1000
+loop:
+  rows = supabase.rpc(...).range(from, from + PAGE_SIZE - 1)
+  push rows
+  if rows.length < PAGE_SIZE: break
+  from += PAGE_SIZE
+```
 
-La page ne dépendra plus d’un bouton manuel pour afficher les agrégats principaux, et le chargement sera beaucoup plus stable parce qu’on ne fera plus transiter toute la table `orders` / `order_items` vers le navigateur.
+Note : pour qu'un `.range()` sur RPC soit stable, ajouter un `ORDER BY restaurant_id, payout_date` dans `get_orders_finance_detail` (migration), sinon l'ordre est indéfini.
+
+Alternative préférable si on accepte une migration : créer `get_orders_finance_detail_v2` côté serveur qui renvoie **déjà agrégé par jour uniquement** (ou par restaurant uniquement) selon ce dont a besoin le tableau Comparatif — beaucoup moins de lignes et zéro risque de cap. À voir si la table Comparatif a besoin du détail par restaurant ; si oui, on garde la pagination ; si non, on consolide côté SQL.
+
+→ Approche retenue dans ce plan : **pagination côté hook** (changement minimal, sans toucher au format de la RPC ni casser `ProfitabilityComparisonTable` qui filtre par `restaurant_id`).
+
+### B. Synchroniser la période du bloc « Analyse par Commandes »
+
+Dans `src/pages/Analytics.tsx`, quand `drillDownMonth` est défini, passer à `FinancesSection` des `startDate` / `endDate` calés sur le mois drillé (1er → dernier jour) au lieu des dates globales `useDataGranularity`. Préserver les dates globales pour les autres sections qui n'ont pas de drill-down.
+
+Concrètement : calculer `financesStartDate` / `financesEndDate` :
+- si `drillDownMonth` → 1er et dernier jour du mois dans `selectedYear`
+- sinon → `startDate` / `endDate` actuels
+
+Les passer à `<FinancesSection startDate={financesStartDate} endDate={financesEndDate} />`.
+
+Résultat attendu : haut et bas couvrent strictement la même fenêtre → totaux comparables ligne à ligne.
+
+### C. Corriger le libellé « 1000 versements »
+
+Dans `ProfitabilityComparisonTable.tsx` (ou là où le libellé est rendu sous « Mars 2026 »), remplacer `{payouts.length} versements` par une formulation correcte :
+
+- texte : « X lignes (jour × restaurant) » au lieu de « versements », puisque la source n'est pas la table `payouts` mais une agrégation de `orders`.
+- s'assurer que la valeur reflète bien le nombre paginé complet une fois (A) appliqué.
+
+### D. Validation
+
+1. `/analytics/finances`, Mars 2026, « Tous les restaurants » :
+   - Vérifier que le compteur ne montre plus 1000 pile.
+   - Vérifier que `Total` du bloc « Par Jour » ≈ ligne « Mars 2026 » du Comparatif pour : CA TTC, commandes, remboursements, commission, promos, versement Uber.
+2. Drill sur un mois plus petit (ex. Avril en cours) : pas de régression, totaux identiques entre haut et bas.
+3. Plateforme Deliveroo : non affectée (chemin séparé, pas de RPC `get_orders_finance_detail`).
+
+## Fichiers impactés
+
+- `src/pages/Analytics.tsx` — pagination de `dailyPayoutsData` + dérivation `financesStartDate/EndDate` quand drill-down mois.
+- `src/components/analytics/ProfitabilityComparisonTable.tsx` — libellé « versements ».
+- Migration SQL — ajouter `ORDER BY restaurant_id, payout_date` à `get_orders_finance_detail` pour stabiliser la pagination.
+
+## Hors-scope
+
+- Refonte de la RPC en agrégat mensuel pur (peut être fait plus tard si on veut diviser encore le coût).
+- Re-design visuel du bloc « Analyse par Commandes ».
