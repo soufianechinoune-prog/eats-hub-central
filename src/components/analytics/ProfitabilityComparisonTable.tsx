@@ -2333,7 +2333,7 @@ export function ProfitabilityComparisonTable({
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.refundRate} amountValue={resto.refund} />
+                              <RefundCell clients={resto.refundToCustomer ?? resto.refund} cancellation={resto.refundUberCancellation ?? 0} net={resto.refundNet ?? resto.refund} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {formatCurrency(resto.netPayout)}
