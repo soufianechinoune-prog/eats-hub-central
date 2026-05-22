@@ -1,85 +1,56 @@
-## Diagnostic
+Constat après vérification du code et des chiffres March 2026 :
 
-Trois problèmes distincts cohabitent sur `/analytics/finances` quand on est sur « Mars 2026 / Tous les restaurants ».
+1. Le haut est cohérent avec la base complète
+   - Pour TASTY CROUSTY / Mars 2026, le haut affiche 1394 lignes jour×resto, 186315 commandes, CA 3470720 €, commission 650084 €, promos 222131 €, remb. 17176 €, versement total 2470821 €.
+   - Ces chiffres correspondent au détail complet `get_orders_finance_detail`.
 
-### 1. « 1000 versements » = troncature silencieuse (root cause des écarts de chiffres)
+2. Le bas n’est pas sur la même extraction complète
+   - `Analyse par Commandes` appelle `get_finances_daily_uber` sans pagination.
+   - Cette RPC retourne une ligne par restaurant × jour. En mars, il y en a 1394, donc au-dessus de la limite REST de 1000 lignes.
+   - Résultat : le bas est tronqué à 1000 lignes, d’où les totaux faux : commandes, commissions, promos, remboursements, versements.
+   - Le problème “1000” a été corrigé pour le comparatif haut, mais pas pour cette nouvelle RPC du bas.
 
-Le tableau **Comparatif de Rentabilité** (haut) appelle la RPC `get_orders_finance_detail`, qui renvoie **une ligne par (restaurant × jour)**. Sur ~33 restos × 31 jours = ~1023 lignes → on tape **le plafond PostgREST par défaut (`db-max-rows = 1000`)**. Le client `supabase.rpc()` ne pagine pas, donc on reçoit 1000 lignes max, silencieusement tronquées.
+3. Les dates visibles en bas sont trompeuses
+   - Dans la capture, le tableau du bas est simplement scrollé plus bas : on voit 24–31 mars, mais le total est censé représenter toutes les lignes chargées.
+   - Le vrai problème n’est pas seulement la date visible : c’est que toutes les lignes de mars ne sont pas chargées.
 
-Conséquence : tous les totaux du haut sont **sous-estimés** par rapport au bas qui, lui, utilise désormais les RPC pré-agrégées (`get_finances_daily_uber`, etc.) qui retournent ~31 lignes (jamais tronqué).
+4. Il y a aussi une incohérence de formule
+   - Le haut affiche la commission HT, conformément à la logique comptable.
+   - Le bas utilise une agrégation différente, et certains montants sont calculés avec `ABS()` au niveau commande, alors que le haut agrège d’abord par jour×resto puis affiche l’absolu.
+   - Même sans la limite 1000, certains montants comme Remboursements pourraient encore différer.
 
-Preuve dans la capture :
-- Haut : 2 440 717 € CA / 130 466 cmd / 11 647 € remb.
-- Bas (Total mars partiel) : 2 468 093 € / 132 491 cmd / 16 099 € remb.
+Plan de correction :
 
-Le bas est **plus gros** que le haut alors qu'il couvre moins de jours → preuve de la troncature.
+1. Réutiliser la même source pour le haut et le bas
+   - Passer les lignes complètes `get_orders_finance_detail` déjà récupérées par le comparatif vers `OrdersAnalysisSection`.
+   - Construire l’onglet `Par Jour` du bas à partir de ces mêmes lignes, au lieu de rappeler `get_finances_daily_uber`.
+   - Ainsi, les totaux du bas correspondront exactement aux totaux du haut.
 
-### 2. Périodes désynchronisées entre haut et bas
+2. Supprimer l’effet limite 1000 sur l’analyse du bas
+   - Ne plus dépendre de `get_finances_daily_uber` pour le total journalier lorsque le détail mensuel est déjà disponible.
+   - Garder les RPC spécialisées uniquement pour les vues qui en ont besoin : `Par Produit`, `Par Heure`, `Par Commande`.
+   - Si une vue garde une RPC qui retourne plus de 1000 lignes, ajouter une pagination `.range()` comme pour le comparatif.
 
-- Haut (`get_orders_finance_detail(p_year, p_month)`) : **mars entier** (01 → 31).
-- Bas (`OrdersAnalysisSection`) : reçoit `startDate` / `endDate` venant du sélecteur global `useDataGranularity` (ex. « 7 derniers jours » → 24–31 mars).
+3. Aligner les formules affichées
+   - CA : `sales_incl_vat`.
+   - Commission : utiliser la même base HT que le comparatif.
+   - Promos : même agrégation que le comparatif.
+   - Remboursements : même agrégation que le comparatif, pas un `ABS()` commande par commande.
+   - Versement Uber et Versement Total : même logique `net_payout` + `meal_voucher_amount` que le haut.
 
-Donc même sans troncature, les deux blocs ne couvrent pas la même fenêtre et ne peuvent pas être confrontés.
+4. Aligner explicitement la période
+   - Centraliser la période Finances sélectionnée : Mars 2026 = 1 mars → 31 mars.
+   - La passer telle quelle au comparatif et à `OrdersAnalysisSection`, sans recalcul local basé sur 7 jours / 30 jours / état global résiduel.
 
-### 3. Libellé « 1000 versements » trompeur
-
-Le compteur affiche `payouts.length` brut. Avec la troncature, c'est un round-number suspect. Une fois la pagination en place il faudra l'afficher correctement, et idéalement le renommer en « lignes jour×resto » puisque ce ne sont pas des versements Uber mais des agrégats jour×resto issus de `orders`.
-
-## Plan de correction
-
-### A. Paginer la récupération du Comparatif
-
-Dans `src/pages/Analytics.tsx`, remplacer l'appel unique `supabase.rpc('get_orders_finance_detail', ...)` par une boucle de pagination conforme au standard projet (mémoire « Pagination Standard ») :
-
-```text
-PAGE_SIZE = 1000
-loop:
-  rows = supabase.rpc(...).range(from, from + PAGE_SIZE - 1)
-  push rows
-  if rows.length < PAGE_SIZE: break
-  from += PAGE_SIZE
-```
-
-Note : pour qu'un `.range()` sur RPC soit stable, ajouter un `ORDER BY restaurant_id, payout_date` dans `get_orders_finance_detail` (migration), sinon l'ordre est indéfini.
-
-Alternative préférable si on accepte une migration : créer `get_orders_finance_detail_v2` côté serveur qui renvoie **déjà agrégé par jour uniquement** (ou par restaurant uniquement) selon ce dont a besoin le tableau Comparatif — beaucoup moins de lignes et zéro risque de cap. À voir si la table Comparatif a besoin du détail par restaurant ; si oui, on garde la pagination ; si non, on consolide côté SQL.
-
-→ Approche retenue dans ce plan : **pagination côté hook** (changement minimal, sans toucher au format de la RPC ni casser `ProfitabilityComparisonTable` qui filtre par `restaurant_id`).
-
-### B. Synchroniser la période du bloc « Analyse par Commandes »
-
-Dans `src/pages/Analytics.tsx`, quand `drillDownMonth` est défini, passer à `FinancesSection` des `startDate` / `endDate` calés sur le mois drillé (1er → dernier jour) au lieu des dates globales `useDataGranularity`. Préserver les dates globales pour les autres sections qui n'ont pas de drill-down.
-
-Concrètement : calculer `financesStartDate` / `financesEndDate` :
-- si `drillDownMonth` → 1er et dernier jour du mois dans `selectedYear`
-- sinon → `startDate` / `endDate` actuels
-
-Les passer à `<FinancesSection startDate={financesStartDate} endDate={financesEndDate} />`.
-
-Résultat attendu : haut et bas couvrent strictement la même fenêtre → totaux comparables ligne à ligne.
-
-### C. Corriger le libellé « 1000 versements »
-
-Dans `ProfitabilityComparisonTable.tsx` (ou là où le libellé est rendu sous « Mars 2026 »), remplacer `{payouts.length} versements` par une formulation correcte :
-
-- texte : « X lignes (jour × restaurant) » au lieu de « versements », puisque la source n'est pas la table `payouts` mais une agrégation de `orders`.
-- s'assurer que la valeur reflète bien le nombre paginé complet une fois (A) appliqué.
-
-### D. Validation
-
-1. `/analytics/finances`, Mars 2026, « Tous les restaurants » :
-   - Vérifier que le compteur ne montre plus 1000 pile.
-   - Vérifier que `Total` du bloc « Par Jour » ≈ ligne « Mars 2026 » du Comparatif pour : CA TTC, commandes, remboursements, commission, promos, versement Uber.
-2. Drill sur un mois plus petit (ex. Avril en cours) : pas de régression, totaux identiques entre haut et bas.
-3. Plateforme Deliveroo : non affectée (chemin séparé, pas de RPC `get_orders_finance_detail`).
-
-## Fichiers impactés
-
-- `src/pages/Analytics.tsx` — pagination de `dailyPayoutsData` + dérivation `financesStartDate/EndDate` quand drill-down mois.
-- `src/components/analytics/ProfitabilityComparisonTable.tsx` — libellé « versements ».
-- Migration SQL — ajouter `ORDER BY restaurant_id, payout_date` à `get_orders_finance_detail` pour stabiliser la pagination.
-
-## Hors-scope
-
-- Refonte de la RPC en agrégat mensuel pur (peut être fait plus tard si on veut diviser encore le coût).
-- Re-design visuel du bloc « Analyse par Commandes ».
+5. Validation finale
+   - Vérifier March 2026 / Tous les restaurants TASTY CROUSTY :
+     - 1394 lignes jour×resto
+     - 186315 commandes
+     - CA 3470720 €
+     - Commission 650084 €
+     - Promos 222131 €
+     - Remb. 17176 €
+     - Versement Uber 2346325 €
+     - Titre resto 124496 €
+     - Versement total 2470821 €
+   - Confirmer que le total `Par Jour` en bas matche le comparatif haut.
