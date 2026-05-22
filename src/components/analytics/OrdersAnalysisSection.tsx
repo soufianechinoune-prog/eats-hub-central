@@ -194,18 +194,27 @@ export function OrdersAnalysisSection({
     if (!hasPrecomputedDaily) return null;
     const idSet = new Set(queryRestaurantIds);
     const byDate: Record<string, {
-      sales: number; refund: number; promo: number; uberFee: number;
+      sales: number; refund: number; refundToCustomer: number; refundUberCancellation: number; refundNet: number;
+      promo: number; uberFee: number;
       netPayout: number; mealVoucher: number; count: number;
     }> = {};
     for (const row of precomputedDailyRows!) {
       if (!idSet.has(row.restaurant_id)) continue;
       const date = String(row.payout_date).slice(0, 10);
       if (!byDate[date]) {
-        byDate[date] = { sales: 0, refund: 0, promo: 0, uberFee: 0, netPayout: 0, mealVoucher: 0, count: 0 };
+        byDate[date] = { sales: 0, refund: 0, refundToCustomer: 0, refundUberCancellation: 0, refundNet: 0, promo: 0, uberFee: 0, netPayout: 0, mealVoucher: 0, count: 0 };
       }
       const d = byDate[date];
+      const refundLegacy = Math.abs(Number(row.refund_incl_vat) || 0);
+      const hasDetail = row.refund_to_customer !== undefined || row.refund_uber_cancellation !== undefined;
+      const rToCustomer = hasDetail ? Math.abs(Number(row.refund_to_customer) || 0) : refundLegacy;
+      const rCancel = hasDetail ? Math.abs(Number(row.refund_uber_cancellation) || 0) : 0;
+      const rNet = hasDetail ? (Number(row.refund_net) ?? (rToCustomer - rCancel)) : refundLegacy;
       d.sales += Math.abs(Number(row.sales_incl_vat) || 0);
-      d.refund += Math.abs(Number(row.refund_incl_vat) || 0);
+      d.refund += refundLegacy;
+      d.refundToCustomer += rToCustomer;
+      d.refundUberCancellation += rCancel;
+      d.refundNet += rNet;
       d.promo += Math.abs(Number(row.item_promo_incl_vat) || 0);
       d.uberFee += Math.abs(Number(row.uber_fee_after_promo_incl_vat) || 0);
       d.netPayout += Number(row.net_payout) || 0;
@@ -218,6 +227,9 @@ export function OrdersAnalysisSection({
         label: format(new Date(date), "EEE dd MMM", { locale: fr }),
         sales_incl_vat: s.sales,
         refund_incl_vat: s.refund,
+        refund_to_customer: s.refundToCustomer,
+        refund_uber_cancellation: s.refundUberCancellation,
+        refund_net: s.refundNet,
         order_count: s.count,
         avg_basket: s.count > 0 ? s.sales / s.count : 0,
         uber_fee_incl_vat: s.uberFee,
