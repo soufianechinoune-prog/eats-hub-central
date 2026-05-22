@@ -59,6 +59,10 @@ interface PayoutData {
   item_promo_incl_vat: number;
   refund_incl_vat: number;
   refund_excl_vat?: number;
+  // Nouveaux champs détaillés Remboursements (RPC get_orders_finance_detail)
+  refund_to_customer?: number;          // Argent envoyé aux clients (lignes négatives en abs)
+  refund_uber_cancellation?: number;    // Reprises Uber (lignes positives)
+  refund_net?: number;                  // Net à ma charge (clients - annulations)
   other_payments_incl_vat: number;
   marketing_fee_adjustment: number;
   order_count: number;
