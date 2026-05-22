@@ -1,42 +1,66 @@
-## Objectif
+## Problème
 
-Afficher **3 colonnes Remboursements** côte à côte dans les tableaux Finances.
+Quand on clique sur un mois, le tableau du haut (Rentabilité Comparée) met très longtemps à apparaître. Idem en vue année, mais en pire.
 
-## Les 3 colonnes
+## Cause racine (2 bugs cumulés)
 
-| # | Colonne | Définition | Mars 2026 (Tasty Crousty) |
-|---|---|---|---|
-| 1 | **Remb. clients** | Montant brut envoyé aux clients (somme des lignes négatives, en absolu) | **~12 672 €** |
-| 2 | **Annulations Uber** | Reprises Uber (somme des lignes positives qui annulent un remboursement) | **~10 142 €** |
-| 3 | **Net à ma charge** | Remb. clients − Annulations Uber = ce qui sort vraiment de ma poche | **2 530 €** |
+### 1. Boucle de pagination qui ré-exécute la RPC complète
 
-## Où ça s'applique
+Dans `src/pages/Analytics.tsx` (lignes 388-419), le code appelle `get_orders_finance_detail` **jusqu'à 50 fois** via `.range(from, from + 999)` pour paginer :
 
-1. **Tableau du haut** (`ProfitabilityComparisonTable`) — la colonne actuelle "Remboursements" devient 3 colonnes groupées sous un header "Remboursements"
-2. **Tableau du bas** (`OrdersAnalysisSection`, onglet "Par Jour") — mêmes 3 colonnes, mêmes valeurs (alimentées par la même source)
-3. **Drilldown par restaurant** (`RestaurantDrilldownRow`) — mêmes 3 colonnes dans les onglets Jour / Heure
-4. **Tooltip** sur chaque en-tête avec la définition courte
-5. **Totaux mensuels** affichés pour les 3 colonnes
-6. **Couleurs** : col 1 rouge atténué, col 2 vert atténué, col 3 rouge si > 0 / vert si < 0
+```ts
+for (let i = 0; i < 50; i++) {
+  const { data } = await supabase
+    .rpc('get_orders_finance_detail', { p_year, p_month, p_restaurant_ids })
+    .range(from, from + 1000 - 1);   // ⚠️ relance toute la RPC à chaque page
+  ...
+}
+```
 
-## Détails techniques
+PostgREST + Supabase **ré-exécute la fonction entière à chaque appel** (le `.range()` ne fait qu'un `LIMIT/OFFSET` sur le résultat final). La RPC scanne ~30 restos × 31 jours dans `orders` à chaque itération.
 
-- RPC `get_orders_finance_detail` : remplacer le champ `refund_incl_vat` unique par 3 champs :
-  - `refund_to_customer` = `SUM(CASE WHEN refund_incl_vat < 0 THEN ABS(refund_incl_vat) ELSE 0 END)`
-  - `refund_uber_cancellation` = `SUM(CASE WHEN refund_incl_vat > 0 THEN refund_incl_vat ELSE 0 END)`
-  - `refund_net` = `refund_to_customer - refund_uber_cancellation`
-- Idem dans les RPC du drilldown (`get_finances_daily_uber`, `get_finances_hourly_uber`) pour garder la cohérence
-- Frontend :
-  - `ProfitabilityComparisonTable.tsx` — header groupé "Remboursements" sur 2 niveaux, 3 sous-colonnes
-  - `OrdersAnalysisSection.tsx` — exposer les 3 champs via `precomputedDailyRows`
-  - `RestaurantDrilldownRow.tsx` — mapper les 3 champs
-  - `useFinancesDrilldown.ts` — propager les 3 champs
+Comme la RPC retourne ~1 ligne par (resto × jour) = ~1000 lignes/mois, on est **pile au seuil** où la boucle fait 2 passages (≈ 2 fois plus lent que nécessaire). En vue année (si appelée), on parle de × N passages.
 
-## Validation
+### 2. RPC `get_orders_finance_detail` non optimisée pour l'index
 
-Pour Tasty Crousty / Mars 2026, les 3 tableaux doivent afficher exactement :
-- Remb. clients : **12 672 €**
-- Annulations Uber : **10 142 €**
-- Net à ma charge : **2 530 €**
+La RPC actuelle fait un `GROUP BY o.restaurant_id, payout_date` direct sur `orders`. Le planner choisit parfois un scan global au lieu d'utiliser `idx_orders_restaurant_datetime`.
 
-Totaux haut = totaux bas = drilldown.
+La sœur RPC `get_orders_finance_summary` utilise déjà le pattern optimal :
+```sql
+FROM unnest(v_ids) AS ids(restaurant_id)
+CROSS JOIN LATERAL (
+  SELECT ... FROM orders o
+  WHERE o.restaurant_id = ids.restaurant_id
+    AND o.order_datetime >= v_start AND o.order_datetime < v_end
+) ord
+```
+→ force un index-scan par resto, beaucoup plus rapide.
+
+## Correctif
+
+### A. Backend — réécrire `get_orders_finance_detail`
+
+Migration SQL :
+- Garder la même signature (29 colonnes retournées, dont les 3 nouveaux champs `refund_to_customer` / `refund_uber_cancellation` / `refund_net`)
+- Adopter le pattern `unnest(v_ids) CROSS JOIN LATERAL` comme `get_orders_finance_summary`
+- Ajouter `SET statement_timeout TO '45s'`
+- Résoudre les IDs (RLS) **une seule fois** au début, pas dans la `WHERE`
+
+### B. Frontend — supprimer la boucle de pagination
+
+`src/pages/Analytics.tsx` (388-419) : remplacer la boucle `for (let i = 0; i < 50; ...)` par **un seul appel**. Avec la RPC corrigée et un index-scan, ~1000 lignes/mois passent sans souci sous le cap PostgREST si on n'utilise pas `.range()`.
+
+Si jamais il faut > 1000 lignes (grosse marque), passer par un `.range(0, 9999)` unique au lieu d'une boucle (PostgREST accepte jusqu'à `max-rows` configuré, ou on étend la RPC pour paginer côté SQL).
+
+### C. Aucune modif UI
+
+Le composant `ProfitabilityComparisonTable` continue à recevoir le même `payouts={dailyPayoutsData}` (déjà les 3 colonnes Remb. clients / Annulations Uber / Net).
+
+## Impact attendu
+
+- Drilldown mois : passage de ~plusieurs secondes à **< 1s** (1 RPC indexée vs 2-50 RPCs full-scan).
+- Pas de régression fonctionnelle.
+
+## Hors scope (à voir plus tard)
+
+- Vue année (sans drilldown) : nécessite de brancher `get_yearly_payouts_detail` sur `dailyPayoutsData`. Je peux le faire dans un second temps si tu veux que le tableau soit aussi visible en vue année.
