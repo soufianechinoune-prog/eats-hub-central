@@ -58,12 +58,30 @@ interface Restaurant {
   name: string;
 }
 
+interface PrecomputedDailyRow {
+  restaurant_id: string;
+  payout_date: string;
+  sales_incl_vat: number;
+  refund_incl_vat: number;
+  item_promo_incl_vat: number;
+  uber_fee_after_promo_incl_vat: number;
+  net_payout: number;
+  meal_voucher_amount?: number;
+  order_count: number;
+}
+
 interface OrdersAnalysisSectionProps {
   restaurants: Restaurant[];
   selectedRestaurants: string[];
   startDate: Date;
   endDate: Date;
   platform?: "uber_eats" | "deliveroo" | "global";
+  /**
+   * Lignes journalières déjà récupérées par le comparatif haut (get_orders_finance_detail).
+   * Quand fournies, l'onglet "Par Jour" est calculé à partir de ces lignes pour garantir
+   * une cohérence parfaite avec le comparatif (mêmes totaux, pas de troncature 1000 lignes).
+   */
+  precomputedDailyRows?: PrecomputedDailyRow[];
 }
 
 const formatCurrency = (value: number) => {
