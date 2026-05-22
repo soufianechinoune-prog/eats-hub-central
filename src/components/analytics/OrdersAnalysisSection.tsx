@@ -63,6 +63,10 @@ interface PrecomputedDailyRow {
   payout_date: string;
   sales_incl_vat: number;
   refund_incl_vat: number;
+  // Détail remboursements (Uber) : exposé par get_orders_finance_detail
+  refund_to_customer?: number;
+  refund_uber_cancellation?: number;
+  refund_net?: number;
   item_promo_incl_vat: number;
   uber_fee_after_promo_incl_vat: number;
   net_payout: number;
@@ -94,6 +98,38 @@ const formatCurrencyPrecise = (value: number) => {
 
 const formatPercent = (value: number) => {
   return value.toFixed(1) + '%';
+};
+
+// Cellule Remboursements : 3 valeurs empilées (Clients / Annul. Uber / Net à ma charge)
+const RefundDetailCell = ({ clients, cancellation, net }: { clients: number; cancellation: number; net: number }) => {
+  // Si aucun détail (legacy / Deliveroo), fallback simple
+  if (clients === 0 && cancellation === 0 && net === 0) {
+    return <span className="text-muted-foreground">-</span>;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div className="flex flex-col items-end gap-0.5 tabular-nums leading-tight cursor-help">
+          <span className="text-red-600 text-xs">
+            {clients > 0 ? `-${formatCurrency(clients)}` : '-'}
+          </span>
+          <span className="text-emerald-600 text-xs">
+            {cancellation > 0 ? `+${formatCurrency(cancellation)}` : '-'}
+          </span>
+          <span className={cn("font-semibold text-xs", net > 0 ? "text-red-700" : net < 0 ? "text-emerald-700" : "text-muted-foreground")}>
+            {net === 0 ? '0 €' : (net > 0 ? `-${formatCurrency(Math.abs(net))}` : `+${formatCurrency(Math.abs(net))}`)}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs">
+        <div className="text-xs space-y-1">
+          <p><span className="text-red-600 font-medium">Remb. clients</span> : argent envoyé aux clients</p>
+          <p><span className="text-emerald-600 font-medium">Annulations Uber</span> : reprises Uber qui annulent un remboursement</p>
+          <p><span className="font-semibold">Net à ma charge</span> : Clients − Annulations = impact réel</p>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  );
 };
 
 const getProfitabilityColor = (value: number) => {
@@ -190,18 +226,27 @@ export function OrdersAnalysisSection({
     if (!hasPrecomputedDaily) return null;
     const idSet = new Set(queryRestaurantIds);
     const byDate: Record<string, {
-      sales: number; refund: number; promo: number; uberFee: number;
+      sales: number; refund: number; refundToCustomer: number; refundUberCancellation: number; refundNet: number;
+      promo: number; uberFee: number;
       netPayout: number; mealVoucher: number; count: number;
     }> = {};
     for (const row of precomputedDailyRows!) {
       if (!idSet.has(row.restaurant_id)) continue;
       const date = String(row.payout_date).slice(0, 10);
       if (!byDate[date]) {
-        byDate[date] = { sales: 0, refund: 0, promo: 0, uberFee: 0, netPayout: 0, mealVoucher: 0, count: 0 };
+        byDate[date] = { sales: 0, refund: 0, refundToCustomer: 0, refundUberCancellation: 0, refundNet: 0, promo: 0, uberFee: 0, netPayout: 0, mealVoucher: 0, count: 0 };
       }
       const d = byDate[date];
+      const refundLegacy = Math.abs(Number(row.refund_incl_vat) || 0);
+      const hasDetail = row.refund_to_customer !== undefined || row.refund_uber_cancellation !== undefined;
+      const rToCustomer = hasDetail ? Math.abs(Number(row.refund_to_customer) || 0) : refundLegacy;
+      const rCancel = hasDetail ? Math.abs(Number(row.refund_uber_cancellation) || 0) : 0;
+      const rNet = hasDetail ? (Number(row.refund_net) ?? (rToCustomer - rCancel)) : refundLegacy;
       d.sales += Math.abs(Number(row.sales_incl_vat) || 0);
-      d.refund += Math.abs(Number(row.refund_incl_vat) || 0);
+      d.refund += refundLegacy;
+      d.refundToCustomer += rToCustomer;
+      d.refundUberCancellation += rCancel;
+      d.refundNet += rNet;
       d.promo += Math.abs(Number(row.item_promo_incl_vat) || 0);
       d.uberFee += Math.abs(Number(row.uber_fee_after_promo_incl_vat) || 0);
       d.netPayout += Number(row.net_payout) || 0;
@@ -214,6 +259,9 @@ export function OrdersAnalysisSection({
         label: format(new Date(date), "EEE dd MMM", { locale: fr }),
         sales_incl_vat: s.sales,
         refund_incl_vat: s.refund,
+        refund_to_customer: s.refundToCustomer,
+        refund_uber_cancellation: s.refundUberCancellation,
+        refund_net: s.refundNet,
         order_count: s.count,
         avg_basket: s.count > 0 ? s.sales / s.count : 0,
         uber_fee_incl_vat: s.uberFee,
@@ -366,6 +414,9 @@ export function OrdersAnalysisSection({
       orders: dailyData.reduce((sum, d) => sum + d.order_count, 0),
       sales: dailyData.reduce((sum, d) => sum + d.sales_incl_vat, 0),
       refunds: dailyData.reduce((sum, d) => sum + d.refund_incl_vat, 0),
+      refundToCustomer: dailyData.reduce((sum, d: any) => sum + (Number(d.refund_to_customer) || 0), 0),
+      refundUberCancellation: dailyData.reduce((sum, d: any) => sum + (Number(d.refund_uber_cancellation) || 0), 0),
+      refundNet: dailyData.reduce((sum, d: any) => sum + (Number(d.refund_net) || 0), 0),
       netPayout: dailyData.reduce((sum, d) => sum + d.net_payout, 0),
       commission: dailyData.reduce((sum, d) => sum + d.uber_fee_incl_vat, 0),
       promos: dailyData.reduce((sum, d) => sum + d.promo_incl_vat, 0),
@@ -619,8 +670,19 @@ export function OrdersAnalysisSection({
                                 <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
                                   {day.promo_incl_vat > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrency(day.promo_incl_vat)}` : '-'}
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums text-red-600">
-                                  {day.refund_incl_vat > 0 ? `-${formatCurrency(day.refund_incl_vat)}` : '-'}
+                                <TableCell className="text-right">
+                                  {(() => {
+                                    const d: any = day;
+                                    const hasDetail = d.refund_to_customer !== undefined || d.refund_uber_cancellation !== undefined;
+                                    if (hasDetail) {
+                                      return <RefundDetailCell clients={Number(d.refund_to_customer) || 0} cancellation={Number(d.refund_uber_cancellation) || 0} net={Number(d.refund_net) || 0} />;
+                                    }
+                                    return (
+                                      <span className="tabular-nums text-red-600">
+                                        {day.refund_incl_vat > 0 ? `-${formatCurrency(day.refund_incl_vat)}` : '-'}
+                                      </span>
+                                    );
+                                  })()}
                                 </TableCell>
                                 <TableCell className="text-right tabular-nums text-green-600">
                                   {formatCurrency(day.net_payout)}
@@ -657,8 +719,10 @@ export function OrdersAnalysisSection({
                               <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
                                 {dailyTotals.promos > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrency(dailyTotals.promos)}` : '-'}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums text-red-600">
-                                {dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}
+                              <TableCell className="text-right">
+                                {(dailyTotals.refundToCustomer > 0 || dailyTotals.refundUberCancellation > 0)
+                                  ? <RefundDetailCell clients={dailyTotals.refundToCustomer} cancellation={dailyTotals.refundUberCancellation} net={dailyTotals.refundNet} />
+                                  : <span className="tabular-nums text-red-600">{dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}</span>}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-green-600">
                                 {formatCurrency(dailyTotals.netPayout)}

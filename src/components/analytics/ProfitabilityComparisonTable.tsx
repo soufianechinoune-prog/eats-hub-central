@@ -886,6 +886,9 @@ export function ProfitabilityComparisonTable({
           ecoCharge: number;
           promo: number;
           refund: number;
+          refundToCustomer: number;
+          refundUberCancellation: number;
+          refundNet: number;
           uberFee: number;
           orderCount: number;
           advertisingAmount: number;
@@ -898,7 +901,9 @@ export function ProfitabilityComparisonTable({
               restaurantName: row.restaurantName,
               sales: 0, netPayout: 0, mealVoucher: 0,
               ecoContribution: 0, ecoCharge: 0,
-              promo: 0, refund: 0, uberFee: 0,
+              promo: 0, refund: 0,
+              refundToCustomer: 0, refundUberCancellation: 0, refundNet: 0,
+              uberFee: 0,
               orderCount: 0, advertisingAmount: 0,
             };
           }
@@ -910,6 +915,9 @@ export function ProfitabilityComparisonTable({
           agg.ecoCharge += row.ecoCharge;
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
+          agg.refundToCustomer += row.refundToCustomer;
+          agg.refundUberCancellation += row.refundUberCancellation;
+          agg.refundNet += row.refundNet;
           agg.orderCount += row.orderCount;
           agg.advertisingAmount += row.advertisingAmount;
           const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
@@ -939,6 +947,9 @@ export function ProfitabilityComparisonTable({
               uberFee: agg.uberFee,
               promo: agg.promo,
               refund: agg.refund,
+              refundToCustomer: agg.refundToCustomer,
+              refundUberCancellation: agg.refundUberCancellation,
+              refundNet: agg.refundNet,
               orderCount: agg.orderCount,
               advertisingAmount: agg.advertisingAmount,
             };
@@ -1795,7 +1806,7 @@ export function ProfitabilityComparisonTable({
                                 <ComparisonCell percentValue={row.promoRate} amountValue={row.promoAmount} />
                               </TableCell>
                               <TableCell className="text-right text-muted-foreground">
-                                <ComparisonCell percentValue={row.refundRate} amountValue={row.refundAmount} />
+                                <RefundCell clients={row.refundToCustomer} cancellation={row.refundUberCancellation} net={row.refundNet} />
                               </TableCell>
                               <TableCell className="text-right font-medium text-green-600 tabular-nums">
                                 {formatCurrency(row.netPayout)}
@@ -2031,7 +2042,7 @@ export function ProfitabilityComparisonTable({
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.refundRate} amountValue={resto.refund} />
+                              <RefundCell clients={resto.refundToCustomer ?? resto.refund} cancellation={resto.refundUberCancellation ?? 0} net={resto.refundNet ?? resto.refund} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {formatCurrency(resto.netPayout)}
@@ -2322,7 +2333,7 @@ export function ProfitabilityComparisonTable({
                               <ComparisonCell percentValue={resto.promoRate} amountValue={resto.promo} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
-                              <ComparisonCell percentValue={resto.refundRate} amountValue={resto.refund} />
+                              <RefundCell clients={resto.refundToCustomer ?? resto.refund} cancellation={resto.refundUberCancellation ?? 0} net={resto.refundNet ?? resto.refund} />
                             </TableCell>
                             <TableCell className="text-right tabular-nums text-muted-foreground">
                               {formatCurrency(resto.netPayout)}
