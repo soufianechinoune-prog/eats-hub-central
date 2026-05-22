@@ -915,6 +915,9 @@ export function ProfitabilityComparisonTable({
           agg.ecoCharge += row.ecoCharge;
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
+          agg.refundToCustomer += row.refundToCustomer;
+          agg.refundUberCancellation += row.refundUberCancellation;
+          agg.refundNet += row.refundNet;
           agg.orderCount += row.orderCount;
           agg.advertisingAmount += row.advertisingAmount;
           const payoutData = payouts.find(p => p.payout_date === row.date && p.restaurant_id === row.restaurantId);
