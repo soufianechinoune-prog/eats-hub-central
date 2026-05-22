@@ -719,8 +719,10 @@ export function OrdersAnalysisSection({
                               <TableCell className={cn("text-right tabular-nums", platform === "deliveroo" ? "text-green-600" : "text-purple-600")}>
                                 {dailyTotals.promos > 0 ? `${platform === "deliveroo" ? "+" : "-"}${formatCurrency(dailyTotals.promos)}` : '-'}
                               </TableCell>
-                              <TableCell className="text-right tabular-nums text-red-600">
-                                {dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}
+                              <TableCell className="text-right">
+                                {(dailyTotals.refundToCustomer > 0 || dailyTotals.refundUberCancellation > 0)
+                                  ? <RefundDetailCell clients={dailyTotals.refundToCustomer} cancellation={dailyTotals.refundUberCancellation} net={dailyTotals.refundNet} />
+                                  : <span className="tabular-nums text-red-600">{dailyTotals.refunds > 0 ? `-${formatCurrency(dailyTotals.refunds)}` : '-'}</span>}
                               </TableCell>
                               <TableCell className="text-right tabular-nums text-green-600">
                                 {formatCurrency(dailyTotals.netPayout)}
