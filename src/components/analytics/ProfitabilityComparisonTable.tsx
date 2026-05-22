@@ -1031,7 +1031,8 @@ export function ProfitabilityComparisonTable({
       ecoChargeAmount: avgEcoChargeAmount,
       totalPayoutAmount: avgTotalPayoutAmount,
       advertisingAmount: avgAdvertisingAmount,
-  };
+    };
+  }, [comparisonData, profitabilityBase, payouts]);
 
   // Cellule Remboursements : 3 valeurs empilées (Clients / Annul. Uber / Net à ma charge)
   const RefundCell = ({ clients, cancellation, net }: { clients: number; cancellation: number; net: number }) => {
@@ -1062,7 +1063,6 @@ export function ProfitabilityComparisonTable({
       </TooltipProvider>
     );
   };
-  }, [comparisonData, profitabilityBase, payouts]);
   
   if (comparisonData.length === 0) return null;
   
