@@ -186,9 +186,9 @@ interface MonthGroup {
   totalUberFee: number;
   totalPromo: number;
   totalRefund: number;
-  totalRefundToCustomer: number;
-  totalRefundUberCancellation: number;
-  totalRefundNet: number;
+  totalRefundToCustomer?: number;
+  totalRefundUberCancellation?: number;
+  totalRefundNet?: number;
   totalOrders: number;
   restaurantData: MonthRestaurantData[];
 }
@@ -207,9 +207,9 @@ interface YearGroup {
   totalUberFee: number;
   totalPromo: number;
   totalRefund: number;
-  totalRefundToCustomer: number;
-  totalRefundUberCancellation: number;
-  totalRefundNet: number;
+  totalRefundToCustomer?: number;
+  totalRefundUberCancellation?: number;
+  totalRefundNet?: number;
   totalOrders: number;
   restaurantData: MonthRestaurantData[];
 }
