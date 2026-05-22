@@ -947,6 +947,9 @@ export function ProfitabilityComparisonTable({
               uberFee: agg.uberFee,
               promo: agg.promo,
               refund: agg.refund,
+              refundToCustomer: agg.refundToCustomer,
+              refundUberCancellation: agg.refundUberCancellation,
+              refundNet: agg.refundNet,
               orderCount: agg.orderCount,
               advertisingAmount: agg.advertisingAmount,
             };
