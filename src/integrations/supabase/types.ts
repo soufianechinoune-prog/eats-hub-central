@@ -4125,6 +4125,93 @@ export type Database = {
         }
         Returns: Json
       }
+      get_finances_daily_uber: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          day: string
+          meal_voucher_amount: number
+          net_payout: number
+          order_count: number
+          promo_incl_vat: number
+          refund_incl_vat: number
+          restaurant_id: string
+          sales_incl_vat: number
+          uber_fee_incl_vat: number
+        }[]
+      }
+      get_finances_hourly_uber: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          hour: number
+          meal_voucher_amount: number
+          net_payout: number
+          order_count: number
+          promo_incl_vat: number
+          refund_incl_vat: number
+          sales_incl_vat: number
+          uber_fee_incl_vat: number
+        }[]
+      }
+      get_finances_orders_paginated_uber: {
+        Args: {
+          p_end_date: string
+          p_fulfillment?: string
+          p_limit?: number
+          p_offset?: number
+          p_restaurant_ids: string[]
+          p_search?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+          p_start_date: string
+        }
+        Returns: {
+          fulfillment_type: string
+          has_items: boolean
+          id: string
+          item_promo_incl_vat: number
+          marketing_fee_adjustment: number
+          meal_voucher_amount: number
+          net_payout: number
+          offer_usage_fee: number
+          order_datetime: string
+          promotion_discount: number
+          refund_incl_vat: number
+          sales_excl_vat: number
+          sales_incl_vat: number
+          total_count: number
+          uber_fee_after_promo_incl_vat: number
+          uber_order_id: string
+          vat_1_sales: number
+          vat_2_sales: number
+          vat_3_sales: number
+          vat_offer_usage_fee: number
+        }[]
+      }
+      get_finances_products_uber: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          category: string
+          item_id: string
+          item_title: string
+          order_count: number
+          promo_incl_vat: number
+          quantity: number
+          refund_incl_vat: number
+          sales_incl_vat: number
+        }[]
+      }
       get_hourly_order_performance:
         | {
             Args: {
