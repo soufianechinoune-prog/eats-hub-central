@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, useEffect } from "react";
+import { useMemo } from "react";
 import { ProfitabilityComparisonTable } from "./ProfitabilityComparisonTable";
 import { OrdersAnalysisSection } from "./OrdersAnalysisSection";
 import { ProfitabilityComparisonChart } from "@/components/compare/ProfitabilityComparisonChart";
