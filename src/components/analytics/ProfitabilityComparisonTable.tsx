@@ -479,7 +479,20 @@ export function ProfitabilityComparisonTable({
       const uberFeeGross = uberFeeGrossHT > 0 ? uberFeeGrossHT + (vatUberFee * (uberFeeGrossHT / (uberFeeGrossHT - uberFeeReductionHT || 1))) : uberFeeNet;
       const uberFeeReduction = uberFeeReductionHT > 0 ? uberFeeReductionHT * 1.2 : 0; // Approximation TVA 20%
       const promoAmount = Math.abs(Number(payout.item_promo_incl_vat) || 0);
-      const refundAmount = Math.abs(Number(payout.refund_incl_vat) || 0);
+      const refundLegacyAbs = Math.abs(Number(payout.refund_incl_vat) || 0);
+      // Si la RPC fournit les 3 champs détaillés (Uber Eats), on les utilise.
+      // Sinon (Deliveroo / source legacy), fallback : tout est "remb. clients", pas d'annulation.
+      const hasDetailed = payout.refund_to_customer !== undefined || payout.refund_uber_cancellation !== undefined;
+      const refundToCustomer = hasDetailed
+        ? Math.abs(Number(payout.refund_to_customer) || 0)
+        : refundLegacyAbs;
+      const refundUberCancellation = hasDetailed
+        ? Math.abs(Number(payout.refund_uber_cancellation) || 0)
+        : 0;
+      const refundNet = hasDetailed
+        ? Number(payout.refund_net) || (refundToCustomer - refundUberCancellation)
+        : refundLegacyAbs;
+      const refundAmount = refundToCustomer;
       const other = Math.abs(Number(payout.other_payments_incl_vat) || 0);
       const orderCount = Number(payout.order_count) || 0;
       
