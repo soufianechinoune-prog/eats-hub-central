@@ -108,6 +108,7 @@ export function OrdersAnalysisSection({
   startDate,
   endDate,
   platform = "uber_eats",
+  precomputedDailyRows,
 }: OrdersAnalysisSectionProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [orderPageIndex, setOrderPageIndex] = useState(0);
