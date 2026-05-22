@@ -63,6 +63,10 @@ interface PrecomputedDailyRow {
   payout_date: string;
   sales_incl_vat: number;
   refund_incl_vat: number;
+  // Détail remboursements (Uber) : exposé par get_orders_finance_detail
+  refund_to_customer?: number;
+  refund_uber_cancellation?: number;
+  refund_net?: number;
   item_promo_incl_vat: number;
   uber_fee_after_promo_incl_vat: number;
   net_payout: number;
