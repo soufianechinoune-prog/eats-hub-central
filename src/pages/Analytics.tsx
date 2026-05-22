@@ -390,16 +390,30 @@ export default function Analytics() {
     queryFn: async () => {
       // Only fetch detail when a specific month is drilled into
       if (!drillDownMonth) return null;
-      const { data, error } = await supabase.rpc('get_orders_finance_detail', {
-        p_year: selectedYear,
-        p_month: drillDownMonth,
-        p_restaurant_ids: restaurantFilter || null,
-      });
-      if (error) {
-        console.error("[Analytics] get_orders_finance_detail error:", error);
-        throw error;
+      // Paginate to bypass PostgREST's default 1000-row cap.
+      // The RPC returns 1 row per (restaurant × day); ~33 restos × 31 days can exceed 1000.
+      const PAGE_SIZE = 1000;
+      const allRows: any[] = [];
+      let from = 0;
+      // Cap at 50 pages = 50k rows as a safety net.
+      for (let i = 0; i < 50; i++) {
+        const { data, error } = await supabase
+          .rpc('get_orders_finance_detail', {
+            p_year: selectedYear,
+            p_month: drillDownMonth,
+            p_restaurant_ids: restaurantFilter || null,
+          })
+          .range(from, from + PAGE_SIZE - 1);
+        if (error) {
+          console.error("[Analytics] get_orders_finance_detail error:", error);
+          throw error;
+        }
+        const rows = data || [];
+        allRows.push(...rows);
+        if (rows.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
       }
-      return data || [];
+      return allRows;
     },
     enabled: (selectedPlatform !== "deliveroo") && !!drillDownMonth && isRestaurantScopeReady,
   });
