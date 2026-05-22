@@ -162,9 +162,9 @@ interface MonthRestaurantData {
   uberFee: number;
   promo: number;
   refund: number;                  // legacy = refundToCustomer
-  refundToCustomer: number;
-  refundUberCancellation: number;
-  refundNet: number;
+  refundToCustomer?: number;
+  refundUberCancellation?: number;
+  refundNet?: number;
   orderCount: number;
   advertisingAmount: number;
 }
