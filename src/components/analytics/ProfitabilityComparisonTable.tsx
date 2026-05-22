@@ -702,6 +702,9 @@ export function ProfitabilityComparisonTable({
           ecoCharge: number;
           promo: number;
           refund: number;
+          refundToCustomer: number;
+          refundUberCancellation: number;
+          refundNet: number;
           uberFee: number;
           orderCount: number;
           advertisingAmount: number;
@@ -715,10 +718,13 @@ export function ProfitabilityComparisonTable({
               sales: 0,
               netPayout: 0,
               mealVoucher: 0,
-            ecoContribution: 0,
-            ecoCharge: 0,
-            promo: 0,
+              ecoContribution: 0,
+              ecoCharge: 0,
+              promo: 0,
               refund: 0,
+              refundToCustomer: 0,
+              refundUberCancellation: 0,
+              refundNet: 0,
               uberFee: 0,
               orderCount: 0,
               advertisingAmount: 0,
@@ -732,6 +738,9 @@ export function ProfitabilityComparisonTable({
           agg.ecoCharge += row.ecoCharge;
           agg.promo += row.promoAmount;
           agg.refund += row.refundAmount;
+          agg.refundToCustomer += row.refundToCustomer;
+          agg.refundUberCancellation += row.refundUberCancellation;
+          agg.refundNet += row.refundNet;
           agg.orderCount += row.orderCount;
           agg.advertisingAmount += row.advertisingAmount;
           // Find matching payout for uber fee HT
