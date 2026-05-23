@@ -443,7 +443,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
     : 0;
   const refundClientShare = totals.sales > 0 ? (totals.refundToCustomer / totals.sales) * 100 : 0;
   const refundNetShare = totals.sales > 0 ? (totals.refundNet / totals.sales) * 100 : 0;
-  const refundedOrdersRate = totals.orderCount > 0 ? (refundedOrdersApprox / totals.orderCount) * 100 : 0;
+  const refundedOrdersRate = totalOrdersReal > 0 ? (refundedOrdersTotal / totalOrdersReal) * 100 : 0;
+  const prevRefundedOrdersRate = refundedCountsPrev.reduce((s, r) => s + (Number(r.total_orders) || 0), 0) > 0
+    ? (refundedOrdersTotalPrev / refundedCountsPrev.reduce((s, r) => s + (Number(r.total_orders) || 0), 0)) * 100
+    : 0;
+  const deltaRefundedOrders = refundedOrdersTotal - refundedOrdersTotalPrev;
 
   const prevRefundClientShare = prevTotals.sales > 0 ? (prevTotals.refundToCustomer / prevTotals.sales) * 100 : 0;
   const prevRefundNetShare = prevTotals.sales > 0 ? (prevTotals.refundNet / prevTotals.sales) * 100 : 0;
