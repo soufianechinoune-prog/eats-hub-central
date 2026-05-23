@@ -1229,6 +1229,8 @@ export default function Analytics() {
         return { title: "Finances & Frais", subtitle: "Analyse des frais et de la rentabilité" };
       case "eco-contribution":
         return { title: "Éco-Contribution", subtitle: "Suivi des éco-contributions et prélèvements" };
+      case "refunds":
+        return { title: "Remboursements", subtitle: "Analyse détaillée des remboursements clients Uber Eats" };
       case "reviews":
         return { title: "Avis", subtitle: "Analyse des avis clients et produits" };
       case "overview":
