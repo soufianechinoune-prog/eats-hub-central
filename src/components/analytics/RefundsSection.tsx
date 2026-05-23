@@ -334,10 +334,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
         refundNet: e.sales > 0 ? (e.refundNet / e.sales) * 100 : 0,
       }));
     }
-    // For stacked bars we want Uber cancellation to display as negative
+    // Stacked bars: client refunds = money OUT (negative, below zero),
+    // Uber credits = money IN (positive, above zero). Net line keeps its real sign.
     return arr.map((e) => ({
       ...e,
-      uberCancel: -e.uberCancel,
+      refundClient: -e.refundClient,
     }));
   }, [currentRows, startDate, endDate, granularity, mode]);
 
@@ -497,9 +498,9 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       <div className="space-y-6">
         {/* Info bandeau */}
         <div className="text-xs text-muted-foreground bg-muted/40 border rounded-md px-3 py-2">
-          🔁 <strong>Remboursements Uber Eats</strong> — analyse de l'argent envoyé aux clients,
-          des reprises Uber (annulations) et du net réellement à votre charge. Période :{" "}
-          <strong>{periodLabel}</strong>. Comparé à N-1.
+          🔁 <strong>Remboursements Uber Eats</strong> — argent envoyé aux clients,
+          crédits Uber qui reviennent dans votre payout (annulations, gestes commerciaux)
+          et solde net réel. Période : <strong>{periodLabel}</strong>. Comparé à N-1.
         </div>
 
         {/* Toolbar */}
@@ -539,8 +540,8 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Reprises Uber"
-            tooltip="Annulations Uber : reprises qui annulent un remboursement client"
+            title="Crédits Uber"
+            tooltip="Argent qu'Uber vous re-crédite (annulations de commandes, gestes commerciaux, contestations gagnées). C'est en faveur du restaurant."
             value={mode === "amount" ? fmtEur(totals.refundUberCancellation) : fmtPct(recoveryRate)}
             subValue={mode === "amount" ? `${fmtPct(recoveryRate)} de récupération` : `${fmtEur(totals.refundUberCancellation)} récupérés`}
             delta={mode === "amount" ? deltaUberCancel : recoveryRate - prevRecoveryRate}
@@ -550,10 +551,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Net à ma charge"
-            tooltip="Clients − Annulations = impact réel sur votre rentabilité"
+            title="Solde net"
+            tooltip="Remb. clients − Crédits Uber. Positif = vous payez. Négatif = Uber vous a recrédité plus qu'il ne vous a débité (gain net pour vous)."
             value={mode === "amount" ? fmtEur(totals.refundNet) : fmtPct(refundNetShare)}
-            subValue={mode === "amount" ? `${fmtPct(refundNetShare)} du CA TTC` : fmtEur(totals.refundNet)}
+            subValue={mode === "amount"
+              ? (totals.refundNet > 0 ? "à votre charge" : totals.refundNet < 0 ? "en votre faveur" : "équilibré")
+              : fmtEur(totals.refundNet)}
             delta={mode === "amount" ? deltaRefundNet : refundNetShare - prevRefundNetShare}
             deltaIsPercent={mode === "percent"}
             negativeIsBad
@@ -580,7 +583,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
               <div>
                 <h3 className="font-semibold">Évolution des remboursements</h3>
                 <p className="text-xs text-muted-foreground">
-                  Barres = remb. clients (orange) et reprises Uber (vert, négatif). Ligne = net à charge.
+                  Barres oranges (sous 0) = remb. clients (argent qui sort). Barres vertes (au-dessus de 0) = crédits Uber (argent qui rentre). Ligne = solde net.
                 </p>
               </div>
               <Badge variant="outline">{timeSeries.length} {granularity === "day" ? "jours" : granularity === "week" ? "semaines" : "mois"}</Badge>
@@ -625,12 +628,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                     />
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="uberCancel" name="Reprises Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]} />
                     <Line
                       type="monotone"
                       dataKey="refundNet"
-                      name="Net à ma charge"
+                      name="Solde net"
                       stroke="hsl(var(--primary))"
                       strokeWidth={2.5}
                       dot={false}
@@ -670,8 +673,8 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                     <TableHead className="w-8"></TableHead>
                     <SortableHead label="Restaurant" sortKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} />
                     <SortableHead label="Remb. clients" sortKey="refundClient" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
-                    <SortableHead label="Reprises Uber" sortKey="uberCancel" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
-                    <SortableHead label="Net à charge" sortKey="refundNet" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Crédits Uber" sortKey="uberCancel" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Solde net" sortKey="refundNet" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
                     <SortableHead label="% du CA" sortKey="pctOfSales" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
                     <SortableHead label="Cmd. remboursées" sortKey="refundedOrders" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" altKey="refundedRate" altLabel="Trier par taux" />
                   </TableRow>
@@ -735,7 +738,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                                       data={monthlyArr.map((m) => ({
                                         ...m,
                                         label: bucketLabel(m.month, "month"),
-                                        uberCancel: -m.uberCancel,
+                                        refundClient: -m.refundClient,
                                       }))}
                                       margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
                                       stackOffset="sign"
@@ -749,8 +752,8 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                                       />
                                       <ReferenceLine y={0} stroke="hsl(var(--border))" />
                                       <Bar dataKey="refundClient" name="Remb. clients" stackId="b" fill="hsl(24 95% 60%)" />
-                                      <Bar dataKey="uberCancel" name="Reprises Uber" stackId="b" fill="hsl(142 70% 50%)" />
-                                      <Line type="monotone" dataKey="refundNet" name="Net" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                                      <Bar dataKey="uberCancel" name="Crédits Uber" stackId="b" fill="hsl(142 70% 50%)" />
+                                      <Line type="monotone" dataKey="refundNet" name="Solde net" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
                                     </ComposedChart>
                                   </ResponsiveContainer>
                                 </div>
