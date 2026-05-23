@@ -4680,6 +4680,18 @@ export type Database = {
           sales: number
         }[]
       }
+      get_refunded_orders_count: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          refunded_orders: number
+          restaurant_id: string
+          total_orders: number
+        }[]
+      }
       get_restaurant_cash_revenue: {
         Args: { p_chain_id: string; p_end_date: string; p_start_date: string }
         Returns: {
