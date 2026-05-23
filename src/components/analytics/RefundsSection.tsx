@@ -4,7 +4,7 @@ import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, 
 import { fr } from "date-fns/locale";
 import {
   RotateCcw, TrendingUp, TrendingDown, Users, ChevronDown, ChevronRight,
-  Loader2, AlertTriangle, Percent, Euro as EuroIcon,
+  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
@@ -150,6 +150,16 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
   const [mode, setMode] = useState<Mode>("amount");
   const [granularity, setGranularity] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
+  type SortKey = "name" | "refundClient" | "uberCancel" | "refundNet" | "pctOfSales" | "refundedOrders" | "refundedRate";
+  const [sortKey, setSortKey] = useState<SortKey>("refundNet");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k);
+      setSortDir(k === "name" ? "asc" : "desc");
+    }
+  };
   const [expandedRestaurant, setExpandedRestaurant] = useState<string | null>(null);
 
   const { data: activeRestaurants = [], isLoading: restaurantsLoading } = useActiveRestaurants();
@@ -375,9 +385,30 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       const q = search.toLowerCase();
       arr = arr.filter((r) => r.name.toLowerCase().includes(q));
     }
-    arr.sort((a, b) => b.refundNet - a.refundNet);
+    arr.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "name") return a.name.localeCompare(b.name) * dir;
+      const counts = (rid: string) => refundedCountsByRestaurant.get(rid);
+      const getVal = (r: typeof a): number => {
+        switch (sortKey) {
+          case "refundClient": return r.refundClient;
+          case "uberCancel": return r.uberCancel;
+          case "refundNet": return r.refundNet;
+          case "pctOfSales": return r.sales > 0 ? (r.refundNet / r.sales) * 100 : 0;
+          case "refundedOrders": return counts(r.restaurantId)?.refunded ?? 0;
+          case "refundedRate": {
+            const c = counts(r.restaurantId);
+            const total = c?.total ?? r.orderCount;
+            const refunded = c?.refunded ?? 0;
+            return total > 0 ? (refunded / total) * 100 : 0;
+          }
+          default: return 0;
+        }
+      };
+      return (getVal(a) - getVal(b)) * dir;
+    });
     return arr;
-  }, [currentRows, startDate, endDate, activeRestaurants, search]);
+  }, [currentRows, startDate, endDate, activeRestaurants, search, sortKey, sortDir, refundedCountsByRestaurant]);
 
   // ============ Per-restaurant monthly series (for drilldown) ============
   const restaurantMonthly = useMemo(() => {
@@ -617,7 +648,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div>
                 <h3 className="font-semibold">Classement par restaurant</h3>
-                <p className="text-xs text-muted-foreground">Trié par net à charge décroissant. Cliquez sur une ligne pour voir l'évolution mensuelle.</p>
+                <p className="text-xs text-muted-foreground">Cliquez sur une colonne pour trier. Cliquez sur une ligne pour voir l'évolution mensuelle.</p>
               </div>
               <Input
                 placeholder="Rechercher un restaurant…"
@@ -637,12 +668,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
-                    <TableHead>Restaurant</TableHead>
-                    <TableHead className="text-right">Remb. clients</TableHead>
-                    <TableHead className="text-right">Reprises Uber</TableHead>
-                    <TableHead className="text-right">Net à charge</TableHead>
-                    <TableHead className="text-right">% du CA</TableHead>
-                    <TableHead className="text-right">Cmd. remboursées</TableHead>
+                    <SortableHead label="Restaurant" sortKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} />
+                    <SortableHead label="Remb. clients" sortKey="refundClient" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Reprises Uber" sortKey="uberCancel" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Net à charge" sortKey="refundNet" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="% du CA" sortKey="pctOfSales" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Cmd. remboursées" sortKey="refundedOrders" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" altKey="refundedRate" altLabel="Trier par taux" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -806,5 +837,52 @@ function KpiCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+interface SortableHeadProps {
+  label: string;
+  sortKey: string;
+  current: string;
+  dir: "asc" | "desc";
+  onClick: (k: any) => void;
+  align?: "left" | "right";
+  altKey?: string;
+  altLabel?: string;
+}
+
+function SortableHead({ label, sortKey, current, dir, onClick, align = "left", altKey, altLabel }: SortableHeadProps) {
+  const isActive = current === sortKey || current === altKey;
+  const showAlt = altKey && current === altKey;
+  const Icon = !isActive ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={cn(align === "right" && "text-right", "select-none")}>
+      <div className={cn("inline-flex items-center gap-1", align === "right" && "justify-end w-full")}>
+        <button
+          type="button"
+          onClick={() => onClick(sortKey)}
+          className={cn(
+            "inline-flex items-center gap-1 hover:text-foreground transition-colors",
+            isActive ? "text-foreground font-semibold" : "text-muted-foreground"
+          )}
+        >
+          <span>{label}</span>
+          <Icon className="h-3 w-3 opacity-70" />
+        </button>
+        {altKey && (
+          <button
+            type="button"
+            onClick={() => onClick(altKey)}
+            title={altLabel || "Trier par taux"}
+            className={cn(
+              "ml-1 text-[10px] rounded px-1 py-0.5 border transition-colors",
+              showAlt ? "border-primary/40 text-primary bg-primary/5" : "border-muted text-muted-foreground hover:text-foreground"
+            )}
+          >
+            %
+          </button>
+        )}
+      </div>
+    </TableHead>
   );
 }
