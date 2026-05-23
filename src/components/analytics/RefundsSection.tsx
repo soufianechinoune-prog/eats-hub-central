@@ -531,10 +531,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Commandes impactées"
-            tooltip="Approximation : commandes des jours comportant au moins un remboursement client"
-            value={fmtInt(refundedOrdersApprox)}
-            subValue={`${fmtPct(refundedOrdersRate)} des commandes`}
+            title="Commandes remboursées"
+            tooltip="Nombre de commandes ayant fait l'objet d'au moins un remboursement client (compté commande par commande)."
+            value={fmtInt(refundedOrdersTotal)}
+            subValue={`${fmtPct(refundedOrdersRate)} des ${fmtInt(totalOrdersReal)} commandes`}
+            delta={deltaRefundedOrders}
+            negativeIsBad
             icon={<Users className="h-4 w-4 text-violet-500" />}
             loading={isLoading}
           />
