@@ -23,6 +23,7 @@ import { OperationsAnalytics } from "@/components/analytics/OperationsAnalytics"
 import { ActionFilterPopover } from "@/components/analytics/ActionFilterPopover";
 import { EcoContributionSection } from "@/components/analytics/EcoContributionSection";
 import { OffersAnalyticsSection } from "@/components/analytics/OffersAnalyticsSection";
+import { RefundsSection } from "@/components/analytics/RefundsSection";
 import { useFrenchHolidays } from "@/hooks/useFrenchHolidays";
 import { useSchoolHolidays } from "@/hooks/useSchoolHolidays";
 import { useFootballMatches } from "@/hooks/useFootballMatches";
@@ -49,7 +50,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
-  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution" | "offers";
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution" | "offers" | "refunds";
   
   const {
     selectedRestaurants,
@@ -1228,6 +1229,8 @@ export default function Analytics() {
         return { title: "Finances & Frais", subtitle: "Analyse des frais et de la rentabilité" };
       case "eco-contribution":
         return { title: "Éco-Contribution", subtitle: "Suivi des éco-contributions et prélèvements" };
+      case "refunds":
+        return { title: "Remboursements", subtitle: "Analyse détaillée des remboursements clients Uber Eats" };
       case "reviews":
         return { title: "Avis", subtitle: "Analyse des avis clients et produits" };
       case "overview":
@@ -1395,6 +1398,8 @@ export default function Analytics() {
             // Render appropriate view
             if (viewMode === "offers") {
               return <OffersAnalyticsSection />;
+            } else if (viewMode === "refunds") {
+              return <RefundsSection platform={selectedPlatform} />;
             } else if (viewMode === "eco-contribution") {
               return (
                 <EcoContributionSection

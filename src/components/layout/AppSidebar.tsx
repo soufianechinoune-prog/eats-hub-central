@@ -33,6 +33,8 @@ import {
   Building2,
   Plus,
   Plug,
+  RotateCcw,
+
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +89,7 @@ const analyticsSubItems = [
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
+  { title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw },
   { title: "Offres & Frais", url: "/analytics/offers", icon: Tag },
   { title: "Opérations", url: "/analytics/operations", icon: Settings2 },
   { title: "Avis", url: "/analytics/reviews", icon: Star },

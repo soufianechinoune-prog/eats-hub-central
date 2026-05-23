@@ -1,46 +1,77 @@
-## Problème
+## Objectif
 
-Sur `/overview`, la sidebar canal n'affiche l'onglet **Uber Eats** qu'au bout de plusieurs secondes (cf. screenshot gauche → droite).
+Créer un onglet dédié **Remboursements** dans Analytics (au même niveau que Éco-Contribution), pour analyser en profondeur les remboursements Uber Eats : montants envoyés aux clients, reprises Uber qui annulent, net réellement à la charge du restaurant — avec filtres période / plateforme / restaurant, vue € et %, graphiques et tableau restaurant par restaurant.
 
-## Cause
+## Navigation
 
-Dans `src/pages/Overview.tsx` (lignes 517-528), la visibilité de l'onglet dépend de :
+`src/components/layout/AppSidebar.tsx` — ajouter une entrée juste après "Finances & Frais" :
 
-```ts
-const hasUberData = useMemo(
-  () => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0),
-  [comparisonStats]
-);
+```
+{ title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw }
 ```
 
-`comparisonStats` vient de `useNetworkStats(...)` — une grosse agrégation (revenus, rentabilité, notes, downtime, N-1…) qui prend plusieurs secondes sur 104 restaurants. Tant qu'elle n'a pas répondu, `comparisonStats = []` → `hasUberData = false` → l'onglet est masqué.
+`src/pages/Analytics.tsx` — étendre le type `viewMode` avec `"refunds"`, ajouter le titre ("Remboursements" / "Analyse détaillée des remboursements clients") et brancher le rendu vers le nouveau composant `RefundsSection`.
 
-L'onglet Caisse, lui, est forcé à `true` donc apparaît immédiatement.
+## Données (déjà disponibles, aucune migration)
 
-## Correctif (frontend uniquement, 1 fichier)
+La RPC existante `get_orders_finance_detail` (utilisée par `ProfitabilityComparisonTable`) renvoie déjà :
+- `refund_to_customer` — argent envoyé aux clients
+- `refund_uber_cancellation` — reprises Uber qui annulent un remboursement
+- `refund_net` — net à ma charge (clients − annulations)
+- `sales`, `orders_count`, `restaurant_id`, `day`
 
-`src/pages/Overview.tsx` :
+→ Aucun changement backend nécessaire. On consomme la même RPC déjà agrégée côté serveur.
 
-1. Récupérer `statsLoading` (déjà destructuré ligne 387).
-2. Pendant le chargement → considérer Uber et Deliveroo comme disponibles par défaut (au lieu de masqués). Une fois `statsLoading=false`, on retombe sur la détection réelle pour cacher la plateforme si vraiment 0 €.
+## Nouveau composant `src/components/analytics/RefundsSection.tsx`
 
-```ts
-const hasUberData = useMemo(
-  () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0),
-  [comparisonStats, statsLoading]
-);
-const hasDeliverooData = useMemo(
-  () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0),
-  [comparisonStats, statsLoading]
-);
-```
+### Barre de filtres (sticky en haut)
+- Période (réutilise le `AnalyticsHeader` global déjà partagé entre les onglets)
+- Plateforme : Uber Eats / Deliveroo / Global (Deliveroo affiche un message "données non disponibles" — voir mémoire `Deliveroo Item Limit`)
+- Restaurants : multi-sélect (réutilise `useActiveRestaurants` + filtre déjà en place)
+- Bascule **% / €** (comme Finances)
+- Bascule granularité : Jour / Semaine / Mois
 
-## Résultat
+### Bloc 1 — KPIs (4 cartes)
+1. **Remb. clients** — total envoyé aux clients (€) + % du CA TTC
+2. **Reprises Uber** — total des annulations (€) + % des remb. clients (= "taux de récupération")
+3. **Net à ma charge** — refund_net (€) + % du CA TTC ← KPI principal en avant
+4. **Commandes remboursées** — nombre de commandes touchées + taux (vs total commandes)
 
-- L'onglet **Uber Eats** apparaît tout de suite (comme Caisse).
-- Si après chargement le réseau n'a réellement aucun CA Uber/Deliveroo, l'onglet se masque comme avant.
-- Aucun changement de logique métier ni de requête backend.
+Chaque carte avec évolution vs période N-1 (delta + flèche).
+
+### Bloc 2 — Évolution dans le temps
+Graphique combiné (barres empilées + ligne) :
+- Barres : Remb. clients (rouge atténué) + Reprises Uber (vert atténué, négatif)
+- Ligne : Net à ma charge (couleur primaire)
+- Toggle % / € identique à Finances
+- Click sur une barre → drilldown jour via `DailyFinancesSheet` existante
+
+### Bloc 3 — Classement restaurants
+Tableau triable, une ligne par restaurant :
+
+| Restaurant | Remb. clients | Reprises Uber | Net à charge | % CA | Nb commandes remb. | Taux |
+|---|---|---|---|---|---|---|
+
+- Tri par défaut : Net à charge décroissant
+- Code couleur (heatmap) sur la colonne "% CA" : vert <1%, orange 1-3%, rouge >3%
+- Click sur une ligne → expand avec mini-graph d'évolution par mois pour ce restaurant
+
+### Bloc 4 — Analyse temporelle (optionnel, en accordéon replié)
+Heatmap jour de la semaine × heure (basée sur la RPC `get_orders_finance_detail` filtrée), pour identifier quand les remboursements arrivent le plus.
+
+## Détails techniques
+
+- Réutilise le pattern de `EcoContributionSection.tsx` (sentinel UUID, `useActiveRestaurants`, gating par `isRestaurantScopeReady`)
+- Réutilise `formatCurrency` / `formatPercent` du module utils
+- Aucune nouvelle RPC : la donnée est déjà calculée par `get_orders_finance_detail`. On ajoute un `useQuery` dédié dans `RefundsSection` (clé séparée) plutôt que de re-mapper depuis `FinancesSection`, pour garder l'onglet autonome et lazy-loadé.
+- Respect mémoires : `chain_id` via `useActiveRestaurants`, sentinel UUID, jamais d'array vide passé à la RPC, dates locales (pas UTC.toISOString)
 
 ## Hors scope
 
-L'optimisation de `useNetworkStats` elle-même (durée du chargement des cartes/tableau) n'est pas modifiée ici — uniquement la visibilité de l'onglet sidebar.
+- Deliveroo : pas de détail item-level → afficher "Données non disponibles pour Deliveroo" si plateforme = Deliveroo
+- Pas de nouvelle migration SQL
+- Pas de modification de `FinancesSection` (la colonne Remb. y reste avec son tooltip actuel)
+
+## Question ouverte
+
+Faut-il aussi inclure dans cet onglet **l'éco-contribution remboursée** (déjà traitée dans son propre onglet) ou la garder séparée ? → par défaut : **séparée**, comme aujourd'hui, sauf indication contraire.
