@@ -738,7 +738,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                                       data={monthlyArr.map((m) => ({
                                         ...m,
                                         label: bucketLabel(m.month, "month"),
-                                        uberCancel: -m.uberCancel,
+                                        refundClient: -m.refundClient,
                                       }))}
                                       margin={{ top: 5, right: 10, left: 0, bottom: 0 }}
                                       stackOffset="sign"
@@ -752,8 +752,8 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                                       />
                                       <ReferenceLine y={0} stroke="hsl(var(--border))" />
                                       <Bar dataKey="refundClient" name="Remb. clients" stackId="b" fill="hsl(24 95% 60%)" />
-                                      <Bar dataKey="uberCancel" name="Reprises Uber" stackId="b" fill="hsl(142 70% 50%)" />
-                                      <Line type="monotone" dataKey="refundNet" name="Net" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
+                                      <Bar dataKey="uberCancel" name="Crédits Uber" stackId="b" fill="hsl(142 70% 50%)" />
+                                      <Line type="monotone" dataKey="refundNet" name="Solde net" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
                                     </ComposedChart>
                                   </ResponsiveContainer>
                                 </div>
