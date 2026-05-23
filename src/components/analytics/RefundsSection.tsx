@@ -385,9 +385,30 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       const q = search.toLowerCase();
       arr = arr.filter((r) => r.name.toLowerCase().includes(q));
     }
-    arr.sort((a, b) => b.refundNet - a.refundNet);
+    arr.sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "name") return a.name.localeCompare(b.name) * dir;
+      const counts = (rid: string) => refundedCountsByRestaurant.get(rid);
+      const getVal = (r: typeof a): number => {
+        switch (sortKey) {
+          case "refundClient": return r.refundClient;
+          case "uberCancel": return r.uberCancel;
+          case "refundNet": return r.refundNet;
+          case "pctOfSales": return r.sales > 0 ? (r.refundNet / r.sales) * 100 : 0;
+          case "refundedOrders": return counts(r.restaurantId)?.refunded ?? 0;
+          case "refundedRate": {
+            const c = counts(r.restaurantId);
+            const total = c?.total ?? r.orderCount;
+            const refunded = c?.refunded ?? 0;
+            return total > 0 ? (refunded / total) * 100 : 0;
+          }
+          default: return 0;
+        }
+      };
+      return (getVal(a) - getVal(b)) * dir;
+    });
     return arr;
-  }, [currentRows, startDate, endDate, activeRestaurants, search]);
+  }, [currentRows, startDate, endDate, activeRestaurants, search, sortKey, sortDir, refundedCountsByRestaurant]);
 
   // ============ Per-restaurant monthly series (for drilldown) ============
   const restaurantMonthly = useMemo(() => {
