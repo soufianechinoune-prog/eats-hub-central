@@ -668,12 +668,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
-                    <TableHead>Restaurant</TableHead>
-                    <TableHead className="text-right">Remb. clients</TableHead>
-                    <TableHead className="text-right">Reprises Uber</TableHead>
-                    <TableHead className="text-right">Net à charge</TableHead>
-                    <TableHead className="text-right">% du CA</TableHead>
-                    <TableHead className="text-right">Cmd. remboursées</TableHead>
+                    <SortableHead label="Restaurant" sortKey="name" current={sortKey} dir={sortDir} onClick={toggleSort} />
+                    <SortableHead label="Remb. clients" sortKey="refundClient" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Reprises Uber" sortKey="uberCancel" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Net à charge" sortKey="refundNet" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="% du CA" sortKey="pctOfSales" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" />
+                    <SortableHead label="Cmd. remboursées" sortKey="refundedOrders" current={sortKey} dir={sortDir} onClick={toggleSort} align="right" altKey="refundedRate" altLabel="Trier par taux" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
