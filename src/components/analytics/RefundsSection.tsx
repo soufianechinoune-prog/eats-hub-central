@@ -4,7 +4,7 @@ import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, 
 import { fr } from "date-fns/locale";
 import {
   RotateCcw, TrendingUp, TrendingDown, Users, ChevronDown, ChevronRight,
-  Loader2, AlertTriangle, Percent, Euro as EuroIcon,
+  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
