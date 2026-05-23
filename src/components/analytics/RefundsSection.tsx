@@ -540,8 +540,8 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Reprises Uber"
-            tooltip="Annulations Uber : reprises qui annulent un remboursement client"
+            title="Crédits Uber"
+            tooltip="Argent qu'Uber vous re-crédite (annulations de commandes, gestes commerciaux, contestations gagnées). C'est en faveur du restaurant."
             value={mode === "amount" ? fmtEur(totals.refundUberCancellation) : fmtPct(recoveryRate)}
             subValue={mode === "amount" ? `${fmtPct(recoveryRate)} de récupération` : `${fmtEur(totals.refundUberCancellation)} récupérés`}
             delta={mode === "amount" ? deltaUberCancel : recoveryRate - prevRecoveryRate}
@@ -551,10 +551,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Net à ma charge"
-            tooltip="Clients − Annulations = impact réel sur votre rentabilité"
+            title="Solde net"
+            tooltip="Remb. clients − Crédits Uber. Positif = vous payez. Négatif = Uber vous a recrédité plus qu'il ne vous a débité (gain net pour vous)."
             value={mode === "amount" ? fmtEur(totals.refundNet) : fmtPct(refundNetShare)}
-            subValue={mode === "amount" ? `${fmtPct(refundNetShare)} du CA TTC` : fmtEur(totals.refundNet)}
+            subValue={mode === "amount"
+              ? (totals.refundNet > 0 ? "à votre charge" : totals.refundNet < 0 ? "en votre faveur" : "équilibré")
+              : fmtEur(totals.refundNet)}
             delta={mode === "amount" ? deltaRefundNet : refundNetShare - prevRefundNetShare}
             deltaIsPercent={mode === "percent"}
             negativeIsBad
