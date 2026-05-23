@@ -628,12 +628,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                     />
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="uberCancel" name="Reprises Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]} />
+                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]} />
                     <Line
                       type="monotone"
                       dataKey="refundNet"
-                      name="Net à ma charge"
+                      name="Solde net"
                       stroke="hsl(var(--primary))"
                       strokeWidth={2.5}
                       dot={false}
