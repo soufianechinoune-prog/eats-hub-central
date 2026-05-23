@@ -498,9 +498,9 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       <div className="space-y-6">
         {/* Info bandeau */}
         <div className="text-xs text-muted-foreground bg-muted/40 border rounded-md px-3 py-2">
-          🔁 <strong>Remboursements Uber Eats</strong> — analyse de l'argent envoyé aux clients,
-          des reprises Uber (annulations) et du net réellement à votre charge. Période :{" "}
-          <strong>{periodLabel}</strong>. Comparé à N-1.
+          🔁 <strong>Remboursements Uber Eats</strong> — argent envoyé aux clients,
+          crédits Uber qui reviennent dans votre payout (annulations, gestes commerciaux)
+          et solde net réel. Période : <strong>{periodLabel}</strong>. Comparé à N-1.
         </div>
 
         {/* Toolbar */}
