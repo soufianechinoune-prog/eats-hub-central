@@ -222,24 +222,74 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
     staleTime: 2 * 60 * 1000,
   });
 
+  // ============ Fetch real refunded order counts (per-order, not per-day) ============
+  const { data: refundedCounts = [] } = useQuery({
+    queryKey: [
+      "refunded-orders-count",
+      restaurantIds.slice().sort().join(","),
+      format(startDate, "yyyy-MM-dd"),
+      format(endDate, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_refunded_orders_count", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[RefundsSection] get_refunded_orders_count error:", error);
+        return [];
+      }
+      return (data as { restaurant_id: string; refunded_orders: number; total_orders: number }[]) || [];
+    },
+    enabled: isScopeReady && !isDeliveroo,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const { data: refundedCountsPrev = [] } = useQuery({
+    queryKey: [
+      "refunded-orders-count-prev",
+      restaurantIds.slice().sort().join(","),
+      format(prevStartDate, "yyyy-MM-dd"),
+      format(prevEndDate, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_refunded_orders_count", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: format(prevStartDate, "yyyy-MM-dd"),
+        p_end_date: format(prevEndDate, "yyyy-MM-dd"),
+      });
+      if (error) return [];
+      return (data as { restaurant_id: string; refunded_orders: number; total_orders: number }[]) || [];
+    },
+    enabled: isScopeReady && !isDeliveroo,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const refundedCountsByRestaurant = useMemo(() => {
+    const m = new Map<string, { refunded: number; total: number }>();
+    for (const r of refundedCounts) {
+      m.set(r.restaurant_id, { refunded: Number(r.refunded_orders) || 0, total: Number(r.total_orders) || 0 });
+    }
+    return m;
+  }, [refundedCounts]);
+
+  const refundedOrdersTotal = useMemo(
+    () => refundedCounts.reduce((s, r) => s + (Number(r.refunded_orders) || 0), 0),
+    [refundedCounts],
+  );
+  const totalOrdersReal = useMemo(
+    () => refundedCounts.reduce((s, r) => s + (Number(r.total_orders) || 0), 0),
+    [refundedCounts],
+  );
+  const refundedOrdersTotalPrev = useMemo(
+    () => refundedCountsPrev.reduce((s, r) => s + (Number(r.refunded_orders) || 0), 0),
+    [refundedCountsPrev],
+  );
+
   // ============ Aggregations ============
   const totals = useMemo(() => aggregateTotals(currentRows, startDate, endDate), [currentRows, startDate, endDate]);
   const prevTotals = useMemo(() => aggregateTotals(prevRows, prevStartDate, prevEndDate), [prevRows, prevStartDate, prevEndDate]);
-
-  // Refunded order count: count of rows (restaurant×day) with refund_to_customer > 0 is a proxy;
-  // we don't have per-order detail here, so we use sum of order_count for days with refunds.
-  const refundedOrdersApprox = useMemo(() => {
-    const startStr = format(startDate, "yyyy-MM-dd");
-    const endStr = format(endDate, "yyyy-MM-dd");
-    let count = 0;
-    for (const r of currentRows) {
-      if (r.payout_date < startStr || r.payout_date > endStr) continue;
-      if ((Math.abs(Number(r.refund_to_customer) || 0)) > 0) {
-        count += Number(r.order_count) || 0;
-      }
-    }
-    return count;
-  }, [currentRows, startDate, endDate]);
 
   // ============ Time series ============
   const timeSeries = useMemo(() => {
@@ -393,7 +443,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
     : 0;
   const refundClientShare = totals.sales > 0 ? (totals.refundToCustomer / totals.sales) * 100 : 0;
   const refundNetShare = totals.sales > 0 ? (totals.refundNet / totals.sales) * 100 : 0;
-  const refundedOrdersRate = totals.orderCount > 0 ? (refundedOrdersApprox / totals.orderCount) * 100 : 0;
+  const refundedOrdersRate = totalOrdersReal > 0 ? (refundedOrdersTotal / totalOrdersReal) * 100 : 0;
+  const prevRefundedOrdersRate = refundedCountsPrev.reduce((s, r) => s + (Number(r.total_orders) || 0), 0) > 0
+    ? (refundedOrdersTotalPrev / refundedCountsPrev.reduce((s, r) => s + (Number(r.total_orders) || 0), 0)) * 100
+    : 0;
+  const deltaRefundedOrders = refundedOrdersTotal - refundedOrdersTotalPrev;
 
   const prevRefundClientShare = prevTotals.sales > 0 ? (prevTotals.refundToCustomer / prevTotals.sales) * 100 : 0;
   const prevRefundNetShare = prevTotals.sales > 0 ? (prevTotals.refundNet / prevTotals.sales) * 100 : 0;
@@ -477,10 +531,12 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             loading={isLoading}
           />
           <KpiCard
-            title="Commandes impactées"
-            tooltip="Approximation : commandes des jours comportant au moins un remboursement client"
-            value={fmtInt(refundedOrdersApprox)}
-            subValue={`${fmtPct(refundedOrdersRate)} des commandes`}
+            title="Commandes remboursées"
+            tooltip="Nombre de commandes ayant fait l'objet d'au moins un remboursement client (compté commande par commande)."
+            value={fmtInt(refundedOrdersTotal)}
+            subValue={`${fmtPct(refundedOrdersRate)} des ${fmtInt(totalOrdersReal)} commandes`}
+            delta={deltaRefundedOrders}
+            negativeIsBad
             icon={<Users className="h-4 w-4 text-violet-500" />}
             loading={isLoading}
           />
@@ -586,7 +642,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                     <TableHead className="text-right">Reprises Uber</TableHead>
                     <TableHead className="text-right">Net à charge</TableHead>
                     <TableHead className="text-right">% du CA</TableHead>
-                    <TableHead className="text-right">Commandes</TableHead>
+                    <TableHead className="text-right">Cmd. remboursées</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -621,7 +677,20 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                           <TableCell className="text-right text-emerald-600">{fmtEur(row.uberCancel)}</TableCell>
                           <TableCell className={cn("text-right font-semibold", colorClass)}>{fmtEur(row.refundNet)}</TableCell>
                           <TableCell className={cn("text-right font-medium", colorClass)}>{fmtPct(pctOfSales)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{fmtInt(row.orderCount)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {(() => {
+                              const c = refundedCountsByRestaurant.get(row.restaurantId);
+                              const refunded = c?.refunded ?? 0;
+                              const total = c?.total ?? row.orderCount;
+                              const rate = total > 0 ? (refunded / total) * 100 : 0;
+                              return (
+                                <div>
+                                  <div className="font-medium text-foreground">{fmtInt(refunded)} / {fmtInt(total)}</div>
+                                  <div className="text-xs">{fmtPct(rate)}</div>
+                                </div>
+                              );
+                            })()}
+                          </TableCell>
                         </TableRow>
                         {isOpen && (
                           <TableRow className="bg-muted/20">
