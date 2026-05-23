@@ -614,6 +614,14 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
               </div>
               <Badge variant="outline">{timeSeries.length} {granularity === "day" ? "jours" : granularity === "week" ? "semaines" : "mois"}</Badge>
             </div>
+            {timeSeries.some((d) => d.partial) && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  Les <strong>crédits Uber</strong> (annulations, gestes commerciaux, contestations gagnées) sont versés dans les <strong>payouts hebdomadaires</strong> avec un décalage de <strong>1 à 3 semaines</strong> par rapport à la date de commande. Les barres pâles correspondent à des périodes dont les crédits n'ont pas encore été tous reçus — leur solde net se rééquilibrera dans les prochains jours.
+                </span>
+              </div>
+            )}
             {isLoading ? (
               <div className="h-[320px] flex items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -651,11 +659,23 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                         const abs = Math.abs(value);
                         return [mode === "percent" ? fmtPct(abs) : fmtEur(abs), name];
                       }}
+                      labelFormatter={(label: string, payload: any[]) => {
+                        const isPartial = payload?.[0]?.payload?.partial;
+                        return isPartial ? `${label} • données partielles (crédits Uber en cours de réconciliation)` : label;
+                      }}
                     />
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]} />
-                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]}>
+                      {timeSeries.map((d, i) => (
+                        <Cell key={`rc-${i}`} fillOpacity={d.partial ? 0.4 : 1} stroke={d.partial ? "hsl(24 95% 60%)" : undefined} strokeDasharray={d.partial ? "3 2" : undefined} strokeWidth={d.partial ? 1 : 0} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]}>
+                      {timeSeries.map((d, i) => (
+                        <Cell key={`uc-${i}`} fillOpacity={d.partial ? 0.4 : 1} stroke={d.partial ? "hsl(142 70% 50%)" : undefined} strokeDasharray={d.partial ? "3 2" : undefined} strokeWidth={d.partial ? 1 : 0} />
+                      ))}
+                    </Bar>
                     <Line
                       type="monotone"
                       dataKey="refundNet"
@@ -668,6 +688,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                 </ResponsiveContainer>
               </div>
             )}
+
           </CardContent>
         </Card>
 
