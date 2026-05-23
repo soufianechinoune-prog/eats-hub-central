@@ -1398,6 +1398,8 @@ export default function Analytics() {
             // Render appropriate view
             if (viewMode === "offers") {
               return <OffersAnalyticsSection />;
+            } else if (viewMode === "refunds") {
+              return <RefundsSection platform={selectedPlatform} />;
             } else if (viewMode === "eco-contribution") {
               return (
                 <EcoContributionSection
