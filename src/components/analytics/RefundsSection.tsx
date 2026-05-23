@@ -642,7 +642,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                     <TableHead className="text-right">Reprises Uber</TableHead>
                     <TableHead className="text-right">Net à charge</TableHead>
                     <TableHead className="text-right">% du CA</TableHead>
-                    <TableHead className="text-right">Commandes</TableHead>
+                    <TableHead className="text-right">Cmd. remboursées</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
