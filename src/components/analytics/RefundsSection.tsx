@@ -150,6 +150,16 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
   const [mode, setMode] = useState<Mode>("amount");
   const [granularity, setGranularity] = useState<Granularity>("week");
   const [search, setSearch] = useState("");
+  type SortKey = "name" | "refundClient" | "uberCancel" | "refundNet" | "pctOfSales" | "refundedOrders" | "refundedRate";
+  const [sortKey, setSortKey] = useState<SortKey>("refundNet");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const toggleSort = (k: SortKey) => {
+    if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else {
+      setSortKey(k);
+      setSortDir(k === "name" ? "asc" : "desc");
+    }
+  };
   const [expandedRestaurant, setExpandedRestaurant] = useState<string | null>(null);
 
   const { data: activeRestaurants = [], isLoading: restaurantsLoading } = useActiveRestaurants();
