@@ -839,3 +839,50 @@ function KpiCard({
     </Card>
   );
 }
+
+interface SortableHeadProps {
+  label: string;
+  sortKey: string;
+  current: string;
+  dir: "asc" | "desc";
+  onClick: (k: any) => void;
+  align?: "left" | "right";
+  altKey?: string;
+  altLabel?: string;
+}
+
+function SortableHead({ label, sortKey, current, dir, onClick, align = "left", altKey, altLabel }: SortableHeadProps) {
+  const isActive = current === sortKey || current === altKey;
+  const showAlt = altKey && current === altKey;
+  const Icon = !isActive ? ArrowUpDown : dir === "asc" ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={cn(align === "right" && "text-right", "select-none")}>
+      <div className={cn("inline-flex items-center gap-1", align === "right" && "justify-end w-full")}>
+        <button
+          type="button"
+          onClick={() => onClick(sortKey)}
+          className={cn(
+            "inline-flex items-center gap-1 hover:text-foreground transition-colors",
+            isActive ? "text-foreground font-semibold" : "text-muted-foreground"
+          )}
+        >
+          <span>{label}</span>
+          <Icon className="h-3 w-3 opacity-70" />
+        </button>
+        {altKey && (
+          <button
+            type="button"
+            onClick={() => onClick(altKey)}
+            title={altLabel || "Trier par taux"}
+            className={cn(
+              "ml-1 text-[10px] rounded px-1 py-0.5 border transition-colors",
+              showAlt ? "border-primary/40 text-primary bg-primary/5" : "border-muted text-muted-foreground hover:text-foreground"
+            )}
+          >
+            %
+          </button>
+        )}
+      </div>
+    </TableHead>
+  );
+}
