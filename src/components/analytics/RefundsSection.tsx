@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, addMonths, isBefore, subYears, parseISO } from "date-fns";
+import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, isBefore, subYears, parseISO, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   RotateCcw, TrendingUp, TrendingDown, Users, ChevronDown, ChevronRight,
-  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown,
+  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown, Info,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, Legend, ReferenceLine,
+  Tooltip as RTooltip, Legend, ReferenceLine, Cell,
 } from "recharts";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
