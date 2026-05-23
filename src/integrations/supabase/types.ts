@@ -2608,6 +2608,30 @@ export type Database = {
           },
         ]
       }
+      refund_daily_cache: {
+        Row: {
+          computed_at: string
+          date: string
+          refunded_orders: number
+          restaurant_id: string
+          total_orders: number
+        }
+        Insert: {
+          computed_at?: string
+          date: string
+          refunded_orders?: number
+          restaurant_id: string
+          total_orders?: number
+        }
+        Update: {
+          computed_at?: string
+          date?: string
+          refunded_orders?: number
+          restaurant_id?: string
+          total_orders?: number
+        }
+        Relationships: []
+      }
       rep_check_snapshots: {
         Row: {
           chain_id: string | null
@@ -4884,6 +4908,14 @@ export type Database = {
           uber_store_id: string
           vague: number
         }[]
+      }
+      refresh_refund_daily_cache: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: number
       }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
       resync_live_tag_all_restaurants: {
