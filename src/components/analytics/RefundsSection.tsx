@@ -648,7 +648,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
               <div>
                 <h3 className="font-semibold">Classement par restaurant</h3>
-                <p className="text-xs text-muted-foreground">Trié par net à charge décroissant. Cliquez sur une ligne pour voir l'évolution mensuelle.</p>
+                <p className="text-xs text-muted-foreground">Cliquez sur une colonne pour trier. Cliquez sur une ligne pour voir l'évolution mensuelle.</p>
               </div>
               <Input
                 placeholder="Rechercher un restaurant…"
