@@ -583,7 +583,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
               <div>
                 <h3 className="font-semibold">Évolution des remboursements</h3>
                 <p className="text-xs text-muted-foreground">
-                  Barres = remb. clients (orange) et reprises Uber (vert, négatif). Ligne = net à charge.
+                  Barres oranges (sous 0) = remb. clients (argent qui sort). Barres vertes (au-dessus de 0) = crédits Uber (argent qui rentre). Ligne = solde net.
                 </p>
               </div>
               <Badge variant="outline">{timeSeries.length} {granularity === "day" ? "jours" : granularity === "week" ? "semaines" : "mois"}</Badge>
