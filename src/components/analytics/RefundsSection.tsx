@@ -130,6 +130,23 @@ function bucketLabel(key: string, gran: Granularity): string {
   return format(new Date(Number(y), Number(m) - 1, 1), "MMM yy", { locale: fr });
 }
 
+// Crédits Uber are reconciled in Uber's weekly payouts with a 1-3 week lag
+// vs the order date. Buckets whose end date is within this window are flagged
+// as "partial" so we can dim the bars and warn the user.
+const PARTIAL_LAG_DAYS = 21;
+
+function bucketEndDate(key: string, gran: Granularity): Date {
+  if (gran === "day") return parseISO(key);
+  if (gran === "week") {
+    // parseISO handles "2026-W20" → Monday of that ISO week
+    const monday = parseISO(key);
+    return endOfWeek(monday, { weekStartsOn: 1 });
+  }
+  const [y, m] = key.split("-");
+  return endOfMonth(new Date(Number(y), Number(m) - 1, 1));
+}
+
+
 interface RefundsSectionProps {
   // Allow Analytics.tsx to pass the platform so we can show a Deliveroo notice
   platform?: "uber_eats" | "deliveroo" | "global";
