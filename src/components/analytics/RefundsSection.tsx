@@ -1,15 +1,16 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, addMonths, isBefore, subYears, parseISO } from "date-fns";
+import { format, startOfYear, endOfYear, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addMonths, isBefore, subYears, parseISO, differenceInCalendarDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   RotateCcw, TrendingUp, TrendingDown, Users, ChevronDown, ChevronRight,
-  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown,
+  Loader2, AlertTriangle, Percent, Euro as EuroIcon, ArrowUp, ArrowDown, ArrowUpDown, Info,
 } from "lucide-react";
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, Legend, ReferenceLine,
+  Tooltip as RTooltip, Legend, ReferenceLine, Cell,
 } from "recharts";
+
 
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -128,6 +129,23 @@ function bucketLabel(key: string, gran: Granularity): string {
   const [y, m] = key.split("-");
   return format(new Date(Number(y), Number(m) - 1, 1), "MMM yy", { locale: fr });
 }
+
+// Crédits Uber are reconciled in Uber's weekly payouts with a 1-3 week lag
+// vs the order date. Buckets whose end date is within this window are flagged
+// as "partial" so we can dim the bars and warn the user.
+const PARTIAL_LAG_DAYS = 21;
+
+function bucketEndDate(key: string, gran: Granularity): Date {
+  if (gran === "day") return parseISO(key);
+  if (gran === "week") {
+    // parseISO handles "2026-W20" → Monday of that ISO week
+    const monday = parseISO(key);
+    return endOfWeek(monday, { weekStartsOn: 1 });
+  }
+  const [y, m] = key.split("-");
+  return endOfMonth(new Date(Number(y), Number(m) - 1, 1));
+}
+
 
 interface RefundsSectionProps {
   // Allow Analytics.tsx to pass the platform so we can show a Deliveroo notice
@@ -303,9 +321,10 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
 
   // ============ Time series ============
   const timeSeries = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; refundClient: number; uberCancel: number; refundNet: number; sales: number; orderCount: number }>();
+    const map = new Map<string, { key: string; label: string; refundClient: number; uberCancel: number; refundNet: number; sales: number; orderCount: number; partial: boolean }>();
     const startStr = format(startDate, "yyyy-MM-dd");
     const endStr = format(endDate, "yyyy-MM-dd");
+    const today = new Date();
     for (const r of currentRows) {
       if (r.payout_date < startStr || r.payout_date > endStr) continue;
       const key = bucketKey(r.payout_date, granularity);
@@ -317,6 +336,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
         refundNet: 0,
         sales: 0,
         orderCount: 0,
+        partial: false,
       };
       entry.refundClient += Math.abs(Number(r.refund_to_customer) || 0);
       entry.uberCancel += Math.abs(Number(r.refund_uber_cancellation) || 0);
@@ -324,6 +344,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       entry.sales += Math.abs(Number(r.sales_incl_vat) || 0);
       entry.orderCount += Number(r.order_count) || 0;
       map.set(key, entry);
+    }
+    // Flag partial buckets (Uber credits not yet fully reconciled)
+    for (const entry of map.values()) {
+      const end = bucketEndDate(entry.key, granularity);
+      entry.partial = differenceInCalendarDays(today, end) < PARTIAL_LAG_DAYS;
     }
     const arr = Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
     if (mode === "percent") {
@@ -341,6 +366,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       refundClient: -e.refundClient,
     }));
   }, [currentRows, startDate, endDate, granularity, mode]);
+
 
   // ============ Per-restaurant table ============
   const perRestaurant = useMemo(() => {
@@ -588,6 +614,14 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
               </div>
               <Badge variant="outline">{timeSeries.length} {granularity === "day" ? "jours" : granularity === "week" ? "semaines" : "mois"}</Badge>
             </div>
+            {timeSeries.some((d) => d.partial) && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200">
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                <span>
+                  Les <strong>crédits Uber</strong> (annulations, gestes commerciaux, contestations gagnées) sont versés dans les <strong>payouts hebdomadaires</strong> avec un décalage de <strong>1 à 3 semaines</strong> par rapport à la date de commande. Les barres pâles correspondent à des périodes dont les crédits n'ont pas encore été tous reçus — leur solde net se rééquilibrera dans les prochains jours.
+                </span>
+              </div>
+            )}
             {isLoading ? (
               <div className="h-[320px] flex items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -625,11 +659,23 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                         const abs = Math.abs(value);
                         return [mode === "percent" ? fmtPct(abs) : fmtEur(abs), name];
                       }}
+                      labelFormatter={(label: string, payload: any[]) => {
+                        const isPartial = payload?.[0]?.payload?.partial;
+                        return isPartial ? `${label} • données partielles (crédits Uber en cours de réconciliation)` : label;
+                      }}
                     />
                     <Legend wrapperStyle={{ fontSize: "12px" }} />
                     <ReferenceLine y={0} stroke="hsl(var(--border))" />
-                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]} />
-                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="refundClient" name="Remb. clients" stackId="a" fill="hsl(24 95% 60%)" radius={[0, 0, 4, 4]}>
+                      {timeSeries.map((d, i) => (
+                        <Cell key={`rc-${i}`} fillOpacity={d.partial ? 0.4 : 1} stroke={d.partial ? "hsl(24 95% 60%)" : undefined} strokeDasharray={d.partial ? "3 2" : undefined} strokeWidth={d.partial ? 1 : 0} />
+                      ))}
+                    </Bar>
+                    <Bar dataKey="uberCancel" name="Crédits Uber" stackId="a" fill="hsl(142 70% 50%)" radius={[4, 4, 0, 0]}>
+                      {timeSeries.map((d, i) => (
+                        <Cell key={`uc-${i}`} fillOpacity={d.partial ? 0.4 : 1} stroke={d.partial ? "hsl(142 70% 50%)" : undefined} strokeDasharray={d.partial ? "3 2" : undefined} strokeWidth={d.partial ? 1 : 0} />
+                      ))}
+                    </Bar>
                     <Line
                       type="monotone"
                       dataKey="refundNet"
@@ -642,6 +688,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                 </ResponsiveContainer>
               </div>
             )}
+
           </CardContent>
         </Card>
 
