@@ -677,7 +677,20 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
                           <TableCell className="text-right text-emerald-600">{fmtEur(row.uberCancel)}</TableCell>
                           <TableCell className={cn("text-right font-semibold", colorClass)}>{fmtEur(row.refundNet)}</TableCell>
                           <TableCell className={cn("text-right font-medium", colorClass)}>{fmtPct(pctOfSales)}</TableCell>
-                          <TableCell className="text-right text-muted-foreground">{fmtInt(row.orderCount)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">
+                            {(() => {
+                              const c = refundedCountsByRestaurant.get(row.restaurantId);
+                              const refunded = c?.refunded ?? 0;
+                              const total = c?.total ?? row.orderCount;
+                              const rate = total > 0 ? (refunded / total) * 100 : 0;
+                              return (
+                                <div>
+                                  <div className="font-medium text-foreground">{fmtInt(refunded)} / {fmtInt(total)}</div>
+                                  <div className="text-xs">{fmtPct(rate)}</div>
+                                </div>
+                              );
+                            })()}
+                          </TableCell>
                         </TableRow>
                         {isOpen && (
                           <TableRow className="bg-muted/20">
