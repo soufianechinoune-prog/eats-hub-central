@@ -514,9 +514,17 @@ const Overview = () => {
     });
   };
 
-  // Detect which channels have data for the sidebar
-  const hasUberData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0), [comparisonStats]);
-  const hasDeliverooData = useMemo(() => comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0), [comparisonStats]);
+  // Detect which channels have data for the sidebar.
+  // Pendant le chargement de useNetworkStats (lent), on affiche les onglets par défaut
+  // pour éviter qu'Uber Eats / Deliveroo n'apparaissent qu'après plusieurs secondes.
+  const hasUberData = useMemo(
+    () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0),
+    [comparisonStats, statsLoading]
+  );
+  const hasDeliverooData = useMemo(
+    () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0),
+    [comparisonStats, statsLoading]
+  );
   // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
   const hasCashData = true;
 
