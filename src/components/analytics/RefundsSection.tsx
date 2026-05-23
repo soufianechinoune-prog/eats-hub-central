@@ -321,9 +321,10 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
 
   // ============ Time series ============
   const timeSeries = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; refundClient: number; uberCancel: number; refundNet: number; sales: number; orderCount: number }>();
+    const map = new Map<string, { key: string; label: string; refundClient: number; uberCancel: number; refundNet: number; sales: number; orderCount: number; partial: boolean }>();
     const startStr = format(startDate, "yyyy-MM-dd");
     const endStr = format(endDate, "yyyy-MM-dd");
+    const today = new Date();
     for (const r of currentRows) {
       if (r.payout_date < startStr || r.payout_date > endStr) continue;
       const key = bucketKey(r.payout_date, granularity);
@@ -335,6 +336,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
         refundNet: 0,
         sales: 0,
         orderCount: 0,
+        partial: false,
       };
       entry.refundClient += Math.abs(Number(r.refund_to_customer) || 0);
       entry.uberCancel += Math.abs(Number(r.refund_uber_cancellation) || 0);
@@ -342,6 +344,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       entry.sales += Math.abs(Number(r.sales_incl_vat) || 0);
       entry.orderCount += Number(r.order_count) || 0;
       map.set(key, entry);
+    }
+    // Flag partial buckets (Uber credits not yet fully reconciled)
+    for (const entry of map.values()) {
+      const end = bucketEndDate(entry.key, granularity);
+      entry.partial = differenceInCalendarDays(today, end) < PARTIAL_LAG_DAYS;
     }
     const arr = Array.from(map.values()).sort((a, b) => a.key.localeCompare(b.key));
     if (mode === "percent") {
@@ -359,6 +366,7 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
       refundClient: -e.refundClient,
     }));
   }, [currentRows, startDate, endDate, granularity, mode]);
+
 
   // ============ Per-restaurant table ============
   const perRestaurant = useMemo(() => {
