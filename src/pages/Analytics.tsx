@@ -50,7 +50,7 @@ const currentMonth = new Date().getMonth() + 1;
 
 export default function Analytics() {
   const { viewMode: viewModeParam } = useParams<{ viewMode: string }>();
-  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution" | "offers";
+  const viewMode = (viewModeParam || "overview") as "overview" | "revenue" | "conversion" | "finances" | "reviews" | "operations" | "eco-contribution" | "offers" | "refunds";
   
   const {
     selectedRestaurants,
