@@ -334,10 +334,11 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
         refundNet: e.sales > 0 ? (e.refundNet / e.sales) * 100 : 0,
       }));
     }
-    // For stacked bars we want Uber cancellation to display as negative
+    // Stacked bars: client refunds = money OUT (negative, below zero),
+    // Uber credits = money IN (positive, above zero). Net line keeps its real sign.
     return arr.map((e) => ({
       ...e,
-      uberCancel: -e.uberCancel,
+      refundClient: -e.refundClient,
     }));
   }, [currentRows, startDate, endDate, granularity, mode]);
 
