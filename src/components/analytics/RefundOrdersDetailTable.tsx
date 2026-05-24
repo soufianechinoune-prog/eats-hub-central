@@ -30,7 +30,12 @@ interface Props {
 
 const fmtEur = (v: number) => `${(v || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
-function disputeBadge(status: string | null) {
+function disputeBadge(row: { dispute_status: string | null; refund_incl_vat: number; refund_contested_incl_vat: number }) {
+  const status = row.dispute_status;
+  // Legacy credit: positive refund_incl_vat with no parsed dispute status
+  if (!status && row.refund_contested_incl_vat === 0 && row.refund_incl_vat > 0) {
+    return <Badge className="bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200 hover:bg-slate-100 text-[10px]">Recrédit Uber (legacy)</Badge>;
+  }
   if (!status) {
     return <Badge variant="outline" className="text-[10px] text-muted-foreground">—</Badge>;
   }
@@ -43,6 +48,7 @@ function disputeBadge(status: string | null) {
   }
   return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
 }
+
 
 const PAGE_SIZE = 25;
 
@@ -165,9 +171,11 @@ export function RefundOrdersDetailTable({ restaurantIds, startDate, endDate }: P
                     <TableHead className="text-xs">Date</TableHead>
                     <TableHead className="text-xs">Restaurant</TableHead>
                     <TableHead className="text-xs">N° commande</TableHead>
-                    <TableHead className="text-xs text-right">Remb. client</TableHead>
+                    <TableHead className="text-xs text-right">Débit / Crédit</TableHead>
                     <TableHead className="text-xs text-right">Recrédité (contestation)</TableHead>
                     <TableHead className="text-xs text-right">Solde net</TableHead>
+                    <TableHead className="text-xs">Statut litige</TableHead>
+
                     <TableHead className="text-xs">Statut litige</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -192,7 +200,7 @@ export function RefundOrdersDetailTable({ restaurantIds, startDate, endDate }: P
                           {fmtEur(r.net_refund)}
                         </span>
                       </TableCell>
-                      <TableCell>{disputeBadge(r.dispute_status)}</TableCell>
+                      <TableCell>{disputeBadge(r)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
