@@ -405,6 +405,9 @@ function mapStatus(status: string): string {
     'Annulée': 'cancelled',
     'Remboursée': 'refunded',
     'Remboursement': 'refunded',
+    'Remboursements contestés': 'refund_contested',
+    'Remboursement contesté': 'refund_contested',
+    'Non effectuée': 'failed',
     'Échec': 'failed',
     'En cours': 'in_progress',
     // English (Uber Reports API)
@@ -413,11 +416,14 @@ function mapStatus(status: string): string {
     'Canceled': 'cancelled',
     'Refund': 'refunded',
     'Refunded': 'refunded',
+    'Disputed Refund': 'refund_contested',
+    'Refund Contested': 'refund_contested',
     'Unfulfilled': 'failed',
     'Failed': 'failed',
   };
   return statusMap[status] || status || 'unknown';
 }
+
 
 interface SkipInfo {
   rowIndex: number;
@@ -930,6 +936,15 @@ Deno.serve(async (req) => {
       }
 
       const orderTime = getValue('order_datetime');
+      const rowStatus = mapStatus(getValue('status'));
+      const isContestedRow = rowStatus === 'refund_contested';
+
+      // Raw refund values from this CSV line
+      const rawRefundExcl = parseNumber(getValue('refund_excl_vat'));
+      const rawVat1Refund = parseNumber(getValue('vat_1_refund'));
+      const rawVat2Refund = parseNumber(getValue('vat_2_refund'));
+      const rawVat3Refund = parseNumber(getValue('vat_3_refund'));
+      const rawRefundIncl = parseNumber(getValue('refund_incl_vat'));
 
       ordersToUpsert.push({
         uber_order_id: uberOrderId,
@@ -946,11 +961,15 @@ Deno.serve(async (req) => {
         vat_3_sales: parseNumber(getValue('vat_3_sales')),
         sales_incl_vat: parseNumber(getValue('sales_incl_vat')),
         gross_amount: parseNumber(getValue('sales_incl_vat')),
-        refund_excl_vat: parseNumber(getValue('refund_excl_vat')),
-        vat_1_refund: parseNumber(getValue('vat_1_refund')),
-        vat_2_refund: parseNumber(getValue('vat_2_refund')),
-        vat_3_refund: parseNumber(getValue('vat_3_refund')),
-        refund_incl_vat: parseNumber(getValue('refund_incl_vat')),
+        // Route refund values: contested lines feed refund_contested_*, others feed refund_*
+        refund_excl_vat: isContestedRow ? 0 : rawRefundExcl,
+        vat_1_refund: isContestedRow ? 0 : rawVat1Refund,
+        vat_2_refund: isContestedRow ? 0 : rawVat2Refund,
+        vat_3_refund: isContestedRow ? 0 : rawVat3Refund,
+        refund_incl_vat: isContestedRow ? 0 : rawRefundIncl,
+        refund_contested_incl_vat: isContestedRow ? rawRefundIncl : 0,
+        refund_contested_excl_vat: isContestedRow ? rawRefundExcl : 0,
+
         item_promo_excl_vat: parseNumber(getValue('item_promo_excl_vat')),
         vat_1_item_promo: parseNumber(getValue('vat_1_item_promo')),
         vat_2_item_promo: parseNumber(getValue('vat_2_item_promo')),
@@ -1041,6 +1060,9 @@ Deno.serve(async (req) => {
         existing.vat_2_refund = (existing.vat_2_refund || 0) + (order.vat_2_refund || 0);
         existing.vat_3_refund = (existing.vat_3_refund || 0) + (order.vat_3_refund || 0);
         existing.refund_incl_vat = (existing.refund_incl_vat || 0) + (order.refund_incl_vat || 0);
+        existing.refund_contested_incl_vat = (existing.refund_contested_incl_vat || 0) + (order.refund_contested_incl_vat || 0);
+        existing.refund_contested_excl_vat = (existing.refund_contested_excl_vat || 0) + (order.refund_contested_excl_vat || 0);
+
         existing.item_promo_excl_vat = (existing.item_promo_excl_vat || 0) + (order.item_promo_excl_vat || 0);
         existing.vat_1_item_promo = (existing.vat_1_item_promo || 0) + (order.vat_1_item_promo || 0);
         existing.vat_2_item_promo = (existing.vat_2_item_promo || 0) + (order.vat_2_item_promo || 0);
@@ -1092,14 +1114,45 @@ Deno.serve(async (req) => {
         if (order.payout_date) existing.payout_date = order.payout_date;
         if (order.payout_reference_id) existing.payout_reference_id = order.payout_reference_id;
         if (order.loyalty_id) existing.loyalty_id = order.loyalty_id;
-        if (order.status && order.status !== 'unknown') existing.status = order.status;
+        // Status priority: completed > refunded > refund_contested > others
+        // refund_contested should never overwrite a real lifecycle status
+        if (order.status && order.status !== 'unknown' && order.status !== 'refund_contested') {
+          existing.status = order.status;
+        }
       } else {
         ordersMap.set(key, { ...order });
       }
     }
 
+    // Phase 1.6: Compute dispute_status from accumulated refund / contested flags
+    for (const order of ordersMap.values()) {
+      const hasRefund = (order.refund_incl_vat || 0) !== 0;
+      const hasContested = (order.refund_contested_incl_vat || 0) !== 0;
+      const lifecycle = order.status;
+
+      if (lifecycle === 'cancelled') {
+        order.dispute_status = 'cancelled';
+      } else if (lifecycle === 'failed') {
+        order.dispute_status = 'failed';
+      } else if (hasRefund && hasContested) {
+        order.dispute_status = 'refund_contested_won';
+      } else if (hasRefund) {
+        order.dispute_status = 'refund_only';
+      } else if (hasContested) {
+        order.dispute_status = 'contested_only';
+      } else {
+        order.dispute_status = 'none';
+      }
+
+      // Normalise the lifecycle status so refund_contested never leaks as final status
+      if (order.status === 'refund_contested') {
+        order.status = hasRefund ? 'refunded' : 'completed';
+      }
+    }
+
     const deduplicatedOrders = Array.from(ordersMap.values());
     console.log('Phase 1.5 deduplication complete. Unique orders:', deduplicatedOrders.length, '(merged', ordersToUpsert.length - deduplicatedOrders.length, 'duplicates)');
+
 
     let insertedCount = 0;
     let updatedCount = 0;
