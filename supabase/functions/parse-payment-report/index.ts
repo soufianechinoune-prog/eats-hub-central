@@ -936,6 +936,15 @@ Deno.serve(async (req) => {
       }
 
       const orderTime = getValue('order_datetime');
+      const rowStatus = mapStatus(getValue('status'));
+      const isContestedRow = rowStatus === 'refund_contested';
+
+      // Raw refund values from this CSV line
+      const rawRefundExcl = parseNumber(getValue('refund_excl_vat'));
+      const rawVat1Refund = parseNumber(getValue('vat_1_refund'));
+      const rawVat2Refund = parseNumber(getValue('vat_2_refund'));
+      const rawVat3Refund = parseNumber(getValue('vat_3_refund'));
+      const rawRefundIncl = parseNumber(getValue('refund_incl_vat'));
 
       ordersToUpsert.push({
         uber_order_id: uberOrderId,
@@ -952,11 +961,15 @@ Deno.serve(async (req) => {
         vat_3_sales: parseNumber(getValue('vat_3_sales')),
         sales_incl_vat: parseNumber(getValue('sales_incl_vat')),
         gross_amount: parseNumber(getValue('sales_incl_vat')),
-        refund_excl_vat: parseNumber(getValue('refund_excl_vat')),
-        vat_1_refund: parseNumber(getValue('vat_1_refund')),
-        vat_2_refund: parseNumber(getValue('vat_2_refund')),
-        vat_3_refund: parseNumber(getValue('vat_3_refund')),
-        refund_incl_vat: parseNumber(getValue('refund_incl_vat')),
+        // Route refund values: contested lines feed refund_contested_*, others feed refund_*
+        refund_excl_vat: isContestedRow ? 0 : rawRefundExcl,
+        vat_1_refund: isContestedRow ? 0 : rawVat1Refund,
+        vat_2_refund: isContestedRow ? 0 : rawVat2Refund,
+        vat_3_refund: isContestedRow ? 0 : rawVat3Refund,
+        refund_incl_vat: isContestedRow ? 0 : rawRefundIncl,
+        refund_contested_incl_vat: isContestedRow ? rawRefundIncl : 0,
+        refund_contested_excl_vat: isContestedRow ? rawRefundExcl : 0,
+
         item_promo_excl_vat: parseNumber(getValue('item_promo_excl_vat')),
         vat_1_item_promo: parseNumber(getValue('vat_1_item_promo')),
         vat_2_item_promo: parseNumber(getValue('vat_2_item_promo')),
