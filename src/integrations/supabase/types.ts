@@ -1946,6 +1946,7 @@ export type Database = {
           delivery_fee_gain: number | null
           delivery_promo_excl_vat: number | null
           delivery_promo_incl_vat: number | null
+          dispute_status: string | null
           eco_contribution_refund: number | null
           extra_columns: Json | null
           fulfillment_type: string | null
@@ -1977,6 +1978,8 @@ export type Database = {
           promotion_discount: number | null
           promotion_id: string | null
           raw_payload: Json | null
+          refund_contested_excl_vat: number | null
+          refund_contested_incl_vat: number | null
           refund_excl_vat: number | null
           refund_incl_vat: number | null
           report_import_date: string | null
@@ -2028,6 +2031,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          dispute_status?: string | null
           eco_contribution_refund?: number | null
           extra_columns?: Json | null
           fulfillment_type?: string | null
@@ -2059,6 +2063,8 @@ export type Database = {
           promotion_discount?: number | null
           promotion_id?: string | null
           raw_payload?: Json | null
+          refund_contested_excl_vat?: number | null
+          refund_contested_incl_vat?: number | null
           refund_excl_vat?: number | null
           refund_incl_vat?: number | null
           report_import_date?: string | null
@@ -2110,6 +2116,7 @@ export type Database = {
           delivery_fee_gain?: number | null
           delivery_promo_excl_vat?: number | null
           delivery_promo_incl_vat?: number | null
+          dispute_status?: string | null
           eco_contribution_refund?: number | null
           extra_columns?: Json | null
           fulfillment_type?: string | null
@@ -2141,6 +2148,8 @@ export type Database = {
           promotion_discount?: number | null
           promotion_id?: string | null
           raw_payload?: Json | null
+          refund_contested_excl_vat?: number | null
+          refund_contested_incl_vat?: number | null
           refund_excl_vat?: number | null
           refund_incl_vat?: number | null
           report_import_date?: string | null
