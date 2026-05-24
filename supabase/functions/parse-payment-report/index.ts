@@ -1114,14 +1114,45 @@ Deno.serve(async (req) => {
         if (order.payout_date) existing.payout_date = order.payout_date;
         if (order.payout_reference_id) existing.payout_reference_id = order.payout_reference_id;
         if (order.loyalty_id) existing.loyalty_id = order.loyalty_id;
-        if (order.status && order.status !== 'unknown') existing.status = order.status;
+        // Status priority: completed > refunded > refund_contested > others
+        // refund_contested should never overwrite a real lifecycle status
+        if (order.status && order.status !== 'unknown' && order.status !== 'refund_contested') {
+          existing.status = order.status;
+        }
       } else {
         ordersMap.set(key, { ...order });
       }
     }
 
+    // Phase 1.6: Compute dispute_status from accumulated refund / contested flags
+    for (const order of ordersMap.values()) {
+      const hasRefund = (order.refund_incl_vat || 0) !== 0;
+      const hasContested = (order.refund_contested_incl_vat || 0) !== 0;
+      const lifecycle = order.status;
+
+      if (lifecycle === 'cancelled') {
+        order.dispute_status = 'cancelled';
+      } else if (lifecycle === 'failed') {
+        order.dispute_status = 'failed';
+      } else if (hasRefund && hasContested) {
+        order.dispute_status = 'refund_contested_won';
+      } else if (hasRefund) {
+        order.dispute_status = 'refund_only';
+      } else if (hasContested) {
+        order.dispute_status = 'contested_only';
+      } else {
+        order.dispute_status = 'none';
+      }
+
+      // Normalise the lifecycle status so refund_contested never leaks as final status
+      if (order.status === 'refund_contested') {
+        order.status = hasRefund ? 'refunded' : 'completed';
+      }
+    }
+
     const deduplicatedOrders = Array.from(ordersMap.values());
     console.log('Phase 1.5 deduplication complete. Unique orders:', deduplicatedOrders.length, '(merged', ordersToUpsert.length - deduplicatedOrders.length, 'duplicates)');
+
 
     let insertedCount = 0;
     let updatedCount = 0;
