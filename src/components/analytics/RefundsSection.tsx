@@ -654,6 +654,15 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
           </Card>
         )}
 
+        {/* Détail des commandes remboursées */}
+        {isScopeReady && !isDeliveroo && (
+          <RefundOrdersDetailTable
+            restaurantIds={restaurantIds}
+            startDate={startDate}
+            endDate={endDate}
+          />
+        )}
+
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard
