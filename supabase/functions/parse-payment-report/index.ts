@@ -1060,6 +1060,9 @@ Deno.serve(async (req) => {
         existing.vat_2_refund = (existing.vat_2_refund || 0) + (order.vat_2_refund || 0);
         existing.vat_3_refund = (existing.vat_3_refund || 0) + (order.vat_3_refund || 0);
         existing.refund_incl_vat = (existing.refund_incl_vat || 0) + (order.refund_incl_vat || 0);
+        existing.refund_contested_incl_vat = (existing.refund_contested_incl_vat || 0) + (order.refund_contested_incl_vat || 0);
+        existing.refund_contested_excl_vat = (existing.refund_contested_excl_vat || 0) + (order.refund_contested_excl_vat || 0);
+
         existing.item_promo_excl_vat = (existing.item_promo_excl_vat || 0) + (order.item_promo_excl_vat || 0);
         existing.vat_1_item_promo = (existing.vat_1_item_promo || 0) + (order.vat_1_item_promo || 0);
         existing.vat_2_item_promo = (existing.vat_2_item_promo || 0) + (order.vat_2_item_promo || 0);
