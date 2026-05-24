@@ -294,6 +294,39 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
     staleTime: 2 * 60 * 1000,
   });
 
+  // ============ Funnel de contestation (remb client → contestée gagnée → net) ============
+  const { data: funnelData } = useQuery({
+    queryKey: [
+      "refund-contestation-funnel",
+      restaurantIds.slice().sort().join(","),
+      format(startDate, "yyyy-MM-dd"),
+      format(endDate, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_refund_contestation_funnel", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[RefundsSection] get_refund_contestation_funnel error:", error);
+        return null;
+      }
+      const row = (data as any[])?.[0];
+      if (!row) return null;
+      return {
+        refundedCount: Number(row.refunded_count) || 0,
+        refundedAmount: Number(row.refunded_amount) || 0,
+        contestedWonCount: Number(row.contested_won_count) || 0,
+        contestedWonAmount: Number(row.contested_won_amount) || 0,
+        netCount: Number(row.net_count) || 0,
+        netAmount: Number(row.net_amount) || 0,
+      };
+    },
+    enabled: isScopeReady && !isDeliveroo,
+    staleTime: 2 * 60 * 1000,
+  });
+
   const refundedCountsByRestaurant = useMemo(() => {
     const m = new Map<string, { refunded: number; total: number }>();
     for (const r of refundedCounts) {
@@ -551,6 +584,75 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
             </ToggleGroup>
           </div>
         </div>
+
+        {/* Funnel de contestation */}
+        {funnelData && (
+          <Card className="border-violet-500/30">
+            <CardContent className="pt-6">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold flex items-center gap-2">
+                    Funnel de contestation
+                    <Badge variant="outline" className="text-[10px]">Uber Eats</Badge>
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Demandes de remboursement client → recréditées suite à contestation gagnée → solde réellement à votre charge.
+                  </p>
+                </div>
+                {funnelData.contestedWonCount === 0 && funnelData.refundedCount > 0 && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-900 dark:text-amber-200 max-w-md">
+                    <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+                    <span>Aucune contestation détectée. La donnée "contestée gagnée" peut nécessiter un re-traitement du rapport Uber pour cette période.</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                {/* Étape 1 — Demandes client */}
+                <div className="rounded-lg border bg-orange-50 dark:bg-orange-950/20 p-4 relative">
+                  <div className="flex items-center gap-2 text-xs font-medium text-orange-700 dark:text-orange-300 uppercase tracking-wider">
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    1. Demandes client
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{fmtInt(funnelData.refundedCount)} <span className="text-sm font-normal text-muted-foreground">cmd</span></div>
+                  <div className="text-lg font-semibold text-orange-700 dark:text-orange-300">{fmtEur(funnelData.refundedAmount)}</div>
+                  <p className="text-[11px] text-muted-foreground mt-1">Commandes débitées sur votre payout</p>
+                </div>
+
+                {/* Étape 2 — Contestées gagnées */}
+                <div className="rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 p-4 relative">
+                  <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
+                    <TrendingUp className="h-3.5 w-3.5" />
+                    2. Contestées gagnées
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">
+                    {fmtInt(funnelData.contestedWonCount)} <span className="text-sm font-normal text-muted-foreground">cmd</span>
+                    {funnelData.refundedCount > 0 && (
+                      <span className="text-xs font-normal text-muted-foreground ml-2">
+                        ({((funnelData.contestedWonCount / funnelData.refundedCount) * 100).toFixed(1).replace(".", ",")}%)
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-300">
+                    {funnelData.contestedWonAmount > 0 ? "+" : ""}{fmtEur(funnelData.contestedWonAmount)}
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">Recréditées par Uber après contestation</p>
+                </div>
+
+                {/* Étape 3 — Net à votre charge */}
+                <div className="rounded-lg border bg-rose-50 dark:bg-rose-950/20 p-4 relative">
+                  <div className="flex items-center gap-2 text-xs font-medium text-rose-700 dark:text-rose-300 uppercase tracking-wider">
+                    <TrendingDown className="h-3.5 w-3.5" />
+                    3. Solde net à charge
+                  </div>
+                  <div className="mt-2 text-2xl font-bold">{fmtInt(funnelData.netCount)} <span className="text-sm font-normal text-muted-foreground">cmd</span></div>
+                  <div className="text-lg font-semibold text-rose-700 dark:text-rose-300">{fmtEur(funnelData.netAmount)}</div>
+                  <p className="text-[11px] text-muted-foreground mt-1">Demandes − contestations gagnées</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* KPI cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
