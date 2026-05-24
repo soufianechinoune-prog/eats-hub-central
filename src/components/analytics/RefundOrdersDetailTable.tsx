@@ -171,9 +171,11 @@ export function RefundOrdersDetailTable({ restaurantIds, startDate, endDate }: P
                     <TableHead className="text-xs">Date</TableHead>
                     <TableHead className="text-xs">Restaurant</TableHead>
                     <TableHead className="text-xs">N° commande</TableHead>
-                    <TableHead className="text-xs text-right">Remb. client</TableHead>
+                    <TableHead className="text-xs text-right">Débit / Crédit</TableHead>
                     <TableHead className="text-xs text-right">Recrédité (contestation)</TableHead>
                     <TableHead className="text-xs text-right">Solde net</TableHead>
+                    <TableHead className="text-xs">Statut litige</TableHead>
+
                     <TableHead className="text-xs">Statut litige</TableHead>
                   </TableRow>
                 </TableHeader>
