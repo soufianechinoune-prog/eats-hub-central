@@ -405,6 +405,9 @@ function mapStatus(status: string): string {
     'Annulée': 'cancelled',
     'Remboursée': 'refunded',
     'Remboursement': 'refunded',
+    'Remboursements contestés': 'refund_contested',
+    'Remboursement contesté': 'refund_contested',
+    'Non effectuée': 'failed',
     'Échec': 'failed',
     'En cours': 'in_progress',
     // English (Uber Reports API)
@@ -413,11 +416,14 @@ function mapStatus(status: string): string {
     'Canceled': 'cancelled',
     'Refund': 'refunded',
     'Refunded': 'refunded',
+    'Disputed Refund': 'refund_contested',
+    'Refund Contested': 'refund_contested',
     'Unfulfilled': 'failed',
     'Failed': 'failed',
   };
   return statusMap[status] || status || 'unknown';
 }
+
 
 interface SkipInfo {
   rowIndex: number;
