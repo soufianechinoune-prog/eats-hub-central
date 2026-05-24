@@ -4713,6 +4713,21 @@ export type Database = {
           sales: number
         }[]
       }
+      get_refund_contestation_funnel: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          contested_won_amount: number
+          contested_won_count: number
+          net_amount: number
+          net_count: number
+          refunded_amount: number
+          refunded_count: number
+        }[]
+      }
       get_refunded_orders_count: {
         Args: {
           p_end_date: string
