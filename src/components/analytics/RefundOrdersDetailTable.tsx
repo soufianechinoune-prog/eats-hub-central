@@ -200,7 +200,7 @@ export function RefundOrdersDetailTable({ restaurantIds, startDate, endDate }: P
                           {fmtEur(r.net_refund)}
                         </span>
                       </TableCell>
-                      <TableCell>{disputeBadge(r.dispute_status)}</TableCell>
+                      <TableCell>{disputeBadge(r)}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
