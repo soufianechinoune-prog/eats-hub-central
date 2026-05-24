@@ -23,6 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { RefundOrdersDetailTable } from "@/components/analytics/RefundOrdersDetailTable";
 
 const SENTINEL = "00000000-0000-0000-0000-000000000000";
 
