@@ -1,53 +1,58 @@
-# Diagnostic commande #9065E (Amiens, avril 2026)
+## Cause de l'incohérence
 
-La commande **existe bien en base** :
+Deux types de données coexistent dans `orders` pour les remboursements Uber :
 
-| Champ | Valeur |
-|---|---|
-| `uber_order_id` | #9065E |
-| `order_datetime` | 20/04/2026 12:33 |
-| `refund_incl_vat` | 2,50 € |
-| `refund_contested_incl_vat` | 0 |
-| `dispute_status` | **NULL** |
-| `data_source` | `uber_api` |
-| `imported_from_report` | true |
+- `refund_incl_vat < 0` → débit client (la commande #FDC77 à -15,20 €, #14DCE à -11,60 €, etc.)
+- `refund_incl_vat > 0` → **crédit reçu d'Uber** (legacy API, sans détail de contestation). C'est le cas de #38186 (+2 €) et #E0EA5 (+11,60 €).
+- `refund_contested_incl_vat > 0` → crédit issu d'une **contestation gagnée**, parsé depuis la col 64 du CSV Paiements Uber.
 
-**Pourquoi elle n'apparaît pas dans "Contestées gagnées" :** les colonnes `dispute_status` et `refund_contested_incl_vat` ne sont **pas remontées par l'API Uber**. Elles ne sont remplies qu'après re-parsing du **rapport CSV Paiements Uber** (col 64 "Statut commande" + col 65 "Remboursement contesté"). Pour janvier 2026 sur Argenteuil, on avait lancé `uber-backfill-reports` — c'est exactement ce qui manque ici pour avril sur Amiens.
+Le funnel actuel (`get_refund_contestation_funnel`) ne compte dans **"Contestées gagnées"** que `refund_contested_incl_vat > 0`. Pour janvier 2026 sur ces 3 restaurants, le CSV Paiements n'a pas encore été backfillé → la colonne est à 0 partout, donc l'étage 2 affiche `0 cmd / 0 €` et le solde net à charge = 100 % des débits (-712 €).
 
-**Ce n'est donc pas un délai Uber** (la donnée existe côté Uber dès que le litige est tranché). C'est notre backfill du rapport Paiements qui n'a pas encore tourné sur Amiens / avril.
+Pourtant les crédits +2 € et +11,60 € visibles dans la table sont bien des recrédits Uber : ils sont juste stockés dans `refund_incl_vat` (positif) au lieu de `refund_contested_incl_vat`. Le RPC `get_uber_payouts_detail` les compte déjà correctement (lignes 56-57 de la migration `20260524155902`), mais le funnel ne le fait pas → c'est l'incohérence.
 
----
+## Correctif
 
-# Plan d'action
+### 1. RPC `get_refund_contestation_funnel`
 
-## 1. Backfill rapport Paiements Uber — Amiens avril 2026
-Lancer `uber-backfill-reports` sur TASTY CROUSTY AMIENS pour la période 01/04 → 30/04/2026, afin de remplir `dispute_status` et `refund_contested_incl_vat` (idem ce qu'on a fait pour Argenteuil janvier).
+Aligner la logique sur `get_uber_payouts_detail` : considérer **tout `refund_incl_vat > 0` comme une contestation gagnée legacy**, en plus de `refund_contested_incl_vat > 0`.
 
-Après backfill, vérifier que #9065E remonte avec `dispute_status='Remboursements contestés'` et `refund_contested_incl_vat=2,50` → la commande passera mécaniquement dans l'étage **2. Contestées gagnées** du funnel.
+```sql
+-- Étage 2 : Contestées gagnées (legacy crédits + nouveaux crédits contestés)
+COUNT(*) FILTER (
+  WHERE refund_contested_incl_vat > 0 OR refund_incl_vat > 0
+) AS contested_won_count,
 
-## 2. Ajout d'une table "Détail des commandes" sous le funnel
-Sous le bloc funnel actuel dans `RefundsSection.tsx`, ajouter une table listant **toutes les commandes ayant un remboursement** sur la période + restaurants sélectionnés.
+ROUND(COALESCE(SUM(
+  GREATEST(refund_contested_incl_vat, 0)
+  + CASE WHEN refund_incl_vat > 0 THEN refund_incl_vat ELSE 0 END
+), 0)::numeric, 2) AS contested_won_amount,
 
-**Colonnes :**
-- Date / heure
-- Restaurant
-- N° commande Uber (ex. #9065E)
-- Montant remboursé client (TTC)
-- Montant recrédité après contestation (TTC)
-- Solde net (= remboursé + contesté gagné)
-- Statut litige (badge couleur : `Remboursement` orange / `Remboursements contestés` vert / `—` gris si NULL)
+-- Étage 3 : Solde net = débits + crédits (legacy & contestés)
+ROUND(COALESCE(SUM(
+  CASE WHEN refund_incl_vat < 0 THEN refund_incl_vat ELSE 0 END
+  + GREATEST(refund_contested_incl_vat, 0)
+  + CASE WHEN refund_incl_vat > 0 THEN refund_incl_vat ELSE 0 END
+), 0)::numeric, 2) AS net_amount
+```
 
-**Tri par défaut :** date desc. **Pagination** 25 lignes. **Export CSV** (bouton en haut à droite de la table).
+Résultat attendu pour janvier 2026 / 3 restos : Étage 2 ne sera plus à 0, et le solde net `-712 €` baissera du montant total des crédits positifs.
 
-**Source de données :** nouveau RPC `get_refund_orders_detail(p_restaurant_ids uuid[], p_start_date date, p_end_date date)` retournant les colonnes ci-dessus, filtré sur `refund_incl_vat < 0 OR refund_contested_incl_vat > 0`. `SECURITY DEFINER`, `statement_timeout 30s`, ordonné par `order_datetime desc`.
+### 2. Table "Détail des commandes" (`RefundOrdersDetailTable.tsx`)
 
-## Hors scope
-- Pas de modif du funnel existant (déjà validé).
-- Pas d'autres pages touchées.
-- Pas de drill-down par item (Uber ne fournit pas le détail par produit pour les litiges).
+Pour lever toute ambiguïté visuelle, renommer la colonne et signaler les recrédits legacy :
 
-## Détails techniques
-- Nouveau composant `RefundOrdersTable.tsx` consommé par `RefundsSection.tsx`.
-- `useQuery` avec `enabled = analyticsReady && restaurantIds.length > 0`.
-- Types Supabase régénérés automatiquement après migration RPC.
-- Aucune modif du parser ni du backfill worker (déjà en place).
+- Renommer **"Remb. client"** → **"Débit / Crédit"** (1 seule colonne, signe explicite).
+- Si `refund_incl_vat > 0` ET `refund_contested_incl_vat = 0` ET `dispute_status IS NULL` → badge gris **"Recrédit Uber (legacy)"** dans la colonne "Statut litige" au lieu du tiret.
+- Garder la colonne "Recrédité (contestation)" inchangée pour les futures données backfillées.
+
+### 3. Bannière d'avertissement
+
+L'encart orange "Aucune contestation détectée" doit aussi tenir compte des crédits legacy : ne l'afficher que si **étage 2 = 0 ET aucun `refund_incl_vat > 0` sur la période**.
+
+## Fichiers touchés
+
+- `supabase/migrations/<nouvelle>.sql` — recréer `get_refund_contestation_funnel`
+- `src/components/analytics/RefundOrdersDetailTable.tsx` — header colonne + badge legacy
+- `src/components/analytics/RefundsSection.tsx` — condition d'affichage de la bannière
+
+Aucun changement sur le parser, le backfill ou le RPC détail.
