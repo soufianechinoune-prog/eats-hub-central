@@ -294,6 +294,39 @@ export function RefundsSection({ platform: platformProp }: RefundsSectionProps) 
     staleTime: 2 * 60 * 1000,
   });
 
+  // ============ Funnel de contestation (remb client → contestée gagnée → net) ============
+  const { data: funnelData } = useQuery({
+    queryKey: [
+      "refund-contestation-funnel",
+      restaurantIds.slice().sort().join(","),
+      format(startDate, "yyyy-MM-dd"),
+      format(endDate, "yyyy-MM-dd"),
+    ],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_refund_contestation_funnel", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+      });
+      if (error) {
+        console.error("[RefundsSection] get_refund_contestation_funnel error:", error);
+        return null;
+      }
+      const row = (data as any[])?.[0];
+      if (!row) return null;
+      return {
+        refundedCount: Number(row.refunded_count) || 0,
+        refundedAmount: Number(row.refunded_amount) || 0,
+        contestedWonCount: Number(row.contested_won_count) || 0,
+        contestedWonAmount: Number(row.contested_won_amount) || 0,
+        netCount: Number(row.net_count) || 0,
+        netAmount: Number(row.net_amount) || 0,
+      };
+    },
+    enabled: isScopeReady && !isDeliveroo,
+    staleTime: 2 * 60 * 1000,
+  });
+
   const refundedCountsByRestaurant = useMemo(() => {
     const m = new Map<string, { refunded: number; total: number }>();
     for (const r of refundedCounts) {
