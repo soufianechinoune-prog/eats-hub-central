@@ -1,66 +1,53 @@
-## Objectif
+# Diagnostic commande #9065E (Amiens, avril 2026)
 
-Afficher sur la page **Analytics → Remboursements** un funnel de contestation à 3 étages :
+La commande **existe bien en base** :
 
-1. **Demandes de remboursement client** (commandes débitées) — nb + montant
-2. **Recréditées suite à contestation gagnée** — nb + montant
-3. **Delta = net réellement à charge du restaurant** — nb + montant
+| Champ | Valeur |
+|---|---|
+| `uber_order_id` | #9065E |
+| `order_datetime` | 20/04/2026 12:33 |
+| `refund_incl_vat` | 2,50 € |
+| `refund_contested_incl_vat` | 0 |
+| `dispute_status` | **NULL** |
+| `data_source` | `uber_api` |
+| `imported_from_report` | true |
 
-## État actuel de la data
+**Pourquoi elle n'apparaît pas dans "Contestées gagnées" :** les colonnes `dispute_status` et `refund_contested_incl_vat` ne sont **pas remontées par l'API Uber**. Elles ne sont remplies qu'après re-parsing du **rapport CSV Paiements Uber** (col 64 "Statut commande" + col 65 "Remboursement contesté"). Pour janvier 2026 sur Argenteuil, on avait lancé `uber-backfill-reports` — c'est exactement ce qui manque ici pour avril sur Amiens.
 
-Vérifié sur Argenteuil janvier 2026 :
+**Ce n'est donc pas un délai Uber** (la donnée existe côté Uber dès que le litige est tranché). C'est notre backfill du rapport Paiements qui n'a pas encore tourné sur Amiens / avril.
 
-| Étage | Source | Statut |
-|---|---|---|
-| 1 — Remb. client | `orders.refund_incl_vat` (API Uber) | ✅ 82 cmd / −629,82 € |
-| 2 — Contestée gagnée | `orders.refund_contested_incl_vat` + `orders.dispute_status` (CSV col 64) | ❌ vide partout |
-| 3 — Delta | Calcul (1) + (2) | ❌ dépend de l'étage 2 |
+---
 
-**Cause** : l'API Uber ne renvoie pas le statut de litige. Cette info arrive uniquement dans le rapport CSV de paiement (colonne 64 "Statut de la commande" : "Remboursement" vs "Remboursements contestés"). Le parser est déjà déployé mais aucune commande historique n'a été re-traitée.
+# Plan d'action
 
-## Plan en 2 étapes
+## 1. Backfill rapport Paiements Uber — Amiens avril 2026
+Lancer `uber-backfill-reports` sur TASTY CROUSTY AMIENS pour la période 01/04 → 30/04/2026, afin de remplir `dispute_status` et `refund_contested_incl_vat` (idem ce qu'on a fait pour Argenteuil janvier).
 
-### Étape 1 — Rétro-remplissage des colonnes "contestation"
+Après backfill, vérifier que #9065E remonte avec `dispute_status='Remboursements contestés'` et `refund_contested_incl_vat=2,50` → la commande passera mécaniquement dans l'étage **2. Contestées gagnées** du funnel.
 
-Lancer un **backfill** ciblé qui re-télécharge les rapports `PAYMENT_DETAILS_REPORT` via l'API Uber pour la période et les restaurants choisis, et fait passer chaque ligne par le parser existant (qui lit la col 64) pour remplir :
-- `orders.dispute_status`
-- `orders.refund_contested_incl_vat`
+## 2. Ajout d'une table "Détail des commandes" sous le funnel
+Sous le bloc funnel actuel dans `RefundsSection.tsx`, ajouter une table listant **toutes les commandes ayant un remboursement** sur la période + restaurants sélectionnés.
 
-Périmètre proposé pour vérification :
-- **Tasty Crousty Argenteuil — janvier 2026** d'abord (validation)
-- Si OK → élargir au reste du réseau / autres mois via la table `backfill_jobs` existante
+**Colonnes :**
+- Date / heure
+- Restaurant
+- N° commande Uber (ex. #9065E)
+- Montant remboursé client (TTC)
+- Montant recrédité après contestation (TTC)
+- Solde net (= remboursé + contesté gagné)
+- Statut litige (badge couleur : `Remboursement` orange / `Remboursements contestés` vert / `—` gris si NULL)
 
-Aucun nouveau code de parsing : on réutilise l'edge function `uber-create-report` et le worker `backfill-worker` déjà en place.
+**Tri par défaut :** date desc. **Pagination** 25 lignes. **Export CSV** (bouton en haut à droite de la table).
 
-### Étape 2 — UI : carte funnel sur la page Remboursements
+**Source de données :** nouveau RPC `get_refund_orders_detail(p_restaurant_ids uuid[], p_start_date date, p_end_date date)` retournant les colonnes ci-dessus, filtré sur `refund_incl_vat < 0 OR refund_contested_incl_vat > 0`. `SECURITY DEFINER`, `statement_timeout 30s`, ordonné par `order_datetime desc`.
 
-Dans `src/components/analytics/RefundsSection.tsx`, ajouter un bloc **"Funnel de contestation"** sous les 4 KPI cards existantes :
+## Hors scope
+- Pas de modif du funnel existant (déjà validé).
+- Pas d'autres pages touchées.
+- Pas de drill-down par item (Uber ne fournit pas le détail par produit pour les litiges).
 
-```text
-┌─ Demandes remb. ─┐    ┌─ Contestées gagnées ─┐    ┌─ Net à charge ─┐
-│   82 cmd          │ →  │   X cmd (Y%)         │ → │   Z cmd        │
-│   −629,82 €       │    │   +N €               │   │   −M €         │
-└──────────────────┘    └──────────────────────┘    └────────────────┘
-```
-
-Nouvelle RPC `get_refund_contestation_funnel(p_restaurant_ids, p_start, p_end)` retournant :
-- `refunded_count`, `refunded_amount`
-- `contested_won_count`, `contested_won_amount` (somme `refund_contested_incl_vat > 0`)
-- `net_count`, `net_amount`
-
-La RPC suit le standard projet (SECURITY DEFINER, AT TIME ZONE Europe/Paris, filtre par `p_restaurant_ids`).
-
-Affichage uniquement en `€` (pas de toggle %) pour ce bloc, granularité = période sélectionnée (pas de courbe pour l'instant).
-
-## Validation utilisateur
-
-À la fin de l'étape 1, je te livre un tableau comparatif **Argenteuil janvier 2026** :
-- Données AVANT backfill (82 / −629,82 € / 0 / 0)
-- Données APRÈS backfill (82 / −629,82 € / X / +Y €)
-- Tu valides la cohérence avant qu'on passe à l'UI et qu'on élargisse le backfill.
-
-## Ce qui n'est PAS dans ce plan
-
-- Pas de modif des autres pages (Finances, Overview…)
-- Pas de re-parse des CSV uploadés manuellement (on passe uniquement par l'API)
-- Pas d'historisation séparée du funnel (calcul live à partir de `orders`)
+## Détails techniques
+- Nouveau composant `RefundOrdersTable.tsx` consommé par `RefundsSection.tsx`.
+- `useQuery` avec `enabled = analyticsReady && restaurantIds.length > 0`.
+- Types Supabase régénérés automatiquement après migration RPC.
+- Aucune modif du parser ni du backfill worker (déjà en place).

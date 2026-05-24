@@ -4728,6 +4728,24 @@ export type Database = {
           refunded_count: number
         }[]
       }
+      get_refund_orders_detail: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          dispute_status: string
+          net_refund: number
+          order_datetime: string
+          order_id: string
+          refund_contested_incl_vat: number
+          refund_incl_vat: number
+          restaurant_id: string
+          restaurant_name: string
+          uber_order_id: string
+        }[]
+      }
       get_refunded_orders_count: {
         Args: {
           p_end_date: string
