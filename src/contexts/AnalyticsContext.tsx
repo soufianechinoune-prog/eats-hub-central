@@ -97,6 +97,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     () => storedState?.comparisonMode || "yearOverYear"
   );
 
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(
+    () => storedState?.comparisonScope || "extended"
+  );
+
   const [profitabilityBase, setProfitabilityBase] = useState<ProfitabilityBase>(
     () => storedState?.profitabilityBase || "gross"
   );
