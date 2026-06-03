@@ -565,15 +565,23 @@ export function useNetworkStats({
         ? validDowntimes.reduce((sum, s) => sum + (s.downtime ?? 0), 0)
         : null;
 
+    // En périmètre constant on ne somme N-1 ET la part N comparable que sur les restos présents sur les 2 périodes
+    const isComparable = (id: string) =>
+      comparisonScope === "extended" || constantScopeIds.has(id);
+    const comparableStats = stats.filter((s) => isComparable(s.id));
+
     const prevTotalRevenue = includeN1Comparison
-      ? stats.reduce((sum, s) => sum + (s.prevRevenue ?? 0), 0)
+      ? comparableStats.reduce((sum, s) => sum + (s.prevRevenue ?? 0), 0)
       : undefined;
     const prevTotalOrders = includeN1Comparison
-      ? stats.reduce((sum, s) => sum + (s.prevOrders ?? 0), 0)
+      ? comparableStats.reduce((sum, s) => sum + (s.prevOrders ?? 0), 0)
       : undefined;
+    const comparableRevenueN = includeN1Comparison
+      ? comparableStats.reduce((sum, s) => sum + s.revenue, 0)
+      : totalRevenue;
     const revenueVariation =
       includeN1Comparison && prevTotalRevenue && prevTotalRevenue > 0
-        ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100
+        ? ((comparableRevenueN - prevTotalRevenue) / prevTotalRevenue) * 100
         : null;
 
     return {
@@ -599,8 +607,11 @@ export function useNetworkStats({
         revenueVariation != null
           ? parseFloat(revenueVariation.toFixed(1))
           : null,
+      comparisonScope,
+      comparedRestaurantCount: comparableStats.length,
+      totalRestaurantCount: stats.length,
     };
-  }, [stats, includeN1Comparison]);
+  }, [stats, includeN1Comparison, comparisonScope, constantScopeIds]);
 
   const isLoading =
     deliverooLoading ||
