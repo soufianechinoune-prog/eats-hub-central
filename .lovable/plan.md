@@ -1,93 +1,36 @@
-## Contexte
+# Switch Périmètre constant / élargi
 
-La data Uber est figée au **17 mai 2026** pour tous les restaurants (on est le 2 juin). Plus aucun `report.success` reçu depuis 16 jours. Aucun cron Uber n'existe : la remontée dépend soit d'un backfill manuel, soit d'un report planifié côté Uber qui ne se déclenche plus.
+Permettre à l'utilisateur de choisir, depuis le header de la page Overview, comment se calcule la comparaison VS N-1 :
 
-Par ailleurs, certains Tasty Crousty n'ont pas encore tout leur historique mensuel récupéré. **Bonne nouvelle : les deux flux (cron quotidien + backfill historique) cohabitent sans risque** grâce à la file de jobs commune (`backfill_jobs`), au worker séquentiel, et à l'upsert anti-doublon (`ON CONFLICT order_id`).
+- **Périmètre élargi (défaut, comportement actuel)** : on compare le total N (tous les restos sélectionnés) au total N-1 (mêmes IDs, même s'ils n'existaient pas encore).
+- **Périmètre constant** : on ne garde, pour la comparaison, que les restaurants ouverts **à la fois** sur N et sur N-1. Les autres sont exclus du calcul de variation (mais restent visibles dans la liste, juste sans variation).
 
-## Étapes (dans l'ordre)
+## Étapes
 
-### Étape 1 — Combler le trou récent (18 mai → 31 mai 2026)
-Déclencher immédiatement un backfill ponctuel pour les 60 restaurants actifs sur cette plage. Utilise l'infra existante (`uber-backfill-reports` → file `backfill_jobs` → `uber-backfill-worker` → webhook).
+### 1. État global dans `AnalyticsContext`
+- Ajouter `comparisonScope: "extended" | "constant"` + setter (défaut `"extended"`), persisté dans `localStorage` comme les autres prefs.
 
-Estimation : 60 restos × 1 fenêtre (14 jours, ≤30 donc 1 seul rapport Uber par resto) = 60 jobs. Avec 2 jobs en parallèle et ~10-15 min par job (création + attente webhook Uber), ça remontera progressivement sur 4 à 8 heures.
+### 2. UI — switch dans le header Overview
+- Petit toggle/segmented control à côté du sélecteur de période et du mode de comparaison (`yearOverYear` / `rollingPeriod`).
+- Labels : « Périmètre élargi » / « Périmètre constant », avec tooltip explicatif (« Ne compare que les restos ouverts sur les 2 périodes »).
+- Visible uniquement si `includeN1Comparison` est actif (comparaison affichée).
 
-### Étape 2 — Mettre en place le cron quotidien
-Créer un cron `uber-daily-backfill` qui tourne **tous les jours à 5h UTC** (après la coupure J-1 Uber) et planifie un backfill incrémental **J-3 → J-1** pour tous les restaurants actifs ayant un `uber_store_id`.
+### 3. Logique dans `useNetworkStats`
+Aujourd'hui (lignes 103-110, 132-135) :
+- `restaurants` = `filterActiveRestaurants(raw, startDate, endDate)` → filtre uniquement sur la période N.
+- N-1 = `setFullYear(-1)` sur les mêmes IDs, sans filtre d'activité.
 
-Pourquoi J-3 → J-1 :
-- Uber publie les paiements avec ~24-48h de délai
-- 3 jours de chevauchement = filet de sécurité en cas d'échec ponctuel
-- L'upsert sur `order_id` empêche tout doublon
+Nouveau, quand `comparisonScope === "constant"` :
+- Calculer `constantScopeIds` = restaurants actifs sur N **ET** sur N-1 (réutiliser `isActiveForPeriod` deux fois sur les `restaurantsRaw`).
+- Pour le **total N-1** et le **total N utilisé dans la variation** (`prevTotalRevenue`, `prevTotalOrders`, `revenueVariation`), ne sommer que ces IDs.
+- Au niveau ligne par restaurant : si un resto n'est pas dans `constantScopeIds`, mettre `revenueVariation = null` / `ordersVariation = null` (badge « N/A » dans le tableau).
+- Le total N « brut » affiché reste inchangé (somme de tous les actifs N), seule la **variation** est recalculée à périmètre constant pour rester comparable.
 
-```text
-pg_cron (0 5 * * *)
-   └─► net.http_post → edge function "uber-daily-backfill-trigger"
-              └─► pour chaque restaurant actif avec uber_store_id
-                     └─► insert job dans backfill_jobs (J-3 → J-1)
-                            └─► uber-backfill-worker (déjà existant)
-                                   └─► uber-create-report → Uber API
-                                          └─► webhook report.success → ingestion
-```
+Quand `comparisonScope === "extended"` : comportement actuel inchangé.
 
-### Étape 3 — S'assurer que le worker tourne (cron de "tick" toutes les minutes)
-Vérifier qu'un cron déclenche `uber-backfill-worker` régulièrement (toutes les minutes). S'il n'existe pas/plus, le créer. Sans ce tick, les jobs insérés en étape 1 et 2 resteraient `pending` indéfiniment.
-
-### Étape 4 — Badge "fraîcheur data" dans l'Overview
-Petit indicateur en haut de la page Overview : "Dernière commande Uber : il y a X heures"
-- vert : <48h
-- orange : 48h–7j
-- rouge : >7j
-
-Permet de détecter immédiatement si la remontée recasse à l'avenir.
-
-### Étape 5 — (Plus tard, séparément) Compléter les historiques Tasty Crousty
-Une fois l'étape 1-3 stables, je peux détecter automatiquement les trous mensuels par restaurant et planifier les jobs de rattrapage historique. À traiter dans une demande dédiée pour ne pas mélanger.
-
-## Détails techniques
-
-### Migration cron quotidien
-```sql
-SELECT cron.schedule(
-  'uber-daily-backfill',
-  '0 5 * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://akcicojkrzeirffefdet.supabase.co/functions/v1/uber-daily-backfill-trigger',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <ANON_KEY>"}'::jsonb,
-    body := '{"window_days": 3}'::jsonb
-  );
-  $$
-);
-```
-
-### Nouvelle edge function `uber-daily-backfill-trigger`
-- Lit les restaurants actifs avec `uber_store_id` non null
-- Calcule `start = today - 3 days`, `end = today - 1 day`
-- Pour chaque restaurant, insère un job dans `backfill_jobs` (status `pending`, vague `'daily'`)
-- `uber-backfill-worker` existant dépile la file (rien à modifier côté worker)
-
-### Cron worker (tick)
-```sql
-SELECT cron.schedule(
-  'uber-backfill-worker-tick',
-  '* * * * *',
-  $$
-  SELECT net.http_post(
-    url := 'https://akcicojkrzeirffefdet.supabase.co/functions/v1/uber-backfill-worker',
-    headers := '{"Content-Type":"application/json","Authorization":"Bearer <ANON_KEY>"}'::jsonb,
-    body := '{}'::jsonb
-  );
-  $$
-);
-```
-
-### Sécurité anti-collision
-- Clé unique sur `order_id` côté table `orders` → `ON CONFLICT` empêche les doublons même si plusieurs jobs couvrent la même journée
-- `pick_next_backfill_job` est atomique (verrouillage row-level) → 2 workers en parallèle ne piquent jamais le même job
-- Token Uber `client_credentials` mis en cache 30 jours → pas de rate-limit OAuth
+### 4. Indicateur visuel
+- Afficher discrètement sous le bloc « VS N-1 » : « Comparaison à périmètre constant (X/Y restos) » quand le mode constant exclut au moins 1 resto, pour que l'utilisateur sache combien sont écartés.
 
 ## Hors scope
-
-- Recodage du parser CSV (déjà OK)
-- Modification des RPC analytics (déjà OK)
-- Rattrapage des historiques mensuels manquants pour les Tasty Crousty (étape 5, à traiter séparément)
+- Pas de changement sur les pages Finances, Analytics, Reviews — uniquement Overview / `useNetworkStats` pour cette v1. On pourra étendre ensuite si besoin.
+- Pas de changement DB / RPC : tout reste côté client, on filtre juste les IDs passés/sommés.
