@@ -245,6 +245,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setDateRange,
     comparisonMode,
     setComparisonMode,
+    comparisonScope,
+    setComparisonScope,
     profitabilityBase,
     setProfitabilityBase,
     selectedChainId,
