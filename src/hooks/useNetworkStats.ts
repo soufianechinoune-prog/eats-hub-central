@@ -140,6 +140,26 @@ export function useNetworkStats({
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
 
+  // Constant-perimeter scope: restaurants ouverts sur N ET sur N-1
+  const constantScopeIds = useMemo<Set<string>>(() => {
+    if (!restaurantsRaw) return new Set();
+    const prevStart = new Date(startDate);
+    prevStart.setFullYear(prevStart.getFullYear() - 1);
+    const prevEnd = new Date(endDate);
+    prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+    const ids = new Set<string>();
+    for (const r of restaurantsRaw) {
+      if (
+        isActiveForPeriod(r, startDate, endDate) &&
+        isActiveForPeriod(r, prevStart, prevEnd)
+      ) {
+        ids.add(r.id);
+      }
+    }
+    return ids;
+  }, [restaurantsRaw, startDate, endDate]);
+
+
   // Deliveroo sales via RPC — shared cache key with useOverviewData
   const { data: deliverooSummaryData, isLoading: deliverooLoading } = useQuery({
     queryKey: ["overview-deliveroo-sales", restaurantIds, startDateStr, endDateStr],
