@@ -128,7 +128,8 @@ export function RestaurantComparisonTable({
   forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
-  const { dateRange } = useAnalyticsContext();
+  const analyticsCtx = useAnalyticsContext();
+  const { dateRange } = analyticsCtx;
   const startDateStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
   const endDateStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : startDateStr;
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
