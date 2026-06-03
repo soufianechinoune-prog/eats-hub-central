@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
 export type Platform = "uber_eats" | "deliveroo" | "global" | "pos";
 export type ComparisonMode = "yearOverYear" | "rollingPeriod";
+export type ComparisonScope = "extended" | "constant"; // extended = tous les restos / constant = uniquement les restos ouverts sur N et N-1
 export type ProfitabilityBase = "gross" | "net"; // gross = Ventes TTC, net = Ventes - Promos
 
 interface AnalyticsContextType {
