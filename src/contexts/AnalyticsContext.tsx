@@ -28,6 +28,8 @@ interface AnalyticsContextType {
   setDateRange: (range: DateRange | undefined) => void;
   comparisonMode: ComparisonMode;
   setComparisonMode: (mode: ComparisonMode) => void;
+  comparisonScope: ComparisonScope;
+  setComparisonScope: (scope: ComparisonScope) => void;
   profitabilityBase: ProfitabilityBase;
   setProfitabilityBase: (base: ProfitabilityBase) => void;
   selectedChainId: string | null;
