@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
+import { filterActiveRestaurants, isActiveForPeriod } from "@/lib/restaurantActivityFilter";
 
 export interface PlatformBreakdown {
   revenue: number;
@@ -63,6 +63,10 @@ export interface NetworkTotals {
   prevTotalRevenue?: number;
   prevTotalOrders?: number;
   revenueVariation?: number | null;
+  // Scope info for constant-perimeter comparison
+  comparisonScope?: "extended" | "constant";
+  comparedRestaurantCount?: number; // restos retenus dans la variation (= total quand "extended")
+  totalRestaurantCount?: number; // restos actifs sur N
 }
 
 interface UseNetworkStatsParams {
@@ -71,6 +75,7 @@ interface UseNetworkStatsParams {
   endDate: Date;
   profitabilityBase?: "gross" | "net";
   includeN1Comparison?: boolean;
+  comparisonScope?: "extended" | "constant";
   reviewsData?: any[] | null;
 }
 
@@ -95,6 +100,7 @@ export function useNetworkStats({
   endDate,
   profitabilityBase = "gross",
   includeN1Comparison = false,
+  comparisonScope = "extended",
   reviewsData: externalReviewsData = null,
 }: UseNetworkStatsParams) {
   const startDateStr = format(startDate, "yyyy-MM-dd");
@@ -133,6 +139,26 @@ export function useNetworkStats({
     if (!restaurantsRaw) return [];
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
+
+  // Constant-perimeter scope: restaurants ouverts sur N ET sur N-1
+  const constantScopeIds = useMemo<Set<string>>(() => {
+    if (!restaurantsRaw) return new Set();
+    const prevStart = new Date(startDate);
+    prevStart.setFullYear(prevStart.getFullYear() - 1);
+    const prevEnd = new Date(endDate);
+    prevEnd.setFullYear(prevEnd.getFullYear() - 1);
+    const ids = new Set<string>();
+    for (const r of restaurantsRaw) {
+      if (
+        isActiveForPeriod(r, startDate, endDate) &&
+        isActiveForPeriod(r, prevStart, prevEnd)
+      ) {
+        ids.add(r.id);
+      }
+    }
+    return ids;
+  }, [restaurantsRaw, startDate, endDate]);
+
 
   // Deliveroo sales via RPC — shared cache key with useOverviewData
   const { data: deliverooSummaryData, isLoading: deliverooLoading } = useQuery({
@@ -390,12 +416,14 @@ export function useNetworkStats({
           ? (totalOnlineMinutes / (totalOnlineMinutes + totalOfflineMinutes)) * 100
           : null;
 
+      // En périmètre constant, on masque la variation pour les restos non éligibles (ouverts sur 1 seule période)
+      const inConstantScope = comparisonScope === "extended" || constantScopeIds.has(resto.id);
       const revenueVariation =
-        includeN1Comparison && prevRevenue > 0
+        includeN1Comparison && inConstantScope && prevRevenue > 0
           ? ((revenue - prevRevenue) / prevRevenue) * 100
           : null;
       const ordersVariation =
-        includeN1Comparison && prevOrders > 0
+        includeN1Comparison && inConstantScope && prevOrders > 0
           ? ((orders - prevOrders) / prevOrders) * 100
           : null;
 
@@ -484,6 +512,8 @@ export function useNetworkStats({
     availabilityData,
     profitabilityBase,
     includeN1Comparison,
+    comparisonScope,
+    constantScopeIds,
   ]);
 
   // Calculate network totals
@@ -535,15 +565,23 @@ export function useNetworkStats({
         ? validDowntimes.reduce((sum, s) => sum + (s.downtime ?? 0), 0)
         : null;
 
+    // En périmètre constant on ne somme N-1 ET la part N comparable que sur les restos présents sur les 2 périodes
+    const isComparable = (id: string) =>
+      comparisonScope === "extended" || constantScopeIds.has(id);
+    const comparableStats = stats.filter((s) => isComparable(s.id));
+
     const prevTotalRevenue = includeN1Comparison
-      ? stats.reduce((sum, s) => sum + (s.prevRevenue ?? 0), 0)
+      ? comparableStats.reduce((sum, s) => sum + (s.prevRevenue ?? 0), 0)
       : undefined;
     const prevTotalOrders = includeN1Comparison
-      ? stats.reduce((sum, s) => sum + (s.prevOrders ?? 0), 0)
+      ? comparableStats.reduce((sum, s) => sum + (s.prevOrders ?? 0), 0)
       : undefined;
+    const comparableRevenueN = includeN1Comparison
+      ? comparableStats.reduce((sum, s) => sum + s.revenue, 0)
+      : totalRevenue;
     const revenueVariation =
       includeN1Comparison && prevTotalRevenue && prevTotalRevenue > 0
-        ? ((totalRevenue - prevTotalRevenue) / prevTotalRevenue) * 100
+        ? ((comparableRevenueN - prevTotalRevenue) / prevTotalRevenue) * 100
         : null;
 
     return {
@@ -569,8 +607,11 @@ export function useNetworkStats({
         revenueVariation != null
           ? parseFloat(revenueVariation.toFixed(1))
           : null,
+      comparisonScope,
+      comparedRestaurantCount: comparableStats.length,
+      totalRestaurantCount: stats.length,
     };
-  }, [stats, includeN1Comparison]);
+  }, [stats, includeN1Comparison, comparisonScope, constantScopeIds]);
 
   const isLoading =
     deliverooLoading ||

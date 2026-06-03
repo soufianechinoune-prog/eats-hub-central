@@ -128,7 +128,8 @@ export function RestaurantComparisonTable({
   forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
-  const { dateRange } = useAnalyticsContext();
+  const analyticsCtx = useAnalyticsContext();
+  const { dateRange } = analyticsCtx;
   const startDateStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
   const endDateStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : startDateStr;
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
@@ -396,6 +397,35 @@ export function RestaurantComparisonTable({
             <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
               Afficher N-1
             </Label>
+            {showN1Comparison && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <div className="flex items-center gap-2 pl-2 ml-1 border-l border-border/50">
+                      <Switch
+                        id="scope-toggle"
+                        checked={analyticsCtx.comparisonScope === "constant"}
+                        onCheckedChange={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
+                      />
+                      <Label htmlFor="scope-toggle" className="text-sm text-muted-foreground cursor-pointer inline-flex items-center gap-1">
+                        Périmètre constant
+                        <Info className="h-3 w-3 opacity-60" />
+                      </Label>
+                      {analyticsCtx.comparisonScope === "constant" &&
+                        networkTotals.comparedRestaurantCount != null &&
+                        networkTotals.totalRestaurantCount != null && (
+                          <Badge variant="outline" className="text-[10px] h-5">
+                            {networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
+                          </Badge>
+                        )}
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants ouverts à la fois sur la période sélectionnée et sur la même période l'année précédente. Les autres restaurants restent visibles mais sans variation.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
           </div>
         </div>
       </CardHeader>

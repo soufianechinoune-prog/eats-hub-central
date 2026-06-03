@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 export type PeriodMode = "year" | "month" | "range" | "previous_week" | "7d" | "30d" | "current_month";
 export type Platform = "uber_eats" | "deliveroo" | "global" | "pos";
 export type ComparisonMode = "yearOverYear" | "rollingPeriod";
+export type ComparisonScope = "extended" | "constant"; // extended = tous les restos / constant = uniquement les restos ouverts sur N et N-1
 export type ProfitabilityBase = "gross" | "net"; // gross = Ventes TTC, net = Ventes - Promos
 
 interface AnalyticsContextType {
@@ -27,6 +28,8 @@ interface AnalyticsContextType {
   setDateRange: (range: DateRange | undefined) => void;
   comparisonMode: ComparisonMode;
   setComparisonMode: (mode: ComparisonMode) => void;
+  comparisonScope: ComparisonScope;
+  setComparisonScope: (scope: ComparisonScope) => void;
   profitabilityBase: ProfitabilityBase;
   setProfitabilityBase: (base: ProfitabilityBase) => void;
   selectedChainId: string | null;
@@ -92,6 +95,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
 
   const [comparisonMode, setComparisonMode] = useState<ComparisonMode>(
     () => storedState?.comparisonMode || "yearOverYear"
+  );
+
+  const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(
+    () => storedState?.comparisonScope || "extended"
   );
 
   const [profitabilityBase, setProfitabilityBase] = useState<ProfitabilityBase>(
@@ -193,6 +200,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       selectedMonth,
       periodMode,
       comparisonMode,
+      comparisonScope,
       profitabilityBase,
       selectedChainId,
       dateRange: dateRange
@@ -213,6 +221,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     periodMode,
     dateRange,
     comparisonMode,
+    comparisonScope,
     profitabilityBase,
     selectedChainId,
   ]);
@@ -237,6 +246,8 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setDateRange,
     comparisonMode,
     setComparisonMode,
+    comparisonScope,
+    setComparisonScope,
     profitabilityBase,
     setProfitabilityBase,
     selectedChainId,

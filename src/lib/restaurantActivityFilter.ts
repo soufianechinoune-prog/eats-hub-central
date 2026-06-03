@@ -29,7 +29,7 @@ function formatDateLocal(date: Date): string {
  * - Deliveroo: same logic
  * Returns true if at least one platform was active.
  */
-function isActiveForPeriod(
+export function isActiveForPeriod(
   restaurant: RestaurantWithDates,
   startDate: Date,
   endDate: Date
