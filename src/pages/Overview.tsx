@@ -390,6 +390,7 @@ const Overview = () => {
     endDate,
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
+    comparisonScope: analyticsCtx.comparisonScope,
     reviewsData: overviewReviewsData,
   });
 
