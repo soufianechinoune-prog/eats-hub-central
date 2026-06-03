@@ -512,6 +512,8 @@ export function useNetworkStats({
     availabilityData,
     profitabilityBase,
     includeN1Comparison,
+    comparisonScope,
+    constantScopeIds,
   ]);
 
   // Calculate network totals
