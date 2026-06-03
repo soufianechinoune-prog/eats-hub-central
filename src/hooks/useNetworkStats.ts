@@ -416,12 +416,14 @@ export function useNetworkStats({
           ? (totalOnlineMinutes / (totalOnlineMinutes + totalOfflineMinutes)) * 100
           : null;
 
+      // En périmètre constant, on masque la variation pour les restos non éligibles (ouverts sur 1 seule période)
+      const inConstantScope = comparisonScope === "extended" || constantScopeIds.has(resto.id);
       const revenueVariation =
-        includeN1Comparison && prevRevenue > 0
+        includeN1Comparison && inConstantScope && prevRevenue > 0
           ? ((revenue - prevRevenue) / prevRevenue) * 100
           : null;
       const ordersVariation =
-        includeN1Comparison && prevOrders > 0
+        includeN1Comparison && inConstantScope && prevOrders > 0
           ? ((orders - prevOrders) / prevOrders) * 100
           : null;
 
