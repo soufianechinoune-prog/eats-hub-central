@@ -221,6 +221,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     periodMode,
     dateRange,
     comparisonMode,
+    comparisonScope,
     profitabilityBase,
     selectedChainId,
   ]);
