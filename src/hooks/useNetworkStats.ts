@@ -63,6 +63,10 @@ export interface NetworkTotals {
   prevTotalRevenue?: number;
   prevTotalOrders?: number;
   revenueVariation?: number | null;
+  // Scope info for constant-perimeter comparison
+  comparisonScope?: "extended" | "constant";
+  comparedRestaurantCount?: number; // restos retenus dans la variation (= total quand "extended")
+  totalRestaurantCount?: number; // restos actifs sur N
 }
 
 interface UseNetworkStatsParams {
@@ -71,6 +75,7 @@ interface UseNetworkStatsParams {
   endDate: Date;
   profitabilityBase?: "gross" | "net";
   includeN1Comparison?: boolean;
+  comparisonScope?: "extended" | "constant";
   reviewsData?: any[] | null;
 }
 
