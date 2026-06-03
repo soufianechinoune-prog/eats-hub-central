@@ -100,6 +100,7 @@ export function useNetworkStats({
   endDate,
   profitabilityBase = "gross",
   includeN1Comparison = false,
+  comparisonScope = "extended",
   reviewsData: externalReviewsData = null,
 }: UseNetworkStatsParams) {
   const startDateStr = format(startDate, "yyyy-MM-dd");
