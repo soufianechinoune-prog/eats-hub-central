@@ -39,6 +39,7 @@ import {
 import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell, RefreshCw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { SplashResilientBackfillCard } from "@/components/integrations/SplashResilientBackfillCard";
+import { SplashSyncRunsCard } from "@/components/integrations/SplashSyncRunsCard";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 export default function Integrations() {
