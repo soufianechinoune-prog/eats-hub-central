@@ -258,8 +258,23 @@ serve(async (req) => {
           results.push({ chain_id: conn.chain_id, error: e.message });
         }
       }
+
+      const totalInserted = results.reduce((s, r) => s + (r.inserted ?? 0), 0);
+      const errorsCount = results.filter((r) => r.error).length;
+      if (runId) {
+        await supabaseAdmin.from("splash360_sync_runs").update({
+          status: errorsCount > 0 && totalInserted === 0 ? "failed" : (errorsCount > 0 ? "partial" : "success"),
+          finished_at: new Date().toISOString(),
+          duration_ms: Date.now() - runStartedAt,
+          connections_processed: results.length,
+          rows_upserted: totalInserted,
+          errors_count: errorsCount,
+          details: { results },
+        }).eq("id", runId);
+      }
+
       return new Response(
-        JSON.stringify({ success: true, processed: results.length, results }),
+        JSON.stringify({ success: true, run_id: runId, processed: results.length, results }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
