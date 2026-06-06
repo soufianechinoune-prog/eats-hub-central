@@ -180,12 +180,33 @@ serve(async (req) => {
     // Boucle sur toutes les connexions Splash360 actives et lance une sync
     // de niveau "month" pour le mois en cours.
     if (sync_all_active) {
+      const runStartedAt = Date.now();
+      const { data: runRow } = await supabaseAdmin
+        .from("splash360_sync_runs")
+        .insert({
+          trigger_source: (body?.trigger_source as string) ?? "cron",
+          status: "running",
+        })
+        .select("id")
+        .single();
+      const runId = runRow?.id;
+
       const { data: connections, error: connErr } = await supabaseAdmin
         .from("chain_pos_connections")
         .select("id, chain_id, credentials, account_label")
         .eq("connector_id", "splash360")
         .eq("is_active", true);
-      if (connErr) throw new Error(`Failed to list active connections: ${connErr.message}`);
+      if (connErr) {
+        if (runId) {
+          await supabaseAdmin.from("splash360_sync_runs").update({
+            status: "failed",
+            finished_at: new Date().toISOString(),
+            duration_ms: Date.now() - runStartedAt,
+            details: { error: connErr.message },
+          }).eq("id", runId);
+        }
+        throw new Error(`Failed to list active connections: ${connErr.message}`);
+      }
 
       const results: any[] = [];
       for (const conn of connections ?? []) {
