@@ -422,6 +422,7 @@ export default function Integrations() {
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Outils avancés</h2>
           <SplashResilientBackfillCard />
+          <SplashSyncRunsCard />
         </section>
       )}
 
