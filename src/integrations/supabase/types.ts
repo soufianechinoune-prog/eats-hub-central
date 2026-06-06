@@ -3555,6 +3555,48 @@ export type Database = {
           },
         ]
       }
+      splash360_sync_runs: {
+        Row: {
+          connections_processed: number
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          errors_count: number
+          finished_at: string | null
+          id: string
+          rows_upserted: number
+          status: string
+          trigger_source: string
+          triggered_at: string
+        }
+        Insert: {
+          connections_processed?: number
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          errors_count?: number
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          status?: string
+          trigger_source?: string
+          triggered_at?: string
+        }
+        Update: {
+          connections_processed?: number
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          errors_count?: number
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          status?: string
+          trigger_source?: string
+          triggered_at?: string
+        }
+        Relationships: []
+      }
       subscriptions: {
         Row: {
           activated_at: string | null

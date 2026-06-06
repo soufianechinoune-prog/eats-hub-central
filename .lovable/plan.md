@@ -1,36 +1,59 @@
-# Switch Périmètre constant / élargi
+# Sync automatique Splash360
 
-Permettre à l'utilisateur de choisir, depuis le header de la page Overview, comment se calcule la comparaison VS N-1 :
+## Objectif
+Déclencher automatiquement la synchronisation des ventes Splash360 pour toutes les marques actives, selon ce rythme (heure de Paris) :
+- **11h00 → 00h00** : toutes les 30 minutes (plage business)
+- **00h00 → 11h00** : toutes les heures (plage creuse)
 
-- **Périmètre élargi (défaut, comportement actuel)** : on compare le total N (tous les restos sélectionnés) au total N-1 (mêmes IDs, même s'ils n'existaient pas encore).
-- **Périmètre constant** : on ne garde, pour la comparaison, que les restaurants ouverts **à la fois** sur N et sur N-1. Les autres sont exclus du calcul de variation (mais restent visibles dans la liste, juste sans variation).
+Soit ~27 runs/jour au lieu d'un déclenchement manuel.
 
-## Étapes
+## Ce qui sera mis en place
 
-### 1. État global dans `AnalyticsContext`
-- Ajouter `comparisonScope: "extended" | "constant"` + setter (défaut `"extended"`), persisté dans `localStorage` comme les autres prefs.
+### 1. Activation des extensions Postgres
+- `pg_cron` (planification)
+- `pg_net` (appels HTTP vers l'edge function)
 
-### 2. UI — switch dans le header Overview
-- Petit toggle/segmented control à côté du sélecteur de période et du mode de comparaison (`yearOverYear` / `rollingPeriod`).
-- Labels : « Périmètre élargi » / « Périmètre constant », avec tooltip explicatif (« Ne compare que les restos ouverts sur les 2 périodes »).
-- Visible uniquement si `includeN1Comparison` est actif (comparaison affichée).
+### 2. Deux jobs cron
+Schedulés en UTC mais réfléchis pour tomber juste en heure de Paris :
 
-### 3. Logique dans `useNetworkStats`
-Aujourd'hui (lignes 103-110, 132-135) :
-- `restaurants` = `filterActiveRestaurants(raw, startDate, endDate)` → filtre uniquement sur la période N.
-- N-1 = `setFullYear(-1)` sur les mêmes IDs, sans filtre d'activité.
+| Job | Cron (UTC l'hiver / été) | Effet Paris |
+|-----|--------------------------|-------------|
+| `splash360-sync-day` | `*/30 10-22 * * *` | toutes les 30 min de 11h à 23h30 |
+| `splash360-sync-night` | `0 23,0-9 * * *` | toutes les heures de 00h à 10h |
 
-Nouveau, quand `comparisonScope === "constant"` :
-- Calculer `constantScopeIds` = restaurants actifs sur N **ET** sur N-1 (réutiliser `isActiveForPeriod` deux fois sur les `restaurantsRaw`).
-- Pour le **total N-1** et le **total N utilisé dans la variation** (`prevTotalRevenue`, `prevTotalOrders`, `revenueVariation`), ne sommer que ces IDs.
-- Au niveau ligne par restaurant : si un resto n'est pas dans `constantScopeIds`, mettre `revenueVariation = null` / `ordersVariation = null` (badge « N/A » dans le tableau).
-- Le total N « brut » affiché reste inchangé (somme de tous les actifs N), seule la **variation** est recalculée à périmètre constant pour rester comparable.
+Les deux appellent `POST /functions/v1/sync-splash360` avec `{ "sync_all_active": true }`.
 
-Quand `comparisonScope === "extended"` : comportement actuel inchangé.
+Note : `pg_cron` ne supporte pas les fuseaux. On choisit un compromis qui reste correct toute l'année (décalage d'1 h entre été et hiver, sans impact métier).
 
-### 4. Indicateur visuel
-- Afficher discrètement sous le bloc « VS N-1 » : « Comparaison à périmètre constant (X/Y restos) » quand le mode constant exclut au moins 1 resto, pour que l'utilisateur sache combien sont écartés.
+### 3. Table de logs `splash360_sync_runs`
+Pour monitorer chaque run :
+- date/heure de déclenchement
+- durée
+- nombre de connexions traitées
+- nombre de lignes upsertées
+- erreurs éventuelles
 
-## Hors scope
-- Pas de changement sur les pages Finances, Analytics, Reviews — uniquement Overview / `useNetworkStats` pour cette v1. On pourra étendre ensuite si besoin.
-- Pas de changement DB / RPC : tout reste côté client, on filtre juste les IDs passés/sommés.
+L'edge function `sync-splash360` (mode `sync_all_active`) sera modifiée pour insérer une ligne dans cette table à chaque exécution.
+
+### 4. Page admin "Historique des syncs Splash360"
+Petit tableau dans le portail super admin listant les 50 derniers runs (timestamp, marque, durée, lignes, erreurs). Permet de voir si tout roule sans ouvrir les logs edge.
+
+## Kill-switch
+Aucun nouveau bouton nécessaire :
+- Désactiver une marque = passer `is_active = false` sur sa ligne `chain_pos_connections` (déjà géré dans la page Intégrations).
+- Couper tout le cron = `SELECT cron.unschedule('splash360-sync-day')` + `cron.unschedule('splash360-sync-night')`.
+
+## Détails techniques
+
+- L'edge function existe déjà (`supabase/functions/sync-splash360/index.ts`) et gère parfaitement le mode `sync_all_active`. Pas de refonte, juste ajout du logging.
+- Pas de risque sur les données : upsert idempotent sur `(chain_id, restaurant_splash_id, date, granularity, platform)`.
+- Les jobs cron sont créés via `supabase--insert` (et non `supabase--migration`) car ils contiennent l'URL du projet et l'anon key — donnée spécifique à cet environnement.
+
+## Risques résiduels
+- **Rate limit Splash360 inconnu** : on saura à l'usage. Si erreurs HTTP 429 → on baisse la fréquence. La table de logs permet de les détecter immédiatement.
+- **Empilement si une sync dépasse 30 min** : peu probable (sync mensuelle = quelques secondes par marque), mais on ajoutera un garde-fou simple si besoin plus tard.
+
+## Hors scope (volontairement)
+- Pas de webhook Splash → en attente de réponse de Lakhdar.
+- Pas de retry automatique sur erreur → un run loupé est rattrapé 30 min plus tard.
+- Pas d'alerte email/Slack sur erreur → si besoin, on l'ajoutera après quelques jours d'observation.
