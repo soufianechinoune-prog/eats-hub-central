@@ -80,20 +80,32 @@ async function getPermissions(token: string): Promise<unknown> {
   }
 }
 
-const SHOP_PATH_CANDIDATES = (companyId: string) => [
-  `/v1/api/shops`,
-  `/v1/api/companies/${encodeURIComponent(companyId)}/shops`,
-  `/v1/api/company/${encodeURIComponent(companyId)}/shops`,
-  `/v1/api/shops?company_id=${encodeURIComponent(companyId)}`,
-  `/v1/api/partner/companies/${encodeURIComponent(companyId)}/shops`,
-  `/v1/api/partner/shops`,
-  `/v1/api/me/shops`,
-  `/v1/api/me`,
-  `/v1/api/companies`,
-  `/v1/api/company`,
-  `/v1/api/restaurants`,
-  `/v1/api/stores`,
-];
+const SHOP_PATH_CANDIDATES = (companyId: string) => {
+  const c = encodeURIComponent(companyId);
+  return [
+    // Standard REST patterns
+    `/v1/api/companies/${c}/shops`,
+    `/v1/api/companies/${c}/restaurants`,
+    `/v1/api/companies/${c}/stores`,
+    `/v1/api/companies/${c}`,
+    `/v1/api/company/${c}/shops`,
+    `/v1/api/company/${c}`,
+    // Scope-named resources
+    `/v1/api/shops`,
+    `/v1/api/restaurants`,
+    `/v1/api/stores`,
+    `/v1/api/menu`,
+    `/v1/api/menus`,
+    `/v1/api/orders`,
+    `/v1/api/users`,
+    // With query param
+    `/v1/api/shops?company_id=${c}`,
+    `/v1/api/restaurants?company_id=${c}`,
+    // Discovery
+    `/v1/api`,
+    `/v1`,
+  ];
+};
 
 async function probeEndpoint(
   token: string,
