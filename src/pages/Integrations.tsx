@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   usePOSConnectors,
-  useActiveChainPOSConnection,
+  useActiveChainPOSConnections,
   useConnectPOS,
   useDisconnectPOS,
   useSyncPOS,
@@ -13,6 +13,7 @@ import {
   useDishopListShops,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
+
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,8 +49,8 @@ export default function Integrations() {
   const navigate = useNavigate();
   const { selectedChainId } = useAnalyticsContext();
   const { data: connectors = [], isLoading: loadingCatalog } = usePOSConnectors();
-  const { data: activeConnection, isLoading: loadingConnection } =
-    useActiveChainPOSConnection();
+  const { data: activeConnections = [], isLoading: loadingConnection } =
+    useActiveChainPOSConnections();
   const connect = useConnectPOS();
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
@@ -65,7 +66,16 @@ export default function Integrations() {
   const [shopsDialogOpen, setShopsDialogOpen] = useState(false);
   const [shopsList, setShopsList] = useState<any[] | null>(null);
 
-  const activeConnectorId = activeConnection?.connector_id ?? null;
+  const connectionByConnector = useMemo(() => {
+    const map: Record<string, (typeof activeConnections)[number]> = {};
+    for (const c of activeConnections) map[c.connector_id] = c;
+    return map;
+  }, [activeConnections]);
+  const activeConnectorIds = useMemo(
+    () => new Set(activeConnections.map((c) => c.connector_id)),
+    [activeConnections],
+  );
+
 
   const handleOpenConnect = (connector: POSConnector) => {
     if (connector.status !== "available") return;
@@ -144,10 +154,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDishopTest = async () => {
-    if (!activeConnection) return;
+  const handleDishopTest = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
     try {
-      const r = await dishopTest.mutateAsync(activeConnection.id);
+      const r = await dishopTest.mutateAsync(conn.id);
       toast({
         title: "Authentification Dishop OK ✓",
         description: `Token valide pendant ${r.expires_in}s. Scopes : ${
@@ -163,10 +173,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDishopListShops = async () => {
-    if (!activeConnection) return;
+  const handleDishopListShops = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
     try {
-      const r = await dishopShops.mutateAsync(activeConnection.id);
+      const r = await dishopShops.mutateAsync(conn.id);
       setShopsList(r.shops);
       setShopsDialogOpen(true);
       toast({
@@ -182,10 +192,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (connectionId: string, connectorName: string) => {
     try {
-      await disconnect.mutateAsync();
-      toast({ title: "Caisse déconnectée" });
+      await disconnect.mutateAsync(connectionId);
+      toast({ title: `${connectorName} déconnectée` });
     } catch (e: any) {
       toast({
         title: "Erreur",
@@ -195,12 +205,12 @@ export default function Integrations() {
     }
   };
 
-  const handleSync = async () => {
-    if (!activeConnection) return;
+  const handleSync = async (conn: { id: string; connector_id: string } | undefined) => {
+    if (!conn) return;
     try {
       const result = await sync.mutateAsync({
-        connectionId: activeConnection.id,
-        connectorId: activeConnection.connector_id,
+        connectionId: conn.id,
+        connectorId: conn.connector_id,
       });
       toast({
         title: "Synchronisation terminée ✓",
@@ -215,8 +225,8 @@ export default function Integrations() {
     }
   };
 
-  const handleBackfill = async () => {
-    if (!activeConnection) return;
+  const handleBackfill = async (conn: { id: string; connector_id: string } | undefined) => {
+    if (!conn) return;
     setBackfillProgress({ done: 0, total: 24 });
     toast({
       title: "Backfill lancé",
@@ -224,8 +234,8 @@ export default function Integrations() {
     });
     try {
       const result = await backfill.mutateAsync({
-        connectionId: activeConnection.id,
-        connectorId: activeConnection.connector_id,
+        connectionId: conn.id,
+        connectorId: conn.connector_id,
         monthsBack: 24,
         onProgress: ({ done, total }) => setBackfillProgress({ done, total }),
       });
@@ -248,6 +258,7 @@ export default function Integrations() {
         variant: "destructive",
       });
     } finally {
+
       setBackfillProgress(null);
     }
   };
@@ -256,13 +267,16 @@ export default function Integrations() {
     () =>
       [...connectors].sort((a, b) => {
         // Active first, then available, then coming_soon
-        if (a.id === activeConnectorId) return -1;
-        if (b.id === activeConnectorId) return 1;
+        const aActive = activeConnectorIds.has(a.id);
+        const bActive = activeConnectorIds.has(b.id);
+        if (aActive && !bActive) return -1;
+        if (bActive && !aActive) return 1;
         const order = { available: 0, coming_soon: 1, deprecated: 2 } as const;
         return order[a.status] - order[b.status] || a.display_order - b.display_order;
       }),
-    [connectors, activeConnectorId],
+    [connectors, activeConnectorIds],
   );
+
 
   if (!selectedChainId) {
     return (
@@ -292,14 +306,16 @@ export default function Integrations() {
         </div>
       </div>
 
-      {/* Section "Caisse" */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Logiciel de caisse</h2>
-          {activeConnection && (
+          {activeConnections.length > 0 && (
             <Badge variant="default" className="gap-1">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              {activeConnection.connector?.name ?? "Caisse"} connectée
+              {activeConnections
+                .map((c) => c.connector?.name ?? "Caisse")
+                .join(" + ")}{" "}
+              connecté{activeConnections.length > 1 ? "es" : "e"}
             </Badge>
           )}
         </div>
@@ -311,7 +327,8 @@ export default function Integrations() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sortedConnectors.map((c) => {
-              const isActive = c.id === activeConnectorId;
+              const conn = connectionByConnector[c.id];
+              const isActive = !!conn;
               const isComingSoon = c.status === "coming_soon";
               return (
                 <Card
@@ -369,16 +386,16 @@ export default function Integrations() {
                     <CardDescription className="min-h-[40px]">
                       {c.description}
                     </CardDescription>
-                    {isActive && activeConnection?.last_sync_at && (
+                    {isActive && conn?.last_sync_at && (
                       <p className="text-xs text-muted-foreground">
                         Dernière synchro :{" "}
-                        {formatDistanceToNow(new Date(activeConnection.last_sync_at), {
+                        {formatDistanceToNow(new Date(conn.last_sync_at), {
                           addSuffix: true,
                           locale: fr,
                         })}
                       </p>
                     )}
-                    {isActive && !activeConnection?.last_sync_at && c.id === "splash360" && (
+                    {isActive && !conn?.last_sync_at && c.id === "splash360" && (
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Jamais synchronisée — clique sur "Synchroniser" pour importer les
                         données.
@@ -397,7 +414,7 @@ export default function Integrations() {
                             <Button
                               size="sm"
                               className="flex-1 gap-2"
-                              onClick={handleDishopTest}
+                              onClick={() => handleDishopTest(conn)}
                               disabled={dishopTest.isPending || dishopShops.isPending}
                             >
                               {dishopTest.isPending ? (
@@ -411,7 +428,7 @@ export default function Integrations() {
                               size="sm"
                               variant="secondary"
                               className="gap-2"
-                              onClick={handleDishopListShops}
+                              onClick={() => handleDishopListShops(conn)}
                               disabled={dishopTest.isPending || dishopShops.isPending}
                             >
                               {dishopShops.isPending ? (
@@ -427,7 +444,7 @@ export default function Integrations() {
                             <Button
                               size="sm"
                               className="flex-1 gap-2"
-                              onClick={handleSync}
+                              onClick={() => handleSync(conn)}
                               disabled={sync.isPending || backfill.isPending}
                             >
                               {sync.isPending ? (
@@ -441,7 +458,7 @@ export default function Integrations() {
                               size="sm"
                               variant="secondary"
                               className="gap-2"
-                              onClick={handleBackfill}
+                              onClick={() => handleBackfill(conn)}
                               disabled={sync.isPending || backfill.isPending}
                               title="Importe les 24 derniers mois en granularité jour"
                             >
@@ -473,17 +490,21 @@ export default function Integrations() {
                             <AlertDialogHeader>
                               <AlertDialogTitle>Déconnecter {c.name} ?</AlertDialogTitle>
                               <AlertDialogDescription>
-                                Les analyses de caisse ne seront plus disponibles tant
-                                qu'une nouvelle caisse ne sera pas connectée.
+                                Les analyses liées à {c.name} ne seront plus disponibles
+                                tant que cette caisse ne sera pas reconnectée. Les autres
+                                connecteurs (le cas échéant) restent actifs.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Annuler</AlertDialogCancel>
-                              <AlertDialogAction onClick={handleDisconnect}>
+                              <AlertDialogAction
+                                onClick={() => handleDisconnect(conn!.id, c.name)}
+                              >
                                 Déconnecter
                               </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
+
                         </AlertDialog>
                       </div>
                     ) : isComingSoon ? (
@@ -519,7 +540,7 @@ export default function Integrations() {
       </section>
 
       {/* Backfill résilient (super admin uniquement) */}
-      {isSuperAdmin && activeConnection?.connector_id === "splash360" && (
+      {isSuperAdmin && !!connectionByConnector["splash360"] && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Outils avancés</h2>
           <SplashResilientBackfillCard />
