@@ -580,6 +580,37 @@ export default function Integrations() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Dialog liste des shops Dishop */}
+      <Dialog open={shopsDialogOpen} onOpenChange={setShopsDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Shops Dishop ({shopsList?.length ?? 0})
+            </DialogTitle>
+            <DialogDescription>
+              Liste des shops récupérés depuis l'API Dishop pour cette marque.
+              Servira à l'étape 2 pour mapper avec les restaurants de la plateforme.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {!shopsList || shopsList.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-4 text-center">
+                Aucun shop retourné par Dishop.
+              </p>
+            ) : (
+              <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                {JSON.stringify(shopsList, null, 2)}
+              </pre>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShopsDialogOpen(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
