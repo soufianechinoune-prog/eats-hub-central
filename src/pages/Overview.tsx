@@ -755,7 +755,7 @@ const Overview = () => {
                       <CardTitle className="text-xl">Caisse</CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {cashConnected
-                          ? `${activePosConnection?.connector?.name ?? "POS"} · ${getPeriodLabel()}`
+                          ? `${cashPosConnection?.connector?.name ?? "Splash360"} · ${getPeriodLabel()}`
                           : getPeriodLabel()}
                       </p>
                     </div>
