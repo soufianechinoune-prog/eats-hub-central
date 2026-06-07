@@ -1,56 +1,49 @@
-# Fix listing shops Dishop — étape 1 (suite)
+## Contexte
 
-## Diagnostic
+Tu as raison — j'ai confondu les deux systèmes hier en faisant le switch vers Dishop :
 
-Auth Dishop = OK (token reçu, scopes `orders:read`, `company:read`, `menu:read`, `users:read`).
+- **Splash360** = caisse physique en magasin (in-store)
+- **Dishop** = click & collect / vente en ligne propre
 
-`list_shops` échoue : les 4 chemins testés renvoient `404 Cannot GET ...` :
-- `/v1/api/companies/Chicken%20Street/shops`
-- `/v1/api/company/Chicken%20Street/shops`
-- `/v1/api/shops?company_id=Chicken%20Street`
-- `/v1/api/partner/companies/Chicken%20Street/shops`
+Ce sont deux flux totalement indépendants qui doivent **coexister**, pas se remplacer.
 
-Deux hypothèses, probablement les deux à la fois :
-1. Le **chemin** de l'endpoint n'est pas celui que j'ai deviné (la doc Dishop n'a pas été lue, j'ai inventé des variantes plausibles).
-2. Le champ **`company_id`** rempli dans le connecteur vaut `"Chicken Street"` (nom commercial). L'API attend très vraisemblablement un **ID technique** (numérique ou UUID), pas le libellé.
+## État actuel en base (`chain_pos_connections`)
+
+| Marque | Connecteur | Label | Actif | Dernière sync |
+|---|---|---|---|---|
+| Chicken Street | dishop | Dishop CS | ✅ true | jamais |
+| Chicken Street | splash360 | Compte Chicken Street (migration) | ❌ false | 2026-05-18 |
+| Chicken Street | splash360 | (sans label) | ❌ false | jamais |
+| TASTY CROUSTY | splash360 | Splash Tasty Crusty | ✅ true | 2026-06-06 21:31 |
+
+Les deux connexions Splash de Chicken Street ont été désactivées le 2026-06-07 à 10:27 (au moment où j'ai activé Dishop). C'est l'origine du « 0 data » sur la page Caisse de Chicken Street pour le 6 juin.
 
 ## Plan
 
-### 1. Lire la doc Dishop officielle
-- Visiter `https://api.dishop.co/documentation/reference` (avec browser tools) et identifier :
-  - L'endpoint exact pour lister les shops d'une company
-  - Le format attendu de `company_id` (numérique ? UUID ? slug ?)
-  - L'endpoint qui permet de **récupérer la company associée au client OAuth** (utile si Dishop expose `GET /me` ou `GET /companies` sans param — ça nous évite de demander un `company_id` au user)
+### 1. Réactiver Splash360 pour Chicken Street
+- Repasser `is_active = true` sur la connexion « Compte Chicken Street (migration) » (celle qui a un historique de sync au 18/05) — c'est la connexion réellement fonctionnelle.
+- Laisser la 2e ligne Splash (sans label, jamais syncée) désactivée — c'est un doublon. On pourra la supprimer plus tard si tu confirmes.
+- Garder la connexion Dishop active en parallèle.
 
-### 2. Adapter l'edge function `dishop-api`
-Selon ce que dit la doc, deux scénarios :
+### 2. Débloquer les syncs Splash360 en attente
+- 17 runs cron consécutifs depuis 21:30 le 06/06 sont en état `running` figé (sans logs côté edge function).
+- Marquer ces runs comme `failed` pour repartir propre.
+- Déclencher manuellement un `sync-splash360` pour :
+  - Vérifier que la fonction tourne toujours
+  - Récupérer la data manquante depuis le 06/06 21:30 pour TASTY CROUSTY
+  - Faire le premier sync de Chicken Street réactivé
+- Si la fonction échoue silencieusement : lire les logs edge (`supabase--edge_function_logs`) et patcher.
 
-- **Scénario A — Dishop expose un `GET /companies` (ou `/me/companies`) authentifié** :
-  - Ajouter une action `list_companies` qui appelle cet endpoint avec le token.
-  - Remplacer dans l'UI le champ texte `company_id` par un **select** peuplé à partir de `list_companies` après auth réussie.
-  - `list_shops` utilise alors le vrai ID renvoyé par Dishop, plus jamais un libellé tapé à la main.
-
-- **Scénario B — Dishop exige un `company_id` fourni par eux** :
-  - Garder le champ texte mais le renommer `Company ID Dishop` + helper text "Demande l'ID à ton contact Dishop (ce n'est pas le nom commercial)".
-  - Réécrire `listShops` avec **le seul** endpoint officiel de la doc (plus de boucle de devinettes).
-  - Améliorer le message d'erreur pour renvoyer le status + body exact à l'UI.
-
-### 3. Re-tester
-- Bouton "Tester la connexion" : inchangé, doit toujours marcher.
-- Bouton "Voir les shops" : doit renvoyer la liste des restaurants Chicken Street.
-- Logs edge function vérifiés après l'appel.
-
-### 4. (Prépa étape 2) Petite amélioration UX en bonus
-Une fois la liste des shops récupérée, afficher un tableau lisible (nom + ID Dishop + adresse si dispo) plutôt qu'un brut JSON, pour préparer le mapping shop Dishop ↔ restaurant de ta plateforme prévu à l'étape 2.
+### 3. UI page Caisse (séparation visuelle)
+- Garder le statu quo : la page Caisse continue d'afficher les données Splash360 pour les deux marques.
+- Dishop sera affiché séparément (page dédiée click & collect) une fois que Thomas aura activé le scope `export:read` côté Dishop.
 
 ## Détails techniques
 
-- Fichiers touchés : `supabase/functions/dishop-api/index.ts` (+ éventuellement `src/pages/Integrations.tsx` si on ajoute le select des companies).
-- Pas de migration DB nécessaire pour ce fix (le connecteur `dishop` existe déjà dans `pos_connectors`).
-- Aucun secret supplémentaire à demander.
+- Aucune migration de schéma — uniquement des `UPDATE` sur `chain_pos_connections` et `splash360_sync_runs`.
+- L'edge function `sync-splash360` reste inchangée si elle tourne. Sinon, patch ciblé après lecture des logs.
+- Pas de modification de la connexion Dishop (elle attend la résolution du scope côté Thomas).
 
-## Question pour toi avant de coder
+## À confirmer
 
-Est-ce que tu peux demander à Thomas (Dishop) **soit** le `company_id` exact de Chicken Street **soit** confirmer qu'il existe un endpoint type `GET /companies` côté Dishop pour que je le récupère tout seul ? Ça nous évite plusieurs allers-retours.
-
-Si tu préfères, je tente d'abord d'ouvrir la doc moi-même pour répondre à cette question avant de te solliciter.
+Je réactive uniquement la ligne « Compte Chicken Street (migration) » (celle avec historique de sync) et je laisse le doublon désactivé — OK ?
