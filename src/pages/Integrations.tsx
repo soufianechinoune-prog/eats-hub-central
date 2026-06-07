@@ -4,7 +4,7 @@ import { formatDistanceToNow } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
   usePOSConnectors,
-  useActiveChainPOSConnection,
+  useActiveChainPOSConnections,
   useConnectPOS,
   useDisconnectPOS,
   useSyncPOS,
@@ -13,6 +13,7 @@ import {
   useDishopListShops,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
+
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
