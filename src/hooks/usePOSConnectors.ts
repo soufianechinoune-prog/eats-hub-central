@@ -204,11 +204,14 @@ export function useConnectPOS() {
     }) => {
       if (!selectedChainId) throw new Error("Aucune chaîne sélectionnée");
 
-      // Désactiver toute connexion existante pour cette chaîne
+      // Désactiver uniquement les anciennes connexions du MÊME connecteur
+      // (on autorise plusieurs connecteurs différents actifs simultanément,
+      // ex: Splash360 caisse magasin + Dishop click & collect).
       await supabase
         .from("chain_pos_connections")
         .update({ is_active: false })
-        .eq("chain_id", selectedChainId);
+        .eq("chain_id", selectedChainId)
+        .eq("connector_id", input.connectorId);
 
       const { data: userData } = await supabase.auth.getUser();
 
@@ -229,31 +232,29 @@ export function useConnectPOS() {
       return data;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connections"] });
     },
   });
 }
 
-/** Déconnecter la caisse active de la chaîne courante. */
+/** Déconnecter une connexion POS précise (par id). */
 export function useDisconnectPOS() {
   const queryClient = useQueryClient();
-  const { selectedChainId } = useAnalyticsContext();
 
   return useMutation({
-    mutationFn: async () => {
-      if (!selectedChainId) throw new Error("Aucune chaîne sélectionnée");
+    mutationFn: async (connectionId: string) => {
       const { error } = await supabase
         .from("chain_pos_connections")
         .update({ is_active: false })
-        .eq("chain_id", selectedChainId)
-        .eq("is_active", true);
+        .eq("id", connectionId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connections"] });
     },
   });
 }
+
 
 /** Hooks dédiés Dishop (Étape 1: test auth + liste shops). */
 export function useDishopTestAuth() {
