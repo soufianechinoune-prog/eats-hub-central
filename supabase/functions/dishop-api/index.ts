@@ -250,6 +250,21 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (body.mode === "probe") {
+      const companyId = creds.company_id || "";
+      const paths = SHOP_PATH_CANDIDATES(companyId);
+      const permissions = await getPermissions(tokenRes.access_token).catch(
+        (e) => ({ error: (e as Error).message }),
+      );
+      const results = await Promise.all(
+        paths.map((p) => probeEndpoint(tokenRes.access_token, p)),
+      );
+      return new Response(
+        JSON.stringify({ ok: true, permissions, probes: results }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     return new Response(JSON.stringify({ error: `Mode inconnu: ${body.mode}` }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
