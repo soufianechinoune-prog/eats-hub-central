@@ -109,7 +109,7 @@ export function useSyncPOS() {
       return data as { rows_upserted: number; errors_count: number; period: string };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connections"] });
       // Forcer le refresh de tout ce qui consomme la donnée caisse Splash360
       queryClient.invalidateQueries({ queryKey: ["network-cash-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["overview-sales"] });
