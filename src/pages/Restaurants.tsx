@@ -426,15 +426,6 @@ const Restaurants = () => {
                   </div>
                 </TableHead>
                 <TableHead>Connexions</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("deliveroo_account_manager")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Statut
-                    <SortIcon column="deliveroo_account_manager" />
-                  </div>
-                </TableHead>
                 <TableHead></TableHead>
 
               </TableRow>
