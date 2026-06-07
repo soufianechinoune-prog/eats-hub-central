@@ -1,49 +1,89 @@
-## TL;DR
+# Refonte de la liste des restaurants — colonne Connexions
 
-**Non, tu n'as pas à reconnecter Splash.** Splash360 est déjà actif en base pour Chicken Street et le sync tourne (5400 lignes upsertées à 11:04, et toutes les 30 min ensuite via le cron).
+## Objectif
 
-L'écran qui te montre « Connecter » pour les deux cartes est un **bug d'affichage** côté front, dont je dois patcher.
+Avoir, en un coup d'œil, sur quels canaux chaque restaurant est connecté (Caisse, Uber, Deliveroo, Dishop, Châtaigne), au lieu d'un simple badge "Succursale" peu informatif. On gagne de la place en compactant les colonnes Contact + Gérant.
 
-## Cause du bug
+## Nouvelles colonnes (vue desktop)
 
-Le hook `useActiveChainPOSConnection()` (utilisé par `/settings/integrations`) fait :
-
-```ts
-.eq("chain_id", selectedChainId)
-.eq("is_active", true)
-.maybeSingle()
+```text
+| ★ | Nom + Ville | Gérant (compact) | Ouverture | Connexions                    | Statut | → |
+|   |             | Nom + 📞 icône   | Uber       | 🟢U 🟢D ⚪Di ⚪Ch 🟢C        | Actif  |   |
 ```
 
-Il suppose **une seule** connexion active par marque. Depuis qu'on autorise Splash + Dishop ensemble, la requête retourne 2 lignes → `.maybeSingle()` renvoie une erreur silencieuse → aucune carte n'est marquée « Connectée » → le bouton « Connecter » s'affiche partout, comme si rien n'était branché.
+- **Nom + Ville** fusionnés en une seule colonne (nom en gras, ville en sous-titre gris) → libère 1 colonne.
+- **Gérant (compact)** : nom du gérant + icône 📞 cliquable (au survol → numéro complet en tooltip, clic → tel:). Plus de colonne "Contact" séparée.
+- **Ouverture Uber** conservée (info utile pour l'ancienneté).
+- **Connexions** : **nouvelle colonne**, 5 pastilles côte à côte (voir détail ci-dessous).
+- **Statut** : Actif / Fermé / Migration (déjà présent).
+- **Succursale** : retiré de la table principale. L'info reste éditable dans le formulaire et visible dans la fiche détaillée.
 
-Côté connexion en base : c'est OK, Splash + Dishop sont bien tous les deux `is_active=true`.
+## Détail de la colonne "Connexions"
 
-## Plan
+5 mini-pastilles rondes alignées, chacune avec une lettre/icône :
 
-### 1. Refactor `usePOSConnectors.ts` — supporter plusieurs connexions actives par marque
+| Canal | Pastille | Source de vérité |
+|---|---|---|
+| **C**aisse | `C` (vert si connectée) | `chain_pos_connections.is_active = true` (splash360 ou zelty) + ligne dans `splash360_restaurant_mapping` pour ce resto |
+| **U**ber Eats | `U` | `restaurants.uber_store_id IS NOT NULL` et pas de `uber_closing_date` passée |
+| **D**eliveroo | `D` | `restaurants.deliveroo_id IS NOT NULL` et pas de `deliveroo_closing_date` passée |
+| Di**s**hop | `Di` | `chain_pos_connections.connector_id = 'dishop'` actif sur la chaîne |
+| **Ch**âtaigne | `Ch` | À confirmer — colonne ou table à créer si pas encore présente |
 
-- Renommer `useActiveChainPOSConnection()` → `useActiveChainPOSConnections()` (pluriel), retourner **un tableau** (sans `.maybeSingle()`).
-- Ajouter un helper `useActiveChainPOSConnectionByConnector(connectorId)` qui fait `.find()` dans le tableau, utilisé par chaque carte.
-- Corriger `useConnectPOS()` : ne plus faire `UPDATE … SET is_active=false WHERE chain_id=…` (ça désactivait tout). Désactiver uniquement les connexions du même `connector_id`.
-- Corriger `useDisconnectPOS()` : passer en paramètre l'ID de la connexion à déconnecter (au lieu de tout désactiver d'un coup). Signature `mutateAsync(connectionId)`.
+Codes couleur :
+- **Vert plein** : connecté + données qui remontent (au moins 1 ligne ≤ 7 jours)
+- **Vert clair** : connecté mais pas de data récente (alerte muette)
+- **Gris** : non connecté
+- **Rouge** : connecté mais en erreur (ex. credentials manquantes côté Splash)
 
-### 2. Adapter la page `Integrations.tsx`
+Tooltip au survol de chaque pastille : libellé complet + dernière sync (ex. "Splash360 — dernière donnée il y a 12 min").
 
-- Remplacer `activeConnection` (singulier) par une lookup par carte : `const conn = connectionsByConnector[c.id]`.
-- Badge global header « Caisse connectée » → afficher une liste : « Splash360 + Dishop connectées » si plusieurs.
-- Bouton « Déconnecter » → passer `conn.id` à `disconnect.mutateAsync()`.
-- Boutons Sync / Backfill / Test Dishop → utiliser la `conn` de la carte courante.
-- Garder le tri : connecteurs actifs d'abord, puis available, puis coming_soon.
+## Comportement
 
-### 3. Vérification
+- Tri par "Connexions" : trie par nombre de canaux actifs (descendant).
+- Filtre rapide existant ("Tous les statuts") élargi à : "Tous", "Sans caisse", "Sans Uber", "Sans Deliveroo", "100% connecté".
+- Au survol d'une ligne, mini-popover synthèse "Caisse 7j : 4 800 €, Uber 7j : 9 200 €…".
 
-- Recharger `/settings/integrations` sur Chicken Street : Splash360 ET Dishop doivent afficher le badge « Connectée » + la date de dernière synchro pour Splash.
-- Vérifier sur TASTY CROUSTY : seul Splash360 « Connectée », Dishop « Connecter » (pas de Dishop CS).
-- Re-tester un cycle « Déconnecter Dishop » → seul Splash reste actif → re-cliquer « Connecter » sur Dishop fonctionne sans casser Splash.
+## Formulaire "Ajouter / modifier un restaurant"
 
-## Détails techniques
+Pour respecter ta demande ("même quand on rajoute un restaurant, savoir s'il est activé"), j'ajoute une section **Connexions** dans le formulaire `RestaurantFormDialog` :
 
-- Aucune migration SQL nécessaire (la contrainte d'index a déjà été corrigée tout à l'heure).
-- 2 fichiers modifiés : `src/hooks/usePOSConnectors.ts` et `src/pages/Integrations.tsx`.
-- Pas d'impact sur l'edge function `sync-splash360` ni `dishop-api`.
-- L'invalidation `queryKey: ["chain_pos_connection"]` doit devenir `["chain_pos_connections"]` (pluriel).
+```text
+┌─ Connexions ──────────────────────────────┐
+│ ☐ Caisse Splash360  → ID interne : [____] │
+│ ☐ Caisse Zelty       → ID interne : [____] │
+│ ☐ Uber Eats          → Store UUID : [___] │
+│ ☐ Deliveroo          → Brand ID   : [___] │
+│ ☐ Dishop             → Auto via marque    │
+│ ☐ Châtaigne          → ID         : [___] │
+└────────────────────────────────────────────┘
+```
+
+Chaque case cochée écrit dans la bonne table (`restaurants.uber_store_id`, `splash360_restaurant_mapping`, etc.). Une case décochée désactive sans supprimer l'historique.
+
+## Mobile (< 1024 px)
+
+Sur mobile la table devient une liste de cartes. Chaque carte :
+```text
+★  Chicken Street – Marseille 1
+   📍 13001 Marseille · 👤 Jamal · 📞
+   🟢U 🟢D ⚪Di ⚪Ch 🟢C        [Actif]
+```
+
+## Étapes d'implémentation
+
+1. **Nouveau hook `useRestaurantConnections(restaurantId | restaurantIds[])`** qui retourne pour chaque resto : `{ uber, deliveroo, dishop, chataigne, caisse: { active, lastSyncAt, hasRecentData } }`. Une seule RPC `get_restaurants_connections_summary(p_chain_id)` côté Postgres pour éviter N+1.
+2. **Nouveau composant `<ConnectionChips restaurantId />`** réutilisable (table + carte mobile + fiche détaillée).
+3. **Refonte `src/pages/Restaurants.tsx`** : fusionner Nom+Ville, compacter Contact dans Gérant, retirer Succursale, ajouter colonne Connexions.
+4. **Ajouter section Connexions dans `RestaurantFormDialog.tsx`** + handlers pour persister chaque champ dans la bonne table.
+5. **Tri & filtres** : adapter la logique `handleSort` et le `Select` "Tous les statuts" pour les nouveaux filtres "Sans caisse", etc.
+6. **Tests visuels** : 1638 px (desktop), 1024 px (tablette), 390 px (mobile).
+
+## Points à confirmer avant implémentation
+
+1. **Châtaigne** : c'est quel type de connecteur ? (POS, plateforme de livraison, ERP ?) Il n'existe pas encore dans le projet — il faudra l'ajouter à la liste des connecteurs ou prévoir un champ `restaurants.chataigne_id` simple.
+2. **Source de vérité Uber/Deliveroo "connecté"** : est-ce la simple présence du `store_id` / `deliveroo_id`, ou veux-tu qu'on considère "connecté = encore des commandes sur les 7 derniers jours" ?
+3. **Suppression Succursale de la table** : OK pour la retirer complètement de la vue liste (toujours éditable dans le formulaire), ou tu veux la garder en petit badge à côté du nom ?
+4. **Ouverture Uber** : on garde la colonne, ou on la déplace aussi dans la fiche détaillée pour gagner de la place ?
+
+Dis-moi tes réponses sur ces 4 points et j'implémente.
