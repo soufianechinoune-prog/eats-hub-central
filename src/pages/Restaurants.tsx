@@ -425,25 +425,7 @@ const Restaurants = () => {
                     <SortIcon column="city" />
                   </div>
                 </TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("manager")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Gérant
-                    <SortIcon column="manager" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("uber_opening_date")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Ouverture Uber
-                    <SortIcon column="uber_opening_date" />
-                  </div>
-                </TableHead>
+                <TableHead>Connexions</TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
                   onClick={() => handleSort("deliveroo_account_manager")}
@@ -453,16 +435,8 @@ const Restaurants = () => {
                     <SortIcon column="deliveroo_account_manager" />
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none text-center"
-                  onClick={() => handleSort("is_succursale")}
-                >
-                  <div className="flex items-center justify-center gap-1.5">
-                    Succursale
-                    <SortIcon column="is_succursale" />
-                  </div>
-                </TableHead>
                 <TableHead></TableHead>
+
               </TableRow>
             </TableHeader>
             <TableBody>
