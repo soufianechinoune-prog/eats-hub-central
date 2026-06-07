@@ -378,44 +378,84 @@ export default function Integrations() {
                         })}
                       </p>
                     )}
-                    {isActive && !activeConnection?.last_sync_at && (
+                    {isActive && !activeConnection?.last_sync_at && c.id === "splash360" && (
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Jamais synchronisée — clique sur "Synchroniser" pour importer les
                         données.
                       </p>
                     )}
+                    {isActive && c.id === "dishop" && (
+                      <p className="text-xs text-muted-foreground">
+                        Étape 1 : auth + listing shops. La réception automatique des
+                        exports arrivera à l'étape 2 (après achat du domaine technique).
+                      </p>
+                    )}
                     {isActive ? (
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 gap-2"
-                          onClick={handleSync}
-                          disabled={sync.isPending || backfill.isPending}
-                        >
-                          {sync.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          Synchroniser (mois en cours)
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="gap-2"
-                          onClick={handleBackfill}
-                          disabled={sync.isPending || backfill.isPending}
-                          title="Importe les 24 derniers mois en granularité jour"
-                        >
-                          {backfill.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          {backfill.isPending && backfillProgress
-                            ? `Backfill ${backfillProgress.done}/${backfillProgress.total}`
-                            : "Backfill 24 mois"}
-                        </Button>
+                        {c.id === "dishop" ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-2"
+                              onClick={handleDishopTest}
+                              disabled={dishopTest.isPending || dishopShops.isPending}
+                            >
+                              {dishopTest.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Tester la connexion
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-2"
+                              onClick={handleDishopListShops}
+                              disabled={dishopTest.isPending || dishopShops.isPending}
+                            >
+                              {dishopShops.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ExternalLink className="h-4 w-4" />
+                              )}
+                              Voir les shops
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-2"
+                              onClick={handleSync}
+                              disabled={sync.isPending || backfill.isPending}
+                            >
+                              {sync.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              Synchroniser (mois en cours)
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-2"
+                              onClick={handleBackfill}
+                              disabled={sync.isPending || backfill.isPending}
+                              title="Importe les 24 derniers mois en granularité jour"
+                            >
+                              {backfill.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              {backfill.isPending && backfillProgress
+                                ? `Backfill ${backfillProgress.done}/${backfillProgress.total}`
+                                : "Backfill 24 mois"}
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
