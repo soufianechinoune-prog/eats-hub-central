@@ -39,6 +39,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useChainConnections } from "@/hooks/useChainConnections";
+import { ConnectionBadges } from "@/components/restaurants/ConnectionBadges";
+
+
 
 const STORAGE_KEY = "restaurants-preferences";
 
