@@ -19,7 +19,7 @@ const corsHeaders = {
 const DISHOP_BASE = "https://api.dishop.co";
 
 interface RequestBody {
-  mode: "test_auth" | "list_shops";
+  mode: "test_auth" | "list_shops" | "probe";
   chain_connection_id: string;
 }
 
