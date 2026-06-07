@@ -95,33 +95,88 @@ export default function Integrations() {
       });
       toast({
         title: "Caisse connectée ✓",
-        description: `${openConnector.name} est maintenant lié. Synchronisation en cours…`,
+        description: `${openConnector.name} est maintenant lié.`,
       });
       setOpenConnector(null);
 
-      // Déclencher la première synchro (mois en cours, granularité jour)
-      try {
-        const result = await sync.mutateAsync({
-          connectionId: inserted.id,
-          connectorId: openConnector.id,
-        });
-        toast({
-          title: "Synchronisation terminée ✓",
-          description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
-        });
-      } catch (syncErr: any) {
-        toast({
-          title: "Connexion OK mais synchro échouée",
-          description: syncErr?.message || "Tu peux relancer depuis le bouton Synchroniser.",
-          variant: "destructive",
-        });
+      // Splash360 → synchro immédiate (mois en cours, granularité jour)
+      // Dishop → test d'auth automatique (pas de sync en étape 1)
+      // Autres → rien
+      if (openConnector.id === "splash360") {
+        try {
+          const result = await sync.mutateAsync({
+            connectionId: inserted.id,
+            connectorId: openConnector.id,
+          });
+          toast({
+            title: "Synchronisation terminée ✓",
+            description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
+          });
+        } catch (syncErr: any) {
+          toast({
+            title: "Connexion OK mais synchro échouée",
+            description: syncErr?.message || "Tu peux relancer depuis le bouton Synchroniser.",
+            variant: "destructive",
+          });
+        }
+        navigate("/overview");
+      } else if (openConnector.id === "dishop") {
+        try {
+          const r = await dishopTest.mutateAsync(inserted.id);
+          toast({
+            title: "Authentification Dishop OK ✓",
+            description: `Token valide (${r.expires_in}s). Tu peux maintenant lister les shops.`,
+          });
+        } catch (e: any) {
+          toast({
+            title: "Connexion enregistrée mais auth Dishop échouée",
+            description: e?.message || "Vérifie le client_id / client_secret.",
+            variant: "destructive",
+          });
+        }
       }
-
-      navigate("/overview");
     } catch (e: any) {
       toast({
         title: "Erreur de connexion",
         description: e?.message || "Impossible de connecter la caisse.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDishopTest = async () => {
+    if (!activeConnection) return;
+    try {
+      const r = await dishopTest.mutateAsync(activeConnection.id);
+      toast({
+        title: "Authentification Dishop OK ✓",
+        description: `Token valide pendant ${r.expires_in}s. Scopes : ${
+          (r.validation as any)?.scopes?.join(", ") || "n/a"
+        }`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Échec d'authentification Dishop",
+        description: e?.message || "Vérifie les credentials.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDishopListShops = async () => {
+    if (!activeConnection) return;
+    try {
+      const r = await dishopShops.mutateAsync(activeConnection.id);
+      setShopsList(r.shops);
+      setShopsDialogOpen(true);
+      toast({
+        title: `${r.shop_count} shops trouvés sur Dishop`,
+        description: `Endpoint utilisé : ${r.endpoint_used}`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Impossible de lister les shops",
+        description: e?.message || "Vérifie le company_id ou contacte Dishop.",
         variant: "destructive",
       });
     }
