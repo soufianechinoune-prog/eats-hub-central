@@ -286,7 +286,7 @@ export default function SplashMapping() {
       });
     }
     return out;
-  }, [foreignMappings, restaurants, foreignRestoMap]);
+  }, [foreignMappings, restaurants, foreignRestoMap, activeBrandToken]);
 
   const filtered = useMemo(() => {
     return mappings.filter((m) => {
