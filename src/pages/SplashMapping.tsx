@@ -298,11 +298,24 @@ export default function SplashMapping() {
                                 <SelectItem value={NOT_APPLICABLE}>
                                   🚫 Non applicable
                                 </SelectItem>
-                                {restaurants.map((r) => (
-                                  <SelectItem key={r.id} value={r.id}>
-                                    {r.name}
-                                  </SelectItem>
-                                ))}
+                                {restaurants.map((r) => {
+                                  const takenBy = mappedRestaurantMap.get(r.id);
+                                  const isTakenByOther = !!takenBy && r.id !== m.restaurant_id;
+                                  return (
+                                    <SelectItem key={r.id} value={r.id}>
+                                      <span className="flex items-center gap-2">
+                                        <span className={isTakenByOther ? "text-muted-foreground" : ""}>
+                                          {r.name}
+                                        </span>
+                                        {isTakenByOther && (
+                                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                            ● déjà mappé → {takenBy}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                             {suggestion && !m.restaurant_id && !m.is_not_applicable && (
