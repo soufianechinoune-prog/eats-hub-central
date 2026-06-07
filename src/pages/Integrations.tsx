@@ -9,6 +9,8 @@ import {
   useDisconnectPOS,
   useSyncPOS,
   useBackfillPOS,
+  useDishopTestAuth,
+  useDishopListShops,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -52,12 +54,16 @@ export default function Integrations() {
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
   const backfill = useBackfillPOS();
+  const dishopTest = useDishopTestAuth();
+  const dishopShops = useDishopListShops();
   const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
   const [credentialsForm, setCredentialsForm] = useState<Record<string, string>>({});
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+  const [shopsDialogOpen, setShopsDialogOpen] = useState(false);
+  const [shopsList, setShopsList] = useState<any[] | null>(null);
 
   const activeConnectorId = activeConnection?.connector_id ?? null;
 
@@ -89,33 +95,88 @@ export default function Integrations() {
       });
       toast({
         title: "Caisse connectée ✓",
-        description: `${openConnector.name} est maintenant lié. Synchronisation en cours…`,
+        description: `${openConnector.name} est maintenant lié.`,
       });
       setOpenConnector(null);
 
-      // Déclencher la première synchro (mois en cours, granularité jour)
-      try {
-        const result = await sync.mutateAsync({
-          connectionId: inserted.id,
-          connectorId: openConnector.id,
-        });
-        toast({
-          title: "Synchronisation terminée ✓",
-          description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
-        });
-      } catch (syncErr: any) {
-        toast({
-          title: "Connexion OK mais synchro échouée",
-          description: syncErr?.message || "Tu peux relancer depuis le bouton Synchroniser.",
-          variant: "destructive",
-        });
+      // Splash360 → synchro immédiate (mois en cours, granularité jour)
+      // Dishop → test d'auth automatique (pas de sync en étape 1)
+      // Autres → rien
+      if (openConnector.id === "splash360") {
+        try {
+          const result = await sync.mutateAsync({
+            connectionId: inserted.id,
+            connectorId: openConnector.id,
+          });
+          toast({
+            title: "Synchronisation terminée ✓",
+            description: `${result.rows_upserted ?? 0} lignes importées (${result.period}).`,
+          });
+        } catch (syncErr: any) {
+          toast({
+            title: "Connexion OK mais synchro échouée",
+            description: syncErr?.message || "Tu peux relancer depuis le bouton Synchroniser.",
+            variant: "destructive",
+          });
+        }
+        navigate("/overview");
+      } else if (openConnector.id === "dishop") {
+        try {
+          const r = await dishopTest.mutateAsync(inserted.id);
+          toast({
+            title: "Authentification Dishop OK ✓",
+            description: `Token valide (${r.expires_in}s). Tu peux maintenant lister les shops.`,
+          });
+        } catch (e: any) {
+          toast({
+            title: "Connexion enregistrée mais auth Dishop échouée",
+            description: e?.message || "Vérifie le client_id / client_secret.",
+            variant: "destructive",
+          });
+        }
       }
-
-      navigate("/overview");
     } catch (e: any) {
       toast({
         title: "Erreur de connexion",
         description: e?.message || "Impossible de connecter la caisse.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDishopTest = async () => {
+    if (!activeConnection) return;
+    try {
+      const r = await dishopTest.mutateAsync(activeConnection.id);
+      toast({
+        title: "Authentification Dishop OK ✓",
+        description: `Token valide pendant ${r.expires_in}s. Scopes : ${
+          (r.validation as any)?.scopes?.join(", ") || "n/a"
+        }`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Échec d'authentification Dishop",
+        description: e?.message || "Vérifie les credentials.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDishopListShops = async () => {
+    if (!activeConnection) return;
+    try {
+      const r = await dishopShops.mutateAsync(activeConnection.id);
+      setShopsList(r.shops);
+      setShopsDialogOpen(true);
+      toast({
+        title: `${r.shop_count} shops trouvés sur Dishop`,
+        description: `Endpoint utilisé : ${r.endpoint_used}`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Impossible de lister les shops",
+        description: e?.message || "Vérifie le company_id ou contacte Dishop.",
         variant: "destructive",
       });
     }
@@ -317,44 +378,84 @@ export default function Integrations() {
                         })}
                       </p>
                     )}
-                    {isActive && !activeConnection?.last_sync_at && (
+                    {isActive && !activeConnection?.last_sync_at && c.id === "splash360" && (
                       <p className="text-xs text-amber-600 dark:text-amber-400">
                         Jamais synchronisée — clique sur "Synchroniser" pour importer les
                         données.
                       </p>
                     )}
+                    {isActive && c.id === "dishop" && (
+                      <p className="text-xs text-muted-foreground">
+                        Étape 1 : auth + listing shops. La réception automatique des
+                        exports arrivera à l'étape 2 (après achat du domaine technique).
+                      </p>
+                    )}
                     {isActive ? (
                       <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          className="flex-1 gap-2"
-                          onClick={handleSync}
-                          disabled={sync.isPending || backfill.isPending}
-                        >
-                          {sync.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          Synchroniser (mois en cours)
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          className="gap-2"
-                          onClick={handleBackfill}
-                          disabled={sync.isPending || backfill.isPending}
-                          title="Importe les 24 derniers mois en granularité jour"
-                        >
-                          {backfill.isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          {backfill.isPending && backfillProgress
-                            ? `Backfill ${backfillProgress.done}/${backfillProgress.total}`
-                            : "Backfill 24 mois"}
-                        </Button>
+                        {c.id === "dishop" ? (
+                          <>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-2"
+                              onClick={handleDishopTest}
+                              disabled={dishopTest.isPending || dishopShops.isPending}
+                            >
+                              {dishopTest.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Tester la connexion
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-2"
+                              onClick={handleDishopListShops}
+                              disabled={dishopTest.isPending || dishopShops.isPending}
+                            >
+                              {dishopShops.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <ExternalLink className="h-4 w-4" />
+                              )}
+                              Voir les shops
+                            </Button>
+                          </>
+                        ) : (
+                          <>
+                            <Button
+                              size="sm"
+                              className="flex-1 gap-2"
+                              onClick={handleSync}
+                              disabled={sync.isPending || backfill.isPending}
+                            >
+                              {sync.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              Synchroniser (mois en cours)
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              className="gap-2"
+                              onClick={handleBackfill}
+                              disabled={sync.isPending || backfill.isPending}
+                              title="Importe les 24 derniers mois en granularité jour"
+                            >
+                              {backfill.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-4 w-4" />
+                              )}
+                              {backfill.isPending && backfillProgress
+                                ? `Backfill ${backfillProgress.done}/${backfillProgress.total}`
+                                : "Backfill 24 mois"}
+                            </Button>
+                          </>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
@@ -475,6 +576,37 @@ export default function Integrations() {
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               )}
               Connecter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog liste des shops Dishop */}
+      <Dialog open={shopsDialogOpen} onOpenChange={setShopsDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Shops Dishop ({shopsList?.length ?? 0})
+            </DialogTitle>
+            <DialogDescription>
+              Liste des shops récupérés depuis l'API Dishop pour cette marque.
+              Servira à l'étape 2 pour mapper avec les restaurants de la plateforme.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto">
+            {!shopsList || shopsList.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-4 text-center">
+                Aucun shop retourné par Dishop.
+              </p>
+            ) : (
+              <pre className="text-xs bg-muted p-3 rounded overflow-x-auto">
+                {JSON.stringify(shopsList, null, 2)}
+              </pre>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShopsDialogOpen(false)}>
+              Fermer
             </Button>
           </DialogFooter>
         </DialogContent>
