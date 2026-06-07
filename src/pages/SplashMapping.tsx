@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Loader2, Link2, CheckCircle2, AlertTriangle, Ban, Sparkles } from "lucide-react";
+import { Loader2, Link2, CheckCircle2, AlertTriangle, Ban, Sparkles, ArrowLeftRight } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -77,12 +77,85 @@ export default function SplashMapping() {
     },
   });
 
+  // Toutes les caisses Splash de toutes les marques + leurs restaurants
+  // pour détecter les caisses mal mappées sur une AUTRE marque.
+  const { data: foreignMappings = [], isLoading: loadingForeign } = useQuery({
+    queryKey: ["splash-mapping-foreign", selectedChainId],
+    enabled: !!isSuperAdmin && !!selectedChainId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("splash360_restaurant_mapping")
+        .select("restaurant_splash_id, splash_name, restaurant_id, chain_id, is_not_applicable")
+        .neq("chain_id", selectedChainId!);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const { data: chains = [] } = useQuery({
+    queryKey: ["chains-list"],
+    enabled: !!isSuperAdmin,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("chains").select("id, name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  // Restaurants des autres marques pour afficher "actuellement rattachée à"
+  const foreignRestaurantIds = useMemo(
+    () => Array.from(new Set(foreignMappings.map((m) => m.restaurant_id).filter(Boolean))) as string[],
+    [foreignMappings],
+  );
+
+  const { data: foreignRestaurants = [] } = useQuery({
+    queryKey: ["splash-mapping-foreign-restos", foreignRestaurantIds.join(",")],
+    enabled: !!isSuperAdmin && foreignRestaurantIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("id, name, chain_id")
+        .in("id", foreignRestaurantIds);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const foreignRestoMap = useMemo(() => {
+    const map = new Map<string, { name: string; chain_id: string }>();
+    for (const r of foreignRestaurants) map.set(r.id, { name: r.name, chain_id: r.chain_id });
+    return map;
+  }, [foreignRestaurants]);
+
+  const chainNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const c of chains) map.set(c.id, c.name);
+    return map;
+  }, [chains]);
+
   const updateMutation = useMutation({
     mutationFn: async (args: {
       splashId: number;
       restaurantId: string | null;
       isNotApplicable: boolean;
     }) => {
+      // Si on rattache un restaurant déjà détenu par une AUTRE caisse de la même marque,
+      // on libère l'ancienne caisse pour éviter le double-mapping.
+      if (args.restaurantId) {
+        const stale = mappings.filter(
+          (m) =>
+            m.restaurant_id === args.restaurantId &&
+            m.restaurant_splash_id !== args.splashId,
+        );
+        for (const s of stale) {
+          const { error: clearErr } = await supabase
+            .from("splash360_restaurant_mapping")
+            .update({ restaurant_id: null, is_not_applicable: false })
+            .eq("restaurant_splash_id", s.restaurant_splash_id);
+          if (clearErr) throw clearErr;
+        }
+      }
+
       const { error } = await supabase
         .from("splash360_restaurant_mapping")
         .update({
@@ -94,6 +167,7 @@ export default function SplashMapping() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["splash-mapping"] });
+      qc.invalidateQueries({ queryKey: ["splash-mapping-foreign"] });
       qc.invalidateQueries({ queryKey: ["chain-connections"] });
       toast({ title: "Mapping enregistré ✓" });
     },
@@ -101,6 +175,33 @@ export default function SplashMapping() {
       toast({
         title: "Erreur",
         description: e?.message ?? "Impossible d'enregistrer.",
+        variant: "destructive",
+      }),
+  });
+
+  // Déplace une caisse depuis une autre marque vers la marque active
+  const moveForeignMutation = useMutation({
+    mutationFn: async (args: { splashId: number; restaurantId: string }) => {
+      const { error } = await supabase
+        .from("splash360_restaurant_mapping")
+        .update({
+          restaurant_id: args.restaurantId,
+          chain_id: selectedChainId!,
+          is_not_applicable: false,
+        })
+        .eq("restaurant_splash_id", args.splashId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["splash-mapping"] });
+      qc.invalidateQueries({ queryKey: ["splash-mapping-foreign"] });
+      qc.invalidateQueries({ queryKey: ["chain-connections"] });
+      toast({ title: "Caisse déplacée ✓" });
+    },
+    onError: (e: any) =>
+      toast({
+        title: "Erreur",
+        description: e?.message ?? "Impossible de déplacer la caisse.",
         variant: "destructive",
       }),
   });
@@ -134,6 +235,34 @@ export default function SplashMapping() {
     }
     return map;
   }, [mappings, restaurants, mappedRestaurantMap]);
+
+  // Caisses mappées à une AUTRE marque, dont le nom Splash correspond à un restaurant
+  // de la marque active. Candidates à "déplacer ici".
+  const crossChainCandidates = useMemo(() => {
+    const out: Array<{
+      splashId: number;
+      splashName: string;
+      currentChainId: string | null;
+      currentRestaurantName: string | null;
+      suggested: { id: string; name: string };
+    }> = [];
+    if (!restaurants.length) return out;
+    for (const m of foreignMappings) {
+      const token = normalize(m.splash_name);
+      if (!token || token.length < 3) continue;
+      const matches = restaurants.filter((r) => normalize(r.name).includes(token));
+      if (matches.length !== 1) continue;
+      const currentResto = m.restaurant_id ? foreignRestoMap.get(m.restaurant_id) : null;
+      out.push({
+        splashId: m.restaurant_splash_id,
+        splashName: m.splash_name ?? `Splash #${m.restaurant_splash_id}`,
+        currentChainId: m.chain_id,
+        currentRestaurantName: currentResto?.name ?? null,
+        suggested: { id: matches[0].id, name: matches[0].name },
+      });
+    }
+    return out;
+  }, [foreignMappings, restaurants, foreignRestoMap]);
 
   const filtered = useMemo(() => {
     return mappings.filter((m) => {
@@ -202,13 +331,80 @@ export default function SplashMapping() {
         <StatCard label="Non applicables" value={counts.na} variant="muted" />
       </div>
 
+      {/* Cross-chain candidates */}
+      {!loadingForeign && crossChainCandidates.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/10">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ArrowLeftRight className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              Caisses mappées à une autre marque ({crossChainCandidates.length})
+            </CardTitle>
+            <CardDescription>
+              Ces caisses Splash existent dans l'API mais sont actuellement rattachées à un
+              restaurant d'une <strong>autre marque</strong>. Leur nom correspond pourtant à un
+              restaurant de la marque active. Clique sur « Déplacer ici » pour les rebrancher.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="rounded-md border bg-background overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-24">Splash ID</TableHead>
+                    <TableHead>Nom Splash</TableHead>
+                    <TableHead>Actuellement rattachée à</TableHead>
+                    <TableHead>Restaurant suggéré (marque active)</TableHead>
+                    <TableHead className="text-right w-40">Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {crossChainCandidates.map((c) => (
+                    <TableRow key={c.splashId}>
+                      <TableCell className="font-mono text-xs">{c.splashId}</TableCell>
+                      <TableCell className="font-medium">{c.splashName}</TableCell>
+                      <TableCell>
+                        <div className="flex flex-col text-xs">
+                          <span>{c.currentRestaurantName ?? "—"}</span>
+                          <span className="text-muted-foreground">
+                            {c.currentChainId ? chainNameMap.get(c.currentChainId) ?? "Autre marque" : "Aucune marque"}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">{c.suggested.name}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() =>
+                            moveForeignMutation.mutate({
+                              splashId: c.splashId,
+                              restaurantId: c.suggested.id,
+                            })
+                          }
+                          disabled={moveForeignMutation.isPending}
+                          className="gap-1"
+                        >
+                          <ArrowLeftRight className="h-3 w-3" />
+                          Déplacer ici
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <CardTitle className="text-base">Caisses Splash de la marque</CardTitle>
               <CardDescription>
-                Recherche, suggestion automatique sur nom, et rattachement en 1 clic.
+                Recherche, suggestion automatique sur nom, et rattachement en 1 clic. Sélectionner
+                un restaurant déjà mappé le déplace automatiquement (l'ancienne caisse est libérée).
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -309,7 +505,7 @@ export default function SplashMapping() {
                                         </span>
                                         {isTakenByOther && (
                                           <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                                            ● déjà mappé → {takenBy}
+                                            ● déjà mappé → {takenBy} (cliquer = déplacer)
                                           </span>
                                         )}
                                       </span>
