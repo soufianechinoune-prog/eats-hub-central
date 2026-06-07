@@ -179,7 +179,7 @@ export function useBackfillPOS() {
       return { total_rows: totalRows, months_back: monthsBack, per_month: perMonth };
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["chain_pos_connection"] });
+      queryClient.invalidateQueries({ queryKey: ["chain_pos_connections"] });
       // Refresh complet du dashboard après un backfill
       queryClient.invalidateQueries({ queryKey: ["network-cash-revenue"] });
       queryClient.invalidateQueries({ queryKey: ["overview-sales"] });
