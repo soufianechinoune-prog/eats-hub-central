@@ -25,7 +25,7 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
 import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
-import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
+import { useActiveChainPOSConnection, useActiveChainPOSConnections } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
 
@@ -414,8 +414,13 @@ const Overview = () => {
     restaurantIds: activeIds,
   });
   const { data: activePosConnection } = useActiveChainPOSConnection();
+  const { data: allPosConnections } = useActiveChainPOSConnections();
+  // Caisse = source Splash360 → on cherche en priorité une connexion splash360,
+  // sinon on retombe sur la première connexion active (compat affichage).
+  const cashPosConnection =
+    allPosConnections?.find((c) => c.connector_id === "splash360") ?? activePosConnection;
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
-  const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
+  const cashConnected = (!!cashPosConnection && cashPosConnection.is_active) || hasSplashData;
 
   const adsRatio = useAdsRevenueRatio({
     restaurantIds: activeIds,
@@ -750,7 +755,7 @@ const Overview = () => {
                       <CardTitle className="text-xl">Caisse</CardTitle>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {cashConnected
-                          ? `${activePosConnection?.connector?.name ?? "POS"} · ${getPeriodLabel()}`
+                          ? `${cashPosConnection?.connector?.name ?? "Splash360"} · ${getPeriodLabel()}`
                           : getPeriodLabel()}
                       </p>
                     </div>
