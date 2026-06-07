@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
+import { ChevronRight, MapPin, Filter, Search, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce, type ScanStatus } from "@/components/restaurants/BodaccScanButton";
 import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
 import { loadAllDismissedKeys, getAnnonceKey } from "@/hooks/useBodaccDismissals";
@@ -39,6 +39,10 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useChainConnections } from "@/hooks/useChainConnections";
+import { ConnectionBadges } from "@/components/restaurants/ConnectionBadges";
+
+
 
 const STORAGE_KEY = "restaurants-preferences";
 
@@ -134,6 +138,9 @@ const Restaurants = () => {
     retry: 4,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
+
+  const { data: chainConnections } = useChainConnections(selectedChainId);
+
 
   // Helper to get Uber status based on csv_verified
   const getUberStatus = (r: typeof restaurants[0]) => {
@@ -418,25 +425,7 @@ const Restaurants = () => {
                     <SortIcon column="city" />
                   </div>
                 </TableHead>
-                <TableHead>Contact</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("manager")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Gérant
-                    <SortIcon column="manager" />
-                  </div>
-                </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("uber_opening_date")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Ouverture Uber
-                    <SortIcon column="uber_opening_date" />
-                  </div>
-                </TableHead>
+                <TableHead>Connexions</TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
                   onClick={() => handleSort("deliveroo_account_manager")}
@@ -446,22 +435,14 @@ const Restaurants = () => {
                     <SortIcon column="deliveroo_account_manager" />
                   </div>
                 </TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none text-center"
-                  onClick={() => handleSort("is_succursale")}
-                >
-                  <div className="flex items-center justify-center gap-1.5">
-                    Succursale
-                    <SortIcon column="is_succursale" />
-                  </div>
-                </TableHead>
                 <TableHead></TableHead>
+
               </TableRow>
             </TableHeader>
             <TableBody>
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -613,39 +594,10 @@ const Restaurants = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.manager_whatsapp ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {restaurant.manager_whatsapp}
-                        </div>
-                      ) : restaurant.restaurant_phone ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {restaurant.restaurant_phone}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(() => {
-                        const linked = (restaurant as any).manager_restaurants?.[0]?.managers;
-                        const name = linked
-                          ? `${linked.first_name || ''} ${linked.last_name || ''}`.trim()
-                          : `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
-                        return name || <span className="text-muted-foreground">-</span>;
-                      })()}
+                      <ConnectionBadges restaurant={restaurant as any} chainData={chainConnections} />
                     </TableCell>
-                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(restaurant as any).uber_opening_date ? (
-                        <span className="text-sm">
-                          {new Date((restaurant as any).uber_opening_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
+
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
                         <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
@@ -661,15 +613,6 @@ const Restaurants = () => {
                         <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
                           Actif
                         </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(restaurant as any).is_succursale ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
-                          Succursale
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">Franchise</span>
                       )}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
