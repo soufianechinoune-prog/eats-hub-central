@@ -49,8 +49,8 @@ export default function Integrations() {
   const navigate = useNavigate();
   const { selectedChainId } = useAnalyticsContext();
   const { data: connectors = [], isLoading: loadingCatalog } = usePOSConnectors();
-  const { data: activeConnection, isLoading: loadingConnection } =
-    useActiveChainPOSConnection();
+  const { data: activeConnections = [], isLoading: loadingConnection } =
+    useActiveChainPOSConnections();
   const connect = useConnectPOS();
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
@@ -66,7 +66,16 @@ export default function Integrations() {
   const [shopsDialogOpen, setShopsDialogOpen] = useState(false);
   const [shopsList, setShopsList] = useState<any[] | null>(null);
 
-  const activeConnectorId = activeConnection?.connector_id ?? null;
+  const connectionByConnector = useMemo(() => {
+    const map: Record<string, (typeof activeConnections)[number]> = {};
+    for (const c of activeConnections) map[c.connector_id] = c;
+    return map;
+  }, [activeConnections]);
+  const activeConnectorIds = useMemo(
+    () => new Set(activeConnections.map((c) => c.connector_id)),
+    [activeConnections],
+  );
+
 
   const handleOpenConnect = (connector: POSConnector) => {
     if (connector.status !== "available") return;
