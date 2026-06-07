@@ -414,8 +414,13 @@ const Overview = () => {
     restaurantIds: activeIds,
   });
   const { data: activePosConnection } = useActiveChainPOSConnection();
+  const { data: allPosConnections } = useActiveChainPOSConnections();
+  // Caisse = source Splash360 → on cherche en priorité une connexion splash360,
+  // sinon on retombe sur la première connexion active (compat affichage).
+  const cashPosConnection =
+    allPosConnections?.find((c) => c.connector_id === "splash360") ?? activePosConnection;
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
-  const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
+  const cashConnected = (!!cashPosConnection && cashPosConnection.is_active) || hasSplashData;
 
   const adsRatio = useAdsRevenueRatio({
     restaurantIds: activeIds,
