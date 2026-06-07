@@ -67,6 +67,7 @@ const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 const UberBackfillHistorique = React.lazy(() => import("./pages/UberBackfillHistorique"));
 const UberBackfillCA = React.lazy(() => import("./pages/UberBackfillCA"));
+const SplashMapping = React.lazy(() => import("./pages/SplashMapping"));
 
 class ChunkLoadBoundary extends React.Component<{ children: React.ReactNode }, { error: unknown }> {
   state = { error: null };
@@ -219,6 +220,7 @@ const App = () => {
                     <Route path="/admin/uber-backfill" element={<P><AppLayout><UberBackfill /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill-historique" element={<P><AppLayout><UberBackfillHistorique /></AppLayout></P>} />
                     <Route path="/admin/uber-backfill-ca" element={<P><AppLayout><UberBackfillCA /></AppLayout></P>} />
+                    <Route path="/admin/splash-mapping" element={<P><AppLayout><SplashMapping /></AppLayout></P>} />
                     <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>

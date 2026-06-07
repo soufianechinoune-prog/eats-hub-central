@@ -1,38 +1,74 @@
-## Diagnostic confirmé
+## Pourquoi un mapping Splash ?
 
-Les 7 restaurants qui ont des commandes (Grenoble, Bordeaux, Besançon, Créteil, O'Parinor, Corbeil, Poitiers) reçoivent bien leur data **via l'API Uber** — aucun import CSV récent n'a été fait. Le `last_order = 05/06/2026` confirme un flux API en direct.
+Aujourd'hui, le système Uber a déjà une interface de mapping (UUID Uber ↔ fiche restaurant) dans le panneau super-admin. Splash, lui, reçoit la data via API mais **sans rattachement** : ~24 caisses Splash flottent avec `restaurant_id = NULL` dans `splash360_restaurant_mapping` (dont O'Parinor, Belfort, Corbeil, Qwartz…). Résultat : la data tombe dans le vide, le badge Splash n'apparaît jamais, et personne ne sait quoi faire.
 
-Pour les 3 UUIDs sans data, voici la vraie situation côté base :
+La logique est identique à Uber → il faut **la même interface pour Splash**.
 
-| Restaurant | Fiche existe | UUID dans `restaurants.uber_store_id` | UUID dans `restaurant_uber_ids` | Commandes |
-|---|---|---|---|---|
-| **Goussainville** | Oui (`c9c9d5d4…`) | vide | `92211a3b…` mais `is_primary = false` → affiché « (ancien) » | 0 |
-| **Belfort** | Oui (`b109a75c…`) | vide | aucune entrée | 0 |
-| **Porte de Montreuil** | Oui (`dc061c3e…`) | vide | aucune entrée | 0 |
+## Ce que je propose de construire
 
-**Conclusion :** ce n'est pas un problème d'appel API côté worker. Le mapping `uber_store_id ⇄ restaurant` est tout simplement absent (ou marqué « ancien ») dans la base, donc le webhook/sync API n'a aucun moyen de rattacher une commande au bon restaurant — il les ignore.
+### 1. Page « Mapping Splash360 » (super-admin)
 
-Pour Goussainville, vous avez raison : l'UUID a bien été saisi à un moment, mais l'enregistrement a été stocké avec `is_primary = false` (probablement parce qu'un UUID précédent existait, ou via un transfert). Le worker API ne prend en compte que l'UUID primary → d'où le silence.
+Au même endroit que le mapping Uber, un nouvel onglet listant **toutes les caisses Splash reçues via l'API** :
 
-## Plan de correction
+```text
+┌──────────────────────────────────────────────────────────────────┐
+│ Splash ID │ Nom Splash             │ Restaurant rattaché  │ État │
+├──────────────────────────────────────────────────────────────────┤
+│ 1432      │ CHICKEN STREET OPARINOR│ [O'Parinor      ▼] │ ✅    │
+│ 1455      │ CHICKEN STREET BELFORT │ [Belfort        ▼] │ ✅    │
+│ 1501      │ CHICKEN STREET QWARTZ  │ [— à mapper —   ▼] │ ⚠️    │
+│ 1620      │ TASTY CROUSTY TUNISIE  │ [Non applicable ▼] │ 🚫    │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-### 1. Goussainville — promouvoir l'UUID existant en « actuel »
-- Mettre `is_primary = true` sur l'entrée `restaurant_uber_ids` où `uber_store_id = 92211a3b-35d7-4472-b1a1-66ddf9b0f7cf`.
-- Copier ce même UUID dans `restaurants.uber_store_id` pour le rendre visible côté fiche restaurant.
+- **Dropdown** : recherche dans `restaurants` (scopé à la marque active).
+- **« Non applicable »** : pour les caisses sans équivalent FR (Tunisie, Maroc, siège, showroom…) → on les sort de la file d'attente sans les supprimer.
+- **Badge ⚠️** sur le nombre de caisses à mapper, visible dans la sidebar admin (même mécanique que les alertes BODACC).
 
-### 2. Belfort — créer le mapping
-- Insérer `restaurant_uber_ids` { restaurant_id = `b109a75c…`, uber_store_id = `7b9d739d-a71b-59ac-ab41-a48806496af6`, is_primary = true }.
-- Renseigner `restaurants.uber_store_id = 7b9d739d…`.
+### 2. Suggestion automatique (assistée, pas magique)
 
-### 3. Porte de Montreuil — créer le mapping
-- Insérer `restaurant_uber_ids` { restaurant_id = `dc061c3e…`, uber_store_id = `502c3fd5-0b51-5489-8ef5-81e4a96c7097`, is_primary = true }.
-- Renseigner `restaurants.uber_store_id = 502c3fd5…`.
+Pour chaque ligne non mappée, je calcule une **suggestion** en :
+1. Normalisant le nom Splash (majuscules, sans accent, sans « CHICKEN STREET » / « TASTY CROUSTY »).
+2. Cherchant un restaurant de la marque dont le nom contient ce token (`OPARINOR`, `BELFORT`…).
+3. Si 1 seul match → suggestion pré-remplie dans le dropdown (avec un badge « Suggestion »).
+4. Si 0 ou plusieurs → dropdown vide, à toi de choisir.
 
-### 4. Vérification post-correction
-- Confirmer qu'aucune commande historique n'est encore en attente (les 3 restos ont 0 commandes aujourd'hui).
-- Si Uber pousse rétroactivement la data API à l'activation côté Uber, elle sera automatiquement attachée au bon restaurant grâce au mapping ci-dessus.
-- Si rien ne tombe après 24-48 h une fois Uber côté activation, vérifier les logs de l'edge function de sync API.
+→ Tu valides en 1 clic au lieu de chercher.
 
-## À confirmer avant exécution
-- **Goussainville** : aucun autre UUID Uber actuel à conserver, on fait bien de promouvoir `92211a3b…` ? (vous m'aviez dit « ancien UUID » mais il s'agit bien de l'UUID actuel Uber qu'ils utilisent maintenant.)
-- **Belfort / Porte de Montreuil** : ces deux UUIDs sont bien les UUIDs **actuels** (pas d'anciens à archiver).
+### 3. Effet immédiat après mapping
+
+Dès qu'une ligne passe à `restaurant_id` non-NULL :
+- Le badge **Splash360** apparaît sur la fiche du resto.
+- La data caisse déjà reçue par l'API (stockée en attente) est **rétroactivement rattachée**.
+- La connexion devient « active » sur la page restaurant.
+
+### 4. Règle d'affichage des badges (côté fiche resto)
+
+Pour rester cohérent avec la logique « factuelle » :
+- **Uber** : badge si `uber_store_id` rempli (peu importe `uber_opening_date`).
+- **Deliveroo** : badge si `deliveroo_store_id` rempli.
+- **Splash360** : badge si une ligne `splash360_restaurant_mapping` pointe vers ce resto.
+
+## Détails techniques
+
+- Nouvelle route super-admin : `/admin/integrations/splash-mapping`.
+- Composant `SplashMappingTable.tsx` (copie/adaptation de `UberMappingTable`).
+- Hook `useSplashUnmappedCount()` pour le badge sidebar.
+- Endpoint d'update : `UPDATE splash360_restaurant_mapping SET restaurant_id = $1 WHERE splash_id = $2` (super-admin only).
+- Backfill rétroactif : trigger SQL `AFTER UPDATE ON splash360_restaurant_mapping` qui rattache les éventuelles données en attente.
+- Aucune modification de la logique d'ingestion API Splash existante.
+
+## Ce que je ne fais PAS
+
+- **Pas de matching 100 % auto** : tu valides chaque ligne (sécurité, comme pour Uber).
+- **Pas de suppression** des caisses « Non applicable » : on les marque, elles disparaissent juste de la file.
+- **Pas de changement** sur la connexion API Splash elle-même.
+
+## Résultat attendu
+
+- O'Parinor, Belfort, Corbeil, Qwartz, Goussainville, etc. → mappés en 5 minutes.
+- Badge Splash360 visible sur chaque fiche concernée.
+- Data caisse remonte automatiquement dès le prochain cycle API.
+- Process clair et reproductible pour chaque nouvelle caisse Splash ajoutée.
+
+Tu valides ce plan ?

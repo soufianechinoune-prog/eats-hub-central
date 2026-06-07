@@ -543,6 +543,24 @@ export default function Integrations() {
       {isSuperAdmin && !!connectionByConnector["splash360"] && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Outils avancés</h2>
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Plug className="h-4 w-4 text-primary" />
+                Mapping Splash360 ↔ Restaurants
+              </CardTitle>
+              <CardDescription>
+                Rattache chaque caisse Splash reçue via l'API à sa fiche restaurant.
+                Indispensable pour que la data caisse remonte sur les dashboards.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => navigate("/admin/splash-mapping")} className="gap-2">
+                <ExternalLink className="h-4 w-4" />
+                Ouvrir la page de mapping
+              </Button>
+            </CardContent>
+          </Card>
           <SplashResilientBackfillCard />
           <SplashSyncRunsCard />
         </section>
