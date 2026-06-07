@@ -82,14 +82,14 @@ async function getPermissions(token: string): Promise<unknown> {
 
 const SHOP_PATH_CANDIDATES = (companyId: string) => {
   const c = encodeURIComponent(companyId);
-  // D'après la doc Dishop, le pattern d'URL est /v1/api/:companyId/...
-  // Pas d'endpoint "list shops" documenté publiquement, on teste les variantes plausibles
   return [
-    `/v1/api/${c}/shops`,
     `/v1/api/${c}/legal`,
-    `/v1/api/${c}`,
-    `/v1/api/${c}/restaurants`,
-    `/v1/api/${c}/stores`,
+    `/v1/api/${c}/shops`,
+    `/v1/api/${c}/export-monthly-data/accounting-report`,
+    `/v1/api/${c}/export-monthly-data/users`,
+    `/v1/api/${c}/export-monthly-data/orders`,
+    `/v1/api/${c}/export-monthly-data`,
+    `/v1/api/${c}/webhooks`,
   ];
 };
 
