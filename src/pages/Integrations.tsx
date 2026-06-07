@@ -267,13 +267,16 @@ export default function Integrations() {
     () =>
       [...connectors].sort((a, b) => {
         // Active first, then available, then coming_soon
-        if (a.id === activeConnectorId) return -1;
-        if (b.id === activeConnectorId) return 1;
+        const aActive = activeConnectorIds.has(a.id);
+        const bActive = activeConnectorIds.has(b.id);
+        if (aActive && !bActive) return -1;
+        if (bActive && !aActive) return 1;
         const order = { available: 0, coming_soon: 1, deprecated: 2 } as const;
         return order[a.status] - order[b.status] || a.display_order - b.display_order;
       }),
-    [connectors, activeConnectorId],
+    [connectors, activeConnectorIds],
   );
+
 
   if (!selectedChainId) {
     return (
