@@ -239,3 +239,41 @@ export function useDisconnectPOS() {
     },
   });
 }
+
+/** Hooks dédiés Dishop (Étape 1: test auth + liste shops). */
+export function useDishopTestAuth() {
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { data, error } = await supabase.functions.invoke("dishop-api", {
+        body: { mode: "test_auth", chain_connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as {
+        ok: boolean;
+        expires_in: number;
+        token_type: string;
+        token_preview: string;
+        validation: any;
+      };
+    },
+  });
+}
+
+export function useDishopListShops() {
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { data, error } = await supabase.functions.invoke("dishop-api", {
+        body: { mode: "list_shops", chain_connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as {
+        ok: boolean;
+        shops: any[];
+        shop_count: number;
+        endpoint_used: string;
+      };
+    },
+  });
+}
