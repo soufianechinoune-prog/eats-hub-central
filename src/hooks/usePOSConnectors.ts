@@ -48,29 +48,44 @@ export function usePOSConnectors() {
   });
 }
 
-/** Connexion POS active de la chaîne sélectionnée (ou null). */
-export function useActiveChainPOSConnection() {
+/** Toutes les connexions POS actives de la chaîne sélectionnée (peut en avoir plusieurs, ex: Splash + Dishop). */
+export function useActiveChainPOSConnections() {
   const { selectedChainId } = useAnalyticsContext();
 
   return useQuery({
-    queryKey: ["chain_pos_connection", selectedChainId],
+    queryKey: ["chain_pos_connections", selectedChainId],
     enabled: !!selectedChainId,
     queryFn: async () => {
-      if (!selectedChainId) return null;
+      if (!selectedChainId) return [];
       const { data, error } = await supabase
         .from("chain_pos_connections")
         .select("*, connector:pos_connectors(*)")
         .eq("chain_id", selectedChainId)
-        .eq("is_active", true)
-        .maybeSingle();
+        .eq("is_active", true);
       if (error) throw error;
-      return data as unknown as
-        | (ChainPOSConnection & { connector: POSConnector })
-        | null;
+      return (data || []) as unknown as Array<
+        ChainPOSConnection & { connector: POSConnector }
+      >;
     },
     staleTime: 5 * 60 * 1000,
   });
 }
+
+/**
+ * Compat: renvoie la première connexion POS active (ou null).
+ * Utilisé par Overview / PosEmptyState qui veulent juste savoir si AU MOINS
+ * une caisse est branchée.
+ */
+export function useActiveChainPOSConnection() {
+  const q = useActiveChainPOSConnections();
+  return {
+    ...q,
+    data: (q.data && q.data.length > 0 ? q.data[0] : null) as
+      | (ChainPOSConnection & { connector: POSConnector })
+      | null,
+  };
+}
+
 
 /** Lance une synchronisation pour une connexion POS donnée. */
 export function useSyncPOS() {
