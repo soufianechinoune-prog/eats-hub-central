@@ -105,7 +105,19 @@ export default function SplashMapping() {
       }),
   });
 
-  // Suggestions: for each unmapped, find unique restaurant whose name contains the token
+  // Set restaurant_id => splash_name déjà rattaché (pour éviter les doublons)
+  const mappedRestaurantMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const m of mappings) {
+      if (m.restaurant_id) {
+        map.set(m.restaurant_id, m.splash_name ?? `Splash #${m.restaurant_splash_id}`);
+      }
+    }
+    return map;
+  }, [mappings]);
+
+  // Suggestions: pour chaque non-mappé, trouver un restaurant unique qui contient le token
+  // ET qui n'est pas déjà rattaché à une autre caisse Splash
   const suggestions = useMemo(() => {
     const map = new Map<number, { id: string; name: string }>();
     if (!restaurants.length) return map;
@@ -113,15 +125,15 @@ export default function SplashMapping() {
       if (m.restaurant_id || m.is_not_applicable) continue;
       const token = normalize(m.splash_name);
       if (!token || token.length < 3) continue;
-      const matches = restaurants.filter((r) =>
-        normalize(r.name).includes(token),
+      const matches = restaurants.filter(
+        (r) => normalize(r.name).includes(token) && !mappedRestaurantMap.has(r.id),
       );
       if (matches.length === 1) {
         map.set(m.restaurant_splash_id, { id: matches[0].id, name: matches[0].name });
       }
     }
     return map;
-  }, [mappings, restaurants]);
+  }, [mappings, restaurants, mappedRestaurantMap]);
 
   const filtered = useMemo(() => {
     return mappings.filter((m) => {
@@ -286,11 +298,24 @@ export default function SplashMapping() {
                                 <SelectItem value={NOT_APPLICABLE}>
                                   🚫 Non applicable
                                 </SelectItem>
-                                {restaurants.map((r) => (
-                                  <SelectItem key={r.id} value={r.id}>
-                                    {r.name}
-                                  </SelectItem>
-                                ))}
+                                {restaurants.map((r) => {
+                                  const takenBy = mappedRestaurantMap.get(r.id);
+                                  const isTakenByOther = !!takenBy && r.id !== m.restaurant_id;
+                                  return (
+                                    <SelectItem key={r.id} value={r.id}>
+                                      <span className="flex items-center gap-2">
+                                        <span className={isTakenByOther ? "text-muted-foreground" : ""}>
+                                          {r.name}
+                                        </span>
+                                        {isTakenByOther && (
+                                          <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+                                            ● déjà mappé → {takenBy}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </SelectItem>
+                                  );
+                                })}
                               </SelectContent>
                             </Select>
                             {suggestion && !m.restaurant_id && !m.is_not_applicable && (
