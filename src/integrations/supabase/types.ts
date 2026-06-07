@@ -3526,6 +3526,7 @@ export type Database = {
       splash360_restaurant_mapping: {
         Row: {
           chain_id: string | null
+          is_not_applicable: boolean
           matched_at: string
           restaurant_id: string | null
           restaurant_splash_id: number
@@ -3533,6 +3534,7 @@ export type Database = {
         }
         Insert: {
           chain_id?: string | null
+          is_not_applicable?: boolean
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id: number
@@ -3540,6 +3542,7 @@ export type Database = {
         }
         Update: {
           chain_id?: string | null
+          is_not_applicable?: boolean
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id?: number
