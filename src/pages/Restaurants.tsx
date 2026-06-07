@@ -594,39 +594,10 @@ const Restaurants = () => {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="whitespace-nowrap" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.manager_whatsapp ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {restaurant.manager_whatsapp}
-                        </div>
-                      ) : restaurant.restaurant_phone ? (
-                        <div className="flex items-center gap-1.5 text-sm">
-                          <Phone className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          {restaurant.restaurant_phone}
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
-                      )}
-                    </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(() => {
-                        const linked = (restaurant as any).manager_restaurants?.[0]?.managers;
-                        const name = linked
-                          ? `${linked.first_name || ''} ${linked.last_name || ''}`.trim()
-                          : `${restaurant.manager_first_name || ''} ${restaurant.manager_last_name || ''}`.trim();
-                        return name || <span className="text-muted-foreground">-</span>;
-                      })()}
+                      <ConnectionBadges restaurant={restaurant as any} chainData={chainConnections} />
                     </TableCell>
-                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(restaurant as any).uber_opening_date ? (
-                        <span className="text-sm">
-                          {new Date((restaurant as any).uber_opening_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
+
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
                         <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
