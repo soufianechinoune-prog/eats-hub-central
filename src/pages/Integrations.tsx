@@ -154,10 +154,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDishopTest = async () => {
-    if (!activeConnection) return;
+  const handleDishopTest = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
     try {
-      const r = await dishopTest.mutateAsync(activeConnection.id);
+      const r = await dishopTest.mutateAsync(conn.id);
       toast({
         title: "Authentification Dishop OK ✓",
         description: `Token valide pendant ${r.expires_in}s. Scopes : ${
@@ -173,10 +173,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDishopListShops = async () => {
-    if (!activeConnection) return;
+  const handleDishopListShops = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
     try {
-      const r = await dishopShops.mutateAsync(activeConnection.id);
+      const r = await dishopShops.mutateAsync(conn.id);
       setShopsList(r.shops);
       setShopsDialogOpen(true);
       toast({
@@ -192,10 +192,10 @@ export default function Integrations() {
     }
   };
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = async (connectionId: string, connectorName: string) => {
     try {
-      await disconnect.mutateAsync();
-      toast({ title: "Caisse déconnectée" });
+      await disconnect.mutateAsync(connectionId);
+      toast({ title: `${connectorName} déconnectée` });
     } catch (e: any) {
       toast({
         title: "Erreur",
@@ -205,12 +205,12 @@ export default function Integrations() {
     }
   };
 
-  const handleSync = async () => {
-    if (!activeConnection) return;
+  const handleSync = async (conn: { id: string; connector_id: string } | undefined) => {
+    if (!conn) return;
     try {
       const result = await sync.mutateAsync({
-        connectionId: activeConnection.id,
-        connectorId: activeConnection.connector_id,
+        connectionId: conn.id,
+        connectorId: conn.connector_id,
       });
       toast({
         title: "Synchronisation terminée ✓",
@@ -225,8 +225,8 @@ export default function Integrations() {
     }
   };
 
-  const handleBackfill = async () => {
-    if (!activeConnection) return;
+  const handleBackfill = async (conn: { id: string; connector_id: string } | undefined) => {
+    if (!conn) return;
     setBackfillProgress({ done: 0, total: 24 });
     toast({
       title: "Backfill lancé",
@@ -234,8 +234,8 @@ export default function Integrations() {
     });
     try {
       const result = await backfill.mutateAsync({
-        connectionId: activeConnection.id,
-        connectorId: activeConnection.connector_id,
+        connectionId: conn.id,
+        connectorId: conn.connector_id,
         monthsBack: 24,
         onProgress: ({ done, total }) => setBackfillProgress({ done, total }),
       });
@@ -258,6 +258,7 @@ export default function Integrations() {
         variant: "destructive",
       });
     } finally {
+
       setBackfillProgress(null);
     }
   };
