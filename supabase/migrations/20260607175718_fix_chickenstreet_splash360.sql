@@ -1,0 +1,9 @@
+-- Désactive la vieille connexion Splash360 "migration" sans credentials
+UPDATE public.chain_pos_connections
+SET is_active = false, updated_at = now()
+WHERE id = '9e6a39b0-f1a1-4af3-9ecd-3e1b374f2732';
+
+-- Réactive la connexion Splash360 avec credentials valides
+UPDATE public.chain_pos_connections
+SET is_active = true, updated_at = now()
+WHERE id = '16a139ba-fef5-43e9-9320-f40319b6716e';
