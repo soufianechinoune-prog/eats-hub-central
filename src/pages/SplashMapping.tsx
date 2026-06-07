@@ -236,8 +236,24 @@ export default function SplashMapping() {
     return map;
   }, [mappings, restaurants, mappedRestaurantMap]);
 
-  // Caisses mappées à une AUTRE marque, dont le nom Splash correspond à un restaurant
-  // de la marque active. Candidates à "déplacer ici".
+  // Token brut de la marque active (sans les déductions de normalize),
+  // pour ne suggérer une caisse cross-chain que si SON nom contient explicitement
+  // la marque active. Évite les faux positifs où seule la ville matche.
+  const activeBrandToken = useMemo(() => {
+    const name = chainNameMap.get(selectedChainId ?? "");
+    if (!name) return "";
+    return name
+      .toUpperCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^A-Z0-9]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }, [chainNameMap, selectedChainId]);
+
+  // Caisses mappées à une AUTRE marque, dont le nom Splash :
+  //   1. contient explicitement la marque active (ex: "TASTY CROUSTY ...")
+  //   2. ET correspond par ville à un restaurant unique de la marque active
   const crossChainCandidates = useMemo(() => {
     const out: Array<{
       splashId: number;
@@ -246,8 +262,15 @@ export default function SplashMapping() {
       currentRestaurantName: string | null;
       suggested: { id: string; name: string };
     }> = [];
-    if (!restaurants.length) return out;
+    if (!restaurants.length || !activeBrandToken) return out;
     for (const m of foreignMappings) {
+      const rawSplashName = (m.splash_name ?? "")
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+      // Filtre #1 : le nom de la caisse doit contenir la marque active
+      if (!rawSplashName.includes(activeBrandToken)) continue;
+
       const token = normalize(m.splash_name);
       if (!token || token.length < 3) continue;
       const matches = restaurants.filter((r) => normalize(r.name).includes(token));
@@ -258,6 +281,7 @@ export default function SplashMapping() {
         splashName: m.splash_name ?? `Splash #${m.restaurant_splash_id}`,
         currentChainId: m.chain_id,
         currentRestaurantName: currentResto?.name ?? null,
+
         suggested: { id: matches[0].id, name: matches[0].name },
       });
     }
