@@ -49,7 +49,6 @@ export function ConnectionBadges({ restaurant, chainData }: Props) {
   const uberActive =
     isRestaurantActive &&
     !!restaurant.uber_store_id &&
-    !!restaurant.uber_opening_date &&
     !restaurant.uber_closing_date;
   if (uberActive) {
     badges.push({
