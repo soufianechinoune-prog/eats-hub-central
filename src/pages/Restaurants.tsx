@@ -615,15 +615,6 @@ const Restaurants = () => {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell className="text-center" onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(restaurant as any).is_succursale ? (
-                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
-                          Succursale
-                        </Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">Franchise</span>
-                      )}
-                    </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </TableCell>
