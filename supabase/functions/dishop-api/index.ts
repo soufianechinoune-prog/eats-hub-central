@@ -68,45 +68,72 @@ async function validateToken(token: string): Promise<unknown> {
   }
 }
 
+async function getPermissions(token: string): Promise<unknown> {
+  const res = await fetch(`${DISHOP_BASE}/v1/api/oauth/permissions`, {
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+  });
+  const text = await res.text();
+  try {
+    return { status: res.status, body: JSON.parse(text) };
+  } catch {
+    return { status: res.status, body: text.slice(0, 500) };
+  }
+}
+
+const SHOP_PATH_CANDIDATES = (companyId: string) => [
+  `/v1/api/shops`,
+  `/v1/api/companies/${encodeURIComponent(companyId)}/shops`,
+  `/v1/api/company/${encodeURIComponent(companyId)}/shops`,
+  `/v1/api/shops?company_id=${encodeURIComponent(companyId)}`,
+  `/v1/api/partner/companies/${encodeURIComponent(companyId)}/shops`,
+  `/v1/api/partner/shops`,
+  `/v1/api/me/shops`,
+  `/v1/api/me`,
+  `/v1/api/companies`,
+  `/v1/api/company`,
+  `/v1/api/restaurants`,
+  `/v1/api/stores`,
+];
+
+async function probeEndpoint(
+  token: string,
+  path: string,
+): Promise<{ path: string; status: number; preview: string }> {
+  try {
+    const res = await fetch(`${DISHOP_BASE}${path}`, {
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+    });
+    const text = await res.text();
+    return { path, status: res.status, preview: text.slice(0, 400) };
+  } catch (e) {
+    return { path, status: 0, preview: `exception ${(e as Error).message}` };
+  }
+}
+
 async function listShops(
   token: string,
   companyId: string,
 ): Promise<{ shops: unknown[]; endpoint_used: string; raw?: unknown }> {
-  // L'endpoint exact de listing des shops n'est pas confirmé publiquement —
-  // on essaye plusieurs variantes connues et on retient la première qui répond 2xx.
-  const candidates = [
-    `/v1/api/companies/${encodeURIComponent(companyId)}/shops`,
-    `/v1/api/company/${encodeURIComponent(companyId)}/shops`,
-    `/v1/api/shops?company_id=${encodeURIComponent(companyId)}`,
-    `/v1/api/partner/companies/${encodeURIComponent(companyId)}/shops`,
-  ];
   const errors: string[] = [];
-  for (const path of candidates) {
-    try {
-      const res = await fetch(`${DISHOP_BASE}${path}`, {
-        headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
-      });
-      const text = await res.text();
-      if (res.ok) {
-        let data: any;
-        try {
-          data = JSON.parse(text);
-        } catch {
-          data = { raw: text };
-        }
-        const shops = Array.isArray(data)
-          ? data
-          : Array.isArray(data?.shops)
-            ? data.shops
-            : Array.isArray(data?.data)
-              ? data.data
-              : [];
-        return { shops, endpoint_used: path, raw: data };
+  for (const path of SHOP_PATH_CANDIDATES(companyId)) {
+    const r = await probeEndpoint(token, path);
+    if (r.status >= 200 && r.status < 300) {
+      let data: any;
+      try {
+        data = JSON.parse(r.preview);
+      } catch {
+        data = { raw: r.preview };
       }
-      errors.push(`${path} → ${res.status} ${text.slice(0, 120)}`);
-    } catch (e) {
-      errors.push(`${path} → exception ${(e as Error).message}`);
+      const shops = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.shops)
+          ? data.shops
+          : Array.isArray(data?.data)
+            ? data.data
+            : [];
+      return { shops, endpoint_used: path, raw: data };
     }
+    errors.push(`${path} → ${r.status} ${r.preview.slice(0, 120)}`);
   }
   throw new Error(
     `Aucun endpoint shops Dishop n'a répondu OK. Tentatives:\n${errors.join("\n")}`,
