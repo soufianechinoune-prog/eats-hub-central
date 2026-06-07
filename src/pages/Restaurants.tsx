@@ -139,6 +139,9 @@ const Restaurants = () => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
+  const { data: chainConnections } = useChainConnections(selectedChainId);
+
+
   // Helper to get Uber status based on csv_verified
   const getUberStatus = (r: typeof restaurants[0]) => {
     if (r.csv_verified) return "connected";
