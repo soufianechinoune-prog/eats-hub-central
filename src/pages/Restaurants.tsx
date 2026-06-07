@@ -426,15 +426,6 @@ const Restaurants = () => {
                   </div>
                 </TableHead>
                 <TableHead>Connexions</TableHead>
-                <TableHead 
-                  className="cursor-pointer hover:bg-muted/50 select-none"
-                  onClick={() => handleSort("deliveroo_account_manager")}
-                >
-                  <div className="flex items-center gap-1.5">
-                    Statut
-                    <SortIcon column="deliveroo_account_manager" />
-                  </div>
-                </TableHead>
                 <TableHead></TableHead>
 
               </TableRow>
@@ -442,7 +433,7 @@ const Restaurants = () => {
             <TableBody>
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -598,23 +589,6 @@ const Restaurants = () => {
                       <ConnectionBadges restaurant={restaurant as any} chainData={chainConnections} />
                     </TableCell>
 
-                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
-                        <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30">
-                          🚀 Bientôt
-                        </Badge>
-                      ) : restaurant.is_active === false ? (
-                        <Badge className="bg-red-500/20 text-red-700 dark:text-red-400 border-red-500/30">
-                          Fermé{(restaurant as any).uber_closing_date 
-                            ? ` le ${new Date((restaurant as any).uber_closing_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: 'numeric' })}` 
-                            : ''}
-                        </Badge>
-                      ) : (
-                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
-                          Actif
-                        </Badge>
-                      )}
-                    </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </TableCell>
