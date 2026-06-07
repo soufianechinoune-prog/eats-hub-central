@@ -9,6 +9,8 @@ import {
   useDisconnectPOS,
   useSyncPOS,
   useBackfillPOS,
+  useDishopTestAuth,
+  useDishopListShops,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -52,12 +54,16 @@ export default function Integrations() {
   const disconnect = useDisconnectPOS();
   const sync = useSyncPOS();
   const backfill = useBackfillPOS();
+  const dishopTest = useDishopTestAuth();
+  const dishopShops = useDishopListShops();
   const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
   const [accountLabel, setAccountLabel] = useState("");
   const [credentialsForm, setCredentialsForm] = useState<Record<string, string>>({});
   const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+  const [shopsDialogOpen, setShopsDialogOpen] = useState(false);
+  const [shopsList, setShopsList] = useState<any[] | null>(null);
 
   const activeConnectorId = activeConnection?.connector_id ?? null;
 
