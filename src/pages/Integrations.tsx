@@ -540,7 +540,7 @@ export default function Integrations() {
       </section>
 
       {/* Backfill résilient (super admin uniquement) */}
-      {isSuperAdmin && activeConnection?.connector_id === "splash360" && (
+      {isSuperAdmin && !!connectionByConnector["splash360"] && (
         <section className="space-y-3">
           <h2 className="text-lg font-semibold">Outils avancés</h2>
           <SplashResilientBackfillCard />
