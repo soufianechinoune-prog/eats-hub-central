@@ -136,16 +136,24 @@ Deno.serve(async (req) => {
     if (connErr || !conn) throw new Error(`Connexion introuvable: ${connErr?.message ?? "absente"}`);
     if (conn.connector_id !== "dishop") throw new Error("Connexion non-Dishop");
 
-    // Vérifie que l'utilisateur a accès à la marque
-    const { data: hasAccess } = await admin.rpc("user_has_chain_access", {
-      _chain_id: conn.chain_id,
-    } as any).maybeSingle?.() ?? { data: null };
-    // Fallback: appel via PostgREST direct
-    if (hasAccess === null) {
-      const { data: access2 } = await admin.rpc("user_has_chain_access", {
-        chain_id: conn.chain_id,
-      } as any);
-      console.log("[dishop-sync] user_has_chain_access fallback:", access2);
+    // Vérifie que l'utilisateur a accès à la marque (super_admin OU user_chain_access)
+    const { data: chainAccess } = await admin
+      .from("user_chain_access")
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("chain_id", conn.chain_id)
+      .maybeSingle();
+    const { data: roleRow } = await admin
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("role", "super_admin")
+      .maybeSingle();
+    if (!chainAccess && !roleRow) {
+      return new Response(
+        JSON.stringify({ error: "Accès refusé à cette marque" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const creds = (conn.credentials || {}) as any;
