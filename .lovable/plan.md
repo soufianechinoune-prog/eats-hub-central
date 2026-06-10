@@ -1,36 +1,47 @@
-# Fix : bouton "Rafraîchir le mapping Dishop" inopérant
 
-## Diagnostic
-- 84 mappings Dishop existent en base pour la connexion Chicken Street.
-- Pourtant l'UI affiche "Aucun shop encore détecté" et le clic sur le bouton vert ne déclenche aucune requête réseau visible.
-- Causes possibles non mutuellement exclusives :
-  1. `chainConnectionId` arrive `undefined` (marque active ≠ Chicken Street ou `activeConnections` pas encore chargé) → `enabled:false` rend `refetch()` silencieux.
-  2. La requête part mais retourne `[]` à cause d'une erreur RLS / utilisateur sans `user_chain_access`.
-  3. Une erreur JS dans la query est avalée (pas de toast d'erreur sur `useDishopShopMapping`).
+## Plan : Import test + sondage backfill Dishop
 
-## Étapes
+### Étape 1 — Import test de la semaine en cours
+- Déclencher manuellement l'edge function `dishop-sync-week` (bouton "Synchroniser la semaine" sur la carte Dishop).
+- La fonction :
+  1. Télécharge le ZIP `/export-weekly-data/accounting-report` de Dishop (auth déjà OK, companyId en lowercase).
+  2. Parse les CSV `orders.csv`, `order_items.csv`, `customers.csv`.
+  3. Insère dans `dishop_orders`, `dishop_order_items`, `dishop_customers` (dédup via `dishop_order_id`).
+  4. Rattache chaque ligne au `restaurant_id` via `dishop_shop_mapping` (les shops non mappés restent en attente, rattachables plus tard sans réimport).
+  5. Loggue le résultat dans `dishop_sync_runs` (nb orders, items, customers, mappés vs non mappés, erreurs).
 
-### 1. Rendre le composant verbeux et robuste
-Dans `DishopIntegrationCard.tsx` :
-- Ajouter une garde explicite : si `chainConnectionId` est falsy, afficher un message clair "Connexion Dishop non détectée pour la marque active — vérifie le sélecteur de marque".
-- Surfacer l'erreur de `useDishopShopMapping` via un toast destructive (aujourd'hui silencieuse).
-- Logger en console : `chainConnectionId`, `mappings.length`, `error` lors du clic refresh, pour confirmer en live ce qui se passe côté utilisateur.
+### Étape 2 — Vérification des données importées
+- Lire `dishop_sync_runs` pour voir le résumé de la run.
+- Compter `dishop_orders` par shop pour la semaine.
+- Comparer le CA Dishop d'un restaurant déjà mappé vs son CA Uber/Deliveroo sur la même période (sanity check).
+- Afficher le résumé dans la carte Dishop : dernière sync, nb orders importés, nb shops non mappés.
 
-### 2. Forcer un fetch sans cache au clic
-Le `staleTime: 60_000` peut masquer une mise à jour récente. Changer le handler du bouton vert pour :
-- invalider la queryKey via `queryClient.invalidateQueries(["dishop_shop_mapping"])` puis `refetch()`,
-- afficher un toast "Mapping rafraîchi : N shops" pour donner un feedback visible même quand N = 0.
+### Étape 3 — Sondage de l'API pour le backfill historique
+Créer une nouvelle edge function `dishop-probe-history` qui teste en parallèle plusieurs formats d'URL sur l'endpoint `accounting-report` :
+- `?week=2026-W22`
+- `?week=22&year=2026`
+- `?date=2026-05-25` (lundi d'une semaine passée)
+- `?from=2026-05-25&to=2026-05-31`
+- `/weeks/22`
+- `/2026/22`
 
-### 3. Reproduire dans le navigateur (mode build)
-- Ouvrir `/settings/integrations` via `browser--view_preview`.
-- Vérifier dans la console les logs ajoutés et l'éventuelle erreur Supabase.
-- Confirmer que la requête `GET …/dishop_shop_mapping?…` part bien et avec quel statut.
+Pour chaque variante : status HTTP, taille du payload, présence de données. Stocker le résultat dans une nouvelle table légère `dishop_probe_results` (ou simplement renvoyer le rapport au front).
 
-### 4. Selon le résultat
-- Si la requête part et renvoie 200 vide → c'est un problème d'utilisateur/marque : ajouter dans l'UI un message expliquant le mismatch (`chain_id` de la connexion vs `selectedChainId`).
-- Si 403/permission denied → vérifier `user_chain_access` pour l'utilisateur courant et corriger l'accès.
-- Si `chainConnectionId` undefined → corriger `Integrations.tsx` pour rendre la carte uniquement quand `selectedChainId` correspond à la chain_id de la connexion, et afficher un placeholder explicatif sinon.
+### Étape 4 — UI de pilotage sur la carte Dishop
+Ajouter 2 boutons sur `DishopIntegrationCard` :
+- **"Synchroniser la semaine"** → invoke `dishop-sync-week`, toast avec résultat.
+- **"Sonder l'historique"** → invoke `dishop-probe-history`, affiche un tableau des formats qui marchent.
 
-## Hors scope
-- Pas de modification de schéma DB ni des triggers.
-- Pas de changement de la logique d'import Dishop.
+Selon les résultats du sondage, on décidera ensuite (autre tour) :
+- Si un format fonctionne → ajouter un bouton "Backfiller N semaines" (déjà supporté côté `backfill_jobs` / `backfill_runs`).
+- Sinon → demander à Dishop un endpoint historique dédié.
+
+### Détails techniques
+- `dishop-sync-week` existe déjà — vérifier qu'il loggue bien les shops non mappés sans crasher.
+- `dishop-probe-history` : nouvelle fonction, lecture seule (aucune écriture dans `dishop_orders`).
+- Pas de migration nécessaire pour l'étape 1-2. Étape 3 : pas de migration non plus si on renvoie juste le rapport au front.
+- Côté front : `useDishopSyncWeek` (mutation `supabase.functions.invoke('dishop-sync-week')`) + `useDishopProbeHistory`.
+
+### Hors scope
+- Le backfill effectif (étape 5 future, dépend des résultats du sondage).
+- La complétion des shops non mappés (tu finis quand tu veux, non bloquant).
