@@ -304,7 +304,7 @@ Deno.serve(async (req) => {
             company_id_tried: cid,
             url,
             status: res.status,
-            body_preview: text.slice(0, 500),
+            body_preview: text.slice(0, 4000),
           });
         }
       }
