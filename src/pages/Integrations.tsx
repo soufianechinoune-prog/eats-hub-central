@@ -439,6 +439,7 @@ export default function Integrations() {
                       </p>
                     )}
                     {isActive ? (
+                      <>
                       <div className="flex flex-wrap gap-2">
                         {c.id === "dishop" ? (
                           <>
