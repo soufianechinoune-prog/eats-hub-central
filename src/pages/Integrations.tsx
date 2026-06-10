@@ -194,6 +194,35 @@ export default function Integrations() {
     }
   };
 
+  const handleDishopDiag = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
+    try {
+      const r = await dishopDiag.mutateAsync(conn.id);
+      console.log("[Dishop diag accounting]", r);
+      const summary = r.probes
+        .map((p) => `[${p.status}] ${p.url}\n${p.body_preview}`)
+        .join("\n\n");
+      // Surface in console + clipboard for easy paste to Dishop
+      try {
+        await navigator.clipboard.writeText(
+          `Stored company_id: ${r.stored_company_id}\nToken: ${r.token_preview}\nPermissions: ${JSON.stringify(r.permissions)}\n\n${summary}`,
+        );
+      } catch {
+        // ignore clipboard errors
+      }
+      toast({
+        title: "Diagnostic Dishop terminé",
+        description: `${r.probes.length} requêtes envoyées. Détails copiés dans le presse-papiers + console (F12).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Diagnostic Dishop échoué",
+        description: e?.message || "Voir la console",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDisconnect = async (connectionId: string, connectorName: string) => {
     try {
       await disconnect.mutateAsync(connectionId);
