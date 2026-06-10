@@ -44,6 +44,7 @@ import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell, RefreshCw } 
 import { toast } from "@/hooks/use-toast";
 import { SplashResilientBackfillCard } from "@/components/integrations/SplashResilientBackfillCard";
 import { SplashSyncRunsCard } from "@/components/integrations/SplashSyncRunsCard";
+import { DishopIntegrationCard } from "@/components/integrations/DishopIntegrationCard";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 export default function Integrations() {
