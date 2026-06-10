@@ -198,9 +198,10 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
                 : `${mappings.length} shop(s) détecté(s)${unmappedCount > 0 ? ` — ${unmappedCount} sans restaurant` : ""}`}
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => refetchMap()} disabled={mapLoading}>
-            <RefreshCw className={`h-4 w-4 ${mapLoading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="sm" onClick={handleRefreshMapping} disabled={mapFetching}>
+            <RefreshCw className={`h-4 w-4 ${mapFetching ? "animate-spin" : ""}`} />
           </Button>
+
         </CardHeader>
         <CardContent>
           {mappings.length === 0 ? (
