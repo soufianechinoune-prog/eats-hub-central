@@ -58,6 +58,7 @@ export default function Integrations() {
   const backfill = useBackfillPOS();
   const dishopTest = useDishopTestAuth();
   const dishopShops = useDishopListShops();
+  const dishopDiag = useDishopDiagAccounting();
   const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
