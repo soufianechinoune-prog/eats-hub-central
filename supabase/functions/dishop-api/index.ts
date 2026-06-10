@@ -10,6 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 // JSZip for unzipping Dishop weekly export archives
 import JSZip from "npm:jszip@3.10.1";
+console.log("[dishop-api] module loaded v3-inspect-zip");
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
