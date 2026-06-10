@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
         triggered_by: userId,
         started_at: new Date().toISOString(),
       })
-      .select("id")
+      .select("id, started_at")
       .single();
     if (runErr || !run) throw new Error(`Création run échouée: ${runErr?.message}`);
     runId = run.id;
