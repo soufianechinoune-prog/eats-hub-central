@@ -1,49 +1,96 @@
-## Pourquoi c'est arrivé
+# Étape 2 — Import automatique des exports hebdomadaires Dishop
 
-La table `splash360_restaurant_mapping` a **deux colonnes indépendantes** : `chain_id` (marque de la caisse Splash) et `restaurant_id` (restaurant rattaché). **Aucune contrainte en base ne vérifie que `restaurants.chain_id == mapping.chain_id`.**
+## Ce qu'on construit
 
-Ligne fautive aujourd'hui :
-- `restaurant_splash_id = 1287`
-- `splash_name = "TASTY CROUSTY AUBERVILLIERS"`
-- `chain_id = Tasty Crousty` ✅
-- `restaurant_id → Chicken Street - Aubervilliers` ❌ (autre marque !)
+Un pipeline qui télécharge chaque semaine le ZIP de comptabilité Dishop (`/v1/api/{companyId}/export-weekly-data/accounting-report`), le décompresse et importe les 3 fichiers dans la base, en isolant strictement par marque. Plus la page de mapping `shopId Dishop → restaurant_id` dans `/settings/integrations`.
 
-Comment ça a pu arriver :
-1. La caisse #1287 a probablement été rattachée à l'origine sur la marque Chicken Street (avant que `chain_id` soit posé sur la table de mapping, migration du 17/05).
-2. La migration de backfill a ensuite déduit `chain_id` à partir du `splash_name` (« TASTY CROUSTY ») → la ligne s'est retrouvée avec un `chain_id` Tasty Crousty mais le `restaurant_id` est resté pointé vers Chicken Street.
-3. Dans l'UI `SplashMapping.tsx`, le dropdown ne propose que des restaurants de la marque active, mais **rien ne bloque côté serveur** un payload croisé, et la donnée historique pré-`chain_id` n'a jamais été validée.
+## Schéma BDD (4 nouvelles tables, toutes isolées par chain_id)
 
-## Ce que je propose (étape par étape, comme demandé)
+```text
+dishop_shop_mapping        dishop_sync_runs            dishop_customers
+─ id (pk)                  ─ id (pk)                   ─ id (pk)
+─ chain_connection_id      ─ chain_connection_id       ─ chain_id
+─ chain_id                 ─ year, month, week_index   ─ dishop_customer_id (unique)
+─ dishop_shop_id (unique)  ─ status, started_at        ─ email, first_name, last_name
+─ restaurant_id            ─ files_meta jsonb          ─ phone, country_code
+─ raw_label                ─ rows_inserted             ─ first_order_date
+                           ─ error_message             ─ newsletter, shop_ids[]
+                                                       ─ raw jsonb
 
-### Étape 1 — Audit complet (lecture seule, à valider avant tout)
-Lister **toutes** les lignes `splash360_restaurant_mapping` où `mapping.chain_id ≠ restaurants.chain_id` pour mesurer l'ampleur (pas seulement Aubervilliers). Idem sur `splash360_daily_sales` (qui a aussi un `chain_id` propre).
+dishop_orders                       dishop_order_items
+─ id (pk)                           ─ id (pk)
+─ chain_id                          ─ dishop_order_id (fk)
+─ restaurant_id                     ─ chain_id, restaurant_id
+─ dishop_shop_id (raw fallback)     ─ category_id, category_name
+─ charge_id (unique)                ─ product_key, item_key, item_name
+─ order_number                      ─ section_key (customSplashIngredients…)
+─ customer_id                       ─ nb, unit_price, ref
+─ order_date (timestamptz Paris)    ─ position_in_basket
+─ order_type (delivery/click_and_collect)
+─ payment_type, status
+─ price_total, commission_dishop_pct, commission_dishop_amount
+─ commission_dishop_type (variable+fixe)
+─ marketing_promo_used bool
+─ address jsonb (city, postal, lat/lng)
+─ raw_order jsonb, raw_billing jsonb
+```
 
-→ je te montre la liste, on décide cas par cas avant de toucher quoi que ce soit.
+Triggers d'isolation cross-brand (mêmes que Splash) : rejet en `BEFORE INSERT/UPDATE` si `restaurant.chain_id ≠ chain_connection.chain_id`.
 
-### Étape 2 — Correction des données existantes
-Pour chaque ligne croisée détectée :
-- Détacher le `restaurant_id` (le remettre à `NULL`) — la caisse redevient « à mapper » dans sa vraie marque.
-- Repropager le `chain_id` correct sur `splash360_daily_sales` pour les ventes déjà ingérées.
+RLS : `chain_id` doit appartenir à l'utilisateur via `user_chain_access` (mêmes patterns que `splash360_*`).
 
-Pour Aubervilliers concrètement : caisse #1287 → `restaurant_id = NULL`, puis à re-mapper proprement vers `TASTY CROUSTY AUBERVILLIERS` (`169a77c2…`) depuis la marque Tasty Crousty.
+## Edge functions
 
-### Étape 3 — Verrou en base (le vrai garde-fou)
-Ajouter un **trigger `BEFORE INSERT OR UPDATE`** sur `splash360_restaurant_mapping` qui lève une exception si `restaurant_id IS NOT NULL` et `(SELECT chain_id FROM restaurants WHERE id = NEW.restaurant_id) <> NEW.chain_id`. 
+### `dishop-sync-week` (nouvelle)
+Params : `chain_connection_id`, `year`, `month`, optionnel `week_index`.
+1. Crée un `dishop_sync_runs` (status=`running`).
+2. Récupère token + appelle `accounting-report` → URL signée GCS.
+3. Télécharge ZIP, décompresse les 3 JSON via JSZip.
+4. Upsert `dishop_customers` (par `dishop_customer_id`).
+5. Pour chaque commande dans `orders_*.json` : résout `restaurant_id` via `dishop_shop_mapping` ; upsert dans `dishop_orders` (clé : `charge_id`) + flatten les `commande[*].items[*].options[*]` dans `dishop_order_items` (delete+reinsert par `dishop_order_id`).
+6. Enrichit avec les `billings_*.json` (commissions, paymentType, status) en joinant sur `chargeId`.
+7. Met à jour le run avec compteurs + status `success` / `failed`.
 
-Même chose, plus léger, sur `splash360_daily_sales` (cohérence `chain_id` ↔ `restaurant_id`).
+### `dishop-api` (extension du mode `inspect_zip` existant)
+Nouveau mode `probe_history` : sonde 4 variantes pour découvrir comment demander une semaine passée — `?week=YYYY-Www`, `?date=YYYY-MM-DD`, `/weeks/{index}`, `/year/{Y}/month/{M}/week/{W}`. Renvoie status + premier KB de chacune pour qu'on identifie le pattern.
 
-→ Plus jamais possible, même par bug UI, script de backfill ou edge function `sync-splash360`, de rattacher une caisse à un restaurant d'une autre marque. La requête échoue, on voit l'erreur tout de suite.
+### `dishop-list-shops` (étape de mapping)
+À partir de la 1re semaine importée, fait un `SELECT DISTINCT dishop_shop_id, count(*)` côté DB (ou parse à la volée le 1er ZIP) pour proposer les shopIds non encore mappés.
 
-### Étape 4 — Renforcement UI (cosmétique)
-Dans `SplashMapping.tsx` et la mutation `moveForeign`, ajouter une vérification client `restaurant.chain_id === selectedChainId` avant l'appel, avec message clair. C'est de la ceinture-bretelles : le trigger de l'étape 3 reste la garantie.
+## UI dans `/settings/integrations`
+
+Sur la carte Dishop, sous "Voir les shops" / "Diag accounting" :
+1. **Bouton "Découvrir les shops"** → liste les `shopId` détectés dans le dernier ZIP.
+2. **Section "Mapping des restaurants"** : tableau `Dishop shopId | Restaurant` (Select des restos de la marque active). Sauve dans `dishop_shop_mapping`. Affiche les shops orphelins en rouge.
+3. **Section "Imports"** : 
+   - Bouton "Importer cette semaine" (semaine en cours).
+   - Bouton "Sonder l'historique" (mode `probe_history`, affiche les réponses).
+   - Liste des `dishop_sync_runs` récents avec status + nb lignes.
+4. **Bandeau RGPD** : avertit que les données clients (email, téléphone) sont importées et chiffrées au repos.
+
+## Backfill historique
+
+Étape conditionnée au résultat du sondage : si Dishop accepte un param de semaine/date, on ajoute un bouton "Backfill 12 dernières semaines" qui boucle `dishop-sync-week` sur les périodes passées. Sinon, on documente le besoin de remonter l'info à Dishop et on se contente de la semaine courante (job cron hebdo dimanche soir 23h Paris).
+
+## Sécurité / isolation
+
+- Aucun appel direct au service_role depuis le frontend : tout passe par l'edge function.
+- `dishop_shop_mapping.restaurant_id` doit appartenir à la même `chain_id` que `chain_connection_id` (trigger BEFORE INSERT).
+- Toutes les RLS : `TO authenticated` + `has_chain_access(chain_id)`.
+- Données clients : table à part avec RLS stricte, jamais exposée en `SELECT` côté `anon`.
 
 ## Détails techniques
 
-- Trigger en `SECURITY DEFINER` pour pouvoir lire `restaurants.chain_id` indépendamment des RLS.
-- L'audit étape 1 se fait via `supabase--read_query`, aucune écriture.
-- Les corrections étape 2 passent par une migration unique avec un `UPDATE … SET restaurant_id = NULL WHERE id IN (…)` listant explicitement les IDs identifiés à l'étape 1 (pas de masse aveugle).
-- Le trigger étape 3 est créé dans la même migration que les corrections, **après** les `UPDATE`, sinon il bloquerait sa propre migration.
+- Pagination : insertion par chunks de 500 (limite Postgres pour upsert).
+- TZ : `order_date` parsé en `Europe/Paris` avant stockage (cohérent avec `mem://analytics/standard-gestion-horaire`).
+- Mémoire à mettre à jour : nouvelle entrée `mem://integrations/dishop-weekly-sync-architecture` + remplacement de `mem://integrations/dishop-api-state` (obsolète, l'API marche).
 
-## Ordre d'exécution
+## Ordre de livraison proposé
 
-On fait **uniquement l'étape 1 d'abord**, je te présente la liste exhaustive des rattachements croisés, tu valides les corrections, puis on enchaîne 2 + 3 + 4 dans une seule migration.
+1. Migration BDD (4 tables + triggers + RLS).
+2. Edge function `dishop-sync-week` + extension `probe_history`.
+3. UI mapping shops + bouton import.
+4. UI historique des runs + bandeau RGPD.
+5. (Conditionnel) cron hebdo + backfill multi-semaines selon résultat sondage.
+
+J'attends ton OK pour démarrer la migration BDD (étape 1).
