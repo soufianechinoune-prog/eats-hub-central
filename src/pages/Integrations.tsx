@@ -44,6 +44,7 @@ import { Loader2, CheckCircle2, ExternalLink, Plug, Sparkles, Bell, RefreshCw } 
 import { toast } from "@/hooks/use-toast";
 import { SplashResilientBackfillCard } from "@/components/integrations/SplashResilientBackfillCard";
 import { SplashSyncRunsCard } from "@/components/integrations/SplashSyncRunsCard";
+import { DishopIntegrationCard } from "@/components/integrations/DishopIntegrationCard";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 
 export default function Integrations() {
@@ -434,11 +435,11 @@ export default function Integrations() {
                     )}
                     {isActive && c.id === "dishop" && (
                       <p className="text-xs text-muted-foreground">
-                        Étape 1 : auth + listing shops. La réception automatique des
-                        exports arrivera à l'étape 2 (après achat du domaine technique).
+                        Import hebdomadaire des exports comptables Dishop, avec mapping des shops par marque.
                       </p>
                     )}
                     {isActive ? (
+                      <>
                       <div className="flex flex-wrap gap-2">
                         {c.id === "dishop" ? (
                           <>
@@ -553,6 +554,10 @@ export default function Integrations() {
 
                         </AlertDialog>
                       </div>
+                      {c.id === "dishop" && conn && (
+                        <DishopIntegrationCard chainConnectionId={conn.id} />
+                      )}
+                      </>
                     ) : isComingSoon ? (
                       <Button
                         variant="outline"

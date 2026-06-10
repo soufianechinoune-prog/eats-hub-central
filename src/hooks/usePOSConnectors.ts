@@ -317,3 +317,116 @@ export function useDishopDiagAccounting() {
     },
   });
 }
+
+/** Importe la semaine courante (ou spécifiée) depuis Dishop. */
+export function useDishopSyncWeek() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      connectionId: string;
+      year?: number;
+      month?: number;
+      week_index?: number;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("dishop-sync-week", {
+        body: {
+          chain_connection_id: input.connectionId,
+          year: input.year,
+          month: input.month,
+          week_index: input.week_index,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as {
+        ok: boolean;
+        run_id: string;
+        files: Record<string, number>;
+        new_shops: string[];
+        rows_inserted: { customers: number; orders: number; items: number };
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dishop_sync_runs"] });
+      queryClient.invalidateQueries({ queryKey: ["dishop_shop_mapping"] });
+    },
+  });
+}
+
+/** Sonde l'API Dishop pour découvrir comment demander une semaine passée. */
+export function useDishopProbeHistory() {
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { data, error } = await supabase.functions.invoke("dishop-api", {
+        body: { mode: "probe_history", chain_connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as {
+        ok: boolean;
+        company_id: string;
+        probes: Array<{ path: string; status: number; preview: string }>;
+      };
+    },
+  });
+}
+
+/** Mapping shops Dishop ↔ restaurants pour la marque active. */
+export function useDishopShopMapping(chainConnectionId: string | undefined) {
+  return useQuery({
+    queryKey: ["dishop_shop_mapping", chainConnectionId],
+    enabled: !!chainConnectionId,
+    queryFn: async () => {
+      if (!chainConnectionId) return [];
+      const { data, error } = await supabase
+        .from("dishop_shop_mapping")
+        .select("id, dishop_shop_id, restaurant_id, raw_label, matched_at, chain_id")
+        .eq("chain_connection_id", chainConnectionId)
+        .order("dishop_shop_id");
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 60_000,
+  });
+}
+
+/** Met à jour l'association d'un shop Dishop à un restaurant. */
+export function useUpdateDishopShopMapping() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { mappingId: string; restaurantId: string | null }) => {
+      const { error } = await supabase
+        .from("dishop_shop_mapping")
+        .update({
+          restaurant_id: input.restaurantId,
+          matched_at: input.restaurantId ? new Date().toISOString() : null,
+        })
+        .eq("id", input.mappingId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dishop_shop_mapping"] });
+    },
+  });
+}
+
+/** Historique des imports Dishop pour la marque active. */
+export function useDishopSyncRuns(chainConnectionId: string | undefined) {
+  return useQuery({
+    queryKey: ["dishop_sync_runs", chainConnectionId],
+    enabled: !!chainConnectionId,
+    queryFn: async () => {
+      if (!chainConnectionId) return [];
+      const { data, error } = await supabase
+        .from("dishop_sync_runs")
+        .select("*")
+        .eq("chain_connection_id", chainConnectionId)
+        .order("started_at", { ascending: false })
+        .limit(20);
+      if (error) throw error;
+      return data ?? [];
+    },
+    staleTime: 30_000,
+  });
+}
+

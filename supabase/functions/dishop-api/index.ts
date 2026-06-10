@@ -22,7 +22,7 @@ const corsHeaders = {
 const DISHOP_BASE = "https://api.dishop.co";
 
 interface RequestBody {
-  mode: "test_auth" | "list_shops" | "probe" | "diag_accounting" | "inspect_zip";
+  mode: "test_auth" | "list_shops" | "probe" | "diag_accounting" | "inspect_zip" | "probe_history";
   chain_connection_id: string;
   // Optional overrides for diag_accounting
   company_id_override?: string;
@@ -409,6 +409,46 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
+    if (body.mode === "probe_history") {
+      const cid = (body.company_id_override || creds.company_id || "").toLowerCase();
+      if (!cid) {
+        return new Response(JSON.stringify({ error: "company_id manquant" }), {
+          status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const c = encodeURIComponent(cid);
+      const week = body.week || "2026-W22";
+      const date = "2026-05-26";
+      const candidates = [
+        `/v1/api/${c}/export-weekly-data/accounting-report?week=${encodeURIComponent(week)}`,
+        `/v1/api/${c}/export-weekly-data/accounting-report?date=${date}`,
+        `/v1/api/${c}/export-weekly-data/accounting-report?year=2026&month=5&week=4`,
+        `/v1/api/${c}/export-weekly-data/accounting-report/2026/5/4`,
+        `/v1/api/${c}/export-weekly-data/2026/5/weeks/4`,
+        `/v1/api/${c}/export-weekly-data/weeks/4?year=2026&month=5`,
+        `/v1/api/${c}/export-weekly-data/accounting-report/weeks/4`,
+        `/v1/api/${c}/export-weekly-data/accounting-report?year=2026&month=5&weekIndex=4`,
+      ];
+      const probes: any[] = [];
+      for (const path of candidates) {
+        try {
+          const url = `${DISHOP_BASE}${path}`;
+          const res = await fetch(url, {
+            headers: { Authorization: `Bearer ${tokenRes.access_token}`, Accept: "application/json" },
+          });
+          const text = await res.text();
+          probes.push({ path, status: res.status, preview: text.slice(0, 600) });
+        } catch (e) {
+          probes.push({ path, status: 0, preview: `exception ${(e as Error).message}` });
+        }
+      }
+      return new Response(
+        JSON.stringify({ ok: true, company_id: cid, probes }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
 
 
     return new Response(JSON.stringify({ error: `Mode inconnu: ${body.mode}` }), {
