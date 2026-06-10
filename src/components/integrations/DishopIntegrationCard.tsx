@@ -161,6 +161,16 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
 
   return (
     <div className="space-y-4 pt-2">
+      {!chainConnectionId && (
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Connexion Dishop introuvable</AlertTitle>
+          <AlertDescription className="text-xs">
+            Aucune connexion Dishop active pour la marque sélectionnée. Vérifie le sélecteur de marque en haut de l'app.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* RGPD banner */}
       <Alert className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20">
         <ShieldAlert className="h-4 w-4 text-amber-600" />
