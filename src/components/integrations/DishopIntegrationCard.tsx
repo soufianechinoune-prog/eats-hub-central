@@ -45,12 +45,30 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 
 export function DishopIntegrationCard({ chainConnectionId }: Props) {
   const { selectedChainId } = useAnalyticsContext();
+  const queryClient = useQueryClient();
   const sync = useDishopSyncWeek();
   const probe = useDishopProbeHistory();
   const updateMap = useUpdateDishopShopMapping();
-  const { data: mappings = [], isLoading: mapLoading, refetch: refetchMap } =
-    useDishopShopMapping(chainConnectionId);
+  const {
+    data: mappings = [],
+    isLoading: mapLoading,
+    isFetching: mapFetching,
+    error: mapError,
+    refetch: refetchMap,
+  } = useDishopShopMapping(chainConnectionId);
   const { data: runs = [], refetch: refetchRuns } = useDishopSyncRuns(chainConnectionId);
+
+  // Surface query errors (otherwise they would be silently swallowed)
+  useEffect(() => {
+    if (mapError) {
+      console.error("[Dishop mapping] query error", mapError);
+      toast({
+        title: "Erreur de lecture du mapping Dishop",
+        description: (mapError as Error)?.message ?? "Erreur inconnue",
+        variant: "destructive",
+      });
+    }
+  }, [mapError]);
 
   // Restaurants de la marque active
   const { data: restaurants = [] } = useQuery({
@@ -73,6 +91,29 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
     () => mappings.filter((m) => !m.restaurant_id).length,
     [mappings],
   );
+
+  const handleRefreshMapping = async () => {
+    console.log("[Dishop mapping] refresh clicked", {
+      chainConnectionId,
+      selectedChainId,
+      currentMappings: mappings.length,
+    });
+    if (!chainConnectionId) {
+      toast({
+        title: "Connexion Dishop introuvable",
+        description: "Aucune connexion Dishop active pour la marque sélectionnée.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["dishop_shop_mapping"] });
+    const r = await refetchMap();
+    toast({
+      title: "Mapping rafraîchi",
+      description: `${r.data?.length ?? 0} shop(s) Dishop trouvé(s).`,
+    });
+  };
+
 
   const handleSync = async () => {
     try {
