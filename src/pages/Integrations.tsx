@@ -554,6 +554,10 @@ export default function Integrations() {
 
                         </AlertDialog>
                       </div>
+                      {c.id === "dishop" && conn && (
+                        <DishopIntegrationCard chainConnectionId={conn.id} />
+                      )}
+                      </>
                     ) : isComingSoon ? (
                       <Button
                         variant="outline"
