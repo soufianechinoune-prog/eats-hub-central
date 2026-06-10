@@ -386,7 +386,7 @@ export function useDishopShopMapping(chainConnectionId: string | undefined) {
       if (error) throw error;
       return data ?? [];
     },
-    staleTime: 60_000,
+    staleTime: 0,
   });
 }
 

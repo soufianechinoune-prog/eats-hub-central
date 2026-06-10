@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState, useMemo, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import {
@@ -45,12 +45,30 @@ const statusVariant: Record<string, "default" | "secondary" | "destructive" | "o
 
 export function DishopIntegrationCard({ chainConnectionId }: Props) {
   const { selectedChainId } = useAnalyticsContext();
+  const queryClient = useQueryClient();
   const sync = useDishopSyncWeek();
   const probe = useDishopProbeHistory();
   const updateMap = useUpdateDishopShopMapping();
-  const { data: mappings = [], isLoading: mapLoading, refetch: refetchMap } =
-    useDishopShopMapping(chainConnectionId);
+  const {
+    data: mappings = [],
+    isLoading: mapLoading,
+    isFetching: mapFetching,
+    error: mapError,
+    refetch: refetchMap,
+  } = useDishopShopMapping(chainConnectionId);
   const { data: runs = [], refetch: refetchRuns } = useDishopSyncRuns(chainConnectionId);
+
+  // Surface query errors (otherwise they would be silently swallowed)
+  useEffect(() => {
+    if (mapError) {
+      console.error("[Dishop mapping] query error", mapError);
+      toast({
+        title: "Erreur de lecture du mapping Dishop",
+        description: (mapError as Error)?.message ?? "Erreur inconnue",
+        variant: "destructive",
+      });
+    }
+  }, [mapError]);
 
   // Restaurants de la marque active
   const { data: restaurants = [] } = useQuery({
@@ -73,6 +91,29 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
     () => mappings.filter((m) => !m.restaurant_id).length,
     [mappings],
   );
+
+  const handleRefreshMapping = async () => {
+    console.log("[Dishop mapping] refresh clicked", {
+      chainConnectionId,
+      selectedChainId,
+      currentMappings: mappings.length,
+    });
+    if (!chainConnectionId) {
+      toast({
+        title: "Connexion Dishop introuvable",
+        description: "Aucune connexion Dishop active pour la marque sélectionnée.",
+        variant: "destructive",
+      });
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ["dishop_shop_mapping"] });
+    const r = await refetchMap();
+    toast({
+      title: "Mapping rafraîchi",
+      description: `${r.data?.length ?? 0} shop(s) Dishop trouvé(s).`,
+    });
+  };
+
 
   const handleSync = async () => {
     try {
@@ -120,6 +161,16 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
 
   return (
     <div className="space-y-4 pt-2">
+      {!chainConnectionId && (
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>Connexion Dishop introuvable</AlertTitle>
+          <AlertDescription className="text-xs">
+            Aucune connexion Dishop active pour la marque sélectionnée. Vérifie le sélecteur de marque en haut de l'app.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* RGPD banner */}
       <Alert className="border-amber-500/40 bg-amber-50/40 dark:bg-amber-950/20">
         <ShieldAlert className="h-4 w-4 text-amber-600" />
@@ -157,9 +208,10 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
                 : `${mappings.length} shop(s) détecté(s)${unmappedCount > 0 ? ` — ${unmappedCount} sans restaurant` : ""}`}
             </CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => refetchMap()} disabled={mapLoading}>
-            <RefreshCw className={`h-4 w-4 ${mapLoading ? "animate-spin" : ""}`} />
+          <Button variant="ghost" size="sm" onClick={handleRefreshMapping} disabled={mapFetching}>
+            <RefreshCw className={`h-4 w-4 ${mapFetching ? "animate-spin" : ""}`} />
           </Button>
+
         </CardHeader>
         <CardContent>
           {mappings.length === 0 ? (
