@@ -342,8 +342,8 @@ Deno.serve(async (req) => {
           ? Number(String(dish.data.servicePrice.variable).replace(/[^0-9.]/g, ""))
           : null,
         commission_dishop_fixe: dish.data?.servicePrice?.fixe ?? null,
-        commission_orderType_amount: dish2.amount ?? null,
-        commission_orderType_name: dish2.data?.name ?? null,
+        commission_ordertype_amount: dish2.amount ?? null,
+        commission_ordertype_name: dish2.data?.name ?? null,
         marketing_promo_used: b.marketingPromoUsed ?? null,
         address,
         raw_order: o ?? null,
