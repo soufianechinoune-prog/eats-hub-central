@@ -469,6 +469,21 @@ export default function Integrations() {
                               )}
                               Voir les shops
                             </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => handleDishopDiag(conn)}
+                              disabled={dishopDiag.isPending}
+                              title="Test l'endpoint export-weekly-data/accounting-report avec plusieurs variantes de company_id"
+                            >
+                              {dishopDiag.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Diag accounting
+                            </Button>
                           </>
                         ) : (
                           <>
