@@ -8,6 +8,9 @@
 // puis appelle Dishop. JWT utilisateur vérifié.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+// JSZip for unzipping Dishop weekly export archives
+import JSZip from "npm:jszip@3.10.1";
+
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +22,7 @@ const corsHeaders = {
 const DISHOP_BASE = "https://api.dishop.co";
 
 interface RequestBody {
-  mode: "test_auth" | "list_shops" | "probe" | "diag_accounting";
+  mode: "test_auth" | "list_shops" | "probe" | "diag_accounting" | "inspect_zip";
   chain_connection_id: string;
   // Optional overrides for diag_accounting
   company_id_override?: string;
@@ -304,7 +307,7 @@ Deno.serve(async (req) => {
             company_id_tried: cid,
             url,
             status: res.status,
-            body_preview: text.slice(0, 500),
+            body_preview: text.slice(0, 4000),
           });
         }
       }
@@ -316,6 +319,92 @@ Deno.serve(async (req) => {
           token_preview: tokenRes.access_token.slice(0, 24) + "…",
           permissions,
           probes,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+
+    if (body.mode === "inspect_zip") {
+      const companyId = (body.company_id_override || creds.company_id || "").toLowerCase();
+      if (!companyId) {
+        return new Response(
+          JSON.stringify({ error: "company_id manquant" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      // 1. Request signed URL
+      const url = `${DISHOP_BASE}/v1/api/${encodeURIComponent(companyId)}/export-weekly-data/accounting-report`;
+      console.log("[dishop-inspect] GET", url);
+      const metaRes = await fetch(url, {
+        headers: { Authorization: `Bearer ${tokenRes.access_token}`, Accept: "application/json" },
+      });
+      const metaText = await metaRes.text();
+      if (!metaRes.ok) {
+        return new Response(
+          JSON.stringify({ error: `Dishop accounting-report ${metaRes.status}`, body: metaText.slice(0, 1000) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      let meta: any;
+      try { meta = JSON.parse(metaText); } catch {
+        return new Response(
+          JSON.stringify({ error: "Dishop: réponse JSON invalide", preview: metaText.slice(0, 500) }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const downloadUrl: string | undefined = meta?.exportDownloadUrl;
+      if (!downloadUrl) {
+        return new Response(
+          JSON.stringify({ error: "Pas d'exportDownloadUrl dans la réponse Dishop", meta }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      console.log("[dishop-inspect] downloading ZIP…");
+      const zipRes = await fetch(downloadUrl);
+      if (!zipRes.ok) {
+        return new Response(
+          JSON.stringify({ error: `ZIP download ${zipRes.status}` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const zipBuf = new Uint8Array(await zipRes.arrayBuffer());
+      console.log("[dishop-inspect] ZIP size", zipBuf.length, "bytes");
+
+      const zip = await JSZip.loadAsync(zipBuf);
+      const files: Array<{
+        name: string;
+        size: number;
+        compressed_size: number;
+        is_dir: boolean;
+        preview: string | null;
+      }> = [];
+      const entries = Object.values(zip.files) as any[];
+      for (const entry of entries) {
+        let preview: string | null = null;
+        if (!entry.dir) {
+          try {
+            const txt = await entry.async("string");
+            preview = txt.slice(0, 2000);
+          } catch {
+            preview = "[binaire]";
+          }
+        }
+        files.push({
+          name: entry.name,
+          size: (entry as any)._data?.uncompressedSize ?? 0,
+          compressed_size: (entry as any)._data?.compressedSize ?? 0,
+          is_dir: !!entry.dir,
+          preview,
+        });
+      }
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          download_url_preview: downloadUrl.slice(0, 150) + "…",
+          zip_size_bytes: zipBuf.length,
+          file_count: files.length,
+          files,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
