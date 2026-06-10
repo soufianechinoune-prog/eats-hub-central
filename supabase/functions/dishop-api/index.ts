@@ -19,8 +19,11 @@ const corsHeaders = {
 const DISHOP_BASE = "https://api.dishop.co";
 
 interface RequestBody {
-  mode: "test_auth" | "list_shops" | "probe";
+  mode: "test_auth" | "list_shops" | "probe" | "diag_accounting";
   chain_connection_id: string;
+  // Optional overrides for diag_accounting
+  company_id_override?: string;
+  week?: string; // e.g. "2026-W22" or yyyy-mm-dd
 }
 
 interface DishopCredentials {
