@@ -435,8 +435,7 @@ export default function Integrations() {
                     )}
                     {isActive && c.id === "dishop" && (
                       <p className="text-xs text-muted-foreground">
-                        Étape 1 : auth + listing shops. La réception automatique des
-                        exports arrivera à l'étape 2 (après achat du domaine technique).
+                        Import hebdomadaire des exports comptables Dishop, avec mapping des shops par marque.
                       </p>
                     )}
                     {isActive ? (
