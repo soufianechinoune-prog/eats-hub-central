@@ -265,6 +265,62 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    if (body.mode === "diag_accounting") {
+      const companyId = body.company_id_override || creds.company_id || "";
+      // Try several casing variants & both weekly/monthly to nail down the issue
+      const variants = [
+        companyId,
+        companyId.toLowerCase(),
+        companyId.toUpperCase(),
+      ].filter((v, i, a) => v && a.indexOf(v) === i);
+
+      const permissions = await getPermissions(tokenRes.access_token).catch(
+        (e) => ({ error: (e as Error).message }),
+      );
+
+      const probes: Array<Record<string, unknown>> = [];
+      for (const cid of variants) {
+        const c = encodeURIComponent(cid);
+        const paths = [
+          `/v1/api/${c}/export-weekly-data/accounting-report`,
+          `/v1/api/${c}/export-monthly-data/accounting-report`,
+        ];
+        for (const p of paths) {
+          const url = `${DISHOP_BASE}${p}`;
+          console.log("[dishop-diag] GET", url);
+          const res = await fetch(url, {
+            headers: {
+              Authorization: `Bearer ${tokenRes.access_token}`,
+              Accept: "application/json",
+            },
+          });
+          const text = await res.text();
+          console.log(
+            "[dishop-diag] →",
+            res.status,
+            text.slice(0, 300).replace(/\n/g, " "),
+          );
+          probes.push({
+            company_id_tried: cid,
+            url,
+            status: res.status,
+            body_preview: text.slice(0, 500),
+          });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          stored_company_id: creds.company_id,
+          token_preview: tokenRes.access_token.slice(0, 24) + "…",
+          permissions,
+          probes,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
 
     return new Response(JSON.stringify({ error: `Mode inconnu: ${body.mode}` }), {
       status: 400,
