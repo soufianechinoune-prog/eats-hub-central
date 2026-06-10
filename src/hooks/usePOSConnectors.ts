@@ -293,3 +293,27 @@ export function useDishopListShops() {
     },
   });
 }
+
+export function useDishopDiagAccounting() {
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { data, error } = await supabase.functions.invoke("dishop-api", {
+        body: { mode: "diag_accounting", chain_connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as {
+        ok: boolean;
+        stored_company_id: string;
+        token_preview: string;
+        permissions: any;
+        probes: Array<{
+          company_id_tried: string;
+          url: string;
+          status: number;
+          body_preview: string;
+        }>;
+      };
+    },
+  });
+}

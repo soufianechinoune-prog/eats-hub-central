@@ -11,6 +11,7 @@ import {
   useBackfillPOS,
   useDishopTestAuth,
   useDishopListShops,
+  useDishopDiagAccounting,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 
@@ -57,6 +58,7 @@ export default function Integrations() {
   const backfill = useBackfillPOS();
   const dishopTest = useDishopTestAuth();
   const dishopShops = useDishopListShops();
+  const dishopDiag = useDishopDiagAccounting();
   const { data: isSuperAdmin } = useIsSuperAdmin();
 
   const [openConnector, setOpenConnector] = useState<POSConnector | null>(null);
@@ -187,6 +189,35 @@ export default function Integrations() {
       toast({
         title: "Impossible de lister les shops",
         description: e?.message || "Vérifie le company_id ou contacte Dishop.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDishopDiag = async (conn: { id: string } | undefined) => {
+    if (!conn) return;
+    try {
+      const r = await dishopDiag.mutateAsync(conn.id);
+      console.log("[Dishop diag accounting]", r);
+      const summary = r.probes
+        .map((p) => `[${p.status}] ${p.url}\n${p.body_preview}`)
+        .join("\n\n");
+      // Surface in console + clipboard for easy paste to Dishop
+      try {
+        await navigator.clipboard.writeText(
+          `Stored company_id: ${r.stored_company_id}\nToken: ${r.token_preview}\nPermissions: ${JSON.stringify(r.permissions)}\n\n${summary}`,
+        );
+      } catch {
+        // ignore clipboard errors
+      }
+      toast({
+        title: "Diagnostic Dishop terminé",
+        description: `${r.probes.length} requêtes envoyées. Détails copiés dans le presse-papiers + console (F12).`,
+      });
+    } catch (e: any) {
+      toast({
+        title: "Diagnostic Dishop échoué",
+        description: e?.message || "Voir la console",
         variant: "destructive",
       });
     }
@@ -437,6 +468,21 @@ export default function Integrations() {
                                 <ExternalLink className="h-4 w-4" />
                               )}
                               Voir les shops
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="gap-2"
+                              onClick={() => handleDishopDiag(conn)}
+                              disabled={dishopDiag.isPending}
+                              title="Test l'endpoint export-weekly-data/accounting-report avec plusieurs variantes de company_id"
+                            >
+                              {dishopDiag.isPending ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-4 w-4" />
+                              )}
+                              Diag accounting
                             </Button>
                           </>
                         ) : (
