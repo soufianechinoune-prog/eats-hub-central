@@ -11,6 +11,7 @@ import {
   useBackfillPOS,
   useDishopTestAuth,
   useDishopListShops,
+  useDishopDiagAccounting,
   type POSConnector,
 } from "@/hooks/usePOSConnectors";
 
