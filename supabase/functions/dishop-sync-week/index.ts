@@ -395,12 +395,13 @@ Deno.serve(async (req) => {
 
     // 12) Finish run
     const finished = new Date();
+    const startedMs = new Date(run.started_at ?? finished).getTime();
     await admin
       .from("dishop_sync_runs")
       .update({
         status: "success",
         finished_at: finished.toISOString(),
-        duration_ms: finished.getTime() - new Date(run.id ? Date.now() : Date.now()).getTime(),
+        duration_ms: finished.getTime() - startedMs,
         files_meta: filesMeta,
         rows_inserted: {
           customers: customersInserted,
