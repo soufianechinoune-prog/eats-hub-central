@@ -1,47 +1,58 @@
+## Contexte
 
-## Plan : Import test + sondage backfill Dishop
+- ✅ Import W23 réussi (1 845 commandes, 84 shops, 39 311 € TTC, ~9s)
+- ✅ Croisement Dishop vs Uber W23 cohérent (caisse = 7-25% du CA mappé)
+- ❌ Sondage historique : **aucune URL ne marche** — l'API Dishop ne sert que la semaine en cours
+- ⚠️ 7 shops Dishop encore non mappés (64 commandes orphelines)
 
-### Étape 1 — Import test de la semaine en cours
-- Déclencher manuellement l'edge function `dishop-sync-week` (bouton "Synchroniser la semaine" sur la carte Dishop).
-- La fonction :
-  1. Télécharge le ZIP `/export-weekly-data/accounting-report` de Dishop (auth déjà OK, companyId en lowercase).
-  2. Parse les CSV `orders.csv`, `order_items.csv`, `customers.csv`.
-  3. Insère dans `dishop_orders`, `dishop_order_items`, `dishop_customers` (dédup via `dishop_order_id`).
-  4. Rattache chaque ligne au `restaurant_id` via `dishop_shop_mapping` (les shops non mappés restent en attente, rattachables plus tard sans réimport).
-  5. Loggue le résultat dans `dishop_sync_runs` (nb orders, items, customers, mappés vs non mappés, erreurs).
+## Plan en 3 lots
 
-### Étape 2 — Vérification des données importées
-- Lire `dishop_sync_runs` pour voir le résumé de la run.
-- Compter `dishop_orders` par shop pour la semaine.
-- Comparer le CA Dishop d'un restaurant déjà mappé vs son CA Uber/Deliveroo sur la même période (sanity check).
-- Afficher le résumé dans la carte Dishop : dernière sync, nb orders importés, nb shops non mappés.
+### Lot 1 — Sécuriser le flux hebdo (priorité haute)
 
-### Étape 3 — Sondage de l'API pour le backfill historique
-Créer une nouvelle edge function `dishop-probe-history` qui teste en parallèle plusieurs formats d'URL sur l'endpoint `accounting-report` :
-- `?week=2026-W22`
-- `?week=22&year=2026`
-- `?date=2026-05-25` (lundi d'une semaine passée)
-- `?from=2026-05-25&to=2026-05-31`
-- `/weeks/22`
-- `/2026/22`
+**Objectif :** ne plus jamais rater une semaine.
 
-Pour chaque variante : status HTTP, taille du payload, présence de données. Stocker le résultat dans une nouvelle table légère `dishop_probe_results` (ou simplement renvoyer le rapport au front).
+- Activer un **cron pg_cron** qui appelle `dishop-sync-week` chaque **lundi 06:00 Europe/Paris** pour toutes les `chain_pos_connections` Dishop actives.
+- Logguer chaque run dans `dishop_sync_runs` (déjà en place).
+- Ajouter sur la carte Dishop un **bandeau "Dernière synchro : lundi X à 06:00 — N commandes"** + bouton "Relancer maintenant" (déjà présent, à renommer "Synchroniser semaine courante").
+- Ajouter un **toast d'alerte** si le dernier run a échoué ou date de + de 8 jours.
 
-### Étape 4 — UI de pilotage sur la carte Dishop
-Ajouter 2 boutons sur `DishopIntegrationCard` :
-- **"Synchroniser la semaine"** → invoke `dishop-sync-week`, toast avec résultat.
-- **"Sonder l'historique"** → invoke `dishop-probe-history`, affiche un tableau des formats qui marchent.
+### Lot 2 — Upload ZIP manuel pour le backfill historique
 
-Selon les résultats du sondage, on décidera ensuite (autre tour) :
-- Si un format fonctionne → ajouter un bouton "Backfiller N semaines" (déjà supporté côté `backfill_jobs` / `backfill_runs`).
-- Sinon → demander à Dishop un endpoint historique dédié.
+**Objectif :** ingérer les semaines passées si Dishop nous envoie les ZIP par email.
+
+- Bouton **"Importer un ZIP Dishop"** sur la carte Dishop → file picker (`.zip` uniquement, multi-files).
+- Edge function `dishop-import-zip` qui :
+  - reçoit le ZIP en multipart,
+  - réutilise **exactement** le parser existant de `dishop-sync-week` (3 CSV : orders, items, customers),
+  - détecte automatiquement la semaine via le `order_date` min/max,
+  - insère avec dédup `(dishop_order_id, dishop_shop_id)`,
+  - logge dans `dishop_sync_runs` avec `source = 'manual_upload'`.
+- Affichage du résultat dans le même "Historique des imports".
+
+### Lot 3 — Intégrer Dishop dans l'Overview comme 3ᵉ canal
+
+**Objectif :** rendre la donnée caisse **visible** à côté d'Uber et Deliveroo.
+
+- **Overview / KPIs réseau** : ajouter une carte **"Caisse / Sur place"** (icône 🏪) à côté d'Uber et Deliveroo, avec CA TTC, nb commandes, panier moyen.
+- **Overview / Mix canal** : ajouter une 3ᵉ part au donut "Répartition CA par canal" (Uber / Deliveroo / Caisse).
+- **Comparatif restaurants** : ajouter colonne "Dishop" dans le tableau, expandable comme Uber/Deliveroo.
+- **Reste hors scope ce lot** : Finances détaillées (commissions Dishop par type de paiement CB/espèces/tickets) → lot 4 séparé.
 
 ### Détails techniques
-- `dishop-sync-week` existe déjà — vérifier qu'il loggue bien les shops non mappés sans crasher.
-- `dishop-probe-history` : nouvelle fonction, lecture seule (aucune écriture dans `dishop_orders`).
-- Pas de migration nécessaire pour l'étape 1-2. Étape 3 : pas de migration non plus si on renvoie juste le rapport au front.
-- Côté front : `useDishopSyncWeek` (mutation `supabase.functions.invoke('dishop-sync-week')`) + `useDishopProbeHistory`.
+
+- RPC à créer : `get_network_dishop_summary(restaurant_ids uuid[], start_date date, end_date date)` retournant `{ revenue_ttc, orders_count, avg_basket, by_restaurant }`. SECURITY DEFINER, filtre `chain_id` via `has_chain_access`.
+- Hook React : `useNetworkDishop(period)` aligné sur `useNetworkStats`.
+- Composant : `<DishopChannelCard />` dans `src/components/overview/`.
+- Cron SQL via `supabase--insert` (jamais en migration — contient URL + anon key).
+- Upload ZIP : limite 50 Mo par fichier, parsing côté edge function (déjà ~9s pour 84 shops → OK).
 
 ### Hors scope
-- Le backfill effectif (étape 5 future, dépend des résultats du sondage).
-- La complétion des shops non mappés (tu finis quand tu veux, non bloquant).
+
+- Récupération automatique de l'historique via API Dishop (impossible — confirmé par sondage)
+- Finalisation des 7 mappings manquants (l'user le fait à la main, non bloquant)
+- Page Finances dédiée Dishop (commissions, types de paiement) — lot 4 si jugé utile
+
+---
+
+**Démarrage proposé : Lot 1 (cron + bandeau) puis Lot 3 (Overview) en parallèle, Lot 2 ensuite.**
+Tu valides ?
