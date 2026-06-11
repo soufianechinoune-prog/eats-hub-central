@@ -105,22 +105,29 @@ Deno.serve(async (req) => {
   const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
   const authHeader = req.headers.get("Authorization") || "";
+  const bearer = authHeader.replace(/^Bearer\s+/i, "");
 
-  // Auth: vérifie l'utilisateur
-  const userClient = createClient(supabaseUrl, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await userClient.auth.getUser();
-  if (userErr || !userData?.user) {
-    return new Response(JSON.stringify({ error: "Non authentifié" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  const userId = userData.user.id;
+  // Cron / service-role bypass: when the call carries the service-role JWT
+  // (used by dishop-cron-weekly), we skip the per-user auth + chain-access checks.
+  const isServiceCall = bearer && bearer === serviceKey;
 
-  // Service client pour bypass RLS sur les inserts massifs
+  // Service client for bulk inserts (always)
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+
+  let userId: string | null = null;
+  if (!isServiceCall) {
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Non authentifié" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    userId = userData.user.id;
+  }
 
   let runId: string | null = null;
   try {
@@ -136,23 +143,26 @@ Deno.serve(async (req) => {
     if (connErr || !conn) throw new Error(`Connexion introuvable: ${connErr?.message ?? "absente"}`);
     if (conn.connector_id !== "dishop") throw new Error("Connexion non-Dishop");
 
-    // Vérifie accès marque : super_admin global OU user_chain_access pour cette marque
-    const { data: accessRows } = await admin
-      .from("user_chain_access")
-      .select("chain_id, role")
-      .eq("user_id", userId);
-    const isSuperAdmin = (accessRows ?? []).some(
-      (r: any) => r.chain_id === null && r.role === "super_admin",
-    );
-    const hasChainAccess = (accessRows ?? []).some(
-      (r: any) => r.chain_id === conn.chain_id,
-    );
-    if (!isSuperAdmin && !hasChainAccess) {
-      return new Response(
-        JSON.stringify({ error: "Accès refusé à cette marque" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    // Vérifie accès marque (sauf appel cron / service-role)
+    if (!isServiceCall && userId) {
+      const { data: accessRows } = await admin
+        .from("user_chain_access")
+        .select("chain_id, role")
+        .eq("user_id", userId);
+      const isSuperAdmin = (accessRows ?? []).some(
+        (r: any) => r.chain_id === null && r.role === "super_admin",
       );
+      const hasChainAccess = (accessRows ?? []).some(
+        (r: any) => r.chain_id === conn.chain_id,
+      );
+      if (!isSuperAdmin && !hasChainAccess) {
+        return new Response(
+          JSON.stringify({ error: "Accès refusé à cette marque" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
+
 
     const creds = (conn.credentials || {}) as any;
     const companyId = (body.company_id_override || creds.company_id || "").toLowerCase();
