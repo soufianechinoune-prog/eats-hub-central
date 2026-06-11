@@ -181,6 +181,49 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
         </AlertDescription>
       </Alert>
 
+      {/* Dernière synchro */}
+      {(() => {
+        const lastSuccess = runs.find((r: any) => r.status === "success");
+        if (!lastSuccess) {
+          return (
+            <Alert className="border-blue-500/40 bg-blue-50/40 dark:bg-blue-950/20">
+              <RefreshCw className="h-4 w-4 text-blue-600" />
+              <AlertTitle className="text-blue-900 dark:text-blue-200">Synchro hebdomadaire activée</AlertTitle>
+              <AlertDescription className="text-xs text-blue-800/80 dark:text-blue-200/80">
+                Chaque <strong>lundi vers 06h</strong>, la plateforme importe automatiquement la semaine écoulée.
+                Aucun import réussi pour l'instant — clique sur "Importer la semaine courante" pour démarrer.
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        const finished = new Date(lastSuccess.finished_at ?? lastSuccess.started_at);
+        const ageMs = Date.now() - finished.getTime();
+        const ageDays = ageMs / (1000 * 60 * 60 * 24);
+        const stale = ageDays > 8;
+        const rows = (lastSuccess.rows_inserted ?? {}) as Record<string, number>;
+        const ordersN = rows.orders ?? rows.dishop_orders ?? 0;
+        return (
+          <Alert
+            className={
+              stale
+                ? "border-red-500/40 bg-red-50/40 dark:bg-red-950/20"
+                : "border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-950/20"
+            }
+          >
+            <RefreshCw className={`h-4 w-4 ${stale ? "text-red-600" : "text-emerald-600"}`} />
+            <AlertTitle className={stale ? "text-red-900 dark:text-red-200" : "text-emerald-900 dark:text-emerald-200"}>
+              {stale ? "⚠️ Synchro Dishop en retard" : "Synchro Dishop à jour"}
+            </AlertTitle>
+            <AlertDescription className={`text-xs ${stale ? "text-red-800/80 dark:text-red-200/80" : "text-emerald-800/80 dark:text-emerald-200/80"}`}>
+              Dernier import réussi <strong>{formatDistanceToNow(finished, { locale: fr, addSuffix: true })}</strong>
+              {ordersN > 0 && <> — {ordersN.toLocaleString("fr-FR")} commandes</>}.
+              Prochain run automatique : <strong>lundi vers 06h</strong>.
+              {stale && <> Le dernier import date de plus de 8 jours — clique sur "Importer la semaine courante" pour rattraper.</>}
+            </AlertDescription>
+          </Alert>
+        );
+      })()}
+
       {/* Actions principales */}
       <div className="flex flex-wrap gap-2">
         <Button
@@ -189,13 +232,14 @@ export function DishopIntegrationCard({ chainConnectionId }: Props) {
           className="gap-2"
         >
           {sync.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Importer la semaine courante
+          Synchroniser la semaine en cours
         </Button>
         <Button variant="outline" onClick={handleProbe} disabled={probe.isPending} className="gap-2">
           {probe.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           Sonder l'historique
         </Button>
       </div>
+
 
       {/* Mapping shops */}
       <Card>
