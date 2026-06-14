@@ -69,6 +69,10 @@ export default {
           DEFAULT: "hsl(var(--cash))",
           light: "hsl(var(--cash-light))",
         },
+        dishop: {
+          DEFAULT: "hsl(var(--dishop))",
+          light: "hsl(var(--dishop-light))",
+        },
         whatsapp: {
           DEFAULT: "hsl(var(--whatsapp))",
           light: "hsl(var(--whatsapp-light))",
