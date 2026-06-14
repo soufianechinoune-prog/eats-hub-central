@@ -4857,6 +4857,24 @@ export type Database = {
           total_revenue: number
         }[]
       }
+      get_network_dishop_summary: {
+        Args: {
+          p_chain_id: string
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_basket: number
+          by_restaurant: Json
+          days_with_data: number
+          prev_days_with_data: number
+          prev_total_orders: number
+          prev_total_revenue: number
+          total_orders: number
+          total_revenue: number
+        }[]
+      }
       get_network_orders_summary: {
         Args: {
           p_end_date: string
