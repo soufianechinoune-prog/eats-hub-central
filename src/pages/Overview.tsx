@@ -24,6 +24,7 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useNetworkDishop } from "@/hooks/useNetworkDishop";
 import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection, useActiveChainPOSConnections } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
@@ -422,6 +423,17 @@ const Overview = () => {
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
   const cashConnected = (!!cashPosConnection && cashPosConnection.is_active) || hasSplashData;
 
+  // Dishop (click & collect / sur place)
+  const { data: dishopData, isLoading: dishopLoading } = useNetworkDishop({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
+  });
+  const dishopPosConnection = allPosConnections?.find((c) => c.connector_id === "dishop");
+  const hasDishopData = (dishopData?.daysWithData ?? 0) > 0 || (dishopData?.totalRevenue ?? 0) > 0;
+  const dishopConnected = (!!dishopPosConnection && dishopPosConnection.is_active) || hasDishopData;
+
   const adsRatio = useAdsRevenueRatio({
     restaurantIds: activeIds,
     startDate,
@@ -539,7 +551,7 @@ const Overview = () => {
       <OverviewChannelSidebar
         active={activeChannel}
         onChange={setActiveChannel}
-        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: dishopConnected }}
       />
       <div className="flex-1 min-w-0 p-8 space-y-8">
       {/* Header with glassmorphism */}
