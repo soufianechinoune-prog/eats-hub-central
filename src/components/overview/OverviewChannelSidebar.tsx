@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
-export type OverviewChannel = "global" | "uber" | "deliveroo" | "cash";
+export type OverviewChannel = "global" | "uber" | "deliveroo" | "cash" | "dishop";
 
 interface OverviewChannelSidebarProps {
   active: OverviewChannel;
@@ -29,6 +29,7 @@ interface OverviewChannelSidebarProps {
     uber: boolean;
     deliveroo: boolean;
     cash: boolean;
+    dishop?: boolean;
   };
 }
 
@@ -91,6 +92,9 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
   }
   if (available.cash) {
     channelItems.push({ id: "cash", label: "Caisse", icon: Store, dotClass: "bg-cash" });
+  }
+  if (available.dishop) {
+    channelItems.push({ id: "dishop", label: "Dishop", sublabel: "Click & collect / sur place", icon: Store, dotClass: "bg-dishop" });
   }
 
   const handleChannelClick = (item: NavItem) => {
