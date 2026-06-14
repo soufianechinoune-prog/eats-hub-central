@@ -29,14 +29,16 @@
   - logge dans `dishop_sync_runs` avec `source = 'manual_upload'`.
 - Affichage du résultat dans le même "Historique des imports".
 
-### Lot 3 — Intégrer Dishop dans l'Overview comme 3ᵉ canal
+### Lot 3 — Intégrer Dishop dans l'Overview comme 3ᵉ canal ✅
 
-**Objectif :** rendre la donnée caisse **visible** à côté d'Uber et Deliveroo.
-
-- **Overview / KPIs réseau** : ajouter une carte **"Caisse / Sur place"** (icône 🏪) à côté d'Uber et Deliveroo, avec CA TTC, nb commandes, panier moyen.
-- **Overview / Mix canal** : ajouter une 3ᵉ part au donut "Répartition CA par canal" (Uber / Deliveroo / Caisse).
-- **Comparatif restaurants** : ajouter colonne "Dishop" dans le tableau, expandable comme Uber/Deliveroo.
-- **Reste hors scope ce lot** : Finances détaillées (commissions Dishop par type de paiement CB/espèces/tickets) → lot 4 séparé.
+**Réalisé :**
+- RPC `get_network_dishop_summary` (SECURITY DEFINER, AT TIME ZONE Europe/Paris, scopée via `user_has_chain_access`) → totaux + N-1 + breakdown par restaurant.
+- Hook `useNetworkDishop` aligné sur `useNetworkCashRevenue`.
+- Onglet **Dishop** ajouté à `OverviewChannelSidebar` (visible dès qu'une connexion Dishop est active ou qu'il y a des données).
+- Carte **KPI Dishop** sur Overview (CA TTC, variation vs N-1, nb commandes, panier moyen, jours de données) + bouton "Connecter" si pas branché.
+- 4ᵉ segment **Dishop** (orange) dans `PlatformRevenueSplit` (donut + légende).
+- Token couleur `--dishop` ajouté dans `index.css` + `tailwind.config.ts`.
+- **Hors scope ce lot (reporté) :** colonne Dishop dans `RestaurantComparisonTable` (refactor lourd du `forcedChannel`/`cashByRestaurant`). À traiter dans un mini-lot 3b avec `useRestaurantDishopRevenue` (les données par restaurant sont déjà dans la RPC).
 
 ### Détails techniques
 
