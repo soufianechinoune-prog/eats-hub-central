@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Store, Info, TrendingUp, TrendingDown } from "lucide-react";
+import { Store, Info, TrendingUp, TrendingDown, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -16,6 +16,10 @@ interface Props {
   cashVariation?: number | null;
   /** True si une caisse est connectée pour la marque active (même si 0 donnée sur la période). */
   cashConnected?: boolean;
+  /** CA Dishop (click & collect / sur place) sur la période. */
+  dishopTotal?: number;
+  dishopDaysWithData?: number;
+  dishopVariation?: number | null;
 }
 
 export function PlatformRevenueSplit({
@@ -25,8 +29,11 @@ export function PlatformRevenueSplit({
   cashDaysWithData,
   cashVariation = null,
   cashConnected = false,
+  dishopTotal = 0,
+  dishopDaysWithData,
+  dishopVariation = null,
 }: Props) {
-  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
+  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct, dishopPct } = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
     for (const s of stats) {
@@ -34,7 +41,8 @@ export function PlatformRevenueSplit({
       deliveroo += s.platformBreakdown.deliveroo.revenue;
     }
     const cash = Math.max(0, cashTotal);
-    const t = uber + deliveroo + cash;
+    const dishop = Math.max(0, dishopTotal);
+    const t = uber + deliveroo + cash + dishop;
     return {
       uberTotal: uber,
       deliverooTotal: deliveroo,
@@ -42,8 +50,10 @@ export function PlatformRevenueSplit({
       uberPct: t > 0 ? (uber / t) * 100 : 0,
       deliverooPct: t > 0 ? (deliveroo / t) * 100 : 0,
       cashPct: t > 0 ? (cash / t) * 100 : 0,
+      dishopPct: t > 0 ? (dishop / t) * 100 : 0,
     };
-  }, [stats, cashTotal]);
+  }, [stats, cashTotal, dishopTotal]);
+
 
   if (isLoading) {
     return (
