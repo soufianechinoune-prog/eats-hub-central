@@ -24,6 +24,7 @@ import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
 import { PlatformRevenueSplit } from "@/components/overview/PlatformRevenueSplit";
 import { useNetworkCashRevenue } from "@/hooks/useNetworkCashRevenue";
+import { useNetworkDishop } from "@/hooks/useNetworkDishop";
 import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection, useActiveChainPOSConnections } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
@@ -422,6 +423,17 @@ const Overview = () => {
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
   const cashConnected = (!!cashPosConnection && cashPosConnection.is_active) || hasSplashData;
 
+  // Dishop (click & collect / sur place)
+  const { data: dishopData, isLoading: dishopLoading } = useNetworkDishop({
+    startDate,
+    endDate,
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
+  });
+  const dishopPosConnection = allPosConnections?.find((c) => c.connector_id === "dishop");
+  const hasDishopData = (dishopData?.daysWithData ?? 0) > 0 || (dishopData?.totalRevenue ?? 0) > 0;
+  const dishopConnected = (!!dishopPosConnection && dishopPosConnection.is_active) || hasDishopData;
+
   const adsRatio = useAdsRevenueRatio({
     restaurantIds: activeIds,
     startDate,
@@ -539,7 +551,7 @@ const Overview = () => {
       <OverviewChannelSidebar
         active={activeChannel}
         onChange={setActiveChannel}
-        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: dishopConnected }}
       />
       <div className="flex-1 min-w-0 p-8 space-y-8">
       {/* Header with glassmorphism */}
@@ -867,6 +879,111 @@ const Overview = () => {
             </Card>
             )}
 
+            {/* Dishop Card */}
+            {activeChannel === "dishop" && (
+            <Card className="border-2 border-dishop/30 shadow-2xl bg-gradient-to-br from-card via-card to-dishop/5 backdrop-blur-xl hover:shadow-dishop/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
+              <CardHeader className="pb-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-12 w-12 rounded-xl bg-dishop/10 flex items-center justify-center">
+                      <Store className="h-6 w-6 text-dishop" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl">Dishop</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Click & collect / sur place · {getPeriodLabel()}
+                      </p>
+                    </div>
+                  </div>
+                  {!dishopConnected && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => navigate("/settings/integrations")}
+                      className="gap-1.5"
+                    >
+                      <Plug className="h-3.5 w-3.5" />
+                      Connecter
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {!dishopConnected && (dishopData?.totalRevenue ?? 0) === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune intégration Dishop active pour cette marque.<br />
+                    Connectez Dishop depuis la page Intégrations pour suivre le click & collect.
+                  </div>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={Euro}
+                      label="CA Dishop (TTC)"
+                      value={dishopData?.totalRevenue != null
+                        ? Math.round(dishopData.totalRevenue).toLocaleString("fr-FR")
+                        : null}
+                      unit="€"
+                      color="text-dishop"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Variation vs N-1"
+                      value={dishopData?.revenueVariation != null
+                        ? `${dishopData.revenueVariation > 0 ? "+" : ""}${dishopData.revenueVariation.toFixed(1)}`
+                        : null}
+                      unit="%"
+                      color={
+                        dishopData?.revenueVariation == null
+                          ? "text-muted-foreground"
+                          : dishopData.revenueVariation >= 0
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                      }
+                    />
+                    <MetricRow
+                      icon={Truck}
+                      label="Nb commandes Dishop"
+                      value={dishopData?.totalOrders != null
+                        ? dishopData.totalOrders.toLocaleString("fr-FR")
+                        : null}
+                      color="text-cyan-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Variation cmds vs N-1"
+                      value={dishopData?.ordersVariation != null
+                        ? `${dishopData.ordersVariation > 0 ? "+" : ""}${dishopData.ordersVariation.toFixed(1)}`
+                        : null}
+                      unit="%"
+                      color={
+                        dishopData?.ordersVariation == null
+                          ? "text-muted-foreground"
+                          : dishopData.ordersVariation >= 0
+                            ? "text-emerald-500"
+                            : "text-red-500"
+                      }
+                    />
+                    <MetricRow
+                      icon={Euro}
+                      label="Panier moyen Dishop"
+                      value={dishopData?.avgBasket != null && dishopData.avgBasket > 0
+                        ? dishopData.avgBasket.toFixed(2)
+                        : null}
+                      unit="€"
+                      color="text-amber-500"
+                    />
+                    <MetricRow
+                      icon={Clock}
+                      label="Jours avec données"
+                      value={dishopData?.daysWithData ?? null}
+                      color="text-indigo-500"
+                    />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
           </div>
 
           {/* Platform Revenue Split */}
@@ -874,11 +991,14 @@ const Overview = () => {
           <div className="mt-10">
             <PlatformRevenueSplit
               stats={comparisonStats}
-              isLoading={statsLoading || cashLoading}
+              isLoading={statsLoading || cashLoading || dishopLoading}
               cashTotal={cashRevenueData?.totalCash ?? 0}
               cashDaysWithData={cashRevenueData?.daysWithData}
               cashVariation={cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
+              dishopTotal={dishopData?.totalRevenue ?? 0}
+              dishopDaysWithData={dishopData?.daysWithData}
+              dishopVariation={dishopData?.revenueVariation ?? null}
             />
           </div>
           )}
@@ -914,7 +1034,7 @@ const Overview = () => {
               networkAdsPct={adsRatio.networkPct}
               networkCashTotal={cashRevenueData?.totalCash ?? 0}
               cashByRestaurant={cashByRestaurant}
-              forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+              forcedChannel={activeChannel === "uber" || activeChannel === "deliveroo" || activeChannel === "cash" ? activeChannel : "all"}
             />
           </div>
 

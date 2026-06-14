@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Store, Info, TrendingUp, TrendingDown } from "lucide-react";
+import { Store, Info, TrendingUp, TrendingDown, ShoppingBag } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -16,6 +16,10 @@ interface Props {
   cashVariation?: number | null;
   /** True si une caisse est connectée pour la marque active (même si 0 donnée sur la période). */
   cashConnected?: boolean;
+  /** CA Dishop (click & collect / sur place) sur la période. */
+  dishopTotal?: number;
+  dishopDaysWithData?: number;
+  dishopVariation?: number | null;
 }
 
 export function PlatformRevenueSplit({
@@ -25,8 +29,11 @@ export function PlatformRevenueSplit({
   cashDaysWithData,
   cashVariation = null,
   cashConnected = false,
+  dishopTotal = 0,
+  dishopDaysWithData,
+  dishopVariation = null,
 }: Props) {
-  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
+  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct, dishopPct } = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
     for (const s of stats) {
@@ -34,7 +41,8 @@ export function PlatformRevenueSplit({
       deliveroo += s.platformBreakdown.deliveroo.revenue;
     }
     const cash = Math.max(0, cashTotal);
-    const t = uber + deliveroo + cash;
+    const dishop = Math.max(0, dishopTotal);
+    const t = uber + deliveroo + cash + dishop;
     return {
       uberTotal: uber,
       deliverooTotal: deliveroo,
@@ -42,8 +50,10 @@ export function PlatformRevenueSplit({
       uberPct: t > 0 ? (uber / t) * 100 : 0,
       deliverooPct: t > 0 ? (deliveroo / t) * 100 : 0,
       cashPct: t > 0 ? (cash / t) * 100 : 0,
+      dishopPct: t > 0 ? (dishop / t) * 100 : 0,
     };
-  }, [stats, cashTotal]);
+  }, [stats, cashTotal, dishopTotal]);
+
 
   if (isLoading) {
     return (
@@ -65,6 +75,7 @@ export function PlatformRevenueSplit({
   if (total === 0) return null;
 
   const hasCash = cashTotal > 0;
+  const hasDishop = dishopTotal > 0;
 
   return (
     <Card className="border-border/50 backdrop-blur">
@@ -105,7 +116,7 @@ export function PlatformRevenueSplit({
 
           {/* Deliveroo segment */}
           <motion.div
-            className={`h-full bg-deliveroo flex items-center justify-center ${hasCash ? "" : "rounded-r-full"}`}
+            className={`h-full bg-deliveroo flex items-center justify-center ${hasCash || hasDishop ? "" : "rounded-r-full"}`}
             initial={{ width: 0 }}
             animate={{ width: `${deliverooPct}%` }}
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
@@ -125,7 +136,7 @@ export function PlatformRevenueSplit({
           {/* Cash segment */}
           {hasCash && (
             <motion.div
-              className="h-full bg-cash flex items-center justify-center rounded-r-full"
+              className={`h-full bg-cash flex items-center justify-center ${hasDishop ? "" : "rounded-r-full"}`}
               initial={{ width: 0 }}
               animate={{ width: `${cashPct}%` }}
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
@@ -142,7 +153,29 @@ export function PlatformRevenueSplit({
               )}
             </motion.div>
           )}
+
+          {/* Dishop segment */}
+          {hasDishop && (
+            <motion.div
+              className="h-full bg-dishop flex items-center justify-center rounded-r-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${dishopPct}%` }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.45 }}
+            >
+              {dishopPct > 12 && (
+                <motion.span
+                  className="text-xs font-semibold text-white drop-shadow-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.05 }}
+                >
+                  {dishopPct.toFixed(1)}%
+                </motion.span>
+              )}
+            </motion.div>
+          )}
         </div>
+
 
         {/* Legend */}
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -166,6 +199,15 @@ export function PlatformRevenueSplit({
               <span className="text-sm font-medium">Caisse</span>
               <span className="text-sm font-semibold text-cash">
                 <AnimatedNumber value={Math.round(cashTotal)} duration={800} /> €
+              </span>
+            </div>
+          )}
+          {hasDishop && (
+            <div className="flex items-center gap-2">
+              <ShoppingBag className="h-[18px] w-[18px] text-dishop" />
+              <span className="text-sm font-medium">Dishop</span>
+              <span className="text-sm font-semibold text-dishop">
+                <AnimatedNumber value={Math.round(dishopTotal)} duration={800} /> €
               </span>
             </div>
           )}
