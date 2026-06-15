@@ -173,6 +173,7 @@ serve(async (req) => {
       skip_network = false,
       chain_connection_id,
       sync_all_active = false,
+      day_filter,
     } = body;
 
     const supabaseAdmin = createClient(
@@ -218,36 +219,38 @@ serve(async (req) => {
             }
 
             if (scope === "today") {
+              // Le détail restaurant J/J-1 est trop lourd pour le cron parent.
+              // On dispatch une invocation enfant par jour pour garder la réponse HTTP rapide.
               try {
-                const token = await getAccessToken(creds.email, creds.password);
+                const childUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-splash360`;
                 const now = new Date();
                 const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
-                const buckets = new Map<string, number[]>();
-                for (const d of [yesterday, now]) {
-                  const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-                  if (!buckets.has(key)) buckets.set(key, []);
-                  buckets.get(key)!.push(d.getDate());
+                const days = [yesterday, now];
+                const dispatches = days.map((d) =>
+                  fetch(childUrl, {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+                      "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                    },
+                    body: JSON.stringify({
+                      mode: "sync",
+                      chain_connection_id: conn.id,
+                      granularity: "day",
+                      year: d.getFullYear(),
+                      month: d.getMonth() + 1,
+                      day_filter: [d.getDate()],
+                    }),
+                  }).catch(() => {})
+                );
+                const edgeRuntime = (globalThis as any).EdgeRuntime;
+                if (edgeRuntime?.waitUntil) {
+                  edgeRuntime.waitUntil(Promise.allSettled(dispatches));
+                } else {
+                  await Promise.allSettled(dispatches);
                 }
-                let insertedTotal = 0;
-                for (const [key, days] of buckets) {
-                  const [y, m] = key.split("-").map(Number);
-                  insertedTotal += await runSync({
-                    supabase: supabaseAdmin,
-                    token,
-                    year: y,
-                    month: m,
-                    granularity: "day",
-                    splashIds: [],
-                    networkOnly: true, // ← network aggregate uniquement
-                    chainId: conn.chain_id,
-                    dayFilter: days,
-                  });
-                }
-                await supabaseAdmin
-                  .from("chain_pos_connections")
-                  .update({ last_sync_at: new Date().toISOString() })
-                  .eq("id", conn.id);
-                results.push({ chain_id: conn.chain_id, inserted: insertedTotal });
+                results.push({ chain_id: conn.chain_id, dispatched_days: days.length });
               } catch (e: any) {
                 results.push({ chain_id: conn.chain_id, error: e.message });
               }
@@ -349,6 +352,52 @@ serve(async (req) => {
     const targetYear = year || new Date().getFullYear();
     const targetMonth = month || new Date().getMonth() + 1;
 
+    const requestedDays = Array.isArray(day_filter)
+      ? Array.from(new Set(
+          day_filter
+            .map(Number)
+            .filter((d) => Number.isInteger(d) && d >= 1 && d <= daysInMonth(targetYear, targetMonth))
+        )).sort((a, b) => a - b)
+      : [];
+
+    if (mode === "sync" && chain_connection_id && granularity === "day" && requestedDays.length > 1) {
+      const childUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-splash360`;
+      const dispatches = requestedDays.map((day) =>
+        fetch(childUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            mode: "sync",
+            chain_connection_id,
+            granularity: "day",
+            year: targetYear,
+            month: targetMonth,
+            day_filter: [day],
+            skip_network,
+          }),
+        }).catch(() => {})
+      );
+      const edgeRuntime = (globalThis as any).EdgeRuntime;
+      if (edgeRuntime?.waitUntil) {
+        edgeRuntime.waitUntil(Promise.allSettled(dispatches));
+      } else {
+        await Promise.allSettled(dispatches);
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: "sync_dispatch",
+          period: `${targetYear}-${String(targetMonth).padStart(2, "0")}`,
+          dispatched_days: requestedDays,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`[Splash360] Auth ${email}...`);
     const token = await getAccessToken(email, password);
     console.log(`[Splash360] Token OK ✅`);
@@ -444,9 +493,15 @@ serve(async (req) => {
       const CONCURRENCY = 5;
 
       // Pour granularity=day, on doit boucler sur chaque jour du mois (l'API renvoie 1 point par appel)
+      const normalizedDayFilter = Array.isArray(day_filter)
+        ? day_filter.map(Number).filter((d) => Number.isInteger(d) && d >= 1 && d <= daysInMonth(targetYear, targetMonth))
+        : [];
+
       const dayList: number[] =
         granularity === "day"
-          ? Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1)
+          ? (normalizedDayFilter.length > 0
+              ? Array.from(new Set(normalizedDayFilter)).sort((a, b) => a - b)
+              : Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1))
           : [1];
 
       for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
