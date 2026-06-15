@@ -1,53 +1,54 @@
-## Réponse courte
+## Objectif
 
-Pour Chicken Street au **12/06**, la data ne remonte pas parce que le sync Splash a bien créé les lignes en base, mais avec **0 € / 0 commande**. Ce ne sont pas des vraies ventes à zéro : ce sont des lignes fantômes créées pendant la panne du sync Splash entre le 7 et le 14 juin.
+Générer un ZIP contenant **1 CSV par table alimentée par l'API Uber Eats**, filtré sur :
+- Restaurant : **Chicken Street - Argenteuil** (`d69579a6-987a-4d42-9937-bcb6c8373155`)
+- Période : **1er → 31 mai 2026**
 
-Ce que j’ai vérifié :
+Livraison sous forme d'artefact `presentation-artifact` dans `/mnt/documents/`.
 
-- Chicken Street a des lignes Splash le **12/06** et le **13/06**.
-- Mais elles sont toutes à **0 €** et **0 commande**.
-- Leur dernière mise à jour date du **07/06**, donc elles n’ont pas été rafraîchies depuis la panne.
-- Depuis le correctif de ce matin, le live Splash fonctionne seulement sur **aujourd’hui + hier** en agrégat réseau, donc il a corrigé le **14/06** et le **15/06**, mais pas encore le **12/06**.
+## Rappel : ce que l'API Uber nous donne aujourd'hui
 
-## Pourquoi l’écran affiche 0
+L'API Uber Eats expose 8 types de rapports CSV (générés via `uber-create-report` puis ingérés via les fonctions `parse-*`). Voici la cartographie complète des tables alimentées :
 
-La vue “Caisse” filtre les lignes Splash utiles pour le comparatif restaurants. Comme le 12/06 contient uniquement des lignes à zéro, l’interface affiche :
+| # | Table | Source Uber | Granularité |
+|---|---|---|---|
+| 1 | `orders` (83 col.) | Payment Details Report | 1 ligne / commande |
+| 2 | `order_items` (41 col.) | Order History Report (items) | 1 ligne / item commandé |
+| 3 | `order_history` (31 col.) | Order History Report (header) | 1 ligne / commande |
+| 4 | `payouts` (56 col.) | Payment Details (paiements hebdo) | 1 ligne / payout |
+| 5 | `payout_adjustments` (11 col.) | Payment Details (ajustements) | 1 ligne / ajustement |
+| 6 | `daily_sales_uber` (10 col.) | Sales Over Time Report | 1 ligne / jour |
+| 7 | `daily_conversion` (15 col.) | Marketplace Funnel Report | 1 ligne / jour |
+| 8 | `monthly_conversion` (15 col.) | Marketplace Funnel (mensuel) | 1 ligne / mois |
+| 9 | `daily_order_accuracy` (16 col.) | Order Errors Report (agrégé) | 1 ligne / jour |
+| 10 | `monthly_order_accuracy` (17 col.) | Order Errors (mensuel) | 1 ligne / mois |
+| 11 | `order_errors` (17 col.) | Order Errors (détail) | 1 ligne / erreur |
+| 12 | `downtime_logs` (8 col.) | Downtime Report | 1 ligne / coupure |
+| 13 | `hourly_availability` (8 col.) | Downtime (dispo horaire) | 1 ligne / heure |
+| 14 | `delivery_stats` (14 col.) | Delivery Performance Report | 1 ligne / jour |
+| 15 | `customer_reviews` (18 col.) | Customer Reviews Report | 1 ligne / avis |
+| 16 | `menu_item_reviews` (15 col.) | Menu Item Reviews (thumbs) | 1 ligne / item-avis |
+| 17 | `product_issues_ranking` (12 col.) | Product Issues Report | 1 ligne / item |
+| 18 | `monthly_fees` (17 col.) | Payment Details (frais mensuels) | 1 ligne / mois |
+| 19 | `eco_line_snapshots` (6 col.) | Payment Details (éco-contrib.) | 1 ligne / ligne éco |
 
-- CA Caisse : vide / `--`
-- Comparatif restaurants : `0 restos`
-- Variation N-1 : `-100 %`
+## Étapes d'exécution (mode build)
 
-Ce n’est donc pas un problème de date picker ou d’affichage : c’est bien la donnée Splash du 12/06 qui n’a pas été rechargée correctement.
+1. **Script Python** (`/tmp/export_uber_argenteuil.py`) qui :
+   - Se connecte via `psql` (env `PG*` déjà set)
+   - Pour chaque table ci-dessus, `COPY (SELECT * FROM <table> WHERE restaurant_id = '<uuid>' AND <date_col> BETWEEN '2026-05-01' AND '2026-05-31') TO STDOUT WITH CSV HEADER`
+   - Adapte la colonne de date par table (`order_time` pour `orders`, `business_date` pour `daily_*`, `payout_date` pour `payouts`, etc.)
+   - Pour `order_items` : join via `orders.id` puisque pas de date directe
+   - Écrit chaque CSV dans `/tmp/uber_argenteuil_mai2026/`
 
-## Plan d’action
+2. **Compression** : `zip -r /mnt/documents/uber_argenteuil_mai2026.zip` du dossier + un fichier `README.txt` listant les 19 tables, leur source Uber et le nombre de lignes exportées.
 
-### 1. Ajouter un backfill ciblé par jours
-Modifier `sync-splash360` pour accepter une liste de jours précis, par exemple `12` et `13`, au lieu de relancer tout le mois complet.
+3. **Restitution** :
+   - Affichage d'un récap chiffré (lignes par table)
+   - Balise `<presentation-artifact path="uber_argenteuil_mai2026.zip" mime_type="application/zip">` pour téléchargement
 
-### 2. Relancer Chicken Street sur le trou de données
-Déclencher le backfill Splash Chicken Street sur :
+## Note technique
 
-- 08/06
-- 09/06
-- 10/06
-- 11/06
-- 12/06
-- 13/06
+Si une table est vide pour la période/restaurant, le CSV est généré quand même avec uniquement la ligne d'en-têtes (utile pour visualiser le schéma exact que l'API Uber alimente). Le `README.txt` signalera les tables vides.
 
-### 3. Vérifier la donnée en base
-Contrôler que les lignes Chicken Street ne sont plus à zéro sur le 12/06 :
-
-- CA TTC > 0
-- commandes > 0
-- restaurants avec ventes > 0
-
-### 4. Vérifier dans l’interface
-Retourner sur Overview → Caisse → 12/06 et confirmer que :
-
-- le CA Caisse remonte
-- le tableau restaurants se remplit
-- les `-100 %` disparaissent quand la donnée actuelle existe
-
-## Résultat attendu
-
-Après backfill, Chicken Street doit afficher les ventes Splash du **12 juin** et des autres jours manquants.
+Pas de modification du code applicatif, pas de migration : c'est un export ponctuel.
