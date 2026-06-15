@@ -1,66 +1,92 @@
-## Vérification du test prep time
+## Objectif
 
-**Résultat du backfill `ebffc9b8…`** :
-- 344 rapports demandés, 134 OK / 210 failed côté Uber API
-- Webhook reçu et "Report parsed successfully" pour les 134 OK
-- Mais **`order_history` est vide (0 lignes)** → `initial_prep_time_minutes` introuvable
+Récupérer via l'API Uber, pour les **344 restaurants Chicken Street + Tasty**, **tous les rapports disponibles** du **1er janvier 2026 à aujourd'hui (≈ J-2)**, en utilisant le worker cron existant (mode lent, ~2 jobs/min) pour éviter tout blocage Uber.
 
-## Cause racine
+## Périmètre des rapports
 
-Dans `supabase/functions/uber-report-webhook/index.ts` (lignes 224–238), le report `ORDER_HISTORY_REPORT` est routé vers `parse-report-csv`. Or `parse-report-csv` :
+6 types de rapports Uber à backfiller :
+1. `PAYMENT_DETAILS_REPORT` — Finances, commissions, remboursements (table `payouts`)
+2. `ORDER_HISTORY_REPORT` — Temps de préparation, livraison (table `order_history`) ← celui qu'on vient de débloquer
+3. `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` — Avis clients commande (table `customer_reviews`)
+4. `MENU_ITEM_FEEDBACK_REPORT` — Avis sur les plats (table `menu_item_reviews`)
+5. `DOWNTIME_REPORT` — Fermetures restaurants (table `downtime_logs`)
+6. `ORDER_ERRORS_TRANSACTION_REPORT` — Erreurs commandes (table `order_errors`)
 
-1. Écrit dans **`delivery_stats`** (pas `order_history`)
-2. Cherche des entêtes anglaises (`preparation_time`, `Preparation_Time`) alors que l'API Uber renvoie des CSV **français** ("temps de préparation initial", etc.)
+(On laisse de côté `ORDER_ERRORS_MENU_ITEM_REPORT` qui fait doublon avec le précédent côté analytique — on peut le rajouter après si besoin.)
 
-Résultat : aucune ligne n'est insérée nulle part (delivery_stats est aussi à 0). C'est exactement le même bug qui avait été corrigé pour les reviews (`CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` → `parse-reviews-order`).
+## Volume & timing
 
-Une fonction dédiée **`parse-order-history`** existe déjà et :
-- parse les entêtes FR (`temps de préparation initial`)
-- écrit dans `order_history` avec `initial_prep_time_minutes`
-- accepte le payload `{ csvContent, restaurantId, dryRun }` (même signature que les parsers reviews)
+- **344 restaurants × 6 fenêtres de 30j × 6 rapports = ~12 384 jobs**
+- Worker actuel : 2 jobs/tick, 1 tick/minute → ~120 jobs/h
+- **Durée estimée : ~100 heures** (4 jours pleins) en mode worker actuel
+- Si on bump le worker à `PARALLEL=3` + tick toutes les 30s : ~25h (1 nuit + 1 journée)
 
-Elle n'est juste pas branchée dans le webhook.
+## Plan d'exécution
 
-## Plan de correction
+### Étape 1 — Vérifier l'état du parser pour chaque type
 
-### 1. Brancher `parse-order-history` dans le webhook
+Avant de lancer 12k jobs, confirmer que chaque rapport a un parser FR-aware fonctionnel branché dans `uber-report-webhook`. État actuel :
 
-Dans `supabase/functions/uber-report-webhook/index.ts`, étendre la map de routing FR-aware existante :
+| Rapport | Parser | Branché ? |
+|---|---|---|
+| PAYMENT_DETAILS | parse-payment-report | ✅ |
+| ORDER_HISTORY | parse-order-history | ✅ (corrigé hier) |
+| CUSTOMER_AND_DELIVERY_FEEDBACK | parse-reviews-order | ✅ |
+| MENU_ITEM_FEEDBACK | parse-reviews-item | ✅ |
+| DOWNTIME | parse-report-csv | ⚠️ à vérifier (parser EN) |
+| ORDER_ERRORS_TRANSACTION | parse-report-csv | ⚠️ à vérifier (parser EN) |
 
-```ts
-const reviewParserByType: Record<string, string> = {
-  CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT: 'parse-reviews-order',
-  MENU_ITEM_FEEDBACK_REPORT: 'parse-reviews-item',
-  ORDER_HISTORY_REPORT: 'parse-order-history',   // ← ajout
-};
-```
+→ Action : lancer **1 job test par type** sur 1 seul restaurant, semaine du 6-12 janv, et vérifier que les tables se remplissent. Si DOWNTIME ou ORDER_ERRORS ne parsent rien, on fait un parser FR comme pour les autres avant de lancer la masse.
 
-(Renommer aussi la variable en `frAwareParserByType` pour la clarté, pas obligatoire.)
+### Étape 2 — Insérer les 12 384 jobs dans `backfill_jobs`
 
-Le bloc existant télécharge déjà le CSV et invoque le parser avec le bon payload `{ csvContent, dryRun, restaurantId }` — rien d'autre à changer côté webhook.
+Script SQL d'insertion :
+- Récupérer les `restaurant_id` des chaînes Chicken Street + Tasty avec `uber_store_id` non null
+- Pour chaque resto × chaque mois (janv→juin 2026) × chaque report_type → 1 ligne `pending` dans `backfill_jobs`
+- Le worker `splitDateRange` découpe automatiquement les mois > 30 jours
 
-### 2. Relancer un test ciblé
+Champs : `status='pending'`, `vague='backfill_jan2026_full'`, `report_type=<type>`, `month_start`, `month_end`, `restaurant_id`, `uber_store_id`, `restaurant_name`.
 
-Re-déclencher un mini-backfill `ORDER_HISTORY_REPORT` sur **1 semaine de janvier 2026** (mêmes 172 restos), puis :
+### Étape 3 — Laisser tourner le worker
+
+Le cron `pg_cron` existant appelle déjà `uber-backfill-worker` chaque minute. Aucune action manuelle ; on suit l'avancement avec :
 
 ```sql
-SELECT date_trunc('day', order_datetime) d,
-       COUNT(*) nb,
-       ROUND(AVG(initial_prep_time_minutes)::numeric, 2) avg_prep
-FROM order_history
-WHERE order_datetime BETWEEN '2026-01-05' AND '2026-01-12'
-GROUP BY 1 ORDER BY 1;
+SELECT report_type, status, COUNT(*) 
+FROM backfill_jobs 
+WHERE vague='backfill_jan2026_full' 
+GROUP BY 1,2 ORDER BY 1,2;
 ```
 
-→ Si avg_prep ressort entre 5 et 15 min sur 7 jours, la page `PrepTimeComparison` affichera les données.
+### Étape 4 — Validation à mi-parcours (après ~12h)
 
-### 3. Décision après validation
+- Vérifier le ratio done/failed (cible : > 95% done)
+- Si beaucoup de `failed` avec rate-limit 429 → réduire `PARALLEL` à 1
+- Si beaucoup de `user_not_allowed` → ces restos sont déconnectés, à signaler
 
-- **OK** → tu valides et on étend (jan→juin 2026, ou Q1).
-- **KO** → on regarde les logs `parse-order-history` (mapping de colonnes, format date Uber).
+### Étape 5 — Cleanup & vérif finale
+
+Une fois tous les jobs en `done` :
+- Spot-check sur 5 restos : compter les lignes par table sur la période
+- Refresh des pages analytics concernées (Finances, Operations, Avis) pour confirmer l'affichage
+
+## Risques & mitigations
+
+| Risque | Mitigation |
+|---|---|
+| Rate-limit Uber 429 | Retry exponentiel déjà en place (5s→80s, 5 tentatives) |
+| Restos déconnectés | Auto-skip après 3 tentatives, log dans `last_error` |
+| Webhook qui rate un job | `reset_stale_backfill_jobs` reset les jobs bloqués > 30 min |
+| Volume DB d'un coup | Insertion par batch dans `backfill_jobs` (1 transaction de ~12k lignes, OK) |
+| Coût credits/edge function | ~12k invocations × ~3 fonctions = ~36k invocations. À surveiller. |
 
 ## Hors scope
 
-- Pas de changement de schéma (`order_history` a déjà la colonne).
-- Pas de changement UI (`PrepTimeComparison` est déjà câblé sur `order_history.initial_prep_time_minutes`).
-- Pas de touche à `parse-report-csv` (autres report types continuent d'y passer).
+- Pas de refonte du worker (vitesse actuelle OK puisque "on a la nuit")
+- Pas de modif UI
+- Pas de nouveau type de rapport au-delà des 6 listés
+- Période strictement 2026-01-01 → J-2 (pas d'historique antérieur, ce qui resterait dans la fenêtre 188 jours d'Uber jusqu'à ~juillet)
+
+## Question avant lancement
+
+**Le test étape 1 (1 job par type) prend ~10 minutes** et évite de découvrir au bout de 12h que DOWNTIME ou ORDER_ERRORS ne se parsent pas. Tu valides qu'on le fait avant d'insérer les 12k jobs ?
