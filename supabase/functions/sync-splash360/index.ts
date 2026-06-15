@@ -181,107 +181,164 @@ serve(async (req) => {
     );
 
     // ─── MODE: sync_all_active (cron) ─────────────────────────────────────
-    // Boucle sur toutes les connexions Splash360 actives et lance une sync
-    // de niveau "month" pour le mois en cours.
+    // Boucle sur toutes les connexions Splash360 actives.
+    // scope = "today" (J + J-1, rapide, pour live) | "month" (mois complet, consolidation)
     if (sync_all_active) {
+      const scope: "today" | "month" = (body?.scope === "month") ? "month" : "today";
       const runStartedAt = Date.now();
       const { data: runRow } = await supabaseAdmin
         .from("splash360_sync_runs")
         .insert({
-          trigger_source: (body?.trigger_source as string) ?? "cron",
+          trigger_source: (body?.trigger_source as string) ?? `cron-${scope}`,
           status: "running",
         })
         .select("id")
         .single();
       const runId = runRow?.id;
 
-      const { data: connections, error: connErr } = await supabaseAdmin
-        .from("chain_pos_connections")
-        .select("id, chain_id, credentials, account_label")
-        .eq("connector_id", "splash360")
-        .eq("is_active", true);
-      if (connErr) {
-        if (runId) {
-          await supabaseAdmin.from("splash360_sync_runs").update({
-            status: "failed",
-            finished_at: new Date().toISOString(),
-            duration_ms: Date.now() - runStartedAt,
-            details: { error: connErr.message },
-          }).eq("id", runId);
-        }
-        throw new Error(`Failed to list active connections: ${connErr.message}`);
-      }
-
-      const results: any[] = [];
-      for (const conn of connections ?? []) {
-        const creds = (conn.credentials ?? {}) as Record<string, string>;
-        if (!creds.email || !creds.password) {
-          results.push({ chain_id: conn.chain_id, skipped: true, reason: "missing creds" });
-          continue;
-        }
+      // Fonction de traitement asynchrone (lancée via waitUntil)
+      const processAll = async () => {
         try {
-          const token = await getAccessToken(creds.email, creds.password);
-          const profile = await getUserProfile(token);
-          const restosMeta = profile?.restos ?? [];
-          const splashIds = restosMeta.map((r: any) => r.id);
-          const targetYearC = new Date().getFullYear();
-          const targetMonthC = new Date().getMonth() + 1;
-
-          // Auto-populate mapping
-          if (restosMeta.length > 0) {
-            await supabaseAdmin
-              .from("splash360_restaurant_mapping")
-              .upsert(
-                restosMeta.map((r: any) => ({
-                  restaurant_splash_id: r.id,
-                  splash_name: r.nom,
-                  chain_id: conn.chain_id,
-                })),
-                { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
-              );
+          const { data: connections, error: connErr } = await supabaseAdmin
+            .from("chain_pos_connections")
+            .select("id, chain_id, credentials, account_label")
+            .eq("connector_id", "splash360")
+            .eq("is_active", true);
+          if (connErr) {
+            if (runId) {
+              await supabaseAdmin.from("splash360_sync_runs").update({
+                status: "failed",
+                finished_at: new Date().toISOString(),
+                duration_ms: Date.now() - runStartedAt,
+                details: { error: connErr.message },
+              }).eq("id", runId);
+            }
+            return;
           }
 
-          const inserted = await runSync({
-            supabase: supabaseAdmin,
-            token,
-            year: targetYearC,
-            month: targetMonthC,
-            granularity: "day",
-            splashIds,
-            networkOnly: false,
-            chainId: conn.chain_id,
-          });
+          const results: any[] = [];
+          for (const conn of connections ?? []) {
+            const creds = (conn.credentials ?? {}) as Record<string, string>;
+            if (!creds.email || !creds.password) {
+              results.push({ chain_id: conn.chain_id, skipped: true, reason: "missing creds" });
+              continue;
+            }
+            try {
+              const token = await getAccessToken(creds.email, creds.password);
+              const profile = await getUserProfile(token);
+              const restosMeta = profile?.restos ?? [];
+              const splashIds = restosMeta.map((r: any) => r.id);
 
-          await supabaseAdmin
-            .from("chain_pos_connections")
-            .update({ last_sync_at: new Date().toISOString() })
-            .eq("id", conn.id);
+              // Auto-populate mapping
+              if (restosMeta.length > 0) {
+                await supabaseAdmin
+                  .from("splash360_restaurant_mapping")
+                  .upsert(
+                    restosMeta.map((r: any) => ({
+                      restaurant_splash_id: r.id,
+                      splash_name: r.nom,
+                      chain_id: conn.chain_id,
+                    })),
+                    { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
+                  );
+              }
 
-          results.push({ chain_id: conn.chain_id, inserted });
+              // Calcule la période à sync selon le scope
+              // today = J et J-1 (peut chevaucher 2 mois → 2 runSync)
+              // month = mois en cours complet
+              let insertedTotal = 0;
+              if (scope === "today") {
+                const now = new Date();
+                const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
+                // Groupe par (year, month)
+                const buckets = new Map<string, number[]>();
+                for (const d of [yesterday, now]) {
+                  const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
+                  if (!buckets.has(key)) buckets.set(key, []);
+                  buckets.get(key)!.push(d.getDate());
+                }
+                for (const [key, days] of buckets) {
+                  const [y, m] = key.split("-").map(Number);
+                  insertedTotal += await runSync({
+                    supabase: supabaseAdmin,
+                    token,
+                    year: y,
+                    month: m,
+                    granularity: "day",
+                    splashIds,
+                    networkOnly: false,
+                    chainId: conn.chain_id,
+                    dayFilter: days,
+                  });
+                }
+              } else {
+                // scope === "month"
+                const targetYearC = new Date().getFullYear();
+                const targetMonthC = new Date().getMonth() + 1;
+                insertedTotal = await runSync({
+                  supabase: supabaseAdmin,
+                  token,
+                  year: targetYearC,
+                  month: targetMonthC,
+                  granularity: "day",
+                  splashIds,
+                  networkOnly: false,
+                  chainId: conn.chain_id,
+                });
+              }
+
+              await supabaseAdmin
+                .from("chain_pos_connections")
+                .update({ last_sync_at: new Date().toISOString() })
+                .eq("id", conn.id);
+
+              results.push({ chain_id: conn.chain_id, inserted: insertedTotal });
+            } catch (e: any) {
+              results.push({ chain_id: conn.chain_id, error: e.message });
+            }
+          }
+
+          const totalInserted = results.reduce((s, r) => s + (r.inserted ?? 0), 0);
+          const errorsCount = results.filter((r) => r.error).length;
+          if (runId) {
+            await supabaseAdmin.from("splash360_sync_runs").update({
+              status: errorsCount > 0 && totalInserted === 0 ? "failed" : (errorsCount > 0 ? "partial" : "success"),
+              finished_at: new Date().toISOString(),
+              duration_ms: Date.now() - runStartedAt,
+              connections_processed: results.length,
+              rows_upserted: totalInserted,
+              errors_count: errorsCount,
+              details: { scope, results },
+            }).eq("id", runId);
+          }
         } catch (e: any) {
-          results.push({ chain_id: conn.chain_id, error: e.message });
+          if (runId) {
+            await supabaseAdmin.from("splash360_sync_runs").update({
+              status: "failed",
+              finished_at: new Date().toISOString(),
+              duration_ms: Date.now() - runStartedAt,
+              details: { error: e.message, scope },
+            }).eq("id", runId);
+          }
         }
+      };
+
+      // @ts-ignore - EdgeRuntime est disponible dans Deno Deploy / Supabase Edge
+      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+        // @ts-ignore
+        EdgeRuntime.waitUntil(processAll());
+      } else {
+        // Fallback (dev local) : ne pas await pour ne pas bloquer la réponse
+        processAll();
       }
 
-      const totalInserted = results.reduce((s, r) => s + (r.inserted ?? 0), 0);
-      const errorsCount = results.filter((r) => r.error).length;
-      if (runId) {
-        await supabaseAdmin.from("splash360_sync_runs").update({
-          status: errorsCount > 0 && totalInserted === 0 ? "failed" : (errorsCount > 0 ? "partial" : "success"),
-          finished_at: new Date().toISOString(),
-          duration_ms: Date.now() - runStartedAt,
-          connections_processed: results.length,
-          rows_upserted: totalInserted,
-          errors_count: errorsCount,
-          details: { results },
-        }).eq("id", runId);
-      }
-
+      // Réponse immédiate (< 1s) pour que pg_net ne timeout pas
       return new Response(
-        JSON.stringify({ success: true, run_id: runId, processed: results.length, results }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, accepted: true, run_id: runId, scope }),
+        { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
     // ─── Si chain_connection_id fourni, charger les credentials ─────────
     let resolvedChainId: string | null = null;
