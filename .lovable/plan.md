@@ -1,47 +1,38 @@
-# Backfill avis produits Uber — juin 2026
+## Test prep time — 1 semaine janvier 2026
 
-## Constat
+### Objectif
+Valider la chaîne `ORDER_HISTORY_REPORT` Uber → table `order_history` → RPC `get_prep_time_daily` → page Prep Time, sur un échantillon limité avant de lancer un backfill complet.
 
-Requêtes DB :
+### Périmètre du test
+- **Rapport Uber :** `ORDER_HISTORY_REPORT`
+- **Période :** 2026-01-05 → 2026-01-11 (semaine complète lundi → dimanche)
+- **Restaurants :** 172 restos Uber actifs (même périmètre que les autres backfills)
+- **Volume estimé :** ~172 rapports (1 fenêtre de 7 jours × 172 stores)
 
-| Mois 2026 | customer_reviews | menu_item_reviews |
-|---|---|---|
-| Janvier | 779 | 212 |
-| Février | 4 774 | 85 |
-| Mars | 802 | 136 |
-| Avril | 935 | 92 |
-| Mai | 174 | **74** |
-| Juin | 704 | **0** ← manquant |
+### Étapes
+1. Lancer la fonction `uber-backfill-reports` avec :
+   ```json
+   { "reportType": "ORDER_HISTORY_REPORT",
+     "startDate": "2026-01-05",
+     "endDate": "2026-01-11",
+     "label": "Test prep time semaine 2 janvier 2026" }
+   ```
+2. Attendre le traitement webhook (10–30 min).
+3. Vérification SQL :
+   ```sql
+   SELECT date_trunc('day', order_datetime) d,
+          COUNT(*) nb,
+          ROUND(AVG(initial_prep_time_minutes)::numeric, 2) avg_prep
+   FROM order_history
+   WHERE order_datetime BETWEEN '2026-01-05' AND '2026-01-12'
+   GROUP BY 1 ORDER BY 1;
+   ```
+4. Ouvrir la page Prep Time / `PrepTimeComparison` sur la semaine du 5 janvier pour valider l'affichage.
 
-Les avis clients de juin sont bien là (704), mais les avis **produits** (table `menu_item_reviews`, qui alimente la cartographie produits / tags par item) n'ont jamais été synchronisés pour juin 2026.
+### Décision après test
+- Si la data remonte correctement → backfill élargi (à définir : Q1 2026, ou jan→juin).
+- Si vide ou anormal → diagnostiquer parseur `parse-order-history` ou disponibilité du rapport côté Uber.
 
-Cause : le dernier backfill couvrait janvier → avril 2026. Le webhook temps réel n'envoie pas ce type de rapport — il faut le générer explicitement via `MENU_ITEM_FEEDBACK_REPORT`.
-
-## Action
-
-Lancer un seul backfill ciblé, sans aucune modification de code :
-
-- Fonction : `uber-backfill-reports` (déjà en place, mode fire-and-forget)
-- `reportType` : `MENU_ITEM_FEEDBACK_REPORT`
-- Période : **2026-06-01 → 2026-06-30**
-- Périmètre : 172 restaurants Uber actifs (même liste que les runs Q1)
-- Volume estimé : 172 rapports (1 fenêtre de 30 j × 172 stores)
-- Durée : ~2 min de planification côté edge, puis ingestion progressive via webhook sur 10–30 min
-
-## Vérification après lancement
-
-```sql
-SELECT date_trunc('day', review_date) AS d, COUNT(*)
-FROM menu_item_reviews
-WHERE review_date BETWEEN '2026-06-01' AND '2026-06-30'
-GROUP BY 1 ORDER BY 1;
-```
-
-Attendu : volume quotidien non nul réparti sur juin, et la page **Avis › Produits** affiche les tags/notes par item pour juin.
-
-## Détails techniques
-
-- Aucune modification de code, ni de schéma, ni de RLS.
-- Un nouveau `backfill_runs` sera créé ; les erreurs par restaurant (store sans `uber_store_id` sur juin, 4xx Uber) seront capturées dans `results` comme pour les runs précédents.
-- Pas de doublon : `parse-reviews-item` upsert sur l'ID de review.
-- Les avis clients de juin n'ont pas besoin d'action (704 lignes déjà présentes).
+### Hors scope
+- Aucune modification de code, schéma, RLS.
+- Pas de modification de la page Prep Time.
