@@ -1,54 +1,30 @@
-## Objectif
+## Export API Uber pur — Chicken Street Argenteuil, mai 2026
 
-Générer un ZIP contenant **1 CSV par table alimentée par l'API Uber Eats**, filtré sur :
-- Restaurant : **Chicken Street - Argenteuil** (`d69579a6-987a-4d42-9937-bcb6c8373155`)
-- Période : **1er → 31 mai 2026**
+### Objectif
+Générer un ZIP contenant **uniquement les données issues de l'API Uber** (exclusion totale des imports CSV manuels), plus la liste des rapports API appelés et non appelés.
 
-Livraison sous forme d'artefact `presentation-artifact` dans `/mnt/documents/`.
+### Contenu du ZIP `uber_api_chicken_street_argenteuil_mai2026.zip`
 
-## Rappel : ce que l'API Uber nous donne aujourd'hui
+**Dossier `tables_avec_data_api/`** — filtrage strict `data_source = 'uber_api'` :
+- `orders.csv` — ~2 781 lignes (source: `PAYMENT_DETAILS_REPORT`)
+- `hourly_availability.csv` — 744 lignes (source: `DOWNTIME_REPORT`)
+- `payout_adjustments.csv` — 7 lignes (source: `PAYMENT_DETAILS_REPORT`)
 
-L'API Uber Eats expose 8 types de rapports CSV (générés via `uber-create-report` puis ingérés via les fonctions `parse-*`). Voici la cartographie complète des tables alimentées :
+**Fichier `reports_appels_API.csv`** — historique complet des appels API Uber pour ce restaurant en mai 2026 :
+- colonnes : `report_type`, `start_date`, `end_date`, `status`, `created_at`, `completed_at`, `workflow_id`
 
-| # | Table | Source Uber | Granularité |
-|---|---|---|---|
-| 1 | `orders` (83 col.) | Payment Details Report | 1 ligne / commande |
-| 2 | `order_items` (41 col.) | Order History Report (items) | 1 ligne / item commandé |
-| 3 | `order_history` (31 col.) | Order History Report (header) | 1 ligne / commande |
-| 4 | `payouts` (56 col.) | Payment Details (paiements hebdo) | 1 ligne / payout |
-| 5 | `payout_adjustments` (11 col.) | Payment Details (ajustements) | 1 ligne / ajustement |
-| 6 | `daily_sales_uber` (10 col.) | Sales Over Time Report | 1 ligne / jour |
-| 7 | `daily_conversion` (15 col.) | Marketplace Funnel Report | 1 ligne / jour |
-| 8 | `monthly_conversion` (15 col.) | Marketplace Funnel (mensuel) | 1 ligne / mois |
-| 9 | `daily_order_accuracy` (16 col.) | Order Errors Report (agrégé) | 1 ligne / jour |
-| 10 | `monthly_order_accuracy` (17 col.) | Order Errors (mensuel) | 1 ligne / mois |
-| 11 | `order_errors` (17 col.) | Order Errors (détail) | 1 ligne / erreur |
-| 12 | `downtime_logs` (8 col.) | Downtime Report | 1 ligne / coupure |
-| 13 | `hourly_availability` (8 col.) | Downtime (dispo horaire) | 1 ligne / heure |
-| 14 | `delivery_stats` (14 col.) | Delivery Performance Report | 1 ligne / jour |
-| 15 | `customer_reviews` (18 col.) | Customer Reviews Report | 1 ligne / avis |
-| 16 | `menu_item_reviews` (15 col.) | Menu Item Reviews (thumbs) | 1 ligne / item-avis |
-| 17 | `product_issues_ranking` (12 col.) | Product Issues Report | 1 ligne / item |
-| 18 | `monthly_fees` (17 col.) | Payment Details (frais mensuels) | 1 ligne / mois |
-| 19 | `eco_line_snapshots` (6 col.) | Payment Details (éco-contrib.) | 1 ligne / ligne éco |
+**Fichier `RAPPORTS_API_NON_APPELES.txt`** — liste des 7 rapports Uber disponibles via l'API mais jamais appelés pour ce restaurant/période, avec mapping vers les tables qu'ils alimenteraient :
+- `ORDER_HISTORY_REPORT` → `order_history`, `order_items`, `delivery_stats`
+- `MENU_ITEM_FEEDBACK_REPORT` → `menu_item_reviews`
+- `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` → `customer_reviews`
+- `SALES_OVER_TIME_REPORT` → `daily_sales_uber`
+- `MARKETPLACE_FUNNEL_REPORT` → `daily_conversion`, `monthly_conversion`
+- `ORDER_ERRORS_REPORT` → `order_errors`, `daily_order_accuracy`
+- `DOWNTIME_REPORT` (variante `downtime_logs`) → `downtime_logs`
 
-## Étapes d'exécution (mode build)
+**Fichier `README.txt`** — explique la méthode (filtre `data_source='uber_api'`), les comptes de lignes, et pourquoi les autres tables sont absentes.
 
-1. **Script Python** (`/tmp/export_uber_argenteuil.py`) qui :
-   - Se connecte via `psql` (env `PG*` déjà set)
-   - Pour chaque table ci-dessus, `COPY (SELECT * FROM <table> WHERE restaurant_id = '<uuid>' AND <date_col> BETWEEN '2026-05-01' AND '2026-05-31') TO STDOUT WITH CSV HEADER`
-   - Adapte la colonne de date par table (`order_time` pour `orders`, `business_date` pour `daily_*`, `payout_date` pour `payouts`, etc.)
-   - Pour `order_items` : join via `orders.id` puisque pas de date directe
-   - Écrit chaque CSV dans `/tmp/uber_argenteuil_mai2026/`
-
-2. **Compression** : `zip -r /mnt/documents/uber_argenteuil_mai2026.zip` du dossier + un fichier `README.txt` listant les 19 tables, leur source Uber et le nombre de lignes exportées.
-
-3. **Restitution** :
-   - Affichage d'un récap chiffré (lignes par table)
-   - Balise `<presentation-artifact path="uber_argenteuil_mai2026.zip" mime_type="application/zip">` pour téléchargement
-
-## Note technique
-
-Si une table est vide pour la période/restaurant, le CSV est généré quand même avec uniquement la ligne d'en-têtes (utile pour visualiser le schéma exact que l'API Uber alimente). Le `README.txt` signalera les tables vides.
-
-Pas de modification du code applicatif, pas de migration : c'est un export ponctuel.
+### Méthode technique
+- `psql COPY` filtré par `restaurant_id = 'd69579a6-987a-4d42-9937-bcb6c8373155'`, plage mai 2026, et `data_source = 'uber_api'` quand la colonne existe.
+- Aucune modification de code projet — script ponctuel sous `/tmp/`.
+- Livraison via `<presentation-artifact>`.
