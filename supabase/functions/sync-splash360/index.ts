@@ -97,8 +97,9 @@ async function runSync(opts: {
   splashIds: number[];
   networkOnly: boolean;
   chainId: string;
+  dayFilter?: number[]; // si fourni en granularity=day, ne sync que ces jours
 }): Promise<number> {
-  const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId } = opts;
+  const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId, dayFilter } = opts;
   const allTargets = networkOnly ? [0] : [0, ...splashIds];
 
   const { data: mappingRows } = await supabase
@@ -115,8 +116,11 @@ async function runSync(opts: {
   const CONCURRENCY = 5;
   const dayList: number[] =
     granularity === "day"
-      ? Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1)
+      ? (dayFilter && dayFilter.length > 0
+          ? dayFilter.filter(d => d >= 1 && d <= daysInMonth(year, month))
+          : Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1))
       : [1];
+
 
   for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
     const batch = allTargets.slice(i, i + CONCURRENCY);
