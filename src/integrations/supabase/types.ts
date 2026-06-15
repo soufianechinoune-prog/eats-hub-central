@@ -5494,6 +5494,7 @@ export type Database = {
           unmatched_count: number
         }[]
       }
+      splash360_reset_stuck_runs: { Args: never; Returns: number }
       unaccent: { Args: { "": string }; Returns: string }
       update_splash_mapping: {
         Args: { p_restaurant_id: string; p_splash_id: number }
