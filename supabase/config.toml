@@ -81,6 +81,12 @@ verify_jwt = false
 [functions.parse-order-history]
 verify_jwt = false
 
+[functions.parse-downtime-fr]
+verify_jwt = false
+
+[functions.parse-order-errors-fr]
+verify_jwt = false
+
 [functions.parse-inaccurate-orders]
 verify_jwt = false
 
