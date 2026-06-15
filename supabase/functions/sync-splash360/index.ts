@@ -226,7 +226,7 @@ serve(async (req) => {
                 const now = new Date();
                 const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
                 const days = [yesterday, now];
-                for (const d of days) {
+                const dispatches = days.map((d) =>
                   fetch(childUrl, {
                     method: "POST",
                     headers: {
@@ -242,7 +242,13 @@ serve(async (req) => {
                       month: d.getMonth() + 1,
                       day_filter: [d.getDate()],
                     }),
-                  }).catch(() => {});
+                  }).catch(() => {})
+                );
+                const edgeRuntime = (globalThis as any).EdgeRuntime;
+                if (edgeRuntime?.waitUntil) {
+                  edgeRuntime.waitUntil(Promise.allSettled(dispatches));
+                } else {
+                  await Promise.allSettled(dispatches);
                 }
                 results.push({ chain_id: conn.chain_id, dispatched_days: days.length });
               } catch (e: any) {
