@@ -1,30 +1,44 @@
-## Export API Uber pur — Chicken Street Argenteuil, mai 2026
+# Vérification API Uber — Avis Chicken Street Argenteuil (mai 2026)
 
-### Objectif
-Générer un ZIP contenant **uniquement les données issues de l'API Uber** (exclusion totale des imports CSV manuels), plus la liste des rapports API appelés et non appelés.
+## Constat
 
-### Contenu du ZIP `uber_api_chicken_street_argenteuil_mai2026.zip`
+- L'API Uber **supporte** les rapports d'avis : `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` (avis client par commande, avec note globale + commentaire + tags) et `MENU_ITEM_FEEDBACK_REPORT` (👍/👎 par item).
+- Notre infra **sait les traiter** : `uber-create-report` les accepte et `uber-report-webhook` parse automatiquement les CSV téléchargés depuis Uber pour remplir `customer_reviews` et `menu_item_reviews`.
+- Aujourd'hui le scheduler hebdo ne déclenche **que** `PAYMENT_DETAILS_REPORT` → c'est pour ça que les 2 tables sont vides pour Chicken Street Argenteuil.
 
-**Dossier `tables_avec_data_api/`** — filtrage strict `data_source = 'uber_api'` :
-- `orders.csv` — ~2 781 lignes (source: `PAYMENT_DETAILS_REPORT`)
-- `hourly_availability.csv` — 744 lignes (source: `DOWNTIME_REPORT`)
-- `payout_adjustments.csv` — 7 lignes (source: `PAYMENT_DETAILS_REPORT`)
+## Plan d'action (vérification ponctuelle, 0 changement de code)
 
-**Fichier `reports_appels_API.csv`** — historique complet des appels API Uber pour ce restaurant en mai 2026 :
-- colonnes : `report_type`, `start_date`, `end_date`, `status`, `created_at`, `completed_at`, `workflow_id`
+### Étape 1 — Déclencher 2 appels API
+Via `supabase--curl_edge_functions` sur `uber-create-report`, 2 POST pour `restaurantId=d69579a6-987a-4d42-9937-bcb6c8373155`, `startDate=2026-05-01`, `endDate=2026-05-31` :
 
-**Fichier `RAPPORTS_API_NON_APPELES.txt`** — liste des 7 rapports Uber disponibles via l'API mais jamais appelés pour ce restaurant/période, avec mapping vers les tables qu'ils alimenteraient :
-- `ORDER_HISTORY_REPORT` → `order_history`, `order_items`, `delivery_stats`
-- `MENU_ITEM_FEEDBACK_REPORT` → `menu_item_reviews`
-- `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` → `customer_reviews`
-- `SALES_OVER_TIME_REPORT` → `daily_sales_uber`
-- `MARKETPLACE_FUNNEL_REPORT` → `daily_conversion`, `monthly_conversion`
-- `ORDER_ERRORS_REPORT` → `order_errors`, `daily_order_accuracy`
-- `DOWNTIME_REPORT` (variante `downtime_logs`) → `downtime_logs`
+1. `reportType: "CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT"`
+2. `reportType: "MENU_ITEM_FEEDBACK_REPORT"`
 
-**Fichier `README.txt`** — explique la méthode (filtre `data_source='uber_api'`), les comptes de lignes, et pourquoi les autres tables sont absentes.
+Chaque appel crée une ligne dans `reports` (statut `PENDING`) et envoie la demande à Uber.
 
-### Méthode technique
-- `psql COPY` filtré par `restaurant_id = 'd69579a6-987a-4d42-9937-bcb6c8373155'`, plage mai 2026, et `data_source = 'uber_api'` quand la colonne existe.
-- Aucune modification de code projet — script ponctuel sous `/tmp/`.
-- Livraison via `<presentation-artifact>`.
+### Étape 2 — Attendre le webhook Uber (généralement 30 s à 5 min)
+Polling SQL sur `reports` WHERE `restaurant_id=...` AND `report_type IN (...)` ORDER BY `created_at DESC` jusqu'à voir `status='COMPLETED'`. Uber appelle `uber-report-webhook` → CSV téléchargé → parsé → insertion dans `customer_reviews` / `menu_item_reviews`.
+
+### Étape 3 — Vérifier la data en base
+3 requêtes de contrôle :
+- **Note globale par jour** : `SELECT review_date::date, COUNT(*), ROUND(AVG(overall_rating)::numeric,2) FROM customer_reviews WHERE restaurant_id=... AND review_date BETWEEN '2026-05-01' AND '2026-05-31' GROUP BY 1 ORDER BY 1;`
+- **Note globale mois complet** : `SELECT COUNT(*), ROUND(AVG(overall_rating)::numeric,2) FROM customer_reviews WHERE ...`
+- **Échantillon de 10 commentaires + tags** : `SELECT review_date, overall_rating, customer_comment, tags FROM customer_reviews WHERE customer_comment IS NOT NULL AND ... LIMIT 10;`
+
+### Étape 4 — Livraison
+Te restituer en chat :
+- Le tableau jour-par-jour (note moyenne + nb avis)
+- La moyenne sur le mois
+- 10 commentaires avec leurs tags
+- Statut des 2 jobs API (`COMPLETED` / `FAILED` + raison si échec)
+
+## Détails techniques
+
+- **Aucune écriture de code** : utilisation uniquement de `supabase--curl_edge_functions` (POST) + `supabase--read_query` (vérif).
+- Si l'appel API échoue (ex : `restaurant_id` non lié à une connexion Uber active, ou Uber refuse la plage), je te le signale immédiatement.
+- Hors scope : ajout au scheduler hebdo, modification d'edge functions, export ZIP. À discuter après cette vérification si la data est correcte.
+
+## Risques / inconnues
+
+- Délai webhook Uber non garanti — si > 10 min, je te préviens et on peut reprendre plus tard.
+- Données disponibles uniquement si Uber a effectivement collecté des avis sur la période (possible qu'il y en ait peu ou pas, indépendamment de notre pipeline).
