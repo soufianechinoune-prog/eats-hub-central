@@ -194,6 +194,8 @@ Deno.serve(async (req) => {
               CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT: 'parse-reviews-order',
               MENU_ITEM_FEEDBACK_REPORT: 'parse-reviews-item',
               ORDER_HISTORY_REPORT: 'parse-order-history',
+              DOWNTIME_REPORT: 'parse-downtime-fr',
+              ORDER_ERRORS_TRANSACTION_REPORT: 'parse-order-errors-fr',
             };
             const reviewParser = reviewParserByType[body.report_type];
 
