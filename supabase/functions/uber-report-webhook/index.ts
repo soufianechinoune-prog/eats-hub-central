@@ -186,19 +186,55 @@ Deno.serve(async (req) => {
           if (reportData && body.report_metadata.sections.length > 0) {
             // Parse first section (main data)
             const section = body.report_metadata.sections[0];
-            
-            try {
-              await supabase.functions.invoke('parse-report-csv', {
-                body: {
-                  reportId: report.id,
-                  downloadUrl: section.download_url,
-                  reportType: body.report_type,
-                  restaurantId: reportData.restaurant_id,
-                },
-              });
-              console.log('Report parsed successfully');
-            } catch (parseError) {
-              console.error('Failed to parse report:', parseError);
+
+            // Route reviews reports to the FR-aware parsers used by manual CSV imports.
+            // parse-report-csv expects English headers and breaks on Uber API CSVs (FR headers,
+            // quoted multi-value tag fields). parse-reviews-order / parse-reviews-item handle both.
+            const reviewParserByType: Record<string, string> = {
+              CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT: 'parse-reviews-order',
+              MENU_ITEM_FEEDBACK_REPORT: 'parse-reviews-item',
+            };
+            const reviewParser = reviewParserByType[body.report_type];
+
+            if (reviewParser) {
+              try {
+                console.log(`Routing ${body.report_type} → ${reviewParser}. Downloading CSV from Uber: ${section.download_url.substring(0, 100)}`);
+                const csvResp = await fetch(section.download_url);
+                if (!csvResp.ok) {
+                  throw new Error(`CSV download failed: ${csvResp.status} ${csvResp.statusText}`);
+                }
+                const csvContent = await csvResp.text();
+                console.log(`CSV downloaded (${csvContent.length} chars). Invoking ${reviewParser}…`);
+
+                const { data: parseData, error: parseInvokeError } = await supabase.functions.invoke(reviewParser, {
+                  body: {
+                    csvContent,
+                    dryRun: false,
+                    restaurantId: reportData.restaurant_id,
+                  },
+                });
+                if (parseInvokeError) {
+                  console.error(`${reviewParser} invoke error:`, parseInvokeError);
+                } else {
+                  console.log(`${reviewParser} parsed successfully:`, JSON.stringify(parseData)?.substring(0, 500));
+                }
+              } catch (parseError) {
+                console.error(`Failed to parse ${body.report_type}:`, parseError);
+              }
+            } else {
+              try {
+                await supabase.functions.invoke('parse-report-csv', {
+                  body: {
+                    reportId: report.id,
+                    downloadUrl: section.download_url,
+                    reportType: body.report_type,
+                    restaurantId: reportData.restaurant_id,
+                  },
+                });
+                console.log('Report parsed successfully');
+              } catch (parseError) {
+                console.error('Failed to parse report:', parseError);
+              }
             }
           }
         }
