@@ -1,44 +1,56 @@
-# Vérification API Uber — Avis Chicken Street Argenteuil (mai 2026)
+# Fix méthodique — Insertion des avis API Uber en base
 
-## Constat
+## 🔎 Diagnostic confirmé
 
-- L'API Uber **supporte** les rapports d'avis : `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` (avis client par commande, avec note globale + commentaire + tags) et `MENU_ITEM_FEEDBACK_REPORT` (👍/👎 par item).
-- Notre infra **sait les traiter** : `uber-create-report` les accepte et `uber-report-webhook` parse automatiquement les CSV téléchargés depuis Uber pour remplir `customer_reviews` et `menu_item_reviews`.
-- Aujourd'hui le scheduler hebdo ne déclenche **que** `PAYMENT_DETAILS_REPORT` → c'est pour ça que les 2 tables sont vides pour Chicken Street Argenteuil.
+L'API Uber renvoie bien les CSV (174 avis clients + 75 avis items pour Chicken Street, mai 2026), le webhook les reçoit, mais **rien ne s'insère**. Cause exacte :
 
-## Plan d'action (vérification ponctuelle, 0 changement de code)
+Le webhook (`uber-report-webhook`) route les 2 rapports d'avis vers `parse-report-csv`, qui :
+1. Split CSV de façon naïve (`line.split(',')`) → casse les champs entre guillemets (ex : tags `"item_tasty, item_fresh"` deviennent 2 colonnes).
+2. Cherche des en-têtes **anglais** (`order_id`, `overall_rating`, `comment`, `review_date`) alors que l'API Uber renvoie tout en **français** (`UUID de la commande`, `Valeur de la note`, `Commentaire`, `Date de la note`, `Tags de notation`).
+3. Résultat : tous les champs sont `null`, l'upsert sur `uber_order_id=null` échoue silencieusement.
 
-### Étape 1 — Déclencher 2 appels API
-Via `supabase--curl_edge_functions` sur `uber-create-report`, 2 POST pour `restaurantId=d69579a6-987a-4d42-9937-bcb6c8373155`, `startDate=2026-05-01`, `endDate=2026-05-31` :
+À l'inverse, les fonctions `parse-reviews-order` et `parse-reviews-item` (utilisées pour les imports CSV manuels) **savent parfaitement parser ce format** : parser CSV qui respecte les guillemets, mapping FR + EN, dédup par `uber_order_id`, résolution restaurant via UUID/alias, gestion des tags en array.
 
-1. `reportType: "CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT"`
-2. `reportType: "MENU_ITEM_FEEDBACK_REPORT"`
+## 🎯 Là où la data DOIT s'insérer (et apparaître dans l'UI)
 
-Chaque appel crée une ligne dans `reports` (statut `PENDING`) et envoie la demande à Uber.
+| Table cible | Page UI alimentée |
+|---|---|
+| `customer_reviews` | `/analytics/reviews` → KPI Note période, Évolution, Distribution, Clients, Tags · `/compare/ratings` Comparaison Notes · Vue d'ensemble (carte Note moyenne) |
+| `menu_item_reviews` | `/analytics/reviews` onglet Plats · ProductsHeatmap · TopFlop |
 
-### Étape 2 — Attendre le webhook Uber (généralement 30 s à 5 min)
-Polling SQL sur `reports` WHERE `restaurant_id=...` AND `report_type IN (...)` ORDER BY `created_at DESC` jusqu'à voir `status='COMPLETED'`. Uber appelle `uber-report-webhook` → CSV téléchargé → parsé → insertion dans `customer_reviews` / `menu_item_reviews`.
+## 🛠 Plan d'action
 
-### Étape 3 — Vérifier la data en base
-3 requêtes de contrôle :
-- **Note globale par jour** : `SELECT review_date::date, COUNT(*), ROUND(AVG(overall_rating)::numeric,2) FROM customer_reviews WHERE restaurant_id=... AND review_date BETWEEN '2026-05-01' AND '2026-05-31' GROUP BY 1 ORDER BY 1;`
-- **Note globale mois complet** : `SELECT COUNT(*), ROUND(AVG(overall_rating)::numeric,2) FROM customer_reviews WHERE ...`
-- **Échantillon de 10 commentaires + tags** : `SELECT review_date, overall_rating, customer_comment, tags FROM customer_reviews WHERE customer_comment IS NOT NULL AND ... LIMIT 10;`
+### Phase A — Patch du webhook (1 seul fichier modifié)
+**Fichier** : `supabase/functions/uber-report-webhook/index.ts`
 
-### Étape 4 — Livraison
-Te restituer en chat :
-- Le tableau jour-par-jour (note moyenne + nb avis)
-- La moyenne sur le mois
-- 10 commentaires avec leurs tags
-- Statut des 2 jobs API (`COMPLETED` / `FAILED` + raison si échec)
+Dans le bloc `else if (parseableReports.includes(...))` (lignes 176-204), ajouter un routage spécifique avant le fallback `parse-report-csv` :
+- `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` → télécharger le CSV depuis `section.download_url`, puis invoquer `parse-reviews-order` avec `{ csvContent, restaurantId, dryRun: false }`.
+- `MENU_ITEM_FEEDBACK_REPORT` → idem vers `parse-reviews-item`.
+- Tous les autres (`ORDER_HISTORY_REPORT`, `ORDER_ERRORS_*`, `DOWNTIME_REPORT`) → on **garde** le routage existant vers `parse-report-csv` (hors scope).
 
-## Détails techniques
+Logs ajoutés à chaque étape (download OK + taille CSV, stats du parser) pour debug futur.
 
-- **Aucune écriture de code** : utilisation uniquement de `supabase--curl_edge_functions` (POST) + `supabase--read_query` (vérif).
-- Si l'appel API échoue (ex : `restaurant_id` non lié à une connexion Uber active, ou Uber refuse la plage), je te le signale immédiatement.
-- Hors scope : ajout au scheduler hebdo, modification d'edge functions, export ZIP. À discuter après cette vérification si la data est correcte.
+### Phase B — Rejouer mai 2026 Chicken Street Argenteuil
+Les 2 rapports sont déjà en base (`reports.id` `84c490b4...` et `b04a4744...`) avec leurs `sections.download_url` Uber valides jusqu'au 16 juin ~02h UTC.
 
-## Risques / inconnues
+Une fois la phase A déployée :
+1. Récupérer les 2 `download_url` depuis `reports.sections`.
+2. Invoquer **directement** `parse-reviews-order` et `parse-reviews-item` (via `supabase--curl_edge_functions`) avec le `csvContent` téléchargé + `restaurantId=d69579a6...`.
+3. Vérifier en SQL :
+   - `SELECT COUNT(*), AVG(overall_rating) FROM customer_reviews WHERE restaurant_id='d69579a6…' AND review_date BETWEEN '2026-05-01' AND '2026-05-31';`
+   - Cible attendue : **174 lignes**, note moyenne ~**4,37** (cohérent avec ce qu'on a déjà extrait du CSV).
+4. Aller sur `/analytics/reviews` + `/compare/ratings` filtrés sur Chicken Street Argenteuil + période mai 2026 → confirmer visuellement les KPI, tags, commentaires.
 
-- Délai webhook Uber non garanti — si > 10 min, je te préviens et on peut reprendre plus tard.
-- Données disponibles uniquement si Uber a effectivement collecté des avis sur la période (possible qu'il y en ait peu ou pas, indépendamment de notre pipeline).
+### Phase C — Validation finale par toi
+Quand A+B sont OK, on s'arrête et on attend ton feu vert pour les étapes suivantes :
+- 📌 Backfill de l'historique complet Chicken Street (et autres restaurants) pour rattraper tous les mois manqués
+- 📌 Ajouter `CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT` + `MENU_ITEM_FEEDBACK_REPORT` au **scheduler hebdo** pour qu'ils tournent automatiquement chaque semaine comme `PAYMENT_DETAILS_REPORT`
+- 📌 Fix éventuel du parser `parse-report-csv` pour DOWNTIME / ORDER_HISTORY (même bug FR/EN, mais hors urgence)
+
+## 📦 Périmètre de cette livraison
+
+**Modifié** : `supabase/functions/uber-report-webhook/index.ts` uniquement.
+
+**Non touché** : `parse-reviews-order`, `parse-reviews-item`, `parse-report-csv`, scheduler, schéma DB, UI.
+
+**Risque** : nul côté UI (aucune query ni composant changé). Côté webhook, le seul nouveau comportement concerne 2 types de rapports qui ne s'insèrent **jamais** aujourd'hui — donc pas de régression possible.
