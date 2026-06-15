@@ -113,72 +113,89 @@ Deno.serve(async (req) => {
     if (runErr) console.error('Could not create backfill_runs row:', runErr);
     const runId = runRow?.id ?? null;
 
-    const results: any[] = [];
-    let success = 0;
-    let failed = 0;
+    // ────────────────────────────────────────────────────────────────
+    // Heavy work runs in the background so the HTTP caller gets an
+    // immediate ack (avoids client-side timeouts on long backfills).
+    // EdgeRuntime.waitUntil keeps the worker alive after the response.
+    // ────────────────────────────────────────────────────────────────
+    const doBackfill = async () => {
+      const results: any[] = [];
+      let success = 0;
+      let failed = 0;
 
-    for (const restaurantId of restaurantIds) {
-      for (const w of allWindows) {
-        let okThisJob = false;
-        let lastError: string | null = null;
-        let workflowId: string | undefined;
+      for (const restaurantId of restaurantIds) {
+        for (const w of allWindows) {
+          let okThisJob = false;
+          let lastError: string | null = null;
+          let workflowId: string | undefined;
 
-        for (let attempt = 1; attempt <= 2 && !okThisJob; attempt++) {
-          try {
-            const { data, error } = await supabase.functions.invoke('uber-create-report', {
-              body: { restaurantId, reportType, startDate: w.start, endDate: w.end },
-            });
-            if (error) throw error;
-            okThisJob = true;
-            workflowId = data?.workflow_id;
-          } catch (e: any) {
-            lastError = e?.message ?? String(e);
-            // Retry only on rate-limit-ish errors
-            if (attempt < 2 && /429|rate|limit/i.test(lastError ?? '')) {
-              console.warn(`Rate limit on ${restaurantId} ${w.start}, retry in 5s`);
-              await sleep(5000);
-              continue;
+          for (let attempt = 1; attempt <= 2 && !okThisJob; attempt++) {
+            try {
+              const { data, error } = await supabase.functions.invoke('uber-create-report', {
+                body: { restaurantId, reportType, startDate: w.start, endDate: w.end },
+              });
+              if (error) throw error;
+              okThisJob = true;
+              workflowId = data?.workflow_id;
+            } catch (e: any) {
+              lastError = e?.message ?? String(e);
+              if (attempt < 2 && /429|rate|limit/i.test(lastError ?? '')) {
+                console.warn(`Rate limit on ${restaurantId} ${w.start}, retry in 5s`);
+                await sleep(5000);
+                continue;
+              }
+              break;
             }
-            break;
           }
-        }
 
-        if (okThisJob) {
-          success++;
-          results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: true, workflow_id: workflowId });
-        } else {
-          failed++;
-          results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: false, error: lastError });
-        }
+          if (okThisJob) {
+            success++;
+            results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: true, workflow_id: workflowId });
+          } else {
+            failed++;
+            results.push({ restaurantId, window: `${w.start}→${w.end}`, ok: false, error: lastError });
+          }
 
-        await sleep(500);
+          await sleep(500);
+        }
       }
-    }
 
-    if (runId) {
-      await supabase
-        .from('backfill_runs')
-        .update({
-          status: failed === 0 ? 'completed' : 'completed_with_errors',
-          ok: success,
-          failed,
-          results,
-          finished_at: new Date().toISOString(),
-        })
-        .eq('id', runId);
+      if (runId) {
+        await supabase
+          .from('backfill_runs')
+          .update({
+            status: failed === 0 ? 'completed' : 'completed_with_errors',
+            ok: success,
+            failed,
+            results,
+            finished_at: new Date().toISOString(),
+          })
+          .eq('id', runId);
+      }
+      console.log(`Backfill ${runId} terminé: ok=${success} failed=${failed}`);
+    };
+
+    // Fire-and-forget. EdgeRuntime is available in Supabase Deno runtime.
+    // @ts-ignore - EdgeRuntime is provided at runtime
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime?.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(doBackfill());
+    } else {
+      // Fallback for local dev: don't await
+      doBackfill().catch((e) => console.error('Backfill background error:', e));
     }
 
     return new Response(
       JSON.stringify({
         success: true,
         runId,
-        total: results.length,
-        ok: success,
-        failed,
-        results,
+        accepted: true,
+        totalPlanned,
+        message: 'Backfill démarré en arrière-plan. Suivi via backfill_runs.',
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error: any) {
     console.error('Backfill error:', error);
     return new Response(JSON.stringify({ error: error.message }), {
