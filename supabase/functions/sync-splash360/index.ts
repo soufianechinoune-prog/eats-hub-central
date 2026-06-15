@@ -352,6 +352,52 @@ serve(async (req) => {
     const targetYear = year || new Date().getFullYear();
     const targetMonth = month || new Date().getMonth() + 1;
 
+    const requestedDays = Array.isArray(day_filter)
+      ? Array.from(new Set(
+          day_filter
+            .map(Number)
+            .filter((d) => Number.isInteger(d) && d >= 1 && d <= daysInMonth(targetYear, targetMonth))
+        )).sort((a, b) => a - b)
+      : [];
+
+    if (mode === "sync" && chain_connection_id && granularity === "day" && requestedDays.length > 1) {
+      const childUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-splash360`;
+      const dispatches = requestedDays.map((day) =>
+        fetch(childUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+          },
+          body: JSON.stringify({
+            mode: "sync",
+            chain_connection_id,
+            granularity: "day",
+            year: targetYear,
+            month: targetMonth,
+            day_filter: [day],
+            skip_network,
+          }),
+        }).catch(() => {})
+      );
+      const edgeRuntime = (globalThis as any).EdgeRuntime;
+      if (edgeRuntime?.waitUntil) {
+        edgeRuntime.waitUntil(Promise.allSettled(dispatches));
+      } else {
+        await Promise.allSettled(dispatches);
+      }
+      return new Response(
+        JSON.stringify({
+          success: true,
+          mode: "sync_dispatch",
+          period: `${targetYear}-${String(targetMonth).padStart(2, "0")}`,
+          dispatched_days: requestedDays,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     console.log(`[Splash360] Auth ${email}...`);
     const token = await getAccessToken(email, password);
     console.log(`[Splash360] Token OK ✅`);
