@@ -173,6 +173,7 @@ serve(async (req) => {
       skip_network = false,
       chain_connection_id,
       sync_all_active = false,
+      day_filter,
     } = body;
 
     const supabaseAdmin = createClient(
@@ -229,6 +230,8 @@ serve(async (req) => {
                   buckets.get(key)!.push(d.getDate());
                 }
                 let insertedTotal = 0;
+                const profile = await getUserProfile(token);
+                const splashIds = (profile?.restos ?? []).map((r: any) => Number(r.id)).filter(Number.isFinite);
                 for (const [key, days] of buckets) {
                   const [y, m] = key.split("-").map(Number);
                   insertedTotal += await runSync({
@@ -237,8 +240,8 @@ serve(async (req) => {
                     year: y,
                     month: m,
                     granularity: "day",
-                    splashIds: [],
-                    networkOnly: true, // ← network aggregate uniquement
+                    splashIds,
+                    networkOnly: false,
                     chainId: conn.chain_id,
                     dayFilter: days,
                   });
@@ -444,9 +447,15 @@ serve(async (req) => {
       const CONCURRENCY = 5;
 
       // Pour granularity=day, on doit boucler sur chaque jour du mois (l'API renvoie 1 point par appel)
+      const normalizedDayFilter = Array.isArray(day_filter)
+        ? day_filter.map(Number).filter((d) => Number.isInteger(d) && d >= 1 && d <= daysInMonth(targetYear, targetMonth))
+        : [];
+
       const dayList: number[] =
         granularity === "day"
-          ? Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1)
+          ? (normalizedDayFilter.length > 0
+              ? Array.from(new Set(normalizedDayFilter)).sort((a, b) => a - b)
+              : Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1))
           : [1];
 
       for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
