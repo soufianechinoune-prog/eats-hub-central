@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
             const reviewParserByType: Record<string, string> = {
               CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT: 'parse-reviews-order',
               MENU_ITEM_FEEDBACK_REPORT: 'parse-reviews-item',
+              ORDER_HISTORY_REPORT: 'parse-order-history',
             };
             const reviewParser = reviewParserByType[body.report_type];
 
