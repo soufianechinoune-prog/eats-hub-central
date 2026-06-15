@@ -223,40 +223,38 @@ serve(async (req) => {
               results.push({ chain_id: conn.chain_id, skipped: true, reason: "missing creds" });
               continue;
             }
-            try {
-              const token = await getAccessToken(creds.email, creds.password);
-              const profile = await getUserProfile(token);
-              const restosMeta = profile?.restos ?? [];
-              const splashIds = restosMeta.map((r: any) => r.id);
 
-              // Auto-populate mapping
-              if (restosMeta.length > 0) {
-                await supabaseAdmin
-                  .from("splash360_restaurant_mapping")
-                  .upsert(
-                    restosMeta.map((r: any) => ({
-                      restaurant_splash_id: r.id,
-                      splash_name: r.nom,
-                      chain_id: conn.chain_id,
-                    })),
-                    { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
-                  );
-              }
+            // scope=today : sync RAPIDE (network + restos, J et J-1 uniquement)
+            //              tient dans un seul worker (< 30s typique)
+            if (scope === "today") {
+              try {
+                const token = await getAccessToken(creds.email, creds.password);
+                const profile = await getUserProfile(token);
+                const restosMeta = profile?.restos ?? [];
+                const splashIds = restosMeta.map((r: any) => r.id);
 
-              // Calcule la période à sync selon le scope
-              // today = J et J-1 (peut chevaucher 2 mois → 2 runSync)
-              // month = mois en cours complet
-              let insertedTotal = 0;
-              if (scope === "today") {
+                if (restosMeta.length > 0) {
+                  await supabaseAdmin
+                    .from("splash360_restaurant_mapping")
+                    .upsert(
+                      restosMeta.map((r: any) => ({
+                        restaurant_splash_id: r.id,
+                        splash_name: r.nom,
+                        chain_id: conn.chain_id,
+                      })),
+                      { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
+                    );
+                }
+
                 const now = new Date();
                 const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
-                // Groupe par (year, month)
                 const buckets = new Map<string, number[]>();
                 for (const d of [yesterday, now]) {
                   const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
                   if (!buckets.has(key)) buckets.set(key, []);
                   buckets.get(key)!.push(d.getDate());
                 }
+                let insertedTotal = 0;
                 for (const [key, days] of buckets) {
                   const [y, m] = key.split("-").map(Number);
                   insertedTotal += await runSync({
@@ -271,30 +269,40 @@ serve(async (req) => {
                     dayFilter: days,
                   });
                 }
-              } else {
-                // scope === "month"
-                const targetYearC = new Date().getFullYear();
-                const targetMonthC = new Date().getMonth() + 1;
-                insertedTotal = await runSync({
-                  supabase: supabaseAdmin,
-                  token,
-                  year: targetYearC,
-                  month: targetMonthC,
-                  granularity: "day",
-                  splashIds,
-                  networkOnly: false,
-                  chainId: conn.chain_id,
-                });
+
+                await supabaseAdmin
+                  .from("chain_pos_connections")
+                  .update({ last_sync_at: new Date().toISOString() })
+                  .eq("id", conn.id);
+
+                results.push({ chain_id: conn.chain_id, inserted: insertedTotal });
+              } catch (e: any) {
+                results.push({ chain_id: conn.chain_id, error: e.message });
               }
-
-              await supabaseAdmin
-                .from("chain_pos_connections")
-                .update({ last_sync_at: new Date().toISOString() })
-                .eq("id", conn.id);
-
-              results.push({ chain_id: conn.chain_id, inserted: insertedTotal });
-            } catch (e: any) {
-              results.push({ chain_id: conn.chain_id, error: e.message });
+            } else {
+              // scope=month : DISPATCH vers une invocation enfant par chaîne
+              // (le mois complet × 100 restos dépasse le budget CPU d'un worker)
+              try {
+                const childUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-splash360`;
+                fetch(childUrl, {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+                    "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  },
+                  body: JSON.stringify({
+                    mode: "sync",
+                    chain_connection_id: conn.id,
+                    granularity: "day",
+                    year: new Date().getFullYear(),
+                    month: new Date().getMonth() + 1,
+                  }),
+                }).catch(() => {});
+                results.push({ chain_id: conn.chain_id, dispatched: true });
+              } catch (e: any) {
+                results.push({ chain_id: conn.chain_id, error: e.message });
+              }
             }
           }
 
@@ -302,7 +310,7 @@ serve(async (req) => {
           const errorsCount = results.filter((r) => r.error).length;
           if (runId) {
             await supabaseAdmin.from("splash360_sync_runs").update({
-              status: errorsCount > 0 && totalInserted === 0 ? "failed" : (errorsCount > 0 ? "partial" : "success"),
+              status: errorsCount > 0 && totalInserted === 0 && scope === "today" ? "failed" : (errorsCount > 0 ? "partial" : "success"),
               finished_at: new Date().toISOString(),
               duration_ms: Date.now() - runStartedAt,
               connections_processed: results.length,
@@ -328,16 +336,15 @@ serve(async (req) => {
         // @ts-ignore
         EdgeRuntime.waitUntil(processAll());
       } else {
-        // Fallback (dev local) : ne pas await pour ne pas bloquer la réponse
         processAll();
       }
 
-      // Réponse immédiate (< 1s) pour que pg_net ne timeout pas
       return new Response(
         JSON.stringify({ success: true, accepted: true, run_id: runId, scope }),
         { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
 
     // ─── Si chain_connection_id fourni, charger les credentials ─────────
