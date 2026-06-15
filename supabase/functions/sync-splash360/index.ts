@@ -196,25 +196,18 @@ serve(async (req) => {
         .single();
       const runId = runRow?.id;
 
-      // Fonction de traitement asynchrone (lancée via waitUntil)
-      const processAll = async () => {
+      // ─── scope=today : NETWORK-ONLY (rapide, < 10s) ─────────────────────
+      // Sync uniquement l'agrégat réseau (splashId=0) pour J et J-1.
+      // Le détail par restaurant est mis à jour par le catch-up nocturne.
+      // ─── scope=month : DISPATCH vers une invocation enfant par chaîne ────
+      const doWork = async () => {
         try {
           const { data: connections, error: connErr } = await supabaseAdmin
             .from("chain_pos_connections")
             .select("id, chain_id, credentials, account_label")
             .eq("connector_id", "splash360")
             .eq("is_active", true);
-          if (connErr) {
-            if (runId) {
-              await supabaseAdmin.from("splash360_sync_runs").update({
-                status: "failed",
-                finished_at: new Date().toISOString(),
-                duration_ms: Date.now() - runStartedAt,
-                details: { error: connErr.message },
-              }).eq("id", runId);
-            }
-            return;
-          }
+          if (connErr) throw new Error(connErr.message);
 
           const results: any[] = [];
           for (const conn of connections ?? []) {
@@ -224,28 +217,9 @@ serve(async (req) => {
               continue;
             }
 
-            // scope=today : sync RAPIDE (network + restos, J et J-1 uniquement)
-            //              tient dans un seul worker (< 30s typique)
             if (scope === "today") {
               try {
                 const token = await getAccessToken(creds.email, creds.password);
-                const profile = await getUserProfile(token);
-                const restosMeta = profile?.restos ?? [];
-                const splashIds = restosMeta.map((r: any) => r.id);
-
-                if (restosMeta.length > 0) {
-                  await supabaseAdmin
-                    .from("splash360_restaurant_mapping")
-                    .upsert(
-                      restosMeta.map((r: any) => ({
-                        restaurant_splash_id: r.id,
-                        splash_name: r.nom,
-                        chain_id: conn.chain_id,
-                      })),
-                      { onConflict: "restaurant_splash_id", ignoreDuplicates: true }
-                    );
-                }
-
                 const now = new Date();
                 const yesterday = new Date(now.getTime() - 24 * 3600 * 1000);
                 const buckets = new Map<string, number[]>();
@@ -263,25 +237,22 @@ serve(async (req) => {
                     year: y,
                     month: m,
                     granularity: "day",
-                    splashIds,
-                    networkOnly: false,
+                    splashIds: [],
+                    networkOnly: true, // ← network aggregate uniquement
                     chainId: conn.chain_id,
                     dayFilter: days,
                   });
                 }
-
                 await supabaseAdmin
                   .from("chain_pos_connections")
                   .update({ last_sync_at: new Date().toISOString() })
                   .eq("id", conn.id);
-
                 results.push({ chain_id: conn.chain_id, inserted: insertedTotal });
               } catch (e: any) {
                 results.push({ chain_id: conn.chain_id, error: e.message });
               }
             } else {
-              // scope=month : DISPATCH vers une invocation enfant par chaîne
-              // (le mois complet × 100 restos dépasse le budget CPU d'un worker)
+              // scope=month : fire-and-forget child call par chaîne
               try {
                 const childUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/sync-splash360`;
                 fetch(childUrl, {
@@ -310,7 +281,9 @@ serve(async (req) => {
           const errorsCount = results.filter((r) => r.error).length;
           if (runId) {
             await supabaseAdmin.from("splash360_sync_runs").update({
-              status: errorsCount > 0 && totalInserted === 0 && scope === "today" ? "failed" : (errorsCount > 0 ? "partial" : "success"),
+              status: errorsCount > 0 && totalInserted === 0 && scope === "today"
+                ? "failed"
+                : (errorsCount > 0 ? "partial" : "success"),
               finished_at: new Date().toISOString(),
               duration_ms: Date.now() - runStartedAt,
               connections_processed: results.length,
@@ -319,6 +292,7 @@ serve(async (req) => {
               details: { scope, results },
             }).eq("id", runId);
           }
+          return { results, totalInserted };
         } catch (e: any) {
           if (runId) {
             await supabaseAdmin.from("splash360_sync_runs").update({
@@ -328,22 +302,19 @@ serve(async (req) => {
               details: { error: e.message, scope },
             }).eq("id", runId);
           }
+          throw e;
         }
       };
 
-      // @ts-ignore - EdgeRuntime est disponible dans Deno Deploy / Supabase Edge
-      if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
-        // @ts-ignore
-        EdgeRuntime.waitUntil(processAll());
-      } else {
-        processAll();
-      }
-
+      // scope=today : on attend (rapide, ~5-10s)
+      // scope=month : dispatcher → réponse rapide après fan-out
+      const work = await doWork();
       return new Response(
-        JSON.stringify({ success: true, accepted: true, run_id: runId, scope }),
-        { status: 202, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ success: true, run_id: runId, scope, ...work }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
 
 
 
