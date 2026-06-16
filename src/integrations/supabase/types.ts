@@ -4388,6 +4388,18 @@ export type Database = {
       }
     }
     Functions: {
+      admin_list_cron_jobs: {
+        Args: never
+        Returns: {
+          active: boolean
+          command: string
+          failed_runs_7d: number
+          jobid: number
+          jobname: string
+          last_runs_7d: number
+          schedule: string
+        }[]
+      }
       backfill_orders_data_source_for_restaurant: {
         Args: { p_restaurant_id: string }
         Returns: number
