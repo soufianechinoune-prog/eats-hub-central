@@ -184,8 +184,12 @@ Deno.serve(async (req) => {
     if (!reportResponse.ok) {
       const errorText = await reportResponse.text();
       console.error('Uber API error:', errorText);
+      if (reportResponse.status === 429 || /too_many_requests/i.test(errorText)) {
+        throw new UberRateLimitError(`Reports 429: ${errorText}`, reportResponse.headers.get('retry-after'), 'reports');
+      }
       throw new Error(`Failed to create report: ${errorText}`);
     }
+
 
     const reportData = await reportResponse.json();
     console.log('Report created with workflow_id:', reportData.workflow_id);
