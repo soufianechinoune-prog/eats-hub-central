@@ -103,8 +103,12 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
       console.warn('Uber OAuth rate-limited, falling back to cached token still valid:', errText);
       return cached.access_token;
     }
+    if (tokenResponse.status === 429 || /too_many_requests/i.test(errText)) {
+      throw new UberRateLimitError(`OAuth 429: ${errText}`, tokenResponse.headers.get('retry-after'), 'oauth');
+    }
     throw new Error(`Failed to get client_credentials token: ${errText}`);
   }
+
   const tokenData = await tokenResponse.json();
 
   // Persist the new token (upsert on the singleton row id=true)
