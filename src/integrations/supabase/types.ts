@@ -856,6 +856,401 @@ export type Database = {
           },
         ]
       }
+      dishop_customers: {
+        Row: {
+          chain_id: string
+          created_at: string
+          dishop_customer_id: string
+          email: string | null
+          fidelite_id: string | null
+          first_name: string | null
+          first_order_date: string | null
+          id: string
+          last_name: string | null
+          last_order_date: string | null
+          newsletter: boolean | null
+          phone_country_code: string | null
+          phone_number: string | null
+          phone_prefix: string | null
+          raw: Json | null
+          shop_ids: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          dishop_customer_id: string
+          email?: string | null
+          fidelite_id?: string | null
+          first_name?: string | null
+          first_order_date?: string | null
+          id?: string
+          last_name?: string | null
+          last_order_date?: string | null
+          newsletter?: boolean | null
+          phone_country_code?: string | null
+          phone_number?: string | null
+          phone_prefix?: string | null
+          raw?: Json | null
+          shop_ids?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          dishop_customer_id?: string
+          email?: string | null
+          fidelite_id?: string | null
+          first_name?: string | null
+          first_order_date?: string | null
+          id?: string
+          last_name?: string | null
+          last_order_date?: string | null
+          newsletter?: boolean | null
+          phone_country_code?: string | null
+          phone_number?: string | null
+          phone_prefix?: string | null
+          raw?: Json | null
+          shop_ids?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishop_customers_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dishop_order_items: {
+        Row: {
+          category_id: string | null
+          category_name: string | null
+          category_position: number | null
+          chain_id: string
+          created_at: string
+          dishop_order_id: string
+          id: string
+          item_key: string | null
+          item_name: string | null
+          nb: number | null
+          position_in_basket: number | null
+          price_ref: number | null
+          product_key: string | null
+          raw: Json | null
+          ref: string | null
+          restaurant_id: string | null
+          section_key: string | null
+          unit_price: number | null
+          value: number | null
+        }
+        Insert: {
+          category_id?: string | null
+          category_name?: string | null
+          category_position?: number | null
+          chain_id: string
+          created_at?: string
+          dishop_order_id: string
+          id?: string
+          item_key?: string | null
+          item_name?: string | null
+          nb?: number | null
+          position_in_basket?: number | null
+          price_ref?: number | null
+          product_key?: string | null
+          raw?: Json | null
+          ref?: string | null
+          restaurant_id?: string | null
+          section_key?: string | null
+          unit_price?: number | null
+          value?: number | null
+        }
+        Update: {
+          category_id?: string | null
+          category_name?: string | null
+          category_position?: number | null
+          chain_id?: string
+          created_at?: string
+          dishop_order_id?: string
+          id?: string
+          item_key?: string | null
+          item_name?: string | null
+          nb?: number | null
+          position_in_basket?: number | null
+          price_ref?: number | null
+          product_key?: string | null
+          raw?: Json | null
+          ref?: string | null
+          restaurant_id?: string | null
+          section_key?: string | null
+          unit_price?: number | null
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishop_order_items_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_order_items_dishop_order_id_fkey"
+            columns: ["dishop_order_id"]
+            isOneToOne: false
+            referencedRelation: "dishop_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_order_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dishop_orders: {
+        Row: {
+          address: Json | null
+          chain_connection_id: string | null
+          chain_id: string
+          charge_id: string
+          commission_dishop_amount: number | null
+          commission_dishop_fixe: number | null
+          commission_dishop_variable: number | null
+          commission_ordertype_amount: number | null
+          commission_ordertype_name: string | null
+          created_at: string
+          dishop_customer_id: string | null
+          dishop_shop_id: string
+          id: string
+          marketing_promo_used: boolean | null
+          order_date: string | null
+          order_number: number | null
+          order_type: string | null
+          payment_type: string | null
+          price_total: number | null
+          raw_billing: Json | null
+          raw_order: Json | null
+          restaurant_id: string | null
+          source_month: number | null
+          source_week_index: number | null
+          source_year: number | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: Json | null
+          chain_connection_id?: string | null
+          chain_id: string
+          charge_id: string
+          commission_dishop_amount?: number | null
+          commission_dishop_fixe?: number | null
+          commission_dishop_variable?: number | null
+          commission_ordertype_amount?: number | null
+          commission_ordertype_name?: string | null
+          created_at?: string
+          dishop_customer_id?: string | null
+          dishop_shop_id: string
+          id?: string
+          marketing_promo_used?: boolean | null
+          order_date?: string | null
+          order_number?: number | null
+          order_type?: string | null
+          payment_type?: string | null
+          price_total?: number | null
+          raw_billing?: Json | null
+          raw_order?: Json | null
+          restaurant_id?: string | null
+          source_month?: number | null
+          source_week_index?: number | null
+          source_year?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: Json | null
+          chain_connection_id?: string | null
+          chain_id?: string
+          charge_id?: string
+          commission_dishop_amount?: number | null
+          commission_dishop_fixe?: number | null
+          commission_dishop_variable?: number | null
+          commission_ordertype_amount?: number | null
+          commission_ordertype_name?: string | null
+          created_at?: string
+          dishop_customer_id?: string | null
+          dishop_shop_id?: string
+          id?: string
+          marketing_promo_used?: boolean | null
+          order_date?: string | null
+          order_number?: number | null
+          order_type?: string | null
+          payment_type?: string | null
+          price_total?: number | null
+          raw_billing?: Json | null
+          raw_order?: Json | null
+          restaurant_id?: string | null
+          source_month?: number | null
+          source_week_index?: number | null
+          source_year?: number | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishop_orders_chain_connection_id_fkey"
+            columns: ["chain_connection_id"]
+            isOneToOne: false
+            referencedRelation: "chain_pos_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_orders_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dishop_shop_mapping: {
+        Row: {
+          chain_connection_id: string
+          chain_id: string
+          created_at: string
+          dishop_shop_id: string
+          id: string
+          matched_at: string | null
+          raw_label: string | null
+          restaurant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          chain_connection_id: string
+          chain_id: string
+          created_at?: string
+          dishop_shop_id: string
+          id?: string
+          matched_at?: string | null
+          raw_label?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chain_connection_id?: string
+          chain_id?: string
+          created_at?: string
+          dishop_shop_id?: string
+          id?: string
+          matched_at?: string | null
+          raw_label?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishop_shop_mapping_chain_connection_id_fkey"
+            columns: ["chain_connection_id"]
+            isOneToOne: false
+            referencedRelation: "chain_pos_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_shop_mapping_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_shop_mapping_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dishop_sync_runs: {
+        Row: {
+          chain_connection_id: string
+          chain_id: string
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          files_meta: Json | null
+          finished_at: string | null
+          id: string
+          month: number
+          rows_inserted: Json | null
+          started_at: string
+          status: string
+          triggered_by: string | null
+          week_index: number | null
+          year: number
+        }
+        Insert: {
+          chain_connection_id: string
+          chain_id: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          files_meta?: Json | null
+          finished_at?: string | null
+          id?: string
+          month: number
+          rows_inserted?: Json | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          week_index?: number | null
+          year: number
+        }
+        Update: {
+          chain_connection_id?: string
+          chain_id?: string
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          files_meta?: Json | null
+          finished_at?: string | null
+          id?: string
+          month?: number
+          rows_inserted?: Json | null
+          started_at?: string
+          status?: string
+          triggered_by?: string | null
+          week_index?: number | null
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dishop_sync_runs_chain_connection_id_fkey"
+            columns: ["chain_connection_id"]
+            isOneToOne: false
+            referencedRelation: "chain_pos_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dishop_sync_runs_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       downtime_logs: {
         Row: {
           created_at: string
@@ -3526,6 +3921,7 @@ export type Database = {
       splash360_restaurant_mapping: {
         Row: {
           chain_id: string | null
+          is_not_applicable: boolean
           matched_at: string
           restaurant_id: string | null
           restaurant_splash_id: number
@@ -3533,6 +3929,7 @@ export type Database = {
         }
         Insert: {
           chain_id?: string | null
+          is_not_applicable?: boolean
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id: number
@@ -3540,6 +3937,7 @@ export type Database = {
         }
         Update: {
           chain_id?: string | null
+          is_not_applicable?: boolean
           matched_at?: string
           restaurant_id?: string | null
           restaurant_splash_id?: number
@@ -3554,6 +3952,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      splash360_sync_runs: {
+        Row: {
+          connections_processed: number
+          created_at: string
+          details: Json | null
+          duration_ms: number | null
+          errors_count: number
+          finished_at: string | null
+          id: string
+          rows_upserted: number
+          status: string
+          trigger_source: string
+          triggered_at: string
+        }
+        Insert: {
+          connections_processed?: number
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          errors_count?: number
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          status?: string
+          trigger_source?: string
+          triggered_at?: string
+        }
+        Update: {
+          connections_processed?: number
+          created_at?: string
+          details?: Json | null
+          duration_ms?: number | null
+          errors_count?: number
+          finished_at?: string | null
+          id?: string
+          rows_upserted?: number
+          status?: string
+          trigger_source?: string
+          triggered_at?: string
+        }
+        Relationships: []
       }
       subscriptions: {
         Row: {
@@ -4417,6 +4857,24 @@ export type Database = {
           total_revenue: number
         }[]
       }
+      get_network_dishop_summary: {
+        Args: {
+          p_chain_id: string
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          avg_basket: number
+          by_restaurant: Json
+          days_with_data: number
+          prev_days_with_data: number
+          prev_total_orders: number
+          prev_total_revenue: number
+          total_orders: number
+          total_revenue: number
+        }[]
+      }
       get_network_orders_summary: {
         Args: {
           p_end_date: string
@@ -5036,6 +5494,7 @@ export type Database = {
           unmatched_count: number
         }[]
       }
+      splash360_reset_stuck_runs: { Args: never; Returns: number }
       unaccent: { Args: { "": string }; Returns: string }
       update_splash_mapping: {
         Args: { p_restaurant_id: string; p_splash_id: number }
