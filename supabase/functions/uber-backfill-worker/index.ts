@@ -21,6 +21,15 @@ const INTER_JOB_DELAY_MS = 1500;
 // Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
 const MAX_DAYS_PER_REPORT = 30;
 
+// Plafond de re-tentatives causées par un throttle Uber (429) avant de basculer
+// le job en `failed`. Empêche un store éternellement throttlé de rester `pending` à vie.
+const MAX_RATE_LIMIT_RETRIES = 10;
+
+// Fallback de delay (secondes) si Uber ne renvoie pas Retry-After ou si la valeur
+// n'est pas exploitable. Volontairement court pour rester réactif (le job repart
+// au tick suivant), le throttle reste géré niveau file via next_attempt_at.
+const RATE_LIMIT_REQUEUE_DEFAULT_SECONDS = 60;
+
 interface JobRow {
   job_id: string;
   restaurant_id: string;
@@ -32,6 +41,38 @@ interface JobRow {
   report_type: string | null;
   vague: number;
 }
+
+// Sentinelle pour signaler au caller qu'on a épuisé les retries 429 → requeue.
+class WorkerRateLimitError extends Error {
+  retryAfterSeconds: number;
+  constructor(retryAfterSeconds: number, message: string) {
+    super(message);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
+ * Parse un header Retry-After (RFC 7231) : peut être un entier de secondes
+ * OU une date HTTP. Retourne le delay en secondes, ou null si non-parsable.
+ */
+function parseRetryAfter(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  // Cas 1 : entier de secondes
+  if (/^\d+$/.test(trimmed)) {
+    const n = parseInt(trimmed, 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  // Cas 2 : date HTTP
+  const parsed = Date.parse(trimmed);
+  if (Number.isFinite(parsed)) {
+    const delta = Math.ceil((parsed - Date.now()) / 1000);
+    return delta > 0 ? delta : 0;
+  }
+  return null;
+}
+
 
 /**
  * Découpe une plage de dates en sous-plages de max N jours (inclusif).
