@@ -1,36 +1,85 @@
-# Switch Périmètre constant / élargi
+## Constat révisé
 
-Permettre à l'utilisateur de choisir, depuis le header de la page Overview, comment se calcule la comparaison VS N-1 :
+L'analyse de l'ingénieure est correcte. Après relecture de `uber-daily-backfill-trigger/index.ts` :
 
-- **Périmètre élargi (défaut, comportement actuel)** : on compare le total N (tous les restos sélectionnés) au total N-1 (mêmes IDs, même s'ils n'existaient pas encore).
-- **Périmètre constant** : on ne garde, pour la comparaison, que les restaurants ouverts **à la fois** sur N et sur N-1. Les autres sont exclus du calcul de variation (mais restent visibles dans la liste, juste sans variation).
+- `month_start = today - (windowDays+1)` → **glisse chaque jour**.
+- La contrainte unique `(restaurant_id, month_start, report_type)` est donc **non-collidante entre jours différents**.
+- Conséquence : un `upsert ON CONFLICT DO NOTHING` ne supprimerait quasi aucun doublon (seulement les double-exécutions du **même jour** : cron + wake worker ligne 82, ou re-trigger manuel).
+- Le backlog (~590 pending) vient d'un **intake > drain**, pas de doublons.
 
-## Étapes
+Mon plan précédent inversait la hiérarchie : l'Étape 2 ne draine rien. Il faut **mesurer avant d'agir**.
 
-### 1. État global dans `AnalyticsContext`
-- Ajouter `comparisonScope: "extended" | "constant"` + setter (défaut `"extended"`), persisté dans `localStorage` comme les autres prefs.
+## Plan révisé — Étape 1 seule (lecture seule, zéro risque)
 
-### 2. UI — switch dans le header Overview
-- Petit toggle/segmented control à côté du sélecteur de période et du mode de comparaison (`yearOverYear` / `rollingPeriod`).
-- Labels : « Périmètre élargi » / « Périmètre constant », avec tooltip explicatif (« Ne compare que les restos ouverts sur les 2 périodes »).
-- Visible uniquement si `includeN1Comparison` est actif (comparaison affichée).
+Créer une RPC `admin_list_cron_jobs()` en `SECURITY DEFINER`, réservée `is_super_admin()`, qui expose les colonnes utiles de `cron.job` + un résumé sur les 7 derniers jours de `cron.job_run_details` (réussites / échecs).
 
-### 3. Logique dans `useNetworkStats`
-Aujourd'hui (lignes 103-110, 132-135) :
-- `restaurants` = `filterActiveRestaurants(raw, startDate, endDate)` → filtre uniquement sur la période N.
-- N-1 = `setFullYear(-1)` sur les mêmes IDs, sans filtre d'activité.
+### SQL
 
-Nouveau, quand `comparisonScope === "constant"` :
-- Calculer `constantScopeIds` = restaurants actifs sur N **ET** sur N-1 (réutiliser `isActiveForPeriod` deux fois sur les `restaurantsRaw`).
-- Pour le **total N-1** et le **total N utilisé dans la variation** (`prevTotalRevenue`, `prevTotalOrders`, `revenueVariation`), ne sommer que ces IDs.
-- Au niveau ligne par restaurant : si un resto n'est pas dans `constantScopeIds`, mettre `revenueVariation = null` / `ordersVariation = null` (badge « N/A » dans le tableau).
-- Le total N « brut » affiché reste inchangé (somme de tous les actifs N), seule la **variation** est recalculée à périmètre constant pour rester comparable.
+```sql
+CREATE OR REPLACE FUNCTION public.admin_list_cron_jobs()
+RETURNS TABLE (
+  jobid bigint,
+  jobname text,
+  schedule text,
+  command text,
+  active boolean,
+  last_runs_7d bigint,
+  failed_runs_7d bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, cron
+AS $$
+BEGIN
+  IF NOT public.is_super_admin() THEN
+    RAISE EXCEPTION 'Forbidden';
+  END IF;
 
-Quand `comparisonScope === "extended"` : comportement actuel inchangé.
+  RETURN QUERY
+  SELECT
+    j.jobid,
+    j.jobname,
+    j.schedule,
+    j.command,
+    j.active,
+    COALESCE(r.runs, 0)   AS last_runs_7d,
+    COALESCE(r.failed, 0) AS failed_runs_7d
+  FROM cron.job j
+  LEFT JOIN (
+    SELECT jobid,
+           COUNT(*)                                                          AS runs,
+           COUNT(*) FILTER (WHERE status <> 'succeeded')                     AS failed
+    FROM cron.job_run_details
+    WHERE start_time > now() - interval '7 days'
+    GROUP BY jobid
+  ) r USING (jobid);
+END;
+$$;
 
-### 4. Indicateur visuel
-- Afficher discrètement sous le bloc « VS N-1 » : « Comparaison à périmètre constant (X/Y restos) » quand le mode constant exclut au moins 1 resto, pour que l'utilisateur sache combien sont écartés.
+REVOKE ALL ON FUNCTION public.admin_list_cron_jobs() FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.admin_list_cron_jobs() TO authenticated;
+```
 
-## Hors scope
-- Pas de changement sur les pages Finances, Analytics, Reviews — uniquement Overview / `useNetworkStats` pour cette v1. On pourra étendre ensuite si besoin.
-- Pas de changement DB / RPC : tout reste côté client, on filtre juste les IDs passés/sommés.
+### Ce qu'on en fait
+
+Une fois la RPC en place, je l'appelle pour obtenir le verdict factuel sur :
+
+1. **Crons réels** : y a-t-il vraiment `worker-cron` + `worker-tick` en doublon ?
+2. **Intake quotidien** : `uber-daily-backfill-trigger` est-il scheduled 1× ou N× (un par `report_type`) ?
+3. **Taux d'échec cron** sur 7 jours (proxy du 429 saturation).
+
+### Décision Étapes 2-5 — après mesure seulement
+
+Sur la base des chiffres, on tranchera :
+
+- **Si 429-bound** (taux d'échec élevé) → on garde la voilure mais on réduit `PARALLEL` ou on espace les workers (l'unschedule du doublon peut alors aider).
+- **Si throughput-bound** (peu de 429, juste lent) → on **ajoute** du parallélisme et on garde les deux workers.
+- **Si intake exagéré** (N report_types/jour × 147 restos = ~880/jour) → on réduit `window_days` ou le nombre de types journaliers.
+- L'`upsert ON CONFLICT DO NOTHING` reste pertinent comme **idempotence** (race wake-worker + cron, re-trigger manuel), mais déclassé de "levier principal" à "ceinture de sécurité".
+- Le requeue ciblé `failed` (hors `skipped`/188j) reste valable indépendamment.
+
+## Hors périmètre
+
+- Aucun changement de schéma `backfill_jobs`.
+- Aucun changement à `pick_next_backfill_job` (déjà `FOR UPDATE SKIP LOCKED`).
+- Aucun `cron.unschedule` ni changement de worker tant qu'on n'a pas mesuré.
