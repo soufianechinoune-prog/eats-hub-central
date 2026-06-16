@@ -224,12 +224,31 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error creating report:', error);
+    if (error instanceof UberRateLimitError) {
+      return new Response(
+        JSON.stringify({
+          error: 'TooManyRequests',
+          source: error.source,
+          retry_after: error.retryAfter,
+          detail: error.message,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            ...(error.retryAfter ? { 'Retry-After': error.retryAfter } : {}),
+          },
+        }
+      );
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
+      {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
+
 });
