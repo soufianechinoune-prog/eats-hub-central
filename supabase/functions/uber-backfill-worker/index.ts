@@ -21,6 +21,15 @@ const INTER_JOB_DELAY_MS = 1500;
 // Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
 const MAX_DAYS_PER_REPORT = 30;
 
+// Plafond de re-tentatives causées par un throttle Uber (429) avant de basculer
+// le job en `failed`. Empêche un store éternellement throttlé de rester `pending` à vie.
+const MAX_RATE_LIMIT_RETRIES = 10;
+
+// Fallback de delay (secondes) si Uber ne renvoie pas Retry-After ou si la valeur
+// n'est pas exploitable. Volontairement court pour rester réactif (le job repart
+// au tick suivant), le throttle reste géré niveau file via next_attempt_at.
+const RATE_LIMIT_REQUEUE_DEFAULT_SECONDS = 60;
+
 interface JobRow {
   job_id: string;
   restaurant_id: string;
@@ -32,6 +41,38 @@ interface JobRow {
   report_type: string | null;
   vague: number;
 }
+
+// Sentinelle pour signaler au caller qu'on a épuisé les retries 429 → requeue.
+class WorkerRateLimitError extends Error {
+  retryAfterSeconds: number;
+  constructor(retryAfterSeconds: number, message: string) {
+    super(message);
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
+ * Parse un header Retry-After (RFC 7231) : peut être un entier de secondes
+ * OU une date HTTP. Retourne le delay en secondes, ou null si non-parsable.
+ */
+function parseRetryAfter(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  // Cas 1 : entier de secondes
+  if (/^\d+$/.test(trimmed)) {
+    const n = parseInt(trimmed, 10);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  // Cas 2 : date HTTP
+  const parsed = Date.parse(trimmed);
+  if (Number.isFinite(parsed)) {
+    const delta = Math.ceil((parsed - Date.now()) / 1000);
+    return delta > 0 ? delta : 0;
+  }
+  return null;
+}
+
 
 /**
  * Découpe une plage de dates en sous-plages de max N jours (inclusif).
@@ -97,11 +138,16 @@ async function processJob(
     const ranges = splitDateRange(job.month_start, cappedEnd, MAX_DAYS_PER_REPORT);
     const workflowIds: string[] = [];
 
-    // Retry helper avec backoff exponentiel sur 429 (TooManyRequests).
-    // Ne consomme PAS un attempt côté job : c'est juste Uber qui throttle.
+    // Retry helper sur 429 (TooManyRequests) :
+    //  - honore Retry-After renvoyé par uber-create-report (entier ou date HTTP) ;
+    //  - cappe à 2 tentatives in-process avec un sleep cappé à 30s pour rester
+    //    largement sous la wall-clock d'une edge function ;
+    //  - sur 429 persistant : remonte un WorkerRateLimitError au caller, qui requeue
+    //    le job au niveau de la file (next_attempt_at) au lieu de cramer un attempt.
+    //  - sur erreur non-429 : throw classique → branche catch externe (failed).
     async function createReportWithRetry(startDate: string, endDate: string): Promise<string> {
-      const maxRetries = 5;
-      let delayMs = 5000; // 5s, 10s, 20s, 40s, 80s
+      const maxRetries = 2;
+      let lastRetryAfterSeconds = RATE_LIMIT_REQUEUE_DEFAULT_SECONDS;
       for (let attempt = 0; attempt < maxRetries; attempt++) {
         const createResponse = await fetch(
           `${supabaseUrl}/functions/v1/uber-create-report`,
@@ -115,25 +161,40 @@ async function processJob(
             body: JSON.stringify({ restaurantId: job.restaurant_id, reportType, startDate, endDate }),
           }
         );
-        const createData = await createResponse.json();
+        const createData = await createResponse.json().catch(() => ({}));
 
         if (createResponse.ok && createData.workflow_id) {
           return createData.workflow_id;
         }
 
-        const errMsg = String(createData.error || `HTTP ${createResponse.status}`);
-        const isRateLimit = errMsg.includes('too_many_requests') || errMsg.includes('TooManyRequests') || createResponse.status === 429;
+        const errMsg = String(createData.error || createData.detail || `HTTP ${createResponse.status}`);
+        const isRateLimit =
+          createResponse.status === 429 ||
+          /too_many_requests|TooManyRequests/i.test(errMsg) ||
+          /TooManyRequests/i.test(String(createData.error || ''));
 
-        if (isRateLimit && attempt < maxRetries - 1) {
-          const jitter = Math.floor(Math.random() * 500);
-          console.log(`Job ${job.job_id}: 429 from Uber, retry ${attempt + 1}/${maxRetries} in ${delayMs + jitter}ms`);
-          await new Promise((r) => setTimeout(r, delayMs + jitter));
-          delayMs *= 2;
-          continue;
+        if (isRateLimit) {
+          // Priorité 1 : header HTTP Retry-After de uber-create-report (déjà propagé d'Uber).
+          // Priorité 2 : body.retry_after (au cas où le header serait stripped en chemin).
+          // Fallback : valeur courte par défaut.
+          const headerRetry = parseRetryAfter(createResponse.headers.get('retry-after'));
+          const bodyRetry = parseRetryAfter(createData?.retry_after != null ? String(createData.retry_after) : null);
+          const retryAfterSeconds = headerRetry ?? bodyRetry ?? RATE_LIMIT_REQUEUE_DEFAULT_SECONDS;
+          lastRetryAfterSeconds = retryAfterSeconds;
+
+          if (attempt < maxRetries - 1) {
+            // Sleep in-process cappé à 30s pour ne pas exploser la wall-clock de l'edge.
+            const sleepMs = Math.min(retryAfterSeconds, 30) * 1000 + Math.floor(Math.random() * 500);
+            console.log(`Job ${job.job_id}: 429 from Uber (source=${createData?.source || '?'}), retry ${attempt + 1}/${maxRetries} in ${sleepMs}ms (Retry-After=${retryAfterSeconds}s)`);
+            await new Promise((r) => setTimeout(r, sleepMs));
+            continue;
+          }
+          // Retries in-process épuisés → on remonte pour requeue niveau file.
+          throw new WorkerRateLimitError(retryAfterSeconds, `429 persistant après ${maxRetries} tentatives in-process`);
         }
         throw new Error(errMsg);
       }
-      throw new Error('Max retries exhausted on 429');
+      throw new WorkerRateLimitError(lastRetryAfterSeconds, 'Max retries exhausted on 429');
     }
 
     // Sérialise les sous-plages d'un job, avec un petit délai entre chaque
@@ -158,9 +219,46 @@ async function processJob(
     console.log(`Job ${job.job_id} dispatched → ${workflowIds.length} workflow(s): ${workflowIds.join(',')}`);
     return { status: 'dispatched', job_id: job.job_id, detail: workflowIds.join(',') };
   } catch (err: any) {
-    const errMsg = String(err.message || err);
+    const errMsg = String(err?.message || err);
     console.error(`Job ${job.job_id} failed: ${errMsg}`);
-    // Auto-skip si l'erreur est la limite 188 jours d'Uber → pas de retry
+
+    // === Branche 429 : requeue au niveau de la file (next_attempt_at) ===
+    if (err instanceof WorkerRateLimitError) {
+      const currentRlRetries = (job as any).rate_limit_retries ?? 0; // pas exposé par le picker → on relit
+      // Relire le compteur réel pour décider du basculement failed.
+      const { data: jobRow } = await supabase
+        .from('backfill_jobs')
+        .select('rate_limit_retries')
+        .eq('id', job.job_id)
+        .maybeSingle();
+      const rlRetries = (jobRow?.rate_limit_retries ?? currentRlRetries) as number;
+
+      if (rlRetries + 1 >= MAX_RATE_LIMIT_RETRIES) {
+        await supabase.from('backfill_jobs').update({
+          status: 'failed',
+          last_error: `Throttle Uber persistant : ${MAX_RATE_LIMIT_RETRIES} requeues 429 atteints. Retenter manuellement plus tard.`,
+          rate_limit_retries: rlRetries + 1,
+          updated_at: new Date().toISOString(),
+        }).eq('id', job.job_id);
+        return { status: 'rate_limited_failed', job_id: job.job_id, detail: errMsg };
+      }
+
+      // Requeue : pending, next_attempt_at futur, on ne touche pas `attempts`.
+      // On compense le +1 fait par pick_next_backfill_job pour ne pas brûler d'attempt.
+      const nextAt = new Date(Date.now() + err.retryAfterSeconds * 1000).toISOString();
+      await supabase.from('backfill_jobs').update({
+        status: 'pending',
+        attempts: Math.max(0, (job.attempts ?? 1) - 1),
+        rate_limit_retries: rlRetries + 1,
+        next_attempt_at: nextAt,
+        last_error: `429 Uber → requeue à ${nextAt} (retry #${rlRetries + 1}/${MAX_RATE_LIMIT_RETRIES})`,
+        updated_at: new Date().toISOString(),
+      }).eq('id', job.job_id);
+      console.log(`Job ${job.job_id} requeued (429) → next_attempt_at=${nextAt}, rl_retries=${rlRetries + 1}`);
+      return { status: 'rate_limited_requeued', job_id: job.job_id, detail: `requeue in ${err.retryAfterSeconds}s` };
+    }
+
+    // === Branche classique : skipped / failed / pending ===
     const isOutOfWindow = /188 days|startDate must be within/i.test(errMsg);
     const newStatus = isOutOfWindow
       ? 'skipped'
@@ -179,6 +277,7 @@ async function processJob(
     return { status: isOutOfWindow ? 'skipped' : 'job_failed', job_id: job.job_id, detail: errMsg };
   }
 }
+
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

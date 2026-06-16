@@ -12,6 +12,18 @@ interface CreateReportRequest {
   endDate: string;
 }
 
+// Custom error to bubble up a 429 from any inner call (OAuth or Reports API)
+// with the upstream Retry-After header preserved.
+class UberRateLimitError extends Error {
+  retryAfter: string | null;
+  source: 'oauth' | 'reports';
+  constructor(message: string, retryAfter: string | null, source: 'oauth' | 'reports') {
+    super(message);
+    this.retryAfter = retryAfter;
+    this.source = source;
+  }
+}
+
 // Returns a valid Uber access token. Tries user OAuth first (uber_connections),
 // then falls back to client_credentials (server-to-server) if no user connection.
 async function getAccessToken(supabase: any, restaurantId: string): Promise<string> {
@@ -91,8 +103,12 @@ async function getAccessToken(supabase: any, restaurantId: string): Promise<stri
       console.warn('Uber OAuth rate-limited, falling back to cached token still valid:', errText);
       return cached.access_token;
     }
+    if (tokenResponse.status === 429 || /too_many_requests/i.test(errText)) {
+      throw new UberRateLimitError(`OAuth 429: ${errText}`, tokenResponse.headers.get('retry-after'), 'oauth');
+    }
     throw new Error(`Failed to get client_credentials token: ${errText}`);
   }
+
   const tokenData = await tokenResponse.json();
 
   // Persist the new token (upsert on the singleton row id=true)
@@ -168,8 +184,12 @@ Deno.serve(async (req) => {
     if (!reportResponse.ok) {
       const errorText = await reportResponse.text();
       console.error('Uber API error:', errorText);
+      if (reportResponse.status === 429 || /too_many_requests/i.test(errorText)) {
+        throw new UberRateLimitError(`Reports 429: ${errorText}`, reportResponse.headers.get('retry-after'), 'reports');
+      }
       throw new Error(`Failed to create report: ${errorText}`);
     }
+
 
     const reportData = await reportResponse.json();
     console.log('Report created with workflow_id:', reportData.workflow_id);
@@ -204,12 +224,31 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error creating report:', error);
+    if (error instanceof UberRateLimitError) {
+      return new Response(
+        JSON.stringify({
+          error: 'TooManyRequests',
+          source: error.source,
+          retry_after: error.retryAfter,
+          detail: error.message,
+        }),
+        {
+          status: 429,
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+            ...(error.retryAfter ? { 'Retry-After': error.retryAfter } : {}),
+          },
+        }
+      );
+    }
     return new Response(
       JSON.stringify({ error: error.message }),
-      { 
+      {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }
+
 });

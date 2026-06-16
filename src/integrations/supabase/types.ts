@@ -94,6 +94,8 @@ export type Database = {
           last_error: string | null
           month_end: string
           month_start: string
+          next_attempt_at: string | null
+          rate_limit_retries: number
           report_id: string | null
           report_type: string
           restaurant_id: string
@@ -112,6 +114,8 @@ export type Database = {
           last_error?: string | null
           month_end: string
           month_start: string
+          next_attempt_at?: string | null
+          rate_limit_retries?: number
           report_id?: string | null
           report_type?: string
           restaurant_id: string
@@ -130,6 +134,8 @@ export type Database = {
           last_error?: string | null
           month_end?: string
           month_start?: string
+          next_attempt_at?: string | null
+          rate_limit_retries?: number
           report_id?: string | null
           report_type?: string
           restaurant_id?: string
