@@ -12,6 +12,18 @@ interface CreateReportRequest {
   endDate: string;
 }
 
+// Custom error to bubble up a 429 from any inner call (OAuth or Reports API)
+// with the upstream Retry-After header preserved.
+class UberRateLimitError extends Error {
+  retryAfter: string | null;
+  source: 'oauth' | 'reports';
+  constructor(message: string, retryAfter: string | null, source: 'oauth' | 'reports') {
+    super(message);
+    this.retryAfter = retryAfter;
+    this.source = source;
+  }
+}
+
 // Returns a valid Uber access token. Tries user OAuth first (uber_connections),
 // then falls back to client_credentials (server-to-server) if no user connection.
 async function getAccessToken(supabase: any, restaurantId: string): Promise<string> {
