@@ -1,85 +1,62 @@
-## Constat révisé
+# Audit backfill Uber + diagnostic data juin
 
-L'analyse de l'ingénieure est correcte. Après relecture de `uber-daily-backfill-trigger/index.ts` :
+## Résultats audit (juste maintenant)
 
-- `month_start = today - (windowDays+1)` → **glisse chaque jour**.
-- La contrainte unique `(restaurant_id, month_start, report_type)` est donc **non-collidante entre jours différents**.
-- Conséquence : un `upsert ON CONFLICT DO NOTHING` ne supprimerait quasi aucun doublon (seulement les double-exécutions du **même jour** : cron + wake worker ligne 82, ou re-trigger manuel).
-- Le backlog (~590 pending) vient d'un **intake > drain**, pas de doublons.
+**Système stabilisé** ✅
+- Dernière heure : **118 done / 0 failed** (vs 34% failed avant patch)
+- Cron dupliqué supprimé : flux 429 sous contrôle
+- Requeue 429 fonctionnel : 69 jobs ont déjà été requeués via `next_attempt_at`
+- Débit stable ~120 jobs/h
 
-Mon plan précédent inversait la hiérarchie : l'Étape 2 ne draine rien. Il faut **mesurer avant d'agir**.
+**État global backfill_jobs**
+| status  | count |
+|---------|-------|
+| done    | 9 444 |
+| pending | 1 054 |
+| failed  |   918 |
+| running |     4 |
 
-## Plan révisé — Étape 1 seule (lecture seule, zéro risque)
+**Couverture juin (orders en base)** ✅ les données SONT là
+- 1-13 juin : 7 500 à 11 100 orders/jour (normal)
+- 14 juin : 1 346 (jour en cours, normal)
 
-Créer une RPC `admin_list_cron_jobs()` en `SECURITY DEFINER`, réservée `is_super_admin()`, qui expose les colonnes utiles de `cron.job` + un résumé sur les 7 derniers jours de `cron.job_run_details` (réussites / échecs).
+**Couverture juin (jobs par type de rapport)** ⚠️ partielle
+- `PAYMENT_DETAILS_REPORT` : 1 793 done, 344 pending, 90 failed
+- `ORDER_HISTORY_REPORT` : 30 done, 142 pending (juin 12-13 surtout)
+- `DOWNTIME / FEEDBACK / MENU / ERRORS` : ~30 done / ~142 pending chacun (jobs récemment créés)
 
-### SQL
+**Failed à requeuer**
+- **510 jobs** failed avec `TooManyRequests` → c'est l'ancien stock pré-patch, peut être requeué maintenant que le système est stable
+- 403 jobs `user_not_allowed` → restaurants déconnectés Uber (problème séparé, à traiter manuellement)
+- 4 jobs erreurs réseau diverses
 
-```sql
-CREATE OR REPLACE FUNCTION public.admin_list_cron_jobs()
-RETURNS TABLE (
-  jobid bigint,
-  jobname text,
-  schedule text,
-  command text,
-  active boolean,
-  last_runs_7d bigint,
-  failed_runs_7d bigint
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public, cron
-AS $$
-BEGIN
-  IF NOT public.is_super_admin() THEN
-    RAISE EXCEPTION 'Forbidden';
-  END IF;
+## Diagnostic "pas de data sur juin"
 
-  RETURN QUERY
-  SELECT
-    j.jobid,
-    j.jobname,
-    j.schedule,
-    j.command,
-    j.active,
-    COALESCE(r.runs, 0)   AS last_runs_7d,
-    COALESCE(r.failed, 0) AS failed_runs_7d
-  FROM cron.job j
-  LEFT JOIN (
-    SELECT jobid,
-           COUNT(*)                                                          AS runs,
-           COUNT(*) FILTER (WHERE status <> 'succeeded')                     AS failed
-    FROM cron.job_run_details
-    WHERE start_time > now() - interval '7 days'
-    GROUP BY jobid
-  ) r USING (jobid);
-END;
-$$;
+Les **orders Uber sont bien présentes** en base pour juin (60k+ lignes du 1 au 13). Donc si l'overview n'affiche rien :
+- Soit les rapports `PAYMENT_DETAILS` de juin 12-13 ne sont pas encore traités (jobs pending)
+- Soit un filtre UI (marque active, scope) masque les données
+- Soit l'overview agrège par mois complet et juin (en cours) n'apparaît pas
 
-REVOKE ALL ON FUNCTION public.admin_list_cron_jobs() FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.admin_list_cron_jobs() TO authenticated;
-```
+## Plan d'action
 
-### Ce qu'on en fait
+### Étape 1 — Requeue des 510 jobs 429
+Remettre en `pending` avec `next_attempt_at = now() + 30s` et reset `rate_limit_retries = 0`. Le worker absorbe à 120/h, donc ~4h pour drainer.
 
-Une fois la RPC en place, je l'appelle pour obtenir le verdict factuel sur :
+### Étape 2 — Observation 1h
+- Vérifier que le requeue n'écroule pas le taux de succès (cible : <5% failed/h)
+- Mesurer le drainage du pending (1564 → cible <1000 en 4h)
 
-1. **Crons réels** : y a-t-il vraiment `worker-cron` + `worker-tick` en doublon ?
-2. **Intake quotidien** : `uber-daily-backfill-trigger` est-il scheduled 1× ou N× (un par `report_type`) ?
-3. **Taux d'échec cron** sur 7 jours (proxy du 429 saturation).
+### Étape 3 — Diagnostic UI overview
+Une fois le pending drainé, reproduire le "pas de data juin" côté UI :
+- Vérifier la marque active (Chicken Street vs Tasty Crousty)
+- Vérifier le sélecteur de période (mois en cours inclus ?)
+- Inspecter les RPC `get_network_*` pour juin sur l'overview
 
-### Décision Étapes 2-5 — après mesure seulement
+### Étape 4 (séparée, optionnelle) — Restaurants déconnectés
+Les 403 jobs `user_not_allowed` indiquent des restaurants avec connexion Uber expirée/révoquée. Audit séparé via `/settings/integrations`.
 
-Sur la base des chiffres, on tranchera :
-
-- **Si 429-bound** (taux d'échec élevé) → on garde la voilure mais on réduit `PARALLEL` ou on espace les workers (l'unschedule du doublon peut alors aider).
-- **Si throughput-bound** (peu de 429, juste lent) → on **ajoute** du parallélisme et on garde les deux workers.
-- **Si intake exagéré** (N report_types/jour × 147 restos = ~880/jour) → on réduit `window_days` ou le nombre de types journaliers.
-- L'`upsert ON CONFLICT DO NOTHING` reste pertinent comme **idempotence** (race wake-worker + cron, re-trigger manuel), mais déclassé de "levier principal" à "ceinture de sécurité".
-- Le requeue ciblé `failed` (hors `skipped`/188j) reste valable indépendamment.
-
-## Hors périmètre
-
-- Aucun changement de schéma `backfill_jobs`.
-- Aucun changement à `pick_next_backfill_job` (déjà `FOR UPDATE SKIP LOCKED`).
-- Aucun `cron.unschedule` ni changement de worker tant qu'on n'a pas mesuré.
+## Ce qui n'est PAS dans ce plan
+- Toucher au worker (il fonctionne bien)
+- Toucher au cron (jobid=5 seul, OK)
+- Modifier le backoff (déjà calibré sur Retry-After)
+- Requeue des 403 `user_not_allowed` (problème métier, pas technique)
