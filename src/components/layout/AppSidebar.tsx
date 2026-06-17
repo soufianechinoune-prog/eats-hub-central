@@ -342,7 +342,7 @@ export function AppSidebar() {
           {!collapsed && canImport && (
             <div className="px-2 pb-2">
               <Select
-                value={selectedChainId || "all"}
+                value={selectedChainId || ""}
                 onValueChange={handleChainChange}
               >
                 <SelectTrigger className="h-11 border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground [&>svg]:text-sidebar-foreground">
