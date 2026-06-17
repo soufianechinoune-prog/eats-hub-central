@@ -1,62 +1,21 @@
-# Audit backfill Uber + diagnostic data juin
+# Marque par défaut = Chicken Street à la connexion
 
-## Résultats audit (juste maintenant)
+## Comportement souhaité
+- À la **première connexion** (ou si rien n'est en mémoire), la marque affichée est **Chicken Street** au lieu de "Toutes les marques".
+- L'utilisateur garde **la liberté totale** de basculer ensuite vers une autre marque ou vers "Toutes les marques" via le sélecteur dans la sidebar.
+- Le choix de l'utilisateur reste persistant : s'il sélectionne "Toutes les marques" manuellement, ce choix est conservé à la prochaine session.
 
-**Système stabilisé** ✅
-- Dernière heure : **118 done / 0 failed** (vs 34% failed avant patch)
-- Cron dupliqué supprimé : flux 429 sous contrôle
-- Requeue 429 fonctionnel : 69 jobs ont déjà été requeués via `next_attempt_at`
-- Débit stable ~120 jobs/h
+## Modification
 
-**État global backfill_jobs**
-| status  | count |
-|---------|-------|
-| done    | 9 444 |
-| pending | 1 054 |
-| failed  |   918 |
-| running |     4 |
+**`src/contexts/AnalyticsContext.tsx`** — Étendre la logique d'auto-sélection (qui ne marche aujourd'hui que pour les utilisateurs mono-marque) :
 
-**Couverture juin (orders en base)** ✅ les données SONT là
-- 1-13 juin : 7 500 à 11 100 orders/jour (normal)
-- 14 juin : 1 346 (jour en cours, normal)
+- Au démarrage, si `selectedChainId === null` ET rien n'est en `localStorage`, charger la liste des chaînes accessibles.
+- Chercher celle nommée "Chicken Street" (insensible à la casse) → la sélectionner.
+- Fallback : si "Chicken Street" n'est pas dans la liste, prendre la première chaîne par ordre alphabétique.
+- Si l'utilisateur a déjà fait un choix (y compris explicitement "Toutes les marques"), ne rien forcer.
 
-**Couverture juin (jobs par type de rapport)** ⚠️ partielle
-- `PAYMENT_DETAILS_REPORT` : 1 793 done, 344 pending, 90 failed
-- `ORDER_HISTORY_REPORT` : 30 done, 142 pending (juin 12-13 surtout)
-- `DOWNTIME / FEEDBACK / MENU / ERRORS` : ~30 done / ~142 pending chacun (jobs récemment créés)
+Aucune autre modification : sélecteur sidebar, RLS, hooks et routes inchangés.
 
-**Failed à requeuer**
-- **510 jobs** failed avec `TooManyRequests` → c'est l'ancien stock pré-patch, peut être requeué maintenant que le système est stable
-- 403 jobs `user_not_allowed` → restaurants déconnectés Uber (problème séparé, à traiter manuellement)
-- 4 jobs erreurs réseau diverses
-
-## Diagnostic "pas de data sur juin"
-
-Les **orders Uber sont bien présentes** en base pour juin (60k+ lignes du 1 au 13). Donc si l'overview n'affiche rien :
-- Soit les rapports `PAYMENT_DETAILS` de juin 12-13 ne sont pas encore traités (jobs pending)
-- Soit un filtre UI (marque active, scope) masque les données
-- Soit l'overview agrège par mois complet et juin (en cours) n'apparaît pas
-
-## Plan d'action
-
-### Étape 1 — Requeue des 510 jobs 429
-Remettre en `pending` avec `next_attempt_at = now() + 30s` et reset `rate_limit_retries = 0`. Le worker absorbe à 120/h, donc ~4h pour drainer.
-
-### Étape 2 — Observation 1h
-- Vérifier que le requeue n'écroule pas le taux de succès (cible : <5% failed/h)
-- Mesurer le drainage du pending (1564 → cible <1000 en 4h)
-
-### Étape 3 — Diagnostic UI overview
-Une fois le pending drainé, reproduire le "pas de data juin" côté UI :
-- Vérifier la marque active (Chicken Street vs Tasty Crousty)
-- Vérifier le sélecteur de période (mois en cours inclus ?)
-- Inspecter les RPC `get_network_*` pour juin sur l'overview
-
-### Étape 4 (séparée, optionnelle) — Restaurants déconnectés
-Les 403 jobs `user_not_allowed` indiquent des restaurants avec connexion Uber expirée/révoquée. Audit séparé via `/settings/integrations`.
-
-## Ce qui n'est PAS dans ce plan
-- Toucher au worker (il fonctionne bien)
-- Toucher au cron (jobid=5 seul, OK)
-- Modifier le backoff (déjà calibré sur Retry-After)
-- Requeue des 403 `user_not_allowed` (problème métier, pas technique)
+## Hors scope
+- Pas de restriction d'accès aux autres marques
+- Pas de modification du dropdown ou de la liste affichée
