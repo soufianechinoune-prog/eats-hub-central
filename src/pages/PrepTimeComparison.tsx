@@ -189,114 +189,108 @@ const PrepTimeComparison = () => {
   // Select restaurants based on view mode
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
 
-  // Fetch order history data for prep times with platform filter
-  const { data: orderHistoryData, isLoading } = useQuery({
-    queryKey: ["prep-time-comparison", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, contextPlatform, isNetworkView],
+  // Format date as YYYY-MM-DD without UTC conversion
+  const formatDateLocal = (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+
+  // Fetch pre-aggregated prep-time data via SECURITY DEFINER RPC (per restaurant/day/hour)
+  const { data: aggData, isLoading } = useQuery({
+    queryKey: ["prep-time-comparison-rpc", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, contextPlatform, isNetworkView],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
-      
       const restaurantIds = selectedRestaurants.map(r => r.id);
-      let allData: typeof data = [];
-      let page = 0;
-      const pageSize = 1000;
-      let hasMore = true;
-      let data: { restaurant_id: string; initial_prep_time_minutes: number | null; order_datetime: string | null; platform: string | null }[] = [];
+      const platformParam = contextPlatform === "global" ? null : contextPlatform;
 
-      while (hasMore) {
-        let query = supabase
-          .from("order_history")
-          .select("restaurant_id, initial_prep_time_minutes, order_datetime, platform")
-          .in("restaurant_id", restaurantIds)
-          .gte("order_datetime", dateRange.start.toISOString())
-          .lte("order_datetime", dateRange.end.toISOString())
-          .not("initial_prep_time_minutes", "is", null);
-        
-        // Apply platform filter if not global
-        if (contextPlatform !== "global") {
-          query = query.eq("platform", contextPlatform);
-        }
-        
-        const { data: pageData, error } = await query.range(page * pageSize, (page + 1) * pageSize - 1);
-        
-        if (error) throw error;
-        
-        if (pageData && pageData.length > 0) {
-          allData = [...allData, ...pageData];
-          hasMore = pageData.length === pageSize;
-          page++;
-        } else {
-          hasMore = false;
-        }
-      }
-      
-      return allData;
+      const { data, error } = await supabase.rpc("get_prep_time_daily", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: formatDateLocal(dateRange.start),
+        p_end_date: formatDateLocal(dateRange.end),
+        p_platform: platformParam,
+      });
+      if (error) throw error;
+      return (data || []) as Array<{
+        restaurant_id: string;
+        day: string;
+        hour: number;
+        avg_prep_time: number;
+        order_count: number;
+      }>;
     },
     enabled: !!selectedRestaurants?.length,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 
-  // Process data for each restaurant
+  // Process aggregated data into per-restaurant stats
   const restaurantStats = useMemo(() => {
-    if (!orderHistoryData?.length || !selectedRestaurants?.length) return [];
-    
+    if (!aggData?.length || !selectedRestaurants?.length) return [];
+
+    // Bucket aggregated rows by restaurant
+    const byRestaurant = new Map<string, typeof aggData>();
+    for (const row of aggData) {
+      const arr = byRestaurant.get(row.restaurant_id) || [];
+      arr.push(row);
+      byRestaurant.set(row.restaurant_id, arr);
+    }
+
     const stats = selectedRestaurants.map(restaurant => {
-      const restaurantData = orderHistoryData.filter(d => d.restaurant_id === restaurant.id);
-      
-      // Calculate average prep time
-      const totalPrepTime = restaurantData.reduce((sum, d) => sum + (d.initial_prep_time_minutes || 0), 0);
-      const avgPrepTime = restaurantData.length > 0 ? totalPrepTime / restaurantData.length : 0;
-      
-      // Group by date for daily evolution
+      const rows = byRestaurant.get(restaurant.id) || [];
+
+      let totalWeighted = 0;
+      let orderCount = 0;
       const dailyData: Record<string, { total: number; count: number }> = {};
-      restaurantData.forEach(d => {
-        if (!d.order_datetime) return;
-        const date = format(parseISO(d.order_datetime), "yyyy-MM-dd");
-        if (!dailyData[date]) {
-          dailyData[date] = { total: 0, count: 0 };
-        }
-        dailyData[date].total += d.initial_prep_time_minutes || 0;
-        dailyData[date].count += 1;
-      });
-
-      // Group by hour for heatmap
       const hourlyData: Record<number, { total: number; count: number }> = {};
-      restaurantData.forEach(d => {
-        if (!d.order_datetime) return;
-        const hour = parseISO(d.order_datetime).getHours();
-        if (!hourlyData[hour]) {
-          hourlyData[hour] = { total: 0, count: 0 };
-        }
-        hourlyData[hour].total += d.initial_prep_time_minutes || 0;
-        hourlyData[hour].count += 1;
-      });
-
-      // Group by day of week - use local timezone for correct day calculation
       const weekdayData: Record<number, { total: number; count: number }> = {};
-      restaurantData.forEach(d => {
-        if (!d.order_datetime) return;
-        // Create date in local timezone instead of UTC to get correct weekday
-        const orderDate = new Date(d.order_datetime);
-        const weekday = orderDate.getDay();
-        if (!weekdayData[weekday]) {
-          weekdayData[weekday] = { total: 0, count: 0 };
-        }
-        weekdayData[weekday].total += d.initial_prep_time_minutes || 0;
-        weekdayData[weekday].count += 1;
-      });
-      
+
+      for (const r of rows) {
+        const cnt = Number(r.order_count) || 0;
+        const avg = Number(r.avg_prep_time) || 0;
+        const weighted = avg * cnt;
+        if (cnt === 0) continue;
+
+        totalWeighted += weighted;
+        orderCount += cnt;
+
+        // Daily
+        const dayKey = r.day; // already YYYY-MM-DD
+        if (!dailyData[dayKey]) dailyData[dayKey] = { total: 0, count: 0 };
+        dailyData[dayKey].total += weighted;
+        dailyData[dayKey].count += cnt;
+
+        // Hourly
+        const h = Number(r.hour);
+        if (!hourlyData[h]) hourlyData[h] = { total: 0, count: 0 };
+        hourlyData[h].total += weighted;
+        hourlyData[h].count += cnt;
+
+        // Weekday (local)
+        const [yy, mm, dd] = r.day.split("-").map(Number);
+        const weekday = new Date(yy, (mm || 1) - 1, dd || 1).getDay();
+        if (!weekdayData[weekday]) weekdayData[weekday] = { total: 0, count: 0 };
+        weekdayData[weekday].total += weighted;
+        weekdayData[weekday].count += cnt;
+      }
+
       return {
         id: restaurant.id,
         name: restaurant.name,
-        avgPrepTime,
-        orderCount: restaurantData.length,
+        avgPrepTime: orderCount > 0 ? totalWeighted / orderCount : 0,
+        orderCount,
         dailyData,
         hourlyData,
         weekdayData,
       };
     });
-    
-    // Sort by average prep time (fastest first)
-    return stats.sort((a, b) => a.avgPrepTime - b.avgPrepTime);
-  }, [orderHistoryData, selectedRestaurants]);
+
+    return stats
+      .filter(s => s.orderCount > 0)
+      .sort((a, b) => a.avgPrepTime - b.avgPrepTime);
+  }, [aggData, selectedRestaurants]);
+
 
 
   const periodLabel = useMemo(() => {
