@@ -330,6 +330,25 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Idempotency: when a single restaurant is targeted (backfill replay), wipe the
+    // existing window first so re-running a job doesn't accumulate duplicates.
+    // menu_item_reviews has no stable per-review key (multiple customers can rate the
+    // same item the same day with different comments), so delete-then-insert by
+    // (restaurant_id, review_date window) is the safest dedup strategy.
+    if (restaurantId && dateStart && dateEnd) {
+      const { error: delErr } = await supabase
+        .from('menu_item_reviews')
+        .delete()
+        .eq('restaurant_id', restaurantId)
+        .gte('review_date', dateStart)
+        .lte('review_date', dateEnd);
+      if (delErr) {
+        console.error('Window delete error:', delErr.message);
+      } else {
+        console.log(`Cleared existing reviews for restaurant ${restaurantId} between ${dateStart} and ${dateEnd}`);
+      }
+    }
+
     // Batch insert (chunks of 500)
     const BATCH_SIZE = 500;
     for (let batchStart = 0; batchStart < reviewsToInsert.length; batchStart += BATCH_SIZE) {
