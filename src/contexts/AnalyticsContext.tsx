@@ -145,14 +145,12 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setSelectedRestaurants((prev) => prev.filter((id) => visibleRestaurants.includes(id)));
   }, [visibleRestaurants]);
 
-  // Auto-select chain on login:
-  // - Users restricted to a SINGLE brand → force that one (e.g., 'client' role)
-  // - First-time visitors (no stored state) with multi-brand access → default to "Chicken Street"
-  //   (fallback: first chain by name). User can still switch to any brand or "Toutes les marques".
+  // Auto-select chain on login: une seule marque à la fois, jamais "toutes les marques".
+  // - Si une seule marque accessible → on la force
+  // - Sinon, si aucune marque sélectionnée → défaut "Chicken Street" (fallback : 1ère par nom)
   // Relies on RLS: the chains query returns only chains the user has access to.
   useEffect(() => {
     let cancelled = false;
-    const isFirstVisit = storedState === null;
     const autoSelectChain = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -162,28 +160,25 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
           .select("id, name");
         if (error || cancelled || !chains || chains.length === 0) return;
 
-        // Single-brand user: always force that chain
-        if (chains.length === 1) {
-          if (selectedChainId !== chains[0].id) {
-            setSelectedChainId(chains[0].id);
-            setSelectedRestaurants([]);
-            setVisibleRestaurants([]);
-          }
-          return;
-        }
+        // Marque actuelle toujours valide ? Sinon on la considère absente.
+        const currentValid = selectedChainId
+          ? chains.some((c) => c.id === selectedChainId)
+          : false;
 
-        // Multi-brand user, first visit only: default to Chicken Street (or fallback)
-        if (isFirstVisit && selectedChainId === null) {
-          const sorted = [...chains].sort((a, b) =>
-            (a.name || "").localeCompare(b.name || "")
-          );
-          const chickenStreet = sorted.find((c) =>
-            (c.name || "").toLowerCase().includes("chicken street")
-          );
-          const defaultChain = chickenStreet || sorted[0];
-          if (defaultChain && !cancelled) {
-            setSelectedChainId(defaultChain.id);
-          }
+        if (currentValid) return;
+
+        // Choisir la marque par défaut : Chicken Street, sinon première par nom
+        const sorted = [...chains].sort((a, b) =>
+          (a.name || "").localeCompare(b.name || "")
+        );
+        const chickenStreet = sorted.find((c) =>
+          (c.name || "").toLowerCase().includes("chicken street")
+        );
+        const defaultChain = chickenStreet || sorted[0];
+        if (defaultChain && !cancelled) {
+          setSelectedChainId(defaultChain.id);
+          setSelectedRestaurants([]);
+          setVisibleRestaurants([]);
         }
       } catch {
         // Silent: if anything fails, keep the existing selection
