@@ -48,6 +48,10 @@ const PrepTimeComparison = () => {
   const { 
     selectedPlatform: contextPlatform,
     setSelectedPlatform: setContextPlatform,
+    periodMode: ctxPeriodMode,
+    selectedYear: ctxYear,
+    selectedMonth: ctxMonth,
+    dateRange: ctxDateRange,
   } = useAnalyticsContext();
   
   const { exportToPDF, isExporting } = usePrepTimeExport();
@@ -57,20 +61,31 @@ const PrepTimeComparison = () => {
   const today = new Date();
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth() + 1;
-  
+
+  // Map AnalyticsContext periodMode → local OverviewPeriodMode
+  const mapCtxPeriod = (m: string | undefined): OverviewPeriodMode => {
+    if (!m) return "previous_week";
+    if (m === "month") return "custom_month";
+    if (m === "range") return "custom_range";
+    return m as OverviewPeriodMode;
+  };
+
+  // Prefer AnalyticsContext (so navigation from Overview keeps the same period),
+  // fallback to localStorage, then defaults.
   const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
-    initialState?.periodMode || "previous_week"
+    ctxPeriodMode ? mapCtxPeriod(ctxPeriodMode) : (initialState?.periodMode || "previous_week")
   );
   const [selectedYear, setSelectedYear] = useState(
-    initialState?.selectedYear || currentYear
+    ctxYear || initialState?.selectedYear || currentYear
   );
   const [selectedMonth, setSelectedMonth] = useState(
-    initialState?.selectedMonth || currentMonth
+    ctxMonth || initialState?.selectedMonth || currentMonth
   );
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(
-    initialState?.customDateRange
+    ctxDateRange?.from && ctxDateRange?.to ? ctxDateRange : initialState?.customDateRange
   );
   const [isNetworkView, setIsNetworkView] = useState(true);
+
 
 
   // Persist state to localStorage
