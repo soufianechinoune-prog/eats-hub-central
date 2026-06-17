@@ -217,9 +217,10 @@ export function AppSidebar() {
       setNewChainDialogOpen(true);
       return;
     }
-    const newChainId = value === "all" ? null : value;
-    if (newChainId !== selectedChainId) {
-      setSelectedChainId(newChainId);
+    // Une seule marque à la fois — pas d'option "Toutes les marques"
+    if (!value || value === "all") return;
+    if (value !== selectedChainId) {
+      setSelectedChainId(value);
       setSelectedRestaurants([]);
       setVisibleRestaurants([]);
       void queryClient.invalidateQueries();
