@@ -49,10 +49,16 @@ Deno.serve(async (req) => {
 
     // Parse based on report type
     switch (reportType) {
-      case 'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT':
-        await parseCustomerFeedback(supabase, restaurantId, rows);
+      case 'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT': {
+        // Delegate to the proven manual parser (real headers, real review_date, real uber_order_id)
+        const { data, error } = await supabase.functions.invoke('parse-reviews-order', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-reviews-order invoke error:', error);
+        else console.log('parse-reviews-order result:', JSON.stringify(data)?.substring(0, 400));
         break;
-      
+      }
+
       case 'MENU_ITEM_FEEDBACK_REPORT':
         await parseMenuItemFeedback(supabase, restaurantId, rows);
         break;
@@ -123,19 +129,47 @@ async function parseCustomerFeedback(supabase: any, restaurantId: string, rows: 
 }
 
 async function parseMenuItemFeedback(supabase: any, restaurantId: string, rows: any[]) {
-  for (const row of rows) {
-    const data = {
-      restaurant_id: restaurantId,
-      item_id: row.item_id || row.Item_ID,
-      item_title: row.item_name || row.Item_Name || 'Unknown',
-      rating: parseFloat(row.rating || row.Rating) || 0,
-      thumb_up: parseInt(row.thumbs_up || row.Thumbs_Up) || 0,
-      thumb_down: parseInt(row.thumbs_down || row.Thumbs_Down) || 0,
-      comment: row.comment || row.Comment || null,
-      review_date: row.date || row.Date || new Date().toISOString(),
-    };
+  // Uber's real CSV headers use spaces (e.g. "Item ID", "Item Name", "Rating", "Date")
+  const pick = (row: any, ...keys: string[]) => {
+    for (const k of keys) {
+      if (row[k] !== undefined && row[k] !== '') return row[k];
+    }
+    return null;
+  };
+  const parseRealDate = (s: string | null): string | null => {
+    if (!s) return null;
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString();
+  };
 
-    await supabase.from('menu_item_reviews').insert(data);
+  const toInsert: any[] = [];
+  for (const row of rows) {
+    const itemId = pick(row, 'Item ID', 'item_id', 'Item_ID');
+    const dateStr = pick(row, 'Date', 'date', 'Order Date', 'Review Date');
+    const reviewDate = parseRealDate(dateStr);
+    // Skip rows without a real date — never fall back to new Date() (caused the June corruption)
+    if (!reviewDate) continue;
+
+    toInsert.push({
+      restaurant_id: restaurantId,
+      item_id: itemId,
+      item_title: pick(row, 'Item Name', 'item_name', 'Item_Name') || 'Unknown',
+      rating: parseFloat(pick(row, 'Rating', 'rating') ?? '0') || 0,
+      thumb_up: parseInt(pick(row, 'Thumbs Up', 'thumbs_up', 'Thumbs_Up') ?? '0') || 0,
+      thumb_down: parseInt(pick(row, 'Thumbs Down', 'thumbs_down', 'Thumbs_Down') ?? '0') || 0,
+      comment: pick(row, 'Comment', 'comment') || null,
+      review_date: reviewDate,
+    });
+  }
+
+  if (toInsert.length === 0) return;
+
+  // Insert in chunks of 500 to stay under PostgREST limits
+  for (let i = 0; i < toInsert.length; i += 500) {
+    const chunk = toInsert.slice(i, i + 500);
+    const { error } = await supabase.from('menu_item_reviews').insert(chunk);
+    if (error) console.error('menu_item_reviews insert error:', error.message);
   }
 }
 

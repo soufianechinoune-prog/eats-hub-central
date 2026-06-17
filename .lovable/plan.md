@@ -1,69 +1,91 @@
-## Investigation : pourquoi commandes incorrectes & temps préparation manquent à partir d'avril
+## Diagnostic révisé (intégrant la remarque de l'ingénieure)
 
-### Constat dans la base
-| Table | Métrique affichée | Dernière donnée |
-|---|---|---|
-| `order_history` | Temps préparation, temps prépa+livraison | **31 mars 2026** ❌ |
-| `order_errors` | Commandes incorrectes | **31 mars 2026** ❌ |
-| `delivery_stats` | (table cible alternative) | **0 ligne** ❌ |
-| `customer_reviews` | Note moyenne | OK jusqu'à juin |
-| `customer_reviews` (avis produits) | 79 % mars | OK |
+J'ai confirmé son analyse en base :
 
-Pourtant côté rapports Uber c'est correct :
-- **1 277 rapports `ORDER_ERRORS_TRANSACTION_REPORT`** marqués `completed` depuis avril
-- **1 417 rapports `ORDER_HISTORY_REPORT`** marqués `completed` depuis avril
-
-Donc Uber renvoie bien les CSV, le webhook les reçoit, mais **le parser n'écrit rien dans les bonnes tables**.
-
-### Cause racine (bug dans `parse-report-csv`)
-
-La fonction `supabase/functions/parse-report-csv/index.ts` est appelée automatiquement par le webhook. Elle a deux problèmes :
-
-**1. `parseOrderHistory` écrit dans la mauvaise table**
-```ts
-// ligne 150 — devrait être 'order_history' (où tu lis les temps de prépa)
-await supabase.from('delivery_stats').upsert(data, ...)
 ```
-Le front lit `order_history.initial_prep_time_minutes`, mais le parser auto écrit dans `delivery_stats` (qui n'existe quasiment plus). Et même `delivery_stats` est vide à 0 ligne → l'insert échoue silencieusement (colonnes ou format de date incompatibles).
+2026-06-15 → 704 lignes,    704 avec uber_order_id NULL
+2026-06-16 → 67 905 lignes, 67 905 avec uber_order_id NULL
+2026-06-17 → 83 381 lignes, 83 381 avec uber_order_id NULL
+```
 
-**2. Mapping de colonnes CSV erroné pour les deux parsers**
-Le code essaie de lire `row.order_id`, `row.Order_ID`, `row.error_category`, `row.Error_Date`… alors que les vrais CSV Uber utilisent des entêtes avec **espaces et casse différente** (ex. `"Order ID"`, `"Refund Date"`, `"Customer Name"`). Aucun champ ne matche → tous les inserts insèrent des `null` et sont rejetés (ou créent des lignes vides invisibles à l'UI).
+→ **100 % des « avis de juin » sont de la donnée corrompue** générée par le webhook `parse-report-csv` (branche `parseCustomerFeedback`). Le code (lignes 106-122) cherche `row.order_id` / `row.Order_ID` alors que le vrai header CSV Uber est `Order ID` (avec espace) ; tout retombe sur `null`, et `review_date` retombe sur `new Date().toISOString()` (date du backfill). Conséquence : `onConflict: 'uber_order_id'` ne déduplique rien → doublons massifs + dates fausses, et avril/mai n'apparaissent pas (les vraies dates ne sont jamais écrites).
 
-C'est confirmé par les imports manuels janvier-mars qui, eux, passent par `parse-inaccurate-orders` et `parse-order-history` (fonctions séparées avec le bon mapping) → c'est pour ça que mars a la data : tu avais importé les CSV à la main.
-
-### Pourquoi mars marche et avril pas
-- Jan/Fév/Mars : données poussées via **imports CSV manuels** dans Reports (bonnes fonctions)
-- Avril/Mai/Juin : repose uniquement sur le **flux automatique via webhook** → tombe dans le parser cassé
+Même schéma dans `parseMenuItemFeedback` (ligne 135). En revanche `parseOrderHistory` / `parseOrderErrors` de ce fichier ne sont **plus utilisés** depuis le fix d'hier (ils délèguent à `parse-order-history` / `parse-inaccurate-orders`), donc `order_history` / `order_errors` ne sont pas touchés — à vérifier rapidement par sécurité.
 
 ---
 
-## Plan de correction
+## Plan d'action
 
-### Étape 1 — Réparer `parse-report-csv`
-Réécrire 3 sections du fichier `supabase/functions/parse-report-csv/index.ts` :
+### Étape 1 — UI : supprimer le toggle Épinglés / Réseau
+Dans `src/pages/RatingsComparison.tsx` :
+- Retirer l'import et l'usage de `NetworkViewToggle`.
+- Retirer l'état `isNetworkView` et sa persistance dans `RATINGS_STORAGE_KEY`.
+- Forcer `selectedRestaurants = allActiveRestaurants` en permanence.
+- Mettre à jour le sous-titre (« Analyse de N restaurants »).
 
-- **`parseOrderHistory`** : insérer dans `order_history` (pas `delivery_stats`), avec les vraies colonnes Uber (`Order ID`, `Order Date`, `Preparation Time`, `Total Delivery Time`, `Courier Wait Time`, `Customer Wait Time`, etc.). S'appuyer sur le mapping déjà validé dans `supabase/functions/parse-order-history/index.ts`.
+### Étape 2 — Perf : filtrer côté SQL
+Dans la même page, queryFn lignes 187-222 :
+- Construire `const ids = selectedRestaurants.map(r => r.id)`.
+- Ajouter `.in('restaurant_id', ids)` à la requête.
+- Garder la pagination `.range()` par 1000.
+- Volume attendu : ~17 k lignes au lieu de ~200 k pour l'année.
 
-- **`parseOrderErrors`** : aligner les headers sur le format Uber réel (`Order ID`, `Refund Date`, `Customer Name`, `Item Title`, `Refund Amount`, `Error Category`…). S'appuyer sur `supabase/functions/parse-inaccurate-orders/index.ts`.
+### Étape 3 — Intégrité : purger les avis corrompus AVANT toute chose
+Migration / SQL ciblé :
+```sql
+DELETE FROM public.customer_reviews
+ WHERE uber_order_id IS NULL
+    OR review_date >= '2026-06-15';
 
-- **`parseDowntime`** et **`parseCustomerFeedback`** : vérifier rapidement le même type de bug et corriger si besoin.
+DELETE FROM public.menu_item_reviews
+ WHERE review_date >= '2026-06-15';
+```
+Justification : tout ce qui a `uber_order_id IS NULL` est corrompu par construction (le vrai parser populent toujours l'ID) ; on borne aussi par date pour rattraper les éventuels lignes 15-17 juin qui auraient malgré tout un ID.
 
-### Étape 2 — Re-parser l'historique avril/mai/juin
-Les rapports sont déjà téléchargés et marqués `completed` côté Uber. Une fois le parser corrigé, lancer un script de re-parse :
-- récupérer dans `reports` toutes les lignes `completed` pour `ORDER_HISTORY_REPORT` et `ORDER_ERRORS_TRANSACTION_REPORT` depuis le 1er avril
-- ré-invoquer `parse-report-csv` sur chacune (avec le `download_url` stocké dans `sections`)
+### Étape 4 — Corriger `parse-report-csv` (avis)
+Dans `supabase/functions/parse-report-csv/index.ts` :
+- Réécrire `parseCustomerFeedback` et `parseMenuItemFeedback` pour qu'elles **délèguent à `parse-reviews-order`** (parser éprouvé qui gère déjà : headers réels avec espaces/accents, parsing date FR/EN, mapping restaurant via alias, dédup par `uber_order_id`).
+- Pattern identique à ce qu'on a fait pour ORDER_HISTORY / ORDER_ERRORS hier :
+  ```ts
+  case 'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT':
+    return await supabase.functions.invoke('parse-reviews-order', {
+      body: { csvContent, restaurantId, dryRun: false }
+    });
+  ```
+- Pour `MENU_ITEM_FEEDBACK_REPORT` : si aucun parser éprouvé n'existe, écrire un mapping correct (`Item ID`, `Item Name`, `Rating`, `Thumbs Up`, `Thumbs Down`, `Comment`, `Date`) et utiliser la vraie date (pas `new Date()`).
 
-### Étape 3 — Vérifier
-- `SELECT MAX(order_datetime) FROM order_history` → doit atteindre fin mai / début juin
-- `SELECT MAX(error_date) FROM order_errors` → idem
-- La carte Avril du restaurant doit afficher temps prépa et % erreurs
+### Étape 5 — Re-parser avril / mai / début juin
+- Lister les `reports` `report_type IN ('CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT','MENU_ITEM_FEEDBACK_REPORT')`, `status = 'completed'`, créés entre le 1er avril et le 14 juin.
+- Re-invoquer `parse-report-csv` directement si la `download_url` est encore valide ; sinon créer des `backfill_jobs` ciblés (vague=996) pour que le worker régénère puis re-parse.
+
+### Étape 6 — Vérifications finales
+```sql
+-- 1. Plus de NULL, plus de pic faux sur juin
+SELECT review_date::date, COUNT(*),
+       COUNT(*) FILTER (WHERE uber_order_id IS NULL) AS nulls
+FROM customer_reviews
+WHERE review_date >= '2026-03-01'
+GROUP BY 1 ORDER BY 1;
+
+-- 2. Avril / mai remontent autour de ~100 restos
+SELECT date_trunc('month', review_date) AS m,
+       COUNT(DISTINCT restaurant_id) AS nb_restos,
+       COUNT(*) AS nb_avis
+FROM customer_reviews
+WHERE review_date >= '2026-01-01'
+GROUP BY 1 ORDER BY 1;
+
+-- 3. Check sécurité : pas de contamination ailleurs
+SELECT 'order_history' tbl, COUNT(*) FROM order_history WHERE uber_order_id IS NULL
+UNION ALL
+SELECT 'order_errors', COUNT(*) FROM order_errors WHERE uber_order_id IS NULL;
+```
+Si les 2 dernières lignes valent 0 → `order_history` / `order_errors` épargnés (attendu, car ils ne passent plus par `parse-report-csv` depuis hier).
 
 ---
 
-### Détails techniques
-- Aucun changement de schéma DB nécessaire — les tables existent et sont correctes.
-- Pas de modif au worker ou au cron — ils font leur job.
-- Le re-parse de l'historique = ~2 700 invocations de `parse-report-csv` (à throttler à 5-10/s pour éviter les rate limits Uber sur les downloads).
-- Pour les `customer_reviews` / `menu_item_reviews` (qui ont l'air OK), on garde sauf si on détecte des trous similaires.
+## Ordre d'exécution non négociable
+1 (UI) et 2 (perf) en parallèle, puis **3 (purge) AVANT 5 (re-parse)**, sinon doublons. 4 (fix code) avant 5 sinon on re-corrompt.
 
-Tu veux que j'enchaîne sur l'implémentation (étape 1 + 2) ?
+## Hors-scope
+Pas de changement de schéma DB. Pas de RPC d'agrégation `get_network_ratings_summary` (à garder en réserve si la perf reste insuffisante après étape 2).
