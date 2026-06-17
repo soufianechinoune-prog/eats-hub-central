@@ -70,9 +70,8 @@ const PrepTimeComparison = () => {
   const [customDateRange, setCustomDateRange] = useState<DateRange | undefined>(
     initialState?.customDateRange
   );
-  const [isNetworkView, setIsNetworkView] = useState(
-    initialState?.isNetworkView || false
-  );
+  const [isNetworkView, setIsNetworkView] = useState(true);
+
 
   // Persist state to localStorage
   useEffect(() => {
@@ -389,13 +388,8 @@ const PrepTimeComparison = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <NetworkViewToggle
-              isNetworkView={isNetworkView}
-              onToggle={setIsNetworkView}
-              pinnedCount={pinnedRestaurants?.length || 0}
-              networkCount={allActiveRestaurants?.length || 0}
-            />
             {/* Platform selector */}
+
             <div className="flex items-center gap-1 p-1 bg-muted/50 rounded-lg">
               <Button
                 variant={contextPlatform === "uber_eats" ? "default" : "ghost"}
