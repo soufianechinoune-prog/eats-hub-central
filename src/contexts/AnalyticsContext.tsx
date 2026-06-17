@@ -145,34 +145,55 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     setSelectedRestaurants((prev) => prev.filter((id) => visibleRestaurants.includes(id)));
   }, [visibleRestaurants]);
 
-  // Auto-select chain for users restricted to a single brand (e.g., 'client' role).
+  // Auto-select chain on login:
+  // - Users restricted to a SINGLE brand → force that one (e.g., 'client' role)
+  // - First-time visitors (no stored state) with multi-brand access → default to "Chicken Street"
+  //   (fallback: first chain by name). User can still switch to any brand or "Toutes les marques".
   // Relies on RLS: the chains query returns only chains the user has access to.
   useEffect(() => {
     let cancelled = false;
-    const autoSelectSingleChain = async () => {
+    const isFirstVisit = storedState === null;
+    const autoSelectChain = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session || cancelled) return;
         const { data: chains, error } = await supabase
           .from("chains")
-          .select("id");
-        if (error || cancelled || !chains) return;
-        // If the user has access to exactly ONE chain, force-select it.
-        // This prevents 'client' role users from seeing "All brands" (cross-brand) view.
-        if (chains.length === 1 && selectedChainId !== chains[0].id) {
-          setSelectedChainId(chains[0].id);
-          setSelectedRestaurants([]);
-          setVisibleRestaurants([]);
+          .select("id, name");
+        if (error || cancelled || !chains || chains.length === 0) return;
+
+        // Single-brand user: always force that chain
+        if (chains.length === 1) {
+          if (selectedChainId !== chains[0].id) {
+            setSelectedChainId(chains[0].id);
+            setSelectedRestaurants([]);
+            setVisibleRestaurants([]);
+          }
+          return;
+        }
+
+        // Multi-brand user, first visit only: default to Chicken Street (or fallback)
+        if (isFirstVisit && selectedChainId === null) {
+          const sorted = [...chains].sort((a, b) =>
+            (a.name || "").localeCompare(b.name || "")
+          );
+          const chickenStreet = sorted.find((c) =>
+            (c.name || "").toLowerCase().includes("chicken street")
+          );
+          const defaultChain = chickenStreet || sorted[0];
+          if (defaultChain && !cancelled) {
+            setSelectedChainId(defaultChain.id);
+          }
         }
       } catch {
         // Silent: if anything fails, keep the existing selection
       }
     };
-    autoSelectSingleChain();
+    autoSelectChain();
     // Re-run on auth state changes (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
-        autoSelectSingleChain();
+        autoSelectChain();
       }
       if (event === "SIGNED_OUT") {
         setSelectedChainId(null);
