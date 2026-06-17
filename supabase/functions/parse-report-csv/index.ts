@@ -59,9 +59,17 @@ Deno.serve(async (req) => {
         break;
       }
 
-      case 'MENU_ITEM_FEEDBACK_REPORT':
-        await parseMenuItemFeedback(supabase, restaurantId, rows);
+      case 'MENU_ITEM_FEEDBACK_REPORT': {
+        // Delegate to parse-reviews-item (proven parser, real headers, real review_date).
+        // It now does delete-then-insert by (restaurant_id, date window) when restaurantId
+        // is provided → idempotent replay without needing a unique key per review.
+        const { data, error } = await supabase.functions.invoke('parse-reviews-item', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-reviews-item invoke error:', error);
+        else console.log('parse-reviews-item result:', JSON.stringify(data)?.substring(0, 400));
         break;
+      }
       
       case 'ORDER_HISTORY_REPORT': {
         // Delegate to the proven manual parser (writes to order_history with correct mapping)

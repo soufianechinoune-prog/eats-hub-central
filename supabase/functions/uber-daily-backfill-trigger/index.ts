@@ -22,9 +22,18 @@ Deno.serve(async (req) => {
 
   try {
     let windowDays = 3;
-    // Par défaut on planifie À LA FOIS les paiements ET l'historique
-    // des commandes — sinon les ventes ne remontent plus dans `orders`.
-    let reportTypes: string[] = ['PAYMENT_DETAILS_REPORT', 'ORDER_HISTORY_REPORT'];
+    // Par défaut on planifie l'ensemble des reports nécessaires pour garder à jour
+    // ventes (PAYMENT + ORDER_HISTORY), avis (CUSTOMER + MENU_ITEM), erreurs et downtime.
+    // Sans ces 5 derniers, les métriques décrochent à J+3.
+    let reportTypes: string[] = [
+      'PAYMENT_DETAILS_REPORT',
+      'ORDER_HISTORY_REPORT',
+      'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT',
+      'MENU_ITEM_FEEDBACK_REPORT',
+      'ORDER_ERRORS_TRANSACTION_REPORT',
+      'ORDER_ERRORS_MENU_ITEM_REPORT',
+      'DOWNTIME_REPORT',
+    ];
     try {
       const body = await req.json();
       if (body?.window_days && Number.isFinite(body.window_days)) {
