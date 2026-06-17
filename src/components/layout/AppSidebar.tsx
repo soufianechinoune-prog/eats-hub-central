@@ -210,16 +210,17 @@ export function AppSidebar() {
   const activeChain = selectedChainId
     ? chains?.find((chain) => chain.id === selectedChainId)
     : null;
-  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Toutes les marques");
+  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Sélectionner une marque");
 
   const handleChainChange = (value: string) => {
     if (value === "__new__") {
       setNewChainDialogOpen(true);
       return;
     }
-    const newChainId = value === "all" ? null : value;
-    if (newChainId !== selectedChainId) {
-      setSelectedChainId(newChainId);
+    // Une seule marque à la fois — pas d'option "Toutes les marques"
+    if (!value || value === "all") return;
+    if (value !== selectedChainId) {
+      setSelectedChainId(value);
       setSelectedRestaurants([]);
       setVisibleRestaurants([]);
       void queryClient.invalidateQueries();
@@ -341,7 +342,7 @@ export function AppSidebar() {
           {!collapsed && canImport && (
             <div className="px-2 pb-2">
               <Select
-                value={selectedChainId || "all"}
+                value={selectedChainId || ""}
                 onValueChange={handleChainChange}
               >
                 <SelectTrigger className="h-11 border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground [&>svg]:text-sidebar-foreground">
@@ -357,7 +358,6 @@ export function AppSidebar() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Toutes les marques</SelectItem>
                   {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
                       <div className="flex items-center gap-2">
