@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
         status: 'ok',
         inserted: jobs.length,
         window: `${startStr} → ${endStr}`,
-        report_type: reportType,
+        report_types: reportTypes,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
