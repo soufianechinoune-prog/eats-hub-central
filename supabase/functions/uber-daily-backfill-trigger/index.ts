@@ -22,13 +22,20 @@ Deno.serve(async (req) => {
 
   try {
     let windowDays = 3;
-    let reportType = 'PAYMENT_DETAILS_REPORT';
+    // Par défaut on planifie À LA FOIS les paiements ET l'historique
+    // des commandes — sinon les ventes ne remontent plus dans `orders`.
+    let reportTypes: string[] = ['PAYMENT_DETAILS_REPORT', 'ORDER_HISTORY_REPORT'];
     try {
       const body = await req.json();
       if (body?.window_days && Number.isFinite(body.window_days)) {
         windowDays = Math.max(1, Math.min(30, Math.floor(body.window_days)));
       }
-      if (body?.report_type) reportType = String(body.report_type);
+      if (body?.report_type) {
+        // rétro-compat : accepte une string unique
+        reportTypes = [String(body.report_type)];
+      } else if (Array.isArray(body?.report_types) && body.report_types.length > 0) {
+        reportTypes = body.report_types.map((t: any) => String(t));
+      }
     } catch (_) {
       // body optionnel
     }
@@ -60,20 +67,23 @@ Deno.serve(async (req) => {
       );
     }
 
-    const jobs = restaurants.map((r: any) => ({
-      restaurant_id: r.id,
-      restaurant_name: r.name,
-      uber_store_id: r.uber_store_id,
-      month_start: startStr,
-      month_end: endStr,
-      status: 'pending',
-      attempts: 0,
-      report_type: reportType,
-      vague: 999, // 999 = vague "daily"
-    }));
+    const jobs = restaurants.flatMap((r: any) =>
+      reportTypes.map((rt) => ({
+        restaurant_id: r.id,
+        restaurant_name: r.name,
+        uber_store_id: r.uber_store_id,
+        month_start: startStr,
+        month_end: endStr,
+        status: 'pending',
+        attempts: 0,
+        report_type: rt,
+        vague: 999, // 999 = vague "daily"
+      }))
+    );
 
     const { error: insErr } = await supabase.from('backfill_jobs').insert(jobs);
     if (insErr) throw insErr;
+
 
     console.log(`[daily-backfill] Enqueued ${jobs.length} jobs for ${startStr} → ${endStr}`);
 
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
         status: 'ok',
         inserted: jobs.length,
         window: `${startStr} → ${endStr}`,
-        report_type: reportType,
+        report_types: reportTypes,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
