@@ -210,7 +210,7 @@ export function AppSidebar() {
   const activeChain = selectedChainId
     ? chains?.find((chain) => chain.id === selectedChainId)
     : null;
-  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Toutes les marques");
+  const activeChainName = activeChain?.name ?? (selectedChainId ? "Marque sélectionnée" : "Sélectionner une marque");
 
   const handleChainChange = (value: string) => {
     if (value === "__new__") {
