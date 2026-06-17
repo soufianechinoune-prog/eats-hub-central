@@ -9,7 +9,7 @@ import { ArrowLeft, Star, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
-import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSection";
+
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { RatingsEvolutionChart } from "@/components/compare/RatingsEvolutionChart";
 import { RatingsDistributionBars } from "@/components/compare/RatingsDistributionBars";
@@ -477,12 +477,6 @@ const RatingsComparison = () => {
               )}
             </div>
 
-            {/* Insights Section */}
-            <RatingsInsightsSection 
-              stats={rankingStats}
-              globalAvg={globalStats.avgRating}
-              totalReviews={globalStats.totalReviews}
-            />
 
             {/* Full Ranking Table - Full Width */}
             <RatingsFullRankingTable 
