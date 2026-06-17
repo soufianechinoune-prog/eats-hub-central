@@ -358,7 +358,6 @@ export function AppSidebar() {
                   </div>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">Toutes les marques</SelectItem>
                   {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
                       <div className="flex items-center gap-2">
