@@ -57,14 +57,26 @@ Deno.serve(async (req) => {
         await parseMenuItemFeedback(supabase, restaurantId, rows);
         break;
       
-      case 'ORDER_HISTORY_REPORT':
-        await parseOrderHistory(supabase, restaurantId, rows);
+      case 'ORDER_HISTORY_REPORT': {
+        // Delegate to the proven manual parser (writes to order_history with correct mapping)
+        const { data, error } = await supabase.functions.invoke('parse-order-history', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-order-history invoke error:', error);
+        else console.log('parse-order-history result:', JSON.stringify(data)?.substring(0, 400));
         break;
+      }
       
       case 'ORDER_ERRORS_MENU_ITEM_REPORT':
-      case 'ORDER_ERRORS_TRANSACTION_REPORT':
-        await parseOrderErrors(supabase, restaurantId, rows, reportType);
+      case 'ORDER_ERRORS_TRANSACTION_REPORT': {
+        // Delegate to the proven manual parser (correct mapping + item splitting)
+        const { data, error } = await supabase.functions.invoke('parse-inaccurate-orders', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-inaccurate-orders invoke error:', error);
+        else console.log('parse-inaccurate-orders result:', JSON.stringify(data)?.substring(0, 400));
         break;
+      }
       
       case 'DOWNTIME_REPORT':
         await parseDowntime(supabase, restaurantId, rows);
