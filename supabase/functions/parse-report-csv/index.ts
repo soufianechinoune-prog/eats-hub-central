@@ -49,10 +49,16 @@ Deno.serve(async (req) => {
 
     // Parse based on report type
     switch (reportType) {
-      case 'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT':
-        await parseCustomerFeedback(supabase, restaurantId, rows);
+      case 'CUSTOMER_AND_DELIVERY_FEEDBACK_REPORT': {
+        // Delegate to the proven manual parser (real headers, real review_date, real uber_order_id)
+        const { data, error } = await supabase.functions.invoke('parse-reviews-order', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-reviews-order invoke error:', error);
+        else console.log('parse-reviews-order result:', JSON.stringify(data)?.substring(0, 400));
         break;
-      
+      }
+
       case 'MENU_ITEM_FEEDBACK_REPORT':
         await parseMenuItemFeedback(supabase, restaurantId, rows);
         break;

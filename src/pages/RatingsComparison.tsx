@@ -13,7 +13,7 @@ import { RatingsInsightsSection } from "@/components/compare/RatingsInsightsSect
 import { RatingsFullRankingTable } from "@/components/compare/RatingsFullRankingTable";
 import { RatingsEvolutionChart } from "@/components/compare/RatingsEvolutionChart";
 import { RatingsDistributionBars } from "@/components/compare/RatingsDistributionBars";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useRatingsExport } from "@/hooks/useRatingsExport";
@@ -72,9 +72,6 @@ const RatingsComparison = () => {
     }
     return undefined;
   });
-  const [isNetworkView, setIsNetworkViewLocal] = useState(
-    () => storedState?.isNetworkView ?? true
-  );
 
   // Persist state to localStorage on every filter change
   const setPeriodMode = (mode: OverviewPeriodMode) => {
@@ -89,9 +86,6 @@ const RatingsComparison = () => {
   const setCustomDateRange = (range: DateRange | undefined) => {
     setCustomDateRangeLocal(range);
   };
-  const setIsNetworkView = (value: boolean) => {
-    setIsNetworkViewLocal(value);
-  };
 
   // Persist state to localStorage for back-button support
   useEffect(() => {
@@ -103,10 +97,9 @@ const RatingsComparison = () => {
         from: customDateRange.from?.toISOString(),
         to: customDateRange.to?.toISOString(),
       } : undefined,
-      isNetworkView,
     };
     localStorage.setItem(RATINGS_STORAGE_KEY, JSON.stringify(state));
-  }, [periodMode, selectedYear, selectedMonth, customDateRange, isNetworkView]);
+  }, [periodMode, selectedYear, selectedMonth, customDateRange]);
   const { 
     setSelectedRestaurants, 
     setVisibleRestaurants,
@@ -163,61 +156,53 @@ const RatingsComparison = () => {
     return { start, end };
   }, [periodMode, selectedYear, selectedMonth, customDateRange]);
 
-  // Fetch pinned restaurants with activity dates
-  const { data: pinnedRestaurantsRaw } = usePinnedRestaurants();
+  // Fetch all active restaurants in the network (network view is always on)
   const { data: allActiveRestaurantsRaw } = useActiveRestaurants();
 
   // Filter restaurants by activity dates for the selected period
-  const pinnedRestaurants = useMemo(() => {
-    if (!pinnedRestaurantsRaw) return [];
-    return filterActiveRestaurants(pinnedRestaurantsRaw, dateRange.start, dateRange.end);
-  }, [pinnedRestaurantsRaw, dateRange.start, dateRange.end]);
-
   const allActiveRestaurants = useMemo(() => {
     if (!allActiveRestaurantsRaw) return [];
     return filterActiveRestaurants(allActiveRestaurantsRaw, dateRange.start, dateRange.end);
   }, [allActiveRestaurantsRaw, dateRange.start, dateRange.end]);
 
-  // Select restaurants based on view mode
-  const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
+  // Always use the full network
+  const selectedRestaurants = allActiveRestaurants;
+  const pinnedRestaurants = allActiveRestaurants; // back-compat for export hooks below
 
-  // Fetch customer reviews with pagination to bypass 1000 row limit
+  // Fetch customer reviews with restaurant_id filter applied SERVER-side
   const { data: reviewsData, isLoading } = useQuery({
-    queryKey: ["ratings-comparison-network", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
+    queryKey: ["ratings-comparison-network", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
-      
+
+      const ids = selectedRestaurants.map(r => r.id);
       const allReviews: any[] = [];
       const pageSize = 1000;
-      
-      // Paginate through ALL reviews for the date range
       let offset = 0;
       let hasMore = true;
-      
+
       while (hasMore) {
         const { data, error } = await supabase
           .from("customer_reviews")
           .select("restaurant_id, overall_rating, review_date, platform, tags")
+          .in("restaurant_id", ids)
           .gte("review_date", formatDateLocal(dateRange.start))
           .lte("review_date", formatDateLocal(dateRange.end))
           .not("overall_rating", "is", null)
           .order("review_date", { ascending: false })
           .range(offset, offset + pageSize - 1);
-        
+
         if (error) throw error;
-        
+
         if (data && data.length > 0) {
-          // Filter to only include restaurants we care about
-          const restaurantIds = new Set(selectedRestaurants.map(r => r.id));
-          const filteredData = data.filter(r => restaurantIds.has(r.restaurant_id));
-          allReviews.push(...filteredData);
+          allReviews.push(...data);
           offset += pageSize;
           hasMore = data.length === pageSize;
         } else {
           hasMore = false;
         }
       }
-      
+
       return allReviews;
     },
     enabled: !!selectedRestaurants?.length,
@@ -415,12 +400,6 @@ const RatingsComparison = () => {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <NetworkViewToggle
-              isNetworkView={isNetworkView}
-              onToggle={setIsNetworkView}
-              pinnedCount={pinnedRestaurants?.length || 0}
-              networkCount={allActiveRestaurants?.length || 0}
-            />
             
             <OverviewPeriodSelector
               periodMode={periodMode}
