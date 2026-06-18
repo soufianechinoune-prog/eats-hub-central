@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DowntimeRankingBars, type SortDirection } from "@/components/compare/DowntimeRankingBars";
 
 import { DowntimeHeatmapGrid } from "@/components/compare/DowntimeHeatmapGrid";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
+
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useDowntimeExport } from "@/hooks/useDowntimeExport";
 import { extractCityName } from "@/lib/restaurantUtils";
@@ -53,9 +53,7 @@ const DowntimeComparison = () => {
     }
     return undefined;
   });
-  const [isNetworkView, setIsNetworkView] = useState(
-    () => storedState?.isNetworkView ?? false
-  );
+  const [isNetworkView, setIsNetworkView] = useState(true);
   const [sortDirection, setSortDirection] = useState<SortDirection>(
     () => storedState?.sortDirection || "desc"
   );
@@ -317,12 +315,6 @@ const DowntimeComparison = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <NetworkViewToggle
-              isNetworkView={isNetworkView}
-              onToggle={setIsNetworkView}
-              pinnedCount={pinnedRestaurants?.length || 0}
-              networkCount={allActiveRestaurants?.length || 0}
-            />
             
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
