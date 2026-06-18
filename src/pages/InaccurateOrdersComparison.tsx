@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InaccurateOrdersRankingBars } from "@/components/compare/InaccurateOrdersRankingBars";
-import { InaccurateOrdersInsightsSection } from "@/components/compare/InaccurateOrdersInsightsSection";
 import { InaccurateOrdersHeatmapGrid } from "@/components/compare/InaccurateOrdersHeatmapGrid";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
 type PeriodType = "week" | "month" | "quarter";
@@ -20,7 +18,7 @@ type PeriodType = "week" | "month" | "quarter";
 const InaccurateOrdersComparison = () => {
   const navigate = useNavigate();
   const [period, setPeriod] = useState<PeriodType>("week");
-  const [isNetworkView, setIsNetworkView] = useState(false);
+  const [isNetworkView] = useState(true);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -207,12 +205,6 @@ const InaccurateOrdersComparison = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            <NetworkViewToggle
-              isNetworkView={isNetworkView}
-              onToggle={setIsNetworkView}
-              pinnedCount={pinnedRestaurants?.length || 0}
-              networkCount={allActiveRestaurants?.length || 0}
-            />
             <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full">
               <Calendar className="h-4 w-4" />
               <span>{periodLabel}</span>
@@ -236,7 +228,6 @@ const InaccurateOrdersComparison = () => {
           </div>
         ) : (
           <div className="grid gap-6">
-            <InaccurateOrdersInsightsSection stats={restaurantStats} period={period} />
 
             <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
               <CardHeader>
