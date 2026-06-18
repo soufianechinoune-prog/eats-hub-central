@@ -10,9 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { InaccurateOrdersRankingBars } from "@/components/compare/InaccurateOrdersRankingBars";
-import { InaccurateOrdersInsightsSection } from "@/components/compare/InaccurateOrdersInsightsSection";
 import { InaccurateOrdersHeatmapGrid } from "@/components/compare/InaccurateOrdersHeatmapGrid";
-import { NetworkViewToggle } from "@/components/compare/NetworkViewToggle";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 
 type PeriodType = "week" | "month" | "quarter";
