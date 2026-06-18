@@ -17,6 +17,7 @@ type PeriodType = "week" | "month" | "quarter";
 
 const InaccurateOrdersComparison = () => {
   const navigate = useNavigate();
+  const [period, setPeriod] = useState<PeriodType>("week");
   const [isNetworkView] = useState(true);
 
   const dateRange = useMemo(() => {
