@@ -91,11 +91,12 @@ const Overview = () => {
     analyticsCtx.periodMode === "range" ? "custom_range" :
     (analyticsCtx.periodMode as OverviewPeriodMode);
   
-  // Initialize from localStorage, but prefer AnalyticsContext if it was set from another page
+  // Default period: always "previous_week" (Lundi–Dimanche) on mount.
+  // We intentionally ignore localStorage/context for periodMode at boot so users
+  // always land on the most operationally useful view. Manual changes are still
+  // persisted for the rest of the session.
   const defaultPeriodMode: OverviewPeriodMode = "previous_week";
-  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(
-    () => storedState?.periodMode || ctxPeriodMode || defaultPeriodMode
-  );
+  const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(defaultPeriodMode);
   const [selectedYear, setSelectedYear] = useState(
     () => storedState?.selectedYear || analyticsCtx.selectedYear || new Date().getFullYear()
   );
