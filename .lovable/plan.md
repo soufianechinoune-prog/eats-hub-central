@@ -1,30 +1,52 @@
-# Plan : Période par défaut = Semaine précédente (Lundi–Dimanche)
+# Problème confirmé
 
-## Problème
-L'utilisateur arrive sur `/overview` (onglet Uber Eats ou Vue réseau) et voit "2026" ou une période année car le `localStorage` mémorise le dernier choix. Le besoin est de forcer la période par défaut à **"Semaine précédente"** au montage, indépendamment de l'état stocké.
+Tu as raison. Le bandeau **Dishop en haut** (34 290 €, 1 487 cmds, 91.6% rentab) lit bien `dishop_orders` via `useDishopOverview` → ✅ ces chiffres sont les vrais Dishop.
+
+En revanche, le tableau **Comparatif des restaurants** en dessous est branché en dur sur les données **tous canaux confondus** quand on est sur Dishop. Dans `src/pages/Overview.tsx` ligne 1013 :
+
+```ts
+forcedChannel={activeChannel === "global" || activeChannel === "dishop" ? "all" : activeChannel}
+```
+
+Donc en cliquant sur "Dishop" dans la sidebar, le tableau retombe sur `"all"` → CA, versement, commandes, panier, note, erreurs, dispo affichés = **agrégat Uber + Caisse** (essentiellement Uber). C'est pour ça que Argenteuil sort à 12 885 € / 635 cmds : c'est Uber, pas Dishop.
+
+# Plan
+
+Construire un **tableau comparatif dédié Dishop** affiché uniquement quand `activeChannel === "dishop"`, en remplacement de `RestaurantComparisonTable` dans ce mode.
+
+## Colonnes Dishop (par restaurant)
+
+| # | Restaurant | CA TTC | Cmds | Panier | Commission € (%) | Rentabilité | % Promo |
+
+Pas de Versement / Note / Erreurs / Dispo / Prépa+Livr (pas applicable Dishop).
 
 ## Implémentation
 
-### 1. Forcer `previous_week` au montage (`src/pages/Overview.tsx`)
-Modifier l'initialisation du `useState` pour `periodMode` : ne plus lire `storedState?.periodMode` au premier rendu, mais utiliser directement `"previous_week"`. Le `localStorage` continue de servir à mémoriser les choix manuels de l'utilisateur APRÈS interaction, mais le premier affichage sera toujours la semaine précédente.
+1. **Nouveau hook** `src/hooks/useDishopRestaurantBreakdown.ts`
+   - Mêmes paramètres que `useDishopOverview` (chainId, restaurantIds, période).
+   - Query `dishop_orders` paginée (PAGE=1000), `select restaurant_id, total_ttc, commission_*, promo_*, ...` filtré par `chain_id` + `restaurant_id IN (...)` + fenêtre dates.
+   - Agrège en JS par `restaurant_id` : caTTC, orderCount, averageBasket, commissionAmount, commissionRate, profitability, promoShare.
+   - Joint le `name` via la liste `restaurants` déjà disponible dans `Overview.tsx`.
+   - `staleTime: 5min`.
 
-**Détail technique :**
-```
-Avant : storedState?.periodMode || ctxPeriodMode || defaultPeriodMode
-Après : defaultPeriodMode  // toujours "previous_week"
-```
-On garde `storedState` pour `selectedYear`, `selectedMonth` et `dateRange` (si l'utilisateur revient après avoir personnalisé, il ne perd pas tout), mais on ignore spécifiquement `periodMode` au boot.
+2. **Nouveau composant** `src/components/overview/DishopRestaurantComparisonTable.tsx`
+   - Reprend l'esthétique de `RestaurantComparisonTable` (header sticky, ligne `LIVE`, tri, recherche) mais avec uniquement les 6 colonnes Dishop ci-dessus.
+   - Tri par CA TTC desc par défaut.
+   - Pas d'expansion par plateforme (single source = Dishop).
 
-### 2. Semaine Lundi–Dimanche (déjà en place)
-Vérifier que le calcul de dates utilise bien `weekStartsOn: 1` (Lundi). Le code actuel le fait déjà : `startOfWeek(lastWeek, { weekStartsOn: 1 })` et `endOfWeek(lastWeek, { weekStartsOn: 1 })`. Aucun changement nécessaire.
+3. **Overview.tsx**
+   - Ligne ~997 : remplacer par un rendu conditionnel
+     ```tsx
+     {activeChannel === "dishop" ? (
+       <DishopRestaurantComparisonTable ... />
+     ) : (
+       <RestaurantComparisonTable ... forcedChannel={activeChannel === "global" ? "all" : activeChannel} />
+     )}
+     ```
+   - Retirer `"dishop"` du fallback `forcedChannel`.
 
-### 3. Option : réinitialiser l'état stocké obsolète (1 ligne)
-Ajouter une logique de "migration" : si `storedState.periodMode === "year"`, on le réécrit en `"previous_week"` dans le localStorage pour éviter que les utilisateurs existants ne revoient jamais 2026.
+## Hors scope
 
-## Hors scope (validé avec l'utilisateur)
-- Pas de badge "données partielles" pour le moment.
-- Pas de mode live pour le moment.
-- Pas de changement sur les sous-pages (Finances, Conversion, etc.).
-
-## Fichier impacté
-- `src/pages/Overview.tsx` (L95-98 et L142-153)
+- Pas de modification du bandeau KPI Dishop (déjà correct).
+- Pas de modification du comportement Global / Uber / Caisse / Deliveroo.
+- Pas de Versement/Note/Dispo pour Dishop (data non disponible côté Dishop).
