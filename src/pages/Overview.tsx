@@ -888,6 +888,81 @@ const Overview = () => {
             </Card>
             )}
 
+            {/* Dishop Card */}
+            {activeChannel === "dishop" && (
+            <Card className="border-2 border-blue-500/30 shadow-2xl bg-gradient-to-br from-card via-card to-blue-500/5 backdrop-blur-xl hover:shadow-blue-500/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Globe className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Dishop</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      eShop · {getPeriodLabel()}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {dishopLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ) : !dishopData?.hasData ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune commande Dishop sur la période.
+                  </div>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={Euro}
+                      label="CA TTC"
+                      value={Math.round(dishopData.caTTC).toLocaleString("fr-FR")}
+                      unit="€"
+                      color="text-blue-500"
+                    />
+                    <MetricRow
+                      icon={Truck}
+                      label="Nb commandes"
+                      value={dishopData.orderCount.toLocaleString("fr-FR")}
+                      color="text-cyan-500"
+                    />
+                    <MetricRow
+                      icon={Euro}
+                      label="Panier moyen"
+                      value={dishopData.averageBasket.toFixed(2)}
+                      unit="€"
+                      color="text-amber-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Commission Dishop"
+                      value={`${Math.round(dishopData.commissionAmount).toLocaleString("fr-FR")} € (${dishopData.commissionRate.toFixed(1)}%)`}
+                      color="text-violet-500"
+                    />
+                    <MetricRow
+                      icon={TrendingUp}
+                      label="Rentabilité"
+                      value={dishopData.profitability.toFixed(1)}
+                      unit="%"
+                      color="text-emerald-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="% commandes promo"
+                      value={dishopData.promoShare.toFixed(1)}
+                      unit="%"
+                      color="text-orange-500"
+                    />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
           </div>
 
           {/* Platform Revenue Split */}
