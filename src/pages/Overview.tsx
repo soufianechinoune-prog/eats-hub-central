@@ -1003,25 +1003,35 @@ const Overview = () => {
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
-            <RestaurantComparisonTable
-              stats={comparisonStats}
-              networkTotals={networkTotals}
-              showN1Comparison={showN1Comparison}
-              onToggleN1={setShowN1Comparison}
-              isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
-              onRestaurantClick={navigateToFinances}
-              showDataSource={showDataSource}
-              onToggleDataSource={setShowDataSource}
-              dataSourceMap={dataSourceMap}
-              adsRatioMap={adsRatio.byRestaurant}
-              networkAdsSpend={adsRatio.networkAdsSpend}
-              networkAdsRevenue={adsRatio.networkRevenue}
-              networkAdsPct={adsRatio.networkPct}
-              networkCashTotal={cashRevenueData?.totalCash ?? 0}
-              cashByRestaurant={cashByRestaurant}
-              forcedChannel={activeChannel === "global" || activeChannel === "dishop" ? "all" : activeChannel}
-            />
+            {activeChannel === "dishop" ? (
+              <DishopRestaurantComparisonTable
+                rows={dishopBreakdown ?? []}
+                restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
+                isLoading={dishopBreakdownLoading}
+                onRestaurantClick={navigateToFinances}
+              />
+            ) : (
+              <RestaurantComparisonTable
+                stats={comparisonStats}
+                networkTotals={networkTotals}
+                showN1Comparison={showN1Comparison}
+                onToggleN1={setShowN1Comparison}
+                isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
+                onRestaurantClick={navigateToFinances}
+                showDataSource={showDataSource}
+                onToggleDataSource={setShowDataSource}
+                dataSourceMap={dataSourceMap}
+                adsRatioMap={adsRatio.byRestaurant}
+                networkAdsSpend={adsRatio.networkAdsSpend}
+                networkAdsRevenue={adsRatio.networkRevenue}
+                networkAdsPct={adsRatio.networkPct}
+                networkCashTotal={cashRevenueData?.totalCash ?? 0}
+                cashByRestaurant={cashByRestaurant}
+                forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+              />
+            )}
           </div>
+
 
 
           {/* Avis Produits */}
