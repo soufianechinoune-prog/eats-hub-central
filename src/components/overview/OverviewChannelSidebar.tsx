@@ -202,7 +202,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
           <div className="space-y-0.5 opacity-50">
             <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
               <Globe className="h-3.5 w-3.5" />
-              <span>eShop</span>
+              <span>Dishop</span>
             </div>
             <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
               <MessageCircle className="h-3.5 w-3.5" />
