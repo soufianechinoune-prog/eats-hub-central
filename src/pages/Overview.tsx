@@ -530,14 +530,38 @@ const Overview = () => {
   // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
   const hasCashData = true;
 
+  // Dishop : disponible si la chaîne a au moins un shop mappé
+  const { data: dishopAvailable } = useQuery({
+    queryKey: ["dishop-available", analyticsCtx.selectedChainId],
+    enabled: !!analyticsCtx.selectedChainId,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("dishop_shop_mapping")
+        .select("id", { count: "exact", head: true })
+        .eq("chain_id", analyticsCtx.selectedChainId as string);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    staleTime: 10 * 60_000,
+  });
+  const hasDishopData = !!dishopAvailable;
+
+  const { data: dishopData, isLoading: dishopLoading } = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
         active={activeChannel}
         onChange={setActiveChannel}
-        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData }}
       />
       <div className="flex-1 min-w-0 p-8 space-y-8">
+
       {/* Header with glassmorphism */}
       <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
