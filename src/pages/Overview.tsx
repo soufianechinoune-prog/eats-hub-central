@@ -29,6 +29,8 @@ import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
 import { useDishopOverview } from "@/hooks/useDishopOverview";
+import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdown";
+import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
