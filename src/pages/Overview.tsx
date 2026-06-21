@@ -556,6 +556,13 @@ const Overview = () => {
     endDate,
   });
 
+  const { data: dishopBreakdown, isLoading: dishopBreakdownLoading } = useDishopRestaurantBreakdown({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeChannel === "dishop" ? activeIds : [],
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
