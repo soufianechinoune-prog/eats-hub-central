@@ -910,7 +910,7 @@ const Overview = () => {
               networkAdsPct={adsRatio.networkPct}
               networkCashTotal={cashRevenueData?.totalCash ?? 0}
               cashByRestaurant={cashByRestaurant}
-              forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+              forcedChannel={activeChannel === "global" || activeChannel === "dishop" ? "all" : activeChannel}
             />
           </div>
 
