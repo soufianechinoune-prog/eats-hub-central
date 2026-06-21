@@ -20,7 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
-export type OverviewChannel = "global" | "uber" | "deliveroo" | "cash";
+export type OverviewChannel = "global" | "uber" | "deliveroo" | "cash" | "dishop";
 
 interface OverviewChannelSidebarProps {
   active: OverviewChannel;
@@ -29,6 +29,7 @@ interface OverviewChannelSidebarProps {
     uber: boolean;
     deliveroo: boolean;
     cash: boolean;
+    dishop: boolean;
   };
 }
 
@@ -91,6 +92,9 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
   }
   if (available.cash) {
     channelItems.push({ id: "cash", label: "Caisse", icon: Store, dotClass: "bg-cash" });
+  }
+  if (available.dishop) {
+    channelItems.push({ id: "dishop", label: "Dishop", icon: Globe, dotClass: "bg-blue-500" });
   }
 
   const handleChannelClick = (item: NavItem) => {
@@ -200,10 +204,6 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
             Bientôt
           </p>
           <div className="space-y-0.5 opacity-50">
-            <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
-              <Globe className="h-3.5 w-3.5" />
-              <span>Dishop</span>
-            </div>
             <div className="flex items-center gap-2 px-2 py-1.5 text-sm">
               <MessageCircle className="h-3.5 w-3.5" />
               <span>WhatsApp</span>

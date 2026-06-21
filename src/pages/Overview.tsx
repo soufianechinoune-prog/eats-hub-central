@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2, Store, Plug, Euro } from "lucide-react";
+import { Star, Clock, TrendingDown, TrendingUp, Percent, PauseCircle, Award, FileDown, FileSpreadsheet, ChevronRight, RefreshCw, Truck, Download, Loader2, Store, Plug, Euro, Globe } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -28,6 +28,7 @@ import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
+import { useDishopOverview } from "@/hooks/useDishopOverview";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -530,14 +531,38 @@ const Overview = () => {
   // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
   const hasCashData = true;
 
+  // Dishop : disponible si la chaîne a au moins un shop mappé
+  const { data: dishopAvailable } = useQuery({
+    queryKey: ["dishop-available", analyticsCtx.selectedChainId],
+    enabled: !!analyticsCtx.selectedChainId,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("dishop_shop_mapping")
+        .select("id", { count: "exact", head: true })
+        .eq("chain_id", analyticsCtx.selectedChainId as string);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    staleTime: 10 * 60_000,
+  });
+  const hasDishopData = !!dishopAvailable;
+
+  const { data: dishopData, isLoading: dishopLoading } = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeIds,
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
         active={activeChannel}
         onChange={setActiveChannel}
-        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData }}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData }}
       />
       <div className="flex-1 min-w-0 p-8 space-y-8">
+
       {/* Header with glassmorphism */}
       <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
@@ -863,6 +888,81 @@ const Overview = () => {
             </Card>
             )}
 
+            {/* Dishop Card */}
+            {activeChannel === "dishop" && (
+            <Card className="border-2 border-blue-500/30 shadow-2xl bg-gradient-to-br from-card via-card to-blue-500/5 backdrop-blur-xl hover:shadow-blue-500/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl bg-blue-500/10 flex items-center justify-center">
+                    <Globe className="h-6 w-6 text-blue-500" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Dishop</CardTitle>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      eShop · {getPeriodLabel()}
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {dishopLoading ? (
+                  <div className="space-y-3">
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                    <Skeleton className="h-6 w-full" />
+                  </div>
+                ) : !dishopData?.hasData ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune commande Dishop sur la période.
+                  </div>
+                ) : (
+                  <>
+                    <MetricRow
+                      icon={Euro}
+                      label="CA TTC"
+                      value={Math.round(dishopData.caTTC).toLocaleString("fr-FR")}
+                      unit="€"
+                      color="text-blue-500"
+                    />
+                    <MetricRow
+                      icon={Truck}
+                      label="Nb commandes"
+                      value={dishopData.orderCount.toLocaleString("fr-FR")}
+                      color="text-cyan-500"
+                    />
+                    <MetricRow
+                      icon={Euro}
+                      label="Panier moyen"
+                      value={dishopData.averageBasket.toFixed(2)}
+                      unit="€"
+                      color="text-amber-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="Commission Dishop"
+                      value={`${Math.round(dishopData.commissionAmount).toLocaleString("fr-FR")} € (${dishopData.commissionRate.toFixed(1)}%)`}
+                      color="text-violet-500"
+                    />
+                    <MetricRow
+                      icon={TrendingUp}
+                      label="Rentabilité"
+                      value={dishopData.profitability.toFixed(1)}
+                      unit="%"
+                      color="text-emerald-500"
+                    />
+                    <MetricRow
+                      icon={Percent}
+                      label="% commandes promo"
+                      value={dishopData.promoShare.toFixed(1)}
+                      unit="%"
+                      color="text-orange-500"
+                    />
+                  </>
+                )}
+              </CardContent>
+            </Card>
+            )}
+
           </div>
 
           {/* Platform Revenue Split */}
@@ -910,7 +1010,7 @@ const Overview = () => {
               networkAdsPct={adsRatio.networkPct}
               networkCashTotal={cashRevenueData?.totalCash ?? 0}
               cashByRestaurant={cashByRestaurant}
-              forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+              forcedChannel={activeChannel === "global" || activeChannel === "dishop" ? "all" : activeChannel}
             />
           </div>
 
