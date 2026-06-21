@@ -29,6 +29,8 @@ import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
 import { useDishopOverview } from "@/hooks/useDishopOverview";
+import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdown";
+import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -554,6 +556,13 @@ const Overview = () => {
     endDate,
   });
 
+  const { data: dishopBreakdown, isLoading: dishopBreakdownLoading } = useDishopRestaurantBreakdown({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: activeChannel === "dishop" ? activeIds : [],
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
@@ -994,25 +1003,35 @@ const Overview = () => {
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
-            <RestaurantComparisonTable
-              stats={comparisonStats}
-              networkTotals={networkTotals}
-              showN1Comparison={showN1Comparison}
-              onToggleN1={setShowN1Comparison}
-              isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
-              onRestaurantClick={navigateToFinances}
-              showDataSource={showDataSource}
-              onToggleDataSource={setShowDataSource}
-              dataSourceMap={dataSourceMap}
-              adsRatioMap={adsRatio.byRestaurant}
-              networkAdsSpend={adsRatio.networkAdsSpend}
-              networkAdsRevenue={adsRatio.networkRevenue}
-              networkAdsPct={adsRatio.networkPct}
-              networkCashTotal={cashRevenueData?.totalCash ?? 0}
-              cashByRestaurant={cashByRestaurant}
-              forcedChannel={activeChannel === "global" || activeChannel === "dishop" ? "all" : activeChannel}
-            />
+            {activeChannel === "dishop" ? (
+              <DishopRestaurantComparisonTable
+                rows={dishopBreakdown ?? []}
+                restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
+                isLoading={dishopBreakdownLoading}
+                onRestaurantClick={navigateToFinances}
+              />
+            ) : (
+              <RestaurantComparisonTable
+                stats={comparisonStats}
+                networkTotals={networkTotals}
+                showN1Comparison={showN1Comparison}
+                onToggleN1={setShowN1Comparison}
+                isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
+                onRestaurantClick={navigateToFinances}
+                showDataSource={showDataSource}
+                onToggleDataSource={setShowDataSource}
+                dataSourceMap={dataSourceMap}
+                adsRatioMap={adsRatio.byRestaurant}
+                networkAdsSpend={adsRatio.networkAdsSpend}
+                networkAdsRevenue={adsRatio.networkRevenue}
+                networkAdsPct={adsRatio.networkPct}
+                networkCashTotal={cashRevenueData?.totalCash ?? 0}
+                cashByRestaurant={cashByRestaurant}
+                forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+              />
+            )}
           </div>
+
 
 
           {/* Avis Produits */}
