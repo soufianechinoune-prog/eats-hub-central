@@ -4746,6 +4746,33 @@ export type Database = {
           visits: number
         }[]
       }
+      get_meal_voucher_breakdown: {
+        Args: {
+          p_date_from: string
+          p_date_to: string
+          p_restaurant_ids: string[]
+        }
+        Returns: {
+          amount: number
+          order_count: number
+          provider: string
+          restaurant_id: string
+        }[]
+      }
+      get_meal_voucher_totals: {
+        Args: {
+          p_date_from: string
+          p_date_to: string
+          p_restaurant_ids: string[]
+        }
+        Returns: {
+          restaurant_id: string
+          tr_amount: number
+          tr_order_count: number
+          uber_order_count: number
+          uber_revenue_ttc: number
+        }[]
+      }
       get_monthly_payouts_detail: {
         Args: { p_month: number; p_restaurant_ids?: string[]; p_year: number }
         Returns: {
