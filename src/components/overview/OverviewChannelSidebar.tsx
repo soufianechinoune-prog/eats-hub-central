@@ -16,11 +16,12 @@ import {
   Award,
   Leaf,
   Sparkles,
+  Ticket,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
-export type OverviewChannel = "global" | "uber" | "deliveroo" | "cash" | "dishop";
+export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop";
 
 interface OverviewChannelSidebarProps {
   active: OverviewChannel;
@@ -39,6 +40,8 @@ interface SubNavItem {
   icon: React.ComponentType<{ className?: string }>;
   /** Route to navigate to. If undefined, stays on /overview (Synthèse). */
   route?: string;
+  /** Si défini, change le channel actif sur /overview au lieu de naviguer. */
+  channel?: OverviewChannel;
 }
 
 interface NavItem {
@@ -53,6 +56,7 @@ interface NavItem {
 // Sous-onglets Uber Eats — mêmes entrées que la sidebar gauche Analytics, scopés Uber
 const UBER_SUB_ITEMS: SubNavItem[] = [
   { id: "synthese", label: "Synthèse", icon: Sparkles }, // route undefined = vue actuelle
+  { id: "titres-restaurant", label: "Titres Restaurant", icon: Ticket, channel: "uber-tr" },
   { id: "revenue", label: "Revenus & Ventes", icon: Euro, route: "/analytics/revenue" },
   { id: "items", label: "Ventes Articles", icon: ShoppingBag, route: "/item-sales" },
   { id: "conversion", label: "Conversion", icon: TrendingUp, route: "/analytics/conversion" },
@@ -67,8 +71,8 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
 export function OverviewChannelSidebar({ active, onChange, available }: OverviewChannelSidebarProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
-  const [expandedUber, setExpandedUber] = useState(active === "uber");
-  const [activeSubId, setActiveSubId] = useState<string>("synthese");
+  const [expandedUber, setExpandedUber] = useState(active === "uber" || active === "uber-tr");
+  const [activeSubId, setActiveSubId] = useState<string>(active === "uber-tr" ? "titres-restaurant" : "synthese");
 
   const globalItem: NavItem = {
     id: "global",
@@ -107,8 +111,14 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
 
   const handleSubItemClick = (sub: SubNavItem) => {
     setActiveSubId(sub.id);
-    if (!sub.route) return; // Synthèse → reste sur /overview
-    // Pré-sélection plateforme Uber Eats dans le contexte Analytics
+    if (sub.channel) {
+      onChange(sub.channel);
+      return;
+    }
+    if (!sub.route) {
+      onChange("uber");
+      return;
+    }
     analyticsCtx.setSelectedPlatform("uber_eats");
     navigate(sub.route);
   };
@@ -136,7 +146,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
             </p>
             <div className="space-y-0.5">
               {channelItems.map((item) => {
-                const isActive = active === item.id;
+                const isActive = active === item.id || (item.id === "uber" && active === "uber-tr");
                 const hasSubs = (item.subItems?.length ?? 0) > 0;
                 const isExpanded = item.id === "uber" ? expandedUber : false;
                 return (

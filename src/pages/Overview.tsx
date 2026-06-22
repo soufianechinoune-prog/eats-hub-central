@@ -31,6 +31,8 @@ import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard"
 import { useDishopOverview } from "@/hooks/useDishopOverview";
 import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdown";
 import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
+import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
+import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -563,6 +565,12 @@ const Overview = () => {
     endDate,
   });
 
+  const { data: mealVoucherRows, isLoading: mealVoucherLoading } = useMealVoucherBreakdown({
+    restaurantIds: activeChannel === "uber-tr" ? activeIds : [],
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
@@ -1003,7 +1011,15 @@ const Overview = () => {
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
-            {activeChannel === "dishop" ? (
+            {activeChannel === "uber-tr" ? (
+              <MealVoucherAnalysisPanel
+                rows={mealVoucherRows ?? []}
+                restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
+                isLoading={mealVoucherLoading}
+                periodLabel={getPeriodLabel()}
+                onRestaurantClick={navigateToFinances}
+              />
+            ) : activeChannel === "dishop" ? (
               <DishopRestaurantComparisonTable
                 rows={dishopBreakdown ?? []}
                 restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
