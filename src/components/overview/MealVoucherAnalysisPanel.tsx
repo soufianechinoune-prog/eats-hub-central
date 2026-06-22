@@ -364,7 +364,7 @@ export function MealVoucherAnalysisPanel({
                   })
                 )}
               </TableBody>
-            </Table>
+            </table>
           </div>
         </CardContent>
       </Card>
