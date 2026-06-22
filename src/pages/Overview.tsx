@@ -1011,7 +1011,15 @@ const Overview = () => {
 
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
-            {activeChannel === "dishop" ? (
+            {activeChannel === "uber-tr" ? (
+              <MealVoucherAnalysisPanel
+                rows={mealVoucherRows ?? []}
+                restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
+                isLoading={mealVoucherLoading}
+                periodLabel={getPeriodLabel()}
+                onRestaurantClick={navigateToFinances}
+              />
+            ) : activeChannel === "dishop" ? (
               <DishopRestaurantComparisonTable
                 rows={dishopBreakdown ?? []}
                 restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
