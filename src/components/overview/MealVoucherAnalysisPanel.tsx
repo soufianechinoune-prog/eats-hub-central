@@ -237,9 +237,9 @@ export function MealVoucherAnalysisPanel({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader className="sticky top-0 bg-card z-10">
+          <div className="w-full">
+            <table className="w-full caption-bottom text-sm">
+              <TableHeader className="sticky top-0 z-20 bg-card shadow-[0_1px_0_0_hsl(var(--border))]">
                 <TableRow>
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>
@@ -364,7 +364,7 @@ export function MealVoucherAnalysisPanel({
                   })
                 )}
               </TableBody>
-            </Table>
+            </table>
           </div>
         </CardContent>
       </Card>
