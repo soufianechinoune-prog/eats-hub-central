@@ -565,6 +565,12 @@ const Overview = () => {
     endDate,
   });
 
+  const { data: mealVoucherRows, isLoading: mealVoucherLoading } = useMealVoucherBreakdown({
+    restaurantIds: activeChannel === "uber-tr" ? activeIds : [],
+    startDate,
+    endDate,
+  });
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
       <OverviewChannelSidebar
