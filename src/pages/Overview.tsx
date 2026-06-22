@@ -31,6 +31,8 @@ import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard"
 import { useDishopOverview } from "@/hooks/useDishopOverview";
 import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdown";
 import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
+import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
+import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
