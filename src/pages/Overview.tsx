@@ -325,6 +325,13 @@ const Overview = () => {
     let end = new Date();
 
     switch (periodMode) {
+      case "yesterday": {
+        const y = new Date(now);
+        y.setDate(now.getDate() - 1);
+        start = y;
+        end = y;
+        break;
+      }
       case "previous_week": {
         const lastWeek = subWeeks(now, 1);
         start = startOfWeek(lastWeek, { weekStartsOn: 1 });
