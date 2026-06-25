@@ -446,6 +446,7 @@ const Overview = () => {
 
   const getPeriodLabel = () => {
     switch (periodMode) {
+      case "yesterday": return "Hier";
       case "previous_week": return "Semaine précédente";
       case "7d": return "7 derniers jours";
       case "30d": return "30 derniers jours";
