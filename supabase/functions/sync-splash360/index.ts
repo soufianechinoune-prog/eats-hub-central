@@ -97,6 +97,7 @@ async function runSync(opts: {
   splashIds: number[];
   networkOnly: boolean;
   chainId: string;
+  dayList?: number[]; // override pour scope=today
 }): Promise<number> {
   const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId } = opts;
   const allTargets = networkOnly ? [0] : [0, ...splashIds];
@@ -113,10 +114,11 @@ async function runSync(opts: {
   const dateRef = `${year}-${String(month).padStart(2, "0")}-01`;
   const rowsToUpsert: any[] = [];
   const CONCURRENCY = 5;
-  const dayList: number[] =
+  const dayList: number[] = opts.dayList ?? (
     granularity === "day"
       ? Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1)
-      : [1];
+      : [1]
+  );
 
   for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
     const batch = allTargets.slice(i, i + CONCURRENCY);
@@ -169,6 +171,8 @@ serve(async (req) => {
       skip_network = false,
       chain_connection_id,
       sync_all_active = false,
+      scope = "today", // 'today' | 'month' — utilisé seulement avec sync_all_active
+      only_chain_id, // si fourni, ne sync que cette chain (fan-out)
     } = body;
 
     const supabaseAdmin = createClient(
@@ -177,15 +181,53 @@ serve(async (req) => {
     );
 
     // ─── MODE: sync_all_active (cron) ─────────────────────────────────────
-    // Boucle sur toutes les connexions Splash360 actives et lance une sync
-    // de niveau "month" pour le mois en cours.
+    // scope=today : J et J-1 uniquement (rapide, peu d'appels API)
+    // scope=month : mois en cours complet — fan-out 1 invocation/chain pour éviter le CPU timeout
     if (sync_all_active) {
-      const { data: connections, error: connErr } = await supabaseAdmin
+      let connQuery = supabaseAdmin
         .from("chain_pos_connections")
         .select("id, chain_id, credentials, account_label")
         .eq("connector_id", "splash360")
         .eq("is_active", true);
+      if (only_chain_id) connQuery = connQuery.eq("chain_id", only_chain_id);
+      const { data: connections, error: connErr } = await connQuery;
       if (connErr) throw new Error(`Failed to list active connections: ${connErr.message}`);
+
+      const now = new Date();
+      const targetYearC = now.getFullYear();
+      const targetMonthC = now.getMonth() + 1;
+      const today = now.getDate();
+      const yesterday = today - 1;
+      const todayDayList = yesterday >= 1 ? [yesterday, today] : [today];
+
+      // En scope=month sans only_chain_id : fan-out 1 invocation par chain
+      if (scope === "month" && !only_chain_id && (connections?.length ?? 0) > 1) {
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const dispatched: any[] = [];
+        for (const conn of connections ?? []) {
+          // fire-and-forget
+          fetch(`${supabaseUrl}/functions/v1/sync-splash360`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${serviceKey}`,
+              apikey: serviceKey,
+            },
+            body: JSON.stringify({
+              sync_all_active: true,
+              scope: "month",
+              only_chain_id: conn.chain_id,
+              trigger_source: "fan-out",
+            }),
+          }).catch(() => {});
+          dispatched.push({ chain_id: conn.chain_id });
+        }
+        return new Response(
+          JSON.stringify({ success: true, fan_out: true, dispatched }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       const results: any[] = [];
       for (const conn of connections ?? []) {
@@ -199,8 +241,6 @@ serve(async (req) => {
           const profile = await getUserProfile(token);
           const restosMeta = profile?.restos ?? [];
           const splashIds = restosMeta.map((r: any) => r.id);
-          const targetYearC = new Date().getFullYear();
-          const targetMonthC = new Date().getMonth() + 1;
 
           // Auto-populate mapping
           if (restosMeta.length > 0) {
@@ -225,6 +265,7 @@ serve(async (req) => {
             splashIds,
             networkOnly: false,
             chainId: conn.chain_id,
+            dayList: scope === "today" ? todayDayList : undefined,
           });
 
           await supabaseAdmin
@@ -232,16 +273,18 @@ serve(async (req) => {
             .update({ last_sync_at: new Date().toISOString() })
             .eq("id", conn.id);
 
-          results.push({ chain_id: conn.chain_id, inserted });
+          results.push({ chain_id: conn.chain_id, scope, inserted });
         } catch (e: any) {
           results.push({ chain_id: conn.chain_id, error: e.message });
         }
       }
       return new Response(
-        JSON.stringify({ success: true, processed: results.length, results }),
+        JSON.stringify({ success: true, scope, processed: results.length, results }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+
 
     // ─── Si chain_connection_id fourni, charger les credentials ─────────
     let resolvedChainId: string | null = null;
