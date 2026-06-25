@@ -28,7 +28,7 @@ const currentYear = today.getFullYear();
 const currentMonth = today.getMonth(); // 0-11
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-export type OverviewPeriodMode = "previous_week" | "7d" | "30d" | "current_month" | "year" | "custom_month" | "custom_range";
+export type OverviewPeriodMode = "yesterday" | "previous_week" | "7d" | "30d" | "current_month" | "year" | "custom_month" | "custom_range";
 
 interface OverviewPeriodSelectorProps {
   periodMode: OverviewPeriodMode;
@@ -93,6 +93,8 @@ export function OverviewPeriodSelector({
 
   const getPeriodDisplayText = () => {
     switch (periodMode) {
+      case "yesterday":
+        return "Hier";
       case "previous_week":
         return "Semaine précédente";
       case "7d":
@@ -173,6 +175,7 @@ export function OverviewPeriodSelector({
           <TabsContent value="quick" className="p-4 mt-0">
             <div className="flex flex-col gap-2">
               {[
+                { value: "yesterday" as OverviewPeriodMode, label: "Hier" },
                 { value: "previous_week" as OverviewPeriodMode, label: "Semaine précédente" },
                 { value: "7d" as OverviewPeriodMode, label: "7 derniers jours" },
                 { value: "30d" as OverviewPeriodMode, label: "30 derniers jours" },

@@ -206,6 +206,7 @@ const Overview = () => {
   // Sync Overview period to AnalyticsContext so all Analytics pages stay in sync
   useEffect(() => {
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
@@ -229,6 +230,7 @@ const Overview = () => {
     
     // Map Overview periodMode to Analytics periodMode
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
@@ -253,6 +255,7 @@ const Overview = () => {
   const navigateToFinancesGlobal = (platform: "uber_eats" | "deliveroo" | "global" = "global") => {
     // Map Overview periodMode to Analytics periodMode
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
@@ -322,6 +325,13 @@ const Overview = () => {
     let end = new Date();
 
     switch (periodMode) {
+      case "yesterday": {
+        const y = new Date(now);
+        y.setDate(now.getDate() - 1);
+        start = y;
+        end = y;
+        break;
+      }
       case "previous_week": {
         const lastWeek = subWeeks(now, 1);
         start = startOfWeek(lastWeek, { weekStartsOn: 1 });
@@ -436,6 +446,7 @@ const Overview = () => {
 
   const getPeriodLabel = () => {
     switch (periodMode) {
+      case "yesterday": return "Hier";
       case "previous_week": return "Semaine précédente";
       case "7d": return "7 derniers jours";
       case "30d": return "30 derniers jours";
