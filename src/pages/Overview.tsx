@@ -33,6 +33,7 @@ import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdo
 import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
 import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
 import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
+import { UberLiveTodayCard } from "@/components/overview/UberLiveTodayCard";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -763,6 +764,16 @@ const Overview = () => {
                 />
               </div>
             )}
+
+            {activeChannel === "uber" && (
+              <div className="lg:col-span-3">
+                <UberLiveTodayCard
+                  restaurantIds={activeIds}
+                  scope={periodMode === "yesterday" ? "yesterday" : "today"}
+                />
+              </div>
+            )}
+
 
             {/* Deliveroo Card */}
             {(activeChannel === "global" || activeChannel === "deliveroo") && (
