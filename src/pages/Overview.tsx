@@ -765,6 +765,16 @@ const Overview = () => {
               </div>
             )}
 
+            {activeChannel === "uber" && (periodMode === "yesterday" || periodMode === "current_month" || periodMode === "7d") && (
+              <div className="lg:col-span-3">
+                <UberLiveTodayCard
+                  restaurantIds={activeIds}
+                  scope={periodMode === "yesterday" ? "yesterday" : "today"}
+                />
+              </div>
+            )}
+
+
             {/* Deliveroo Card */}
             {(activeChannel === "global" || activeChannel === "deliveroo") && (
             <Card className="border-2 border-deliveroo/30 shadow-2xl bg-gradient-to-br from-card via-card to-deliveroo/5 backdrop-blur-xl hover:shadow-deliveroo/20 transition-all duration-500 hover:scale-[1.02]">
