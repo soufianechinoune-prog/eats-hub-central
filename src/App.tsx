@@ -67,6 +67,7 @@ const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
 const UberBackfillHistorique = React.lazy(() => import("./pages/UberBackfillHistorique"));
 const UberBackfillCA = React.lazy(() => import("./pages/UberBackfillCA"));
+const Live = React.lazy(() => import("./pages/Live"));
 
 class ChunkLoadBoundary extends React.Component<{ children: React.ReactNode }, { error: unknown }> {
   state = { error: null };
