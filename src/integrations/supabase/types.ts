@@ -4797,6 +4797,22 @@ export type Database = {
               revenue: number
             }[]
           }
+      get_live_dishop_today: {
+        Args: { p_day: string; p_restaurant_ids: string[] }
+        Returns: Json
+      }
+      get_live_splash_today: {
+        Args: { p_day: string; p_restaurant_ids: string[] }
+        Returns: Json
+      }
+      get_live_top_restaurants: {
+        Args: { p_day: string; p_limit?: number; p_restaurant_ids: string[] }
+        Returns: Json
+      }
+      get_live_uber_today: {
+        Args: { p_day: string; p_restaurant_ids: string[] }
+        Returns: Json
+      }
       get_local_benchmark_conversion: {
         Args: {
           p_chain_id: string
