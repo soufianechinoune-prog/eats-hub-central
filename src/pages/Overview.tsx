@@ -206,6 +206,7 @@ const Overview = () => {
   // Sync Overview period to AnalyticsContext so all Analytics pages stay in sync
   useEffect(() => {
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
@@ -229,6 +230,7 @@ const Overview = () => {
     
     // Map Overview periodMode to Analytics periodMode
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
@@ -253,6 +255,7 @@ const Overview = () => {
   const navigateToFinancesGlobal = (platform: "uber_eats" | "deliveroo" | "global" = "global") => {
     // Map Overview periodMode to Analytics periodMode
     const analyticsMode: PeriodMode = 
+      periodMode === "yesterday" ? "yesterday" :
       periodMode === "previous_week" ? "previous_week" :
       periodMode === "7d" ? "7d" :
       periodMode === "30d" ? "30d" :
