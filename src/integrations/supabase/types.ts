@@ -4238,6 +4238,72 @@ export type Database = {
           },
         ]
       }
+      uber_live_orders: {
+        Row: {
+          chain_id: string | null
+          consolidated: boolean
+          created_at: string
+          currency: string
+          gross_amount_incl_vat: number | null
+          id: string
+          last_event_at: string
+          order_placed_at: string
+          raw_payload: Json | null
+          restaurant_id: string | null
+          status: string | null
+          uber_order_id: string
+          uber_store_id: string
+          updated_at: string
+        }
+        Insert: {
+          chain_id?: string | null
+          consolidated?: boolean
+          created_at?: string
+          currency?: string
+          gross_amount_incl_vat?: number | null
+          id?: string
+          last_event_at?: string
+          order_placed_at?: string
+          raw_payload?: Json | null
+          restaurant_id?: string | null
+          status?: string | null
+          uber_order_id: string
+          uber_store_id: string
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string | null
+          consolidated?: boolean
+          created_at?: string
+          currency?: string
+          gross_amount_incl_vat?: number | null
+          id?: string
+          last_event_at?: string
+          order_placed_at?: string
+          raw_payload?: Json | null
+          restaurant_id?: string | null
+          status?: string | null
+          uber_order_id?: string
+          uber_store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_live_orders_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_live_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_chain_access: {
         Row: {
           chain_id: string | null
@@ -5436,6 +5502,10 @@ export type Database = {
         }[]
       }
       is_super_admin: { Args: never; Returns: boolean }
+      mark_uber_live_orders_consolidated: {
+        Args: { _date_paris: string; _restaurant_id: string }
+        Returns: number
+      }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
       parse_uber_csv_date: { Args: { _value: string }; Returns: string }
