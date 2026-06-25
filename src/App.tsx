@@ -172,6 +172,7 @@ const App = () => {
                     <Route path="/uber-callback" element={<UberCallback />} />
 
                     {/* Protected routes */}
+                    <Route path="/live" element={<P><AppLayout><Live /></AppLayout></P>} />
                     <Route path="/overview" element={<P><AppLayout><Overview /></AppLayout></P>} />
                     <Route path="/classements" element={<P><AppLayout><Dashboard /></AppLayout></P>} />
                     <Route path="/restaurants" element={<P><AppLayout><Restaurants /></AppLayout></P>} />
