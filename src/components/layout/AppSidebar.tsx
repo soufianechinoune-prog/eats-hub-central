@@ -84,6 +84,7 @@ import { useCanImport, useUserRole } from "@/hooks/useUserRole";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
+  { title: "Live", url: "/live", icon: Zap },
   { title: "Dashboard", url: "/overview", icon: LayoutDashboard },
   { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
