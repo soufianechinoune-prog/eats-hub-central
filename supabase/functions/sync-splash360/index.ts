@@ -97,6 +97,7 @@ async function runSync(opts: {
   splashIds: number[];
   networkOnly: boolean;
   chainId: string;
+  dayList?: number[]; // override pour scope=today
 }): Promise<number> {
   const { supabase, token, year, month, granularity, splashIds, networkOnly, chainId } = opts;
   const allTargets = networkOnly ? [0] : [0, ...splashIds];
@@ -113,10 +114,11 @@ async function runSync(opts: {
   const dateRef = `${year}-${String(month).padStart(2, "0")}-01`;
   const rowsToUpsert: any[] = [];
   const CONCURRENCY = 5;
-  const dayList: number[] =
+  const dayList: number[] = opts.dayList ?? (
     granularity === "day"
       ? Array.from({ length: daysInMonth(year, month) }, (_, i) => i + 1)
-      : [1];
+      : [1]
+  );
 
   for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
     const batch = allTargets.slice(i, i + CONCURRENCY);
