@@ -765,7 +765,7 @@ const Overview = () => {
               </div>
             )}
 
-            {activeChannel === "uber" && (periodMode === "yesterday" || periodMode === "current_month" || periodMode === "7d") && (
+            {activeChannel === "uber" && (
               <div className="lg:col-span-3">
                 <UberLiveTodayCard
                   restaurantIds={activeIds}
