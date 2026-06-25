@@ -28,7 +28,7 @@ const currentYear = today.getFullYear();
 const currentMonth = today.getMonth(); // 0-11
 const YEARS = Array.from({ length: 5 }, (_, i) => currentYear - 4 + i);
 
-export type OverviewPeriodMode = "previous_week" | "7d" | "30d" | "current_month" | "year" | "custom_month" | "custom_range";
+export type OverviewPeriodMode = "yesterday" | "previous_week" | "7d" | "30d" | "current_month" | "year" | "custom_month" | "custom_range";
 
 interface OverviewPeriodSelectorProps {
   periodMode: OverviewPeriodMode;
