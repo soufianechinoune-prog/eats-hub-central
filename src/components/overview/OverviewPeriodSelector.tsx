@@ -93,6 +93,8 @@ export function OverviewPeriodSelector({
 
   const getPeriodDisplayText = () => {
     switch (periodMode) {
+      case "yesterday":
+        return "Hier";
       case "previous_week":
         return "Semaine précédente";
       case "7d":
