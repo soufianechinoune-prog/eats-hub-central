@@ -25,7 +25,7 @@ export default function Live() {
   const uber = useLiveUber(restaurantIds, day);
   const dishop = useLiveDishop(restaurantIds, day);
   const splash = useLiveSplash(restaurantIds, day);
-  const top = useLiveTopRestaurants(restaurantIds, day, 10);
+  const top = useLiveTopRestaurants(restaurantIds, day, 1000);
 
   // Horloge live affichée dans le header
   const [now, setNow] = useState(new Date());
