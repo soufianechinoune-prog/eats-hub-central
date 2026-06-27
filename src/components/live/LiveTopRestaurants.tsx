@@ -26,8 +26,9 @@ interface Props {
 export function LiveTopRestaurants({ rows, isLoading }: Props) {
   return (
     <Card className="p-4">
-      <h3 className="text-sm font-medium mb-3">Top 10 restaurants en direct</h3>
-      <div className="overflow-x-auto">
+      <h3 className="text-sm font-medium mb-3">Restaurants en direct ({rows.length})</h3>
+      <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+
         <Table>
           <TableHeader>
             <TableRow>
