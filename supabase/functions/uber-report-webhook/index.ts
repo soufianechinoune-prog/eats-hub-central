@@ -82,7 +82,68 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
-    // Only process success events
+    // Route orders.notification events → uber_live_orders (live mode)
+    if (body.event_type === 'orders.notification') {
+      try {
+        const payload: any = body as any;
+        const meta = payload?.meta ?? {};
+        const uberOrderId: string | undefined =
+          meta.resource_id ?? payload?.order_id ?? payload?.id;
+        const uberStoreId: string | undefined =
+          meta.user_id ?? meta.store_id ?? payload?.store_id;
+        const status: string | undefined = meta.status ?? payload?.status;
+        const eventTime: string = payload?.event_time ?? new Date().toISOString();
+
+        if (!uberOrderId || !uberStoreId) {
+          console.warn('[orders.notification] missing order/store id', { meta });
+          return new Response(null, { status: 200, headers: corsHeaders });
+        }
+
+        // Resolve restaurant + chain via mapping
+        const { data: mapping } = await supabase
+          .from('restaurant_uber_ids')
+          .select('restaurant_id, restaurants:restaurant_id(chain_id)')
+          .eq('uber_store_id', uberStoreId)
+          .maybeSingle();
+
+        const restaurantId: string | null = mapping?.restaurant_id ?? null;
+        const chainId: string | null = (mapping as any)?.restaurants?.chain_id ?? null;
+
+        // Try to extract amount if Uber included it in the event
+        const grossAmount: number | null =
+          payload?.order?.payment?.charges?.total?.amount != null
+            ? Number(payload.order.payment.charges.total.amount) / 100
+            : payload?.gross_amount_incl_vat ?? null;
+
+        const { error: liveErr } = await supabase
+          .from('uber_live_orders')
+          .upsert(
+            {
+              uber_order_id: uberOrderId,
+              uber_store_id: uberStoreId,
+              restaurant_id: restaurantId,
+              chain_id: chainId,
+              status: status ?? null,
+              gross_amount_incl_vat: grossAmount,
+              order_placed_at: eventTime,
+              last_event_at: new Date().toISOString(),
+              raw_payload: payload,
+            },
+            { onConflict: 'uber_order_id' },
+          );
+
+        if (liveErr) {
+          console.error('[orders.notification] upsert failed', liveErr);
+        } else {
+          console.log('[orders.notification] upserted', uberOrderId, 'store=', uberStoreId, 'restaurant=', restaurantId);
+        }
+      } catch (e) {
+        console.error('[orders.notification] handler error', e);
+      }
+      return new Response(null, { status: 200, headers: corsHeaders });
+    }
+
+    // Only process success events for report flow
     if (body.event_type !== 'eats.report.success') {
       console.log('Ignoring non-success event:', body.event_type);
       return new Response(null, { status: 200, headers: corsHeaders });
