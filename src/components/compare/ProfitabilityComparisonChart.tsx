@@ -165,9 +165,8 @@ export const ProfitabilityComparisonChart = ({
   // In year-over-year mode we must keep the annual monthly axis (Jan→Dec),
   // even when the current year only has imported data until May.
   const isShortPeriod = useMemo(() => {
-    if (comparisonMode === "yearOverYear") return false;
     return differenceInDays(dateRange.end, dateRange.start) <= 45;
-  }, [dateRange, comparisonMode]);
+  }, [dateRange]);
   
   // Group actions by date key (day or month), filtered by selectedActionIds
   const actionsByDateKey = useMemo(() => {
