@@ -241,10 +241,13 @@ export const ProfitabilityComparisonChart = ({
     } else {
       // MONTHLY aggregation from daily data
       // In yearOverYear, extend X axis to full year (Jan→Dec) even if data stops earlier
+      const monthsStart = comparisonMode === "yearOverYear"
+        ? startOfYear(dateRange.start)
+        : dateRange.start;
       const monthsEnd = comparisonMode === "yearOverYear"
         ? endOfYear(dateRange.start)
         : dateRange.end;
-      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: monthsEnd });
+      const allMonths = eachMonthOfInterval({ start: monthsStart, end: monthsEnd });
       
       // Aggregate current period daily data by month
       const dataByMonth: Record<string, {
