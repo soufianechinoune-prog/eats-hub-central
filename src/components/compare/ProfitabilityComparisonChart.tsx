@@ -165,9 +165,8 @@ export const ProfitabilityComparisonChart = ({
   // In year-over-year mode we must keep the annual monthly axis (Jan→Dec),
   // even when the current year only has imported data until May.
   const isShortPeriod = useMemo(() => {
-    if (comparisonMode === "yearOverYear") return false;
     return differenceInDays(dateRange.end, dateRange.start) <= 45;
-  }, [dateRange, comparisonMode]);
+  }, [dateRange]);
   
   // Group actions by date key (day or month), filtered by selectedActionIds
   const actionsByDateKey = useMemo(() => {
@@ -239,15 +238,8 @@ export const ProfitabilityComparisonChart = ({
         };
       });
     } else {
-      // MONTHLY aggregation from daily data
-      // In yearOverYear, extend X axis to full year (Jan→Dec) even if data stops earlier
-      const monthsStart = comparisonMode === "yearOverYear"
-        ? startOfYear(dateRange.start)
-        : dateRange.start;
-      const monthsEnd = comparisonMode === "yearOverYear"
-        ? endOfYear(dateRange.start)
-        : dateRange.end;
-      const allMonths = eachMonthOfInterval({ start: monthsStart, end: monthsEnd });
+      // MONTHLY aggregation from daily data — bornée à la période sélectionnée
+      const allMonths = eachMonthOfInterval({ start: dateRange.start, end: dateRange.end });
       
       // Aggregate current period daily data by month
       const dataByMonth: Record<string, {
