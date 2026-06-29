@@ -92,7 +92,17 @@ Deno.serve(async (req) => {
         const uberStoreId: string | undefined =
           meta.user_id ?? meta.store_id ?? payload?.store_id;
         const status: string | undefined = meta.status ?? payload?.status;
-        const eventTime: string = payload?.event_time ?? new Date().toISOString();
+        const rawEventTime = payload?.event_time;
+        let eventTime: string;
+        if (typeof rawEventTime === 'number') {
+          eventTime = new Date(rawEventTime).toISOString();
+        } else if (typeof rawEventTime === 'string' && /^\d+$/.test(rawEventTime)) {
+          eventTime = new Date(Number(rawEventTime)).toISOString();
+        } else if (typeof rawEventTime === 'string') {
+          eventTime = rawEventTime;
+        } else {
+          eventTime = new Date().toISOString();
+        }
 
         if (!uberOrderId || !uberStoreId) {
           console.warn('[orders.notification] missing order/store id', { meta });
