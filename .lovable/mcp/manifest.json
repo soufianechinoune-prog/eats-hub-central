@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "sdk_version": "0.20.0",
+  "path": "/functions/v1/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://akcicojkrzeirffefdet.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "cs-delivery-performance-mcp",
+      "version": "0.1.0",
+      "title": "CS Delivery Performance"
+    },
+    "tools": [
+      {
+        "name": "list_chains",
+        "title": "List brands (chains)",
+        "description": "List all restaurant brands (chains) the signed-in user has access to. Returns id, name, description.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {}
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "list_restaurants",
+        "title": "List restaurants",
+        "description": "List restaurants the signed-in user has access to. Optionally filter by chain_id (brand) and active status.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "chain_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Filter by brand/chain UUID."
+            },
+            "only_active": {
+              "type": "boolean",
+              "description": "If true, only return active restaurants. Defaults to true."
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500,
+              "description": "Max rows to return (default 200)."
+            }
+          },
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "get_restaurant",
+        "title": "Get restaurant details",
+        "description": "Fetch full details for a single restaurant by its UUID, including address, managers, and platform store IDs.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "restaurant_id": {
+              "type": "string",
+              "format": "uuid",
+              "description": "Restaurant UUID."
+            }
+          },
+          "required": [
+            "restaurant_id"
+          ],
+          "additionalProperties": false,
+          "$schema": "http://json-schema.org/draft-07/schema#"
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
