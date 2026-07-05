@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Lock } from "lucide-react";
 
 const Login = () => {
@@ -15,6 +15,10 @@ const Login = () => {
   const [resetLoading, setResetLoading] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const rawNext = searchParams.get("next");
+  // Only allow same-origin relative paths for post-login redirect.
+  const nextPath = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
 
   const handleForgotPassword = async () => {
     if (!email.trim()) {
@@ -62,7 +66,7 @@ const Login = () => {
         title: "Connexion réussie",
         description: "Bienvenue sur CS Performance",
       });
-      navigate("/overview");
+      navigate(nextPath ?? "/overview");
     } catch (error: any) {
       let message = error.message;
       if (message === "Invalid login credentials") {
