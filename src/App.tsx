@@ -21,6 +21,7 @@ import NotFound from "./pages/NotFound";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
 import UberCallback from "./pages/UberCallback";
+import OAuthConsent from "./pages/OAuthConsent";
 import { AppLayout } from "./components/layout/AppLayout";
 
 // Lazy-loaded pages
@@ -170,6 +171,8 @@ const App = () => {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/auth/uber/callback" element={<UberCallback />} />
                     <Route path="/uber-callback" element={<UberCallback />} />
+                    <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+
 
                     {/* Protected routes */}
                     <Route path="/live" element={<P><AppLayout><Live /></AppLayout></P>} />
