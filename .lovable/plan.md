@@ -1,44 +1,45 @@
-## Problème
+# Pourquoi Claude affiche « Authorization with the MCP server failed »
 
-- Uber pousse bien les événements `orders.notification` (visible dans les logs en temps réel).
-- Mais ils tombent sur **`uber-report-webhook`** (l'ancien handler, dédié aux rapports CSV), qui les rejette avec `"Ignoring non-success event"`.
-- La nouvelle fonction `uber-orders-webhook` n'a **jamais été appelée** (0 log).
-- Conséquence : la table `uber_live_orders` reste vide → carte "Uber Eats" à 0 €.
+## Diagnostic
 
-## Cause probable
+Tout le côté OAuth/MCP est correctement configuré côté app :
+- MCP endpoint répond 401 avec le bon `WWW-Authenticate` et `resource_metadata`.
+- Metadata `oauth-protected-resource` pointe bien sur l'issuer Supabase direct `https://akcicojkrzeirffefdet.supabase.co/auth/v1`.
+- OpenID discovery + oauth-authorization-server exposent authorize, token, registration (DCR activé).
+- Route `/.lovable/oauth/consent` est déployée en prod.
+- URI allow-list inclut le domaine custom.
 
-Uber Developer Dashboard a une seule URL de webhook active au niveau de l'application, et c'est toujours l'ancienne (`uber-report-webhook`). Le changement vers `uber-orders-webhook` visible dans ta capture n'a pas pris effet côté livraison, OU il s'applique à un autre environnement.
+**Cause racine** : le JWKS du projet est vide :
 
-## Solution : fusionner les 2 handlers dans `uber-report-webhook`
+```
+GET /auth/v1/.well-known/jwks.json → { "keys": [] }
+```
 
-Au lieu de re-configurer Uber, on enrichit le webhook qui reçoit déjà le trafic.
+Cela veut dire que Supabase Auth signe encore les tokens en **HS256 (clé symétrique)**. Sans clé publique publiée dans le JWKS, `@lovable.dev/mcp-js` ne peut pas vérifier le bearer token émis pour Claude — donc toute autorisation échoue, quel que soit le client. C'est exactement le cas signalé dans la doc knowledge : *« Empty JWKS or symmetric-only signing blocks standards-based token verification. »*
 
-### 1. Modifier `supabase/functions/uber-report-webhook/index.ts`
+Ce n'est **pas** un bug dans notre code MCP, notre page de consentement ou nos tools — c'est un réglage d'infrastructure Auth.
 
-Après la validation HMAC, router selon `event_type` :
+## Action
 
-- `report.success` / `report.failure` → comportement actuel (parsing CSV, mise à jour `backfill_jobs`).
-- `orders.notification` → nouveau : récupérer l'order via l'API Uber (`GET /v2/eats/order/{order_id}`), upsert dans `uber_live_orders` (résolution `restaurant_id`/`chain_id` via `restaurant_uber_ids`).
-- Tout autre event → ignorer silencieusement (200 OK).
+Migrer les clés de signature JWT du projet vers un algorithme **asymétrique** (RSA ou EdDSA) pour que le JWKS expose une clé publique.
 
-La logique de fetch + upsert est déjà écrite dans `uber-orders-webhook` — on la déplace.
+Sur Lovable Cloud, cela se fait depuis le backend managé :
 
-### 2. Garder `uber-orders-webhook` en backup
+1. Ouvrir **Backend → Users → Auth settings (icône engrenage) → JWT signing keys**.
+2. Créer une nouvelle clé asymétrique (ECC P-256 recommandé, ou RSA).
+3. La promouvoir comme clé « current ».
+4. Révoquer/retirer l'ancienne clé HS256 après quelques minutes.
 
-On le laisse déployé (au cas où Uber bascule), mais il devient redondant. Pas de suppression nécessaire.
+Vérification côté agent après migration :
 
-### 3. Vérification
+```
+curl -s https://akcicojkrzeirffefdet.supabase.co/auth/v1/.well-known/jwks.json
+```
 
-- Attendre 1-2 commandes Uber (les events arrivent toutes les secondes).
-- Vérifier `SELECT COUNT(*) FROM uber_live_orders WHERE order_placed_at >= now() - interval '5 min'` → doit grimper.
-- La carte "Uber Eats" sur `/live` doit afficher du CA dans les 60s suivantes.
+Doit renvoyer au moins une clé (`kty: EC` ou `RSA`, `alg: ES256`/`RS256`, `kid` défini). Une fois JWKS peuplé, je re-teste la connexion Claude Code sans autre changement de code.
 
-### 4. Aucune action côté Uber Dashboard
+## Notes
 
-Pas besoin de changer l'URL, pas besoin de re-signer, pas besoin de toucher au secret.
-
-## Hors-scope
-
-- Modification de la page `/live` (la carte est déjà branchée et auto-refresh).
-- Modification du cron `uber-daily-backfill-trigger` (consolidation J+2 séparée).
-- Suppression du webhook `uber-orders-webhook`.
+- Aucun changement de code app n'est nécessaire — issuer, audience `authenticated`, DCR, page de consentement sont tous corrects.
+- Cette bascule n'invalide pas les sessions utilisateurs actives (les tokens en cours restent valides jusqu'à expiration ; les prochains sont signés avec la nouvelle clé).
+- Si l'écran « JWT signing keys » n'est pas exposé dans ton backend managé, il faut ouvrir un ticket support Lovable pour qu'ils déclenchent la migration côté projet — je ne peux pas la faire depuis l'agent.
