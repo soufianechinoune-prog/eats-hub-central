@@ -32,6 +32,7 @@ const RestaurantMenu = React.lazy(() => import("./pages/RestaurantMenu"));
 const UberConnections = React.lazy(() => import("./pages/UberConnections"));
 const Exports = React.lazy(() => import("./pages/Exports"));
 const Reports = React.lazy(() => import("./pages/Reports"));
+const WeeklyReports = React.lazy(() => import("./pages/WeeklyReports"));
 const Disputes = React.lazy(() => import("./pages/Disputes"));
 const UberNaming = React.lazy(() => import("./pages/UberNaming"));
 const UberLinkStores = React.lazy(() => import("./pages/UberLinkStores"));
@@ -188,6 +189,7 @@ const App = () => {
                     <Route path="/uber-store-bulk" element={<P><AppLayout><UberStoreBulkMapping /></AppLayout></P>} />
                     <Route path="/exports" element={<P><AppLayout><Exports /></AppLayout></P>} />
                     <Route path="/reports" element={<P><Reports /></P>} />
+                    <Route path="/reports/weekly" element={<P><WeeklyReports /></P>} />
                     <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
                     <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
                     <Route path="/data-entry" element={<P><ImportRoute><AppLayout><DataEntry /></AppLayout></ImportRoute></P>} />

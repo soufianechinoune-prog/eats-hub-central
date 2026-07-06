@@ -1325,6 +1325,93 @@ export type Database = {
           },
         ]
       }
+      email_send_log: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          id: string
+          message_id: string | null
+          metadata: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email: string
+          status: string
+          template_name: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          message_id?: string | null
+          metadata?: Json | null
+          recipient_email?: string
+          status?: string
+          template_name?: string
+        }
+        Relationships: []
+      }
+      email_send_state: {
+        Row: {
+          auth_email_ttl_minutes: number
+          batch_size: number
+          id: number
+          retry_after_until: string | null
+          send_delay_ms: number
+          transactional_email_ttl_minutes: number
+          updated_at: string
+        }
+        Insert: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Update: {
+          auth_email_ttl_minutes?: number
+          batch_size?: number
+          id?: number
+          retry_after_until?: string | null
+          send_delay_ms?: number
+          transactional_email_ttl_minutes?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_unsubscribe_tokens: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          token: string
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          token: string
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          token?: string
+          used_at?: string | null
+        }
+        Relationships: []
+      }
       hourly_availability: {
         Row: {
           created_at: string | null
@@ -4110,6 +4197,30 @@ export type Database = {
           },
         ]
       }
+      suppressed_emails: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          metadata: Json | null
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          metadata?: Json | null
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          metadata?: Json | null
+          reason?: string
+        }
+        Relationships: []
+      }
       uber_app_token: {
         Row: {
           access_token: string
@@ -4407,6 +4518,91 @@ export type Database = {
         }
         Relationships: []
       }
+      weekly_report_recipients: {
+        Row: {
+          active: boolean
+          chain_id: string
+          created_at: string
+          email: string
+          id: string
+        }
+        Insert: {
+          active?: boolean
+          chain_id: string
+          created_at?: string
+          email: string
+          id?: string
+        }
+        Update: {
+          active?: boolean
+          chain_id?: string
+          created_at?: string
+          email?: string
+          id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_report_recipients_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weekly_reports: {
+        Row: {
+          chain_id: string
+          created_at: string
+          error_message: string | null
+          id: string
+          sent_at: string | null
+          sent_to: string[] | null
+          status: string
+          totals: Json | null
+          updated_at: string
+          week_end: string
+          week_start: string
+          xlsx_path: string | null
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_to?: string[] | null
+          status?: string
+          totals?: Json | null
+          updated_at?: string
+          week_end: string
+          week_start: string
+          xlsx_path?: string | null
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          sent_at?: string | null
+          sent_to?: string[] | null
+          status?: string
+          totals?: Json | null
+          updated_at?: string
+          week_end?: string
+          week_start?: string
+          xlsx_path?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "weekly_reports_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       backfill_jobs_stats: {
@@ -4474,6 +4670,15 @@ export type Database = {
       }
       backfill_orders_data_source_for_restaurant: {
         Args: { p_restaurant_id: string }
+        Returns: number
+      }
+      delete_email: {
+        Args: { message_id: number; queue_name: string }
+        Returns: boolean
+      }
+      email_queue_dispatch: { Args: never; Returns: undefined }
+      enqueue_email: {
+        Args: { payload: Json; queue_name: string }
         Returns: number
       }
       enqueue_order_history_backfill: {
@@ -5486,6 +5691,10 @@ export type Database = {
           total_orders: number
         }[]
       }
+      get_weekly_uber_report: {
+        Args: { p_chain_id: string; p_week_end: string; p_week_start: string }
+        Returns: Json
+      }
       get_yearly_payouts_detail: {
         Args: { p_restaurant_ids?: string[]; p_year: number }
         Returns: {
@@ -5522,6 +5731,15 @@ export type Database = {
         Args: { _date_paris: string; _restaurant_id: string }
         Returns: number
       }
+      move_to_dlq: {
+        Args: {
+          dlq_name: string
+          message_id: number
+          payload: Json
+          source_queue: string
+        }
+        Returns: number
+      }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
       parse_uber_csv_date: { Args: { _value: string }; Returns: string }
@@ -5538,6 +5756,14 @@ export type Database = {
           restaurant_name: string
           uber_store_id: string
           vague: number
+        }[]
+      }
+      read_email_batch: {
+        Args: { batch_size: number; queue_name: string; vt: number }
+        Returns: {
+          message: Json
+          msg_id: number
+          read_ct: number
         }[]
       }
       refresh_refund_daily_cache: {

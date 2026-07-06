@@ -110,6 +110,11 @@ const mainItems = [
     url: "/messaging",
     icon: MessageSquare,
   },
+  {
+    title: "Rapports hebdo",
+    url: "/reports/weekly",
+    icon: FileUp,
+  },
 ];
 
 // Gestion des données
