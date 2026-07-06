@@ -1,45 +1,75 @@
-# Pourquoi Claude affiche « Authorization with the MCP server failed »
+# Rapport hebdomadaire Uber — Tasty Crousty
 
-## Diagnostic
+Envoi automatique tous les **jeudis à 8h** d'un email contenant **1 XLSX + 1 CSV** avec la data Uber Eats de la semaine précédente (lundi → dimanche, TZ Paris) du réseau Tasty Crousty.
 
-Tout le côté OAuth/MCP est correctement configuré côté app :
-- MCP endpoint répond 401 avec le bon `WWW-Authenticate` et `resource_metadata`.
-- Metadata `oauth-protected-resource` pointe bien sur l'issuer Supabase direct `https://akcicojkrzeirffefdet.supabase.co/auth/v1`.
-- OpenID discovery + oauth-authorization-server exposent authorize, token, registration (DCR activé).
-- Route `/.lovable/oauth/consent` est déployée en prod.
-- URI allow-list inclut le domaine custom.
+## Ce que reçoit ton ami
 
-**Cause racine** : le JWKS du projet est vide :
+**Un email** (destinataire configurable côté admin) avec 2 pièces jointes :
 
-```
-GET /auth/v1/.well-known/jwks.json → { "keys": [] }
-```
+### 1. Fichier XLSX — 4 onglets
 
-Cela veut dire que Supabase Auth signe encore les tokens en **HS256 (clé symétrique)**. Sans clé publique publiée dans le JWKS, `@lovable.dev/mcp-js` ne peut pas vérifier le bearer token émis pour Claude — donc toute autorisation échoue, quel que soit le client. C'est exactement le cas signalé dans la doc knowledge : *« Empty JWKS or symmetric-only signing blocks standards-based token verification. »*
+| Onglet | Contenu |
+|---|---|
+| **Résumé semaine** | 1 ligne : totaux réseau TC |
+| **Détail par jour** | 7 lignes (lundi → dimanche) |
+| **Détail par restaurant** | 1 ligne par resto TC actif |
+| **Jour × Restaurant** | 7 × N lignes (le plus fin) |
 
-Ce n'est **pas** un bug dans notre code MCP, notre page de consentement ou nos tools — c'est un réglage d'infrastructure Auth.
+### 2. Fichier CSV
+Un seul CSV « Jour × Restaurant » (le plus fin), ré-importable dans un outil BI.
 
-## Action
+## Colonnes fournies (identiques dans les 4 onglets, adaptées à la granularité)
 
-Migrer les clés de signature JWT du projet vers un algorithme **asymétrique** (RSA ou EdDSA) pour que le JWKS expose une clé publique.
+- Période / Date / Restaurant (selon onglet)
+- **CA brut TTC**
+- **CA brut HT**
+- **CA net TTC** (après commissions & frais)
+- **CA net HT**
+- **Commission Uber** (HT)
+- **Frais marketing / cofinancement**
+- **Frais de service**
+- **Nombre de commandes**
+- **Versement Uber (payout)**
 
-Sur Lovable Cloud, cela se fait depuis le backend managé :
+Source : table `orders` agrégée en TZ Paris + table `payouts` pour le versement réel.
 
-1. Ouvrir **Backend → Users → Auth settings (icône engrenage) → JWT signing keys**.
-2. Créer une nouvelle clé asymétrique (ECC P-256 recommandé, ou RSA).
-3. La promouvoir comme clé « current ».
-4. Révoquer/retirer l'ancienne clé HS256 après quelques minutes.
+## Livraison
 
-Vérification côté agent après migration :
+- Cron `pg_cron` déclenche l'edge function chaque **jeudi 08:00 Europe/Paris**
+- Edge function `send-tc-weekly-report` :
+  1. calcule la semaine ISO précédente (lun→dim)
+  2. agrège les données via RPC SQL (SECURITY DEFINER, scopée `chain_id` Tasty Crousty)
+  3. génère XLSX (SheetJS) + CSV en mémoire
+  4. envoie via Lovable Emails à la liste de destinataires
+- Un rerun manuel possible depuis une petite page admin (`/admin/tc-weekly-report`) pour renvoyer une semaine précise.
 
-```
-curl -s https://akcicojkrzeirffefdet.supabase.co/auth/v1/.well-known/jwks.json
-```
+## Sécurité
 
-Doit renvoyer au moins une clé (`kty: EC` ou `RSA`, `alg: ES256`/`RS256`, `kid` défini). Une fois JWKS peuplé, je re-teste la connexion Claude Code sans autre changement de code.
+- **Aucune clé API Uber n'est partagée**
+- Données scopées strictement `chain_id = Tasty Crousty` côté SQL
+- Destinataires stockés en DB (table `tc_report_recipients`), modifiables uniquement par super admin
+- Log de chaque envoi (date, destinataires, hash du fichier) dans `tc_report_runs`
+- Idempotence : pas de double envoi la même semaine
 
-## Notes
+## Détails techniques
 
-- Aucun changement de code app n'est nécessaire — issuer, audience `authenticated`, DCR, page de consentement sont tous corrects.
-- Cette bascule n'invalide pas les sessions utilisateurs actives (les tokens en cours restent valides jusqu'à expiration ; les prochains sont signés avec la nouvelle clé).
-- Si l'écran « JWT signing keys » n'est pas exposé dans ton backend managé, il faut ouvrir un ticket support Lovable pour qu'ils déclenchent la migration côté projet — je ne peux pas la faire depuis l'agent.
+**Nouveau côté DB :**
+- Table `tc_report_recipients` (id, email, active, created_at) — RLS super_admin
+- Table `tc_report_runs` (id, week_start, week_end, sent_at, recipients, status, error) — RLS super_admin
+- RPC `get_tc_weekly_report(week_start, week_end)` → renvoie 4 datasets (résumé, par jour, par resto, jour×resto) en SECURITY DEFINER, filtré `chain_id` TC
+- Cron `pg_cron` : `0 8 * * 4` (jeudi 8h Paris → 6h UTC en hiver, 7h en été ; on schedule à 6h UTC + logique de garde dans la function)
+
+**Nouveau côté code :**
+- Edge function `send-tc-weekly-report` (Deno) — génération XLSX via `npm:xlsx`, envoi email via `send-transactional-email`
+- Template email `tc-weekly-report` dans `_shared/transactional-email-templates/`
+- Page admin `/admin/tc-weekly-report` : liste destinataires (add/remove), historique des envois, bouton « renvoyer une semaine »
+
+**Prérequis :**
+- Lovable Emails / domaine email déjà configuré (à vérifier au démarrage — sinon dialog setup)
+
+## Ce que ça ne fait PAS (volontairement)
+
+- Pas d'accès à l'API Uber Eats pour ton ami
+- Pas de data item-level (Uber ne l'expose pas fiablement, cf. mémoire projet)
+- Pas de Deliveroo / caisse (uniquement Uber comme demandé)
+- Pas de vraie API REST (email suffit pour l'usage décrit)
