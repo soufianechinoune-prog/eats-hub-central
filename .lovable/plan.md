@@ -1,11 +1,25 @@
-Ce n’est pas idéal après 12 heures : l’état est toujours **Pending / Setting up**, donc Lovable Cloud ne voit pas encore la configuration DNS complète pour `notify.cs-delivery-performance.com`.
+Pour ouvrir la zone DNS de `cs-delivery-performance.com` chez Hostinger :
 
-Ce que je recommande :
+1. Va sur https://hpanel.hostinger.com et connecte-toi.
+2. Dans le menu, ouvre **Domaines**.
+3. Clique sur **cs-delivery-performance.com**.
+4. Cherche **DNS / Nameservers** ou **Gérer les enregistrements DNS**.
+5. Tu es alors dans la “zone DNS” du domaine.
 
-1. Vérifier dans Cloud → Emails les enregistrements DNS attendus pour `notify.cs-delivery-performance.com`.
-2. Contrôler chez le fournisseur DNS de `cs-delivery-performance.com` que le sous-domaine `notify` est bien délégué vers les nameservers indiqués par Lovable Cloud.
-3. Supprimer tout enregistrement conflictuel sur `notify.cs-delivery-performance.com` si un ancien CNAME/A/TXT/MX existe déjà.
-4. Relancer la vérification dans Cloud → Emails.
-5. Si les DNS sont corrects mais que l’état reste bloqué, considérer que ce n’est plus une propagation normale et escalader au support Lovable avec le domaine et une capture de la configuration DNS.
+Ensuite, dans cette zone DNS, il faut vérifier la ligne `notify` :
 
-Point important : 12 heures peut encore être dans la fenêtre maximale de propagation, mais si les enregistrements sont bien posés, on devrait souvent voir une évolution avant ça. Le plus probable est un problème de délégation DNS ou un record conflictuel sur `notify`.
+- S’il existe déjà un enregistrement `notify` en **A**, **CNAME**, **TXT**, **MX** ou autre, il peut bloquer la vérification : il faudra le supprimer s’il n’est pas demandé par Lovable.
+- Il faut ajouter les enregistrements **NS** fournis par Lovable Cloud pour déléguer `notify.cs-delivery-performance.com`.
+- Le nom/host doit généralement être `notify`, pas le domaine complet.
+- La valeur doit être le serveur DNS indiqué par Lovable, par exemple un nameserver Lovable du type `ns...lovable.cloud`.
+
+Dans Lovable :
+
+1. Retourne dans **Cloud → Emails**.
+2. Ouvre le menu du domaine `notify.cs-delivery-performance.com` si disponible.
+3. Cherche les détails DNS attendus.
+4. Copie exactement les valeurs NS affichées.
+5. Ajoute-les chez Hostinger.
+6. Clique ensuite sur **Verify Domain** dans Lovable Cloud.
+
+Important : ne modifie pas les nameservers principaux du domaine `cs-delivery-performance.com`. Il faut uniquement déléguer le sous-domaine `notify` avec des enregistrements NS dans la zone DNS Hostinger.
