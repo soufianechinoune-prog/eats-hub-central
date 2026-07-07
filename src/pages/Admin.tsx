@@ -320,7 +320,9 @@ export default function Admin() {
                 <SelectContent>
                   <SelectItem value="client">Client</SelectItem>
                   <SelectItem value="importer">Importer</SelectItem>
+                  <SelectItem value="reports_manager">Responsable rapports</SelectItem>
                 </SelectContent>
+
               </Select>
               <div className="flex flex-wrap gap-1.5">
                 {chains?.map((chain) => (
