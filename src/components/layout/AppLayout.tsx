@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { AppSidebar } from "./AppSidebar";
+import { NotificationBell } from "./NotificationBell";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import csLogo from "@/assets/cs-logo.jpeg";
 import { AIAdvisorWidget } from "@/components/ai/AIAdvisorWidget";
@@ -47,6 +48,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
               ) : null}
               <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
             </div>
+            <NotificationBell />
           </header>
           <div className="p-6">
             {children}
