@@ -8,10 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Download, Send, Trash2, Plus, Mail, MessageCircle, Copy, Check } from "lucide-react";
+import { Loader2, Download, Send, Trash2, Plus, Mail, MessageCircle, Copy, Check, FileArchive } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import JSZip from "jszip";
+
 
 type ReportRow = {
   id: string;
