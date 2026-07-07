@@ -55,6 +55,24 @@ export default function WeeklyReports() {
   const [newPhone, setNewPhone] = useState("");
   const [newPhoneName, setNewPhoneName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [backfillWeeks, setBackfillWeeks] = useState(12);
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Compute Monday..Sunday for the week that contains `ref` shifted by `weeksAgo` weeks (Europe/Paris local)
+  const computeWeek = (weeksAgo: number) => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun..6=Sat
+    const daysSinceMonday = (day + 6) % 7;
+    const thisMonday = new Date(now);
+    thisMonday.setHours(0, 0, 0, 0);
+    thisMonday.setDate(now.getDate() - daysSinceMonday);
+    const monday = new Date(thisMonday);
+    monday.setDate(thisMonday.getDate() - 7 * weeksAgo);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { start: format(monday, "yyyy-MM-dd"), end: format(sunday, "yyyy-MM-dd") };
+  };
+
 
   const load = async () => {
     if (!selectedChainId) return;
@@ -116,8 +134,36 @@ export default function WeeklyReports() {
     finally { setBusy(false); }
   };
 
+  const backfillHistory = async () => {
+    if (!selectedChainId) return;
+    const n = Math.max(1, Math.min(52, Number(backfillWeeks) || 1));
+    setBusy(true);
+    setBackfillProgress({ done: 0, total: n });
+    let ok = 0, fail = 0;
+    // weeksAgo=1 = last completed week, then 2, 3, ...
+    for (let i = 1; i <= n; i++) {
+      const { start, end } = computeWeek(i);
+      try {
+        const { data, error } = await supabase.functions.invoke("generate-weekly-uber-report", {
+          body: { chainId: selectedChainId, weekStart: start, weekEnd: end },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error);
+        ok++;
+      } catch (e: any) {
+        fail++;
+        console.error(`Backfill ${start}→${end} failed`, e);
+      }
+      setBackfillProgress({ done: i, total: n });
+    }
+    setBackfillProgress(null);
+    setBusy(false);
+    toast[fail === 0 ? "success" : "warning"](`Historique généré : ${ok} OK${fail ? `, ${fail} échec(s)` : ""}`);
+    load();
+  };
+
   const sendWhatsApp = async () => {
     if (!selectedChainId) return;
+
     if (waRecipients.filter(r => r.active).length === 0) {
       toast.error("Aucun destinataire WhatsApp actif"); return;
     }
@@ -185,6 +231,37 @@ export default function WeeklyReports() {
             </Button>
           </div>
         </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Générer l'historique</CardTitle>
+            <CardDescription>Générer rétroactivement les N dernières semaines complètes (lundi → dimanche).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Input
+                type="number"
+                min={1}
+                max={52}
+                value={backfillWeeks}
+                onChange={(e) => setBackfillWeeks(Number(e.target.value))}
+                className="max-w-[120px]"
+                disabled={busy}
+              />
+              <span className="text-sm text-muted-foreground">semaines</span>
+              <Button onClick={backfillHistory} disabled={busy || !selectedChainId}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                Générer l'historique
+              </Button>
+              {backfillProgress && (
+                <span className="text-sm text-muted-foreground">
+                  {backfillProgress.done} / {backfillProgress.total}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
 
         <Card>
           <CardHeader>
