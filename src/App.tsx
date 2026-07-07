@@ -33,6 +33,7 @@ const UberConnections = React.lazy(() => import("./pages/UberConnections"));
 const Exports = React.lazy(() => import("./pages/Exports"));
 const Reports = React.lazy(() => import("./pages/Reports"));
 const WeeklyReports = React.lazy(() => import("./pages/WeeklyReports"));
+const WeeklyReportDownload = React.lazy(() => import("./pages/WeeklyReportDownload"));
 const Disputes = React.lazy(() => import("./pages/Disputes"));
 const UberNaming = React.lazy(() => import("./pages/UberNaming"));
 const UberLinkStores = React.lazy(() => import("./pages/UberLinkStores"));
@@ -173,6 +174,7 @@ const App = () => {
                     <Route path="/auth/uber/callback" element={<UberCallback />} />
                     <Route path="/uber-callback" element={<UberCallback />} />
                     <Route path="/.lovable/oauth/consent" element={<OAuthConsent />} />
+                    <Route path="/r/wr/:token" element={<P><WeeklyReportDownload /></P>} />
 
 
                     {/* Protected routes */}
