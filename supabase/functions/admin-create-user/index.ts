@@ -38,9 +38,10 @@ Deno.serve(async (req) => {
     if (!email || !role || !Array.isArray(chain_ids)) {
       return new Response(JSON.stringify({ error: "Missing email, role, or chain_ids" }), { status: 400, headers: corsHeaders });
     }
-    if (!["importer", "client"].includes(role)) {
-      return new Response(JSON.stringify({ error: "Role must be 'importer' or 'client'" }), { status: 400, headers: corsHeaders });
+    if (!["importer", "client", "reports_manager"].includes(role)) {
+      return new Response(JSON.stringify({ error: "Role must be 'importer', 'client' or 'reports_manager'" }), { status: 400, headers: corsHeaders });
     }
+
 
     // Use service role client for admin operations
     const adminClient = createClient(
