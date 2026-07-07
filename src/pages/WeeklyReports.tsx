@@ -390,6 +390,9 @@ export default function WeeklyReports() {
             </Tabs>
           </CardContent>
         </Card>
+        )}
+
+
 
         <Card>
           <CardHeader>
