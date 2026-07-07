@@ -424,6 +424,12 @@ export default function WeeklyReports() {
                               <Download className="h-4 w-4" />
                             </Button>
                           )}
+                          {(r.xlsx_path || r.csv_path) && (
+                            <Button size="sm" variant="ghost" onClick={() => downloadZip(r)} title="Télécharger ZIP (XLSX + CSV)">
+                              <FileArchive className="h-4 w-4" />
+                            </Button>
+                          )}
+
                         </div>
                       </TableCell>
                     </TableRow>
