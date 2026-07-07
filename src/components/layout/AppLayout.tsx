@@ -7,6 +7,10 @@ import { AIAdvisorWidget } from "@/components/ai/AIAdvisorWidget";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserRole } from "@/hooks/useUserRole";
+import { Button } from "@/components/ui/button";
+import { LogOut } from "lucide-react";
+
 
 interface AppLayoutProps {
   children: ReactNode;
