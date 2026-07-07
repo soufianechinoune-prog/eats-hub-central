@@ -8,10 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Loader2, Download, Send, Trash2, Plus, Mail, MessageCircle, Copy, Check } from "lucide-react";
+import { Loader2, Download, Send, Trash2, Plus, Mail, MessageCircle, Copy, Check, FileArchive } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import JSZip from "jszip";
+
 
 type ReportRow = {
   id: string;
@@ -196,6 +198,36 @@ export default function WeeklyReports() {
     if (error || !data) return toast.error("Lien indisponible");
     window.open(data.signedUrl, "_blank");
   };
+
+  const downloadZip = async (r: ReportRow) => {
+    const paths = [r.xlsx_path, r.csv_path].filter(Boolean) as string[];
+    if (paths.length === 0) return toast.error("Aucun fichier disponible");
+    const t = toast.loading("Préparation du ZIP…");
+    try {
+      const zip = new JSZip();
+      for (const p of paths) {
+        const { data, error } = await supabase.storage.from("weekly-reports").createSignedUrl(p, 60 * 5);
+        if (error || !data) throw new Error("Lien indisponible");
+        const res = await fetch(data.signedUrl);
+        if (!res.ok) throw new Error("Téléchargement échoué");
+        const blob = await res.blob();
+        zip.file(p.split("/").pop() || p, blob);
+      }
+      const content = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rapport-uber-${r.week_start}_${r.week_end}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("ZIP téléchargé", { id: t });
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erreur", { id: t });
+    }
+  };
+
 
   const copyPublicLink = async (r: ReportRow) => {
     if (!r.download_token) return;
@@ -392,6 +424,12 @@ export default function WeeklyReports() {
                               <Download className="h-4 w-4" />
                             </Button>
                           )}
+                          {(r.xlsx_path || r.csv_path) && (
+                            <Button size="sm" variant="ghost" onClick={() => downloadZip(r)} title="Télécharger ZIP (XLSX + CSV)">
+                              <FileArchive className="h-4 w-4" />
+                            </Button>
+                          )}
+
                         </div>
                       </TableCell>
                     </TableRow>
