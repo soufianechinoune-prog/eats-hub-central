@@ -134,7 +134,34 @@ export default function WeeklyReports() {
     finally { setBusy(false); }
   };
 
-  const sendWhatsApp = async () => {
+  const backfillHistory = async () => {
+    if (!selectedChainId) return;
+    const n = Math.max(1, Math.min(52, Number(backfillWeeks) || 1));
+    setBusy(true);
+    setBackfillProgress({ done: 0, total: n });
+    let ok = 0, fail = 0;
+    // weeksAgo=1 = last completed week, then 2, 3, ...
+    for (let i = 1; i <= n; i++) {
+      const { start, end } = computeWeek(i);
+      try {
+        const { data, error } = await supabase.functions.invoke("generate-weekly-uber-report", {
+          body: { chainId: selectedChainId, weekStart: start, weekEnd: end },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error);
+        ok++;
+      } catch (e: any) {
+        fail++;
+        console.error(`Backfill ${start}→${end} failed`, e);
+      }
+      setBackfillProgress({ done: i, total: n });
+    }
+    setBackfillProgress(null);
+    setBusy(false);
+    toast[fail === 0 ? "success" : "warning"](`Historique généré : ${ok} OK${fail ? `, ${fail} échec(s)` : ""}`);
+    load();
+  };
+
+
     if (!selectedChainId) return;
     if (waRecipients.filter(r => r.active).length === 0) {
       toast.error("Aucun destinataire WhatsApp actif"); return;
