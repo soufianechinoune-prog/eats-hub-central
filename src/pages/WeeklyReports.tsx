@@ -273,15 +273,20 @@ export default function WeeklyReports() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               <span className="ml-2">Générer</span>
             </Button>
-            <Button onClick={sendWhatsApp} disabled={busy || !selectedChainId || waRecipients.filter(r => r.active).length === 0} className="bg-[#25D366] hover:bg-[#20b858] text-white">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              <span className="ml-2">Envoyer WhatsApp</span>
-            </Button>
-            <Button variant="secondary" onClick={sendEmail} disabled={busy || !selectedChainId || emailRecipients.filter(r => r.active).length === 0}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              <span className="ml-2">Envoyer Email</span>
-            </Button>
+            {!isReportsManager && (
+              <>
+                <Button onClick={sendWhatsApp} disabled={busy || !selectedChainId || waRecipients.filter(r => r.active).length === 0} className="bg-[#25D366] hover:bg-[#20b858] text-white">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                  <span className="ml-2">Envoyer WhatsApp</span>
+                </Button>
+                <Button variant="secondary" onClick={sendEmail} disabled={busy || !selectedChainId || emailRecipients.filter(r => r.active).length === 0}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="ml-2">Envoyer Email</span>
+                </Button>
+              </>
+            )}
           </div>
+
         </div>
 
         <Card>
