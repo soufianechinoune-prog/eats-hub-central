@@ -1,0 +1,2 @@
+ALTER TABLE public.user_chain_access DROP CONSTRAINT IF EXISTS user_chain_access_role_check;
+ALTER TABLE public.user_chain_access ADD CONSTRAINT user_chain_access_role_check CHECK (role IN ('super_admin', 'importer', 'client', 'reports_manager'));
