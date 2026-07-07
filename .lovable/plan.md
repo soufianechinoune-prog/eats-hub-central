@@ -1,97 +1,139 @@
-## Décision
+## Objectif
 
-On abandonne la configuration de `notify.cs-delivery-performance.com` chez Hostinger (blocage technique : pas de NS sur sous-domaine). Les emails d'authentification continueront via les templates Lovable par défaut (fonctionnels, non brandés). Tout le transactionnel opérationnel passera par **WhatsApp** (déjà intégré via UltraMsg) et des **notifications in-app**.
+Remplacer la livraison email (bloquée par DNS Hostinger) par un envoi WhatsApp automatisé chaque jeudi 8h Paris. Le message contient le résumé chiffré + un lien sécurisé pour télécharger les fichiers XLSX + CSV complets.
 
----
-
-## Plan d'action
-
-### 1. Nettoyer la config email inutile
-- Vérifier qu'aucune Edge Function ne dépend d'un envoi email transactionnel Lovable actif (scan des call sites `send-transactional-email`, `auth-email-hook` custom).
-- Si présents et non utilisés : ne rien supprimer (safe), juste documenter qu'ils sont inertes.
-- **Ne pas** appeler `toggle_project_emails` (les emails auth par défaut doivent continuer de partir : reset password, confirmation compte).
-
-### 2. Centre de notifications in-app (nouveau)
-Créer un système de notifications persistantes accessible depuis la topbar :
-- **Table `notifications`** (Supabase) : `id`, `user_id`, `chain_id`, `type`, `title`, `body`, `link`, `read_at`, `created_at` + RLS scoped user_id + GRANT.
-- **Hook `useNotifications`** : fetch + Realtime subscription pour push live.
-- **Composant `NotificationBell`** dans `AppLayout` topbar : badge count non-lues, popover liste, mark-as-read, deep-link vers la page concernée.
-- **Toasts + son** : réutiliser `useMessageNotifications` existant pour signaler l'arrivée.
-
-Événements notifiables (déclenchés côté Edge Functions existantes) :
-- Nouvel avis client < 3 étoiles
-- Taux d'erreur commande > seuil sur 24h
-- Restaurant offline (downtime détecté)
-- Import CSV terminé / échoué
-- Nouvelle alerte BODACC
-
-### 3. Renforcer WhatsApp pour l'opérationnel externe
-Pour les notifications qui doivent atteindre franchisés/managers hors app :
-- **Templates WhatsApp additionnels** dans `MessageTemplateEditor` :
-  - Alerte note faible (rating < 3)
-  - Rappel hebdo performance
-  - Notification remboursement contesté
-- **Automatisation optionnelle** via cron Edge Function : envoi auto selon règles configurables (page `/settings/notifications` à créer).
-- Vérifier robustesse : `WhatsAppStatusCard` déjà en place détecte les déconnexions UltraMsg.
-
-### 4. Google Auth (déjà actif)
-- Confirmer que Google OAuth est proposé sur `/login` pour réduire les besoins de reset password (qui dépendrait des emails).
-- Si non, l'activer (1 setting + bouton UI).
-
-### 5. Communication utilisateur
-Ajouter une note discrète dans `/settings/integrations` expliquant :
-- "Les emails transactionnels sont désactivés. Les alertes passent par WhatsApp et le centre de notifications."
-- Lien vers la page de préférences notifications.
+Aucune donnée sensible en clair (pas de payout individuel resto dans le message texte — juste des agrégats réseau). Le détail est dans les fichiers téléchargeables via lien signé.
 
 ---
 
-## Détails techniques
+## Contenu du message WhatsApp
 
-**Schéma table `notifications` :**
-```sql
-CREATE TABLE public.notifications (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  chain_id uuid REFERENCES public.chains(id) ON DELETE CASCADE,
-  type text NOT NULL,          -- 'review_low', 'error_rate', 'downtime', 'import', 'bodacc'
-  severity text DEFAULT 'info', -- 'info', 'warning', 'critical'
-  title text NOT NULL,
-  body text,
-  link text,                    -- route in-app
-  metadata jsonb,
-  read_at timestamptz,
-  created_at timestamptz DEFAULT now()
-);
+Exemple généré chaque jeudi 8h :
 
-GRANT SELECT, UPDATE ON public.notifications TO authenticated;
-GRANT ALL ON public.notifications TO service_role;
-ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+```
+📊 Rapport Tasty Crousty — Semaine 27
+Du 30/06/2026 au 06/07/2026
 
-CREATE POLICY "users read own notifications"
-  ON public.notifications FOR SELECT TO authenticated
-  USING (user_id = auth.uid());
+💶 CA brut : 145 230 € TTC (121 025 € HT)
+💰 CA net après commissions : 108 921 € HT
+🧾 Frais Uber : 12 104 € (commission, marketing, service)
+📦 Commandes : 4 287
+🏦 Versement Uber : 106 340 €
 
-CREATE POLICY "users mark own as read"
-  ON public.notifications FOR UPDATE TO authenticated
-  USING (user_id = auth.uid());
+📥 Détail complet (XLSX + CSV) :
+https://cs-delivery-performance.com/r/wr/ab12cd34ef56
+Lien valable 30 jours.
 ```
 
-**Realtime :** activer publication sur `notifications` pour push live.
+---
 
-**Fichiers principaux créés/modifiés :**
-- `supabase/migrations/xxxx_notifications.sql` (nouveau)
-- `src/hooks/useNotifications.ts` (nouveau)
-- `src/components/layout/NotificationBell.tsx` (nouveau)
-- `src/components/layout/AppLayout.tsx` (ajout bell dans topbar)
-- `src/pages/NotificationPreferences.tsx` (nouveau, optionnel phase 2)
-- Edge Functions existantes (reviews sync, downtime, import) : ajouter `INSERT` dans `notifications` sur événements critiques.
+## Architecture technique
+
+### 1. Table `weekly_report_runs` (traçabilité + tokens)
+
+```sql
+CREATE TABLE public.weekly_report_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  chain_id uuid NOT NULL REFERENCES public.chains(id),
+  period_start date NOT NULL,     -- lundi
+  period_end date NOT NULL,       -- dimanche
+  aggregates jsonb NOT NULL,      -- ca_brut_ttc, ca_brut_ht, ca_net_ht, frais_uber, nb_orders, payout
+  xlsx_path text NOT NULL,        -- storage path
+  csv_path text NOT NULL,
+  download_token text NOT NULL UNIQUE,  -- token public court (12 chars)
+  token_expires_at timestamptz NOT NULL,
+  sent_via_whatsapp boolean DEFAULT false,
+  whatsapp_message_id text,
+  created_at timestamptz DEFAULT now(),
+  UNIQUE(chain_id, period_start, period_end)
+);
+```
+
++ table `weekly_report_recipients (chain_id, phone, name, active)` pour lister les numéros à notifier (multi-destinataires possible).
+
+### 2. Bucket Storage `weekly-reports` (privé)
+
+Fichiers stockés sous `{chain_id}/{period_start}/{token}.xlsx` et `.csv`. Accès uniquement via URL signée générée par l'edge fn de download.
+
+### 3. Edge Function `generate-weekly-tc-report` (nouvelle)
+- Cron `pg_cron` jeudi 8h Paris.
+- Pour chaque `chain_id` configuré :
+  - Agrège via RPC `get_weekly_uber_aggregates(chain_id, period_start, period_end)` :
+    - CA brut TTC/HT
+    - CA net HT après commissions (sales_excl_vat - item_promo_excl_vat - uber_fee_after_promo_excl_vat)
+    - Frais Uber (commission + marketing + service)
+    - Nombre de commandes
+    - Versement Uber (somme `net_payout` de `payouts`)
+  - Génère XLSX (SheetJS) 4 onglets : Résumé / Détail jour / Détail resto / Jour×Resto
+  - Génère CSV Jour×Resto
+  - Upload dans bucket
+  - Crée `weekly_report_runs` avec token aléatoire 12 chars
+  - Pour chaque recipient : invoke `send-whatsapp` avec message formaté
+  - Log dans `notifications` (centre in-app) pour trace admin
+
+### 4. Edge Function `download-weekly-report` (nouvelle, publique)
+- Route : reçoit `?token=xxx&format=xlsx|csv`
+- Vérifie token + expiration
+- Génère URL signée Storage 5 min
+- Redirect 302 vers l'URL signée
+
+### 5. Route front `/r/wr/:token`
+- Page publique légère (pas d'auth requise, token = secret)
+- Affiche : nom chaîne, semaine, résumé chiffré, 2 boutons "Télécharger XLSX" / "Télécharger CSV"
+- Les boutons appellent l'edge fn `download-weekly-report`
+- Message si token expiré/invalide
+
+### 6. Page admin `/admin/weekly-reports`
+- Liste des runs (période, statut envoi WhatsApp, lien token)
+- Gestion des destinataires (add/remove numéro + nom)
+- Bouton "Relancer manuellement" pour une semaine donnée
+- Bouton "Générer maintenant" pour tester
+
+### 7. Notification in-app
+À chaque génération réussie, insertion dans `notifications` (centre créé phase précédente) :
+> "Rapport hebdo Tasty Crousty S27 envoyé à 2 destinataires WhatsApp"
+Lien : `/admin/weekly-reports`
 
 ---
 
-## Périmètre livraison
+## Sécurité
 
-**Phase 1 (ce plan)** : Centre de notifications in-app + Bell topbar + 2-3 événements branchés (avis faible, import terminé).
+- Token 12 chars aléatoires (~10^18 combinaisons) + expiration 30 jours + révocable.
+- Bucket privé, jamais d'URL directe exposée.
+- RPC en `SECURITY DEFINER` avec filtre `chain_id`.
+- Pas de PII en clair dans le WhatsApp (juste agrégats).
+- Page publique du token n'expose que les données de CE run (pas navigation).
+- RLS `weekly_report_runs` et `weekly_report_recipients` : super_admin only.
 
-**Phase 2 (à confirmer plus tard)** : Templates WhatsApp additionnels + cron d'alertes automatiques + page préférences.
+---
 
-Confirmez si vous voulez la Phase 1 seule d'abord, ou Phase 1+2 d'un coup.
+## Fichiers créés/modifiés
+
+**Migration SQL** :
+- `weekly_report_runs`, `weekly_report_recipients`, RPC `get_weekly_uber_aggregates`, bucket `weekly-reports`.
+
+**Edge Functions** :
+- `supabase/functions/generate-weekly-tc-report/index.ts` (nouveau)
+- `supabase/functions/download-weekly-report/index.ts` (nouveau)
+
+**Front** :
+- `src/pages/WeeklyReportDownload.tsx` (route publique `/r/wr/:token`)
+- `src/pages/AdminWeeklyReports.tsx` (route admin)
+- `src/App.tsx` : ajout des 2 routes
+- Item de menu dans `AppSidebar` (section Admin) : "Rapports hebdo"
+
+**Cron** :
+- `pg_cron` schedule dans la migration : `0 7 * * 4` UTC (8h Paris hiver / on gérera l'été via timezone).
+
+---
+
+## Périmètre livraison en une passe
+
+1. Migration : tables + bucket + RPC + cron.
+2. Edge fn de génération + edge fn download.
+3. Page publique download + page admin.
+4. Test manuel avec ton numéro sur la semaine dernière.
+
+Le premier run auto tombera le prochain jeudi 8h. Tu pourras aussi cliquer "Générer maintenant" pour tester immédiatement.
+
+Question rapide avant que je code : **quel numéro WhatsApp** je pré-remplis dans les destinataires par défaut (le tien 06 99 56 40 00 + celui de ton responsable ?), ou tu ajoutes tout via la page admin après ?

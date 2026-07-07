@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Download, Send, Trash2, Plus, Mail } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Loader2, Download, Send, Trash2, Plus, Mail, MessageCircle, Copy, Check } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -18,14 +19,28 @@ type ReportRow = {
   week_start: string;
   week_end: string;
   xlsx_path: string | null;
+  csv_path: string | null;
   status: string;
   sent_to: string[] | null;
+  sent_phones: string[] | null;
+  sent_via_whatsapp: boolean | null;
   sent_at: string | null;
   totals: any;
+  download_token: string | null;
+  token_expires_at: string | null;
   created_at: string;
 };
 
-type Recipient = { id: string; email: string; active: boolean };
+type Recipient = {
+  id: string;
+  email: string | null;
+  phone: string | null;
+  name: string | null;
+  channel: string;
+  active: boolean;
+};
+
+const APP_URL = typeof window !== "undefined" ? window.location.origin : "";
 
 const fmtEur = (n?: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(n ?? 0);
@@ -37,6 +52,9 @@ export default function WeeklyReports() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [newPhone, setNewPhone] = useState("");
+  const [newPhoneName, setNewPhoneName] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const load = async () => {
     if (!selectedChainId) return;
@@ -50,22 +68,28 @@ export default function WeeklyReports() {
     setLoading(false);
   };
 
-  useEffect(() => {
-    load();
-  }, [selectedChainId]);
+  useEffect(() => { load(); }, [selectedChainId]);
 
-  const addRecipient = async () => {
+  const emailRecipients = recipients.filter(r => r.channel === "email");
+  const waRecipients = recipients.filter(r => r.channel === "whatsapp");
+
+  const addEmail = async () => {
     const email = newEmail.trim().toLowerCase();
     if (!email || !selectedChainId) return;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      toast.error("Email invalide");
-      return;
-    }
-    const { error } = await supabase.from("weekly_report_recipients").insert({ chain_id: selectedChainId, email });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast.error("Email invalide"); return; }
+    const { error } = await supabase.from("weekly_report_recipients").insert({ chain_id: selectedChainId, email, channel: "email" });
     if (error) return toast.error(error.message);
-    setNewEmail("");
-    toast.success("Destinataire ajouté");
-    load();
+    setNewEmail(""); toast.success("Destinataire email ajouté"); load();
+  };
+
+  const addPhone = async () => {
+    const phone = newPhone.trim();
+    if (!phone || !selectedChainId) return;
+    const { error } = await supabase.from("weekly_report_recipients").insert({
+      chain_id: selectedChainId, phone, name: newPhoneName.trim() || null, channel: "whatsapp"
+    });
+    if (error) return toast.error(error.message);
+    setNewPhone(""); setNewPhoneName(""); toast.success("Destinataire WhatsApp ajouté"); load();
   };
 
   const removeRecipient = async (id: string) => {
@@ -79,21 +103,46 @@ export default function WeeklyReports() {
     load();
   };
 
-  const generateNow = async (send: boolean) => {
+  const generate = async () => {
     if (!selectedChainId) return;
     setBusy(true);
     try {
-      const fn = send ? "send-weekly-uber-report" : "generate-weekly-uber-report";
-      const { data, error } = await supabase.functions.invoke(fn, { body: { chainId: selectedChainId } });
+      const { data, error } = await supabase.functions.invoke("generate-weekly-uber-report", { body: { chainId: selectedChainId } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast.success(send ? `Rapport envoyé (${data.sent?.length ?? 0} destinataire·s)` : "Rapport généré");
+      toast.success("Rapport généré");
       load();
-    } catch (e: any) {
-      toast.error(e?.message ?? "Erreur");
-    } finally {
-      setBusy(false);
+    } catch (e: any) { toast.error(e?.message ?? "Erreur"); }
+    finally { setBusy(false); }
+  };
+
+  const sendWhatsApp = async () => {
+    if (!selectedChainId) return;
+    if (waRecipients.filter(r => r.active).length === 0) {
+      toast.error("Aucun destinataire WhatsApp actif"); return;
     }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-weekly-report-whatsapp", { body: { chainId: selectedChainId } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Envoyé à ${data.sent?.length ?? 0} destinataire(s) WhatsApp`);
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Erreur"); }
+    finally { setBusy(false); }
+  };
+
+  const sendEmail = async () => {
+    if (!selectedChainId) return;
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("send-weekly-uber-report", { body: { chainId: selectedChainId } });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast.success(`Email envoyé à ${data.sent?.length ?? 0} destinataire(s)`);
+      load();
+    } catch (e: any) { toast.error(e?.message ?? "Erreur"); }
+    finally { setBusy(false); }
   };
 
   const download = async (path: string) => {
@@ -102,76 +151,120 @@ export default function WeeklyReports() {
     window.open(data.signedUrl, "_blank");
   };
 
+  const copyPublicLink = async (r: ReportRow) => {
+    if (!r.download_token) return;
+    const url = `${APP_URL}/r/wr/${r.download_token}`;
+    await navigator.clipboard.writeText(url);
+    setCopiedId(r.id);
+    toast.success("Lien copié");
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
   return (
     <AppLayout>
       <div className="container mx-auto max-w-6xl py-8 space-y-6">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Rapports hebdo Uber Eats</h1>
             <p className="text-muted-foreground mt-1">
-              Envoi automatique chaque lundi matin. Généré pour la semaine précédente (lundi → dimanche, heure de Paris).
+              Généré automatiquement chaque jeudi 8h Paris pour la semaine précédente (lundi → dimanche).
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => generateNow(false)} disabled={busy || !selectedChainId}>
+          <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" onClick={generate} disabled={busy || !selectedChainId}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               <span className="ml-2">Générer</span>
             </Button>
-            <Button onClick={() => generateNow(true)} disabled={busy || !selectedChainId || recipients.filter(r => r.active).length === 0}>
+            <Button onClick={sendWhatsApp} disabled={busy || !selectedChainId || waRecipients.filter(r => r.active).length === 0} className="bg-[#25D366] hover:bg-[#20b858] text-white">
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+              <span className="ml-2">Envoyer WhatsApp</span>
+            </Button>
+            <Button variant="secondary" onClick={sendEmail} disabled={busy || !selectedChainId || emailRecipients.filter(r => r.active).length === 0}>
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              <span className="ml-2">Générer + envoyer</span>
+              <span className="ml-2">Envoyer Email</span>
             </Button>
           </div>
         </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Mail className="h-4 w-4" /> Destinataires</CardTitle>
-            <CardDescription>Emails qui recevront le rapport chaque lundi matin</CardDescription>
+            <CardTitle>Destinataires</CardTitle>
+            <CardDescription>Ajoutez des numéros WhatsApp et/ou des emails. WhatsApp est envoyé automatiquement chaque jeudi 8h.</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex gap-2">
-              <Input
-                type="email"
-                placeholder="prenom@exemple.com"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && addRecipient()}
-              />
-              <Button onClick={addRecipient}><Plus className="h-4 w-4 mr-1" /> Ajouter</Button>
-            </div>
-            {recipients.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Aucun destinataire pour l'instant.</p>
-            ) : (
-              <ul className="divide-y">
-                {recipients.map((r) => (
-                  <li key={r.id} className="flex items-center justify-between py-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-medium">{r.email}</span>
-                      <Badge variant={r.active ? "default" : "secondary"} className="cursor-pointer" onClick={() => toggleRecipient(r)}>
-                        {r.active ? "Actif" : "Inactif"}
-                      </Badge>
-                    </div>
-                    <Button variant="ghost" size="icon" onClick={() => removeRecipient(r.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <CardContent>
+            <Tabs defaultValue="whatsapp">
+              <TabsList>
+                <TabsTrigger value="whatsapp" className="gap-2"><MessageCircle className="h-4 w-4" /> WhatsApp ({waRecipients.length})</TabsTrigger>
+                <TabsTrigger value="email" className="gap-2"><Mail className="h-4 w-4" /> Email ({emailRecipients.length})</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="whatsapp" className="space-y-3 pt-4">
+                <div className="flex gap-2 flex-wrap">
+                  <Input placeholder="Nom (optionnel)" value={newPhoneName} onChange={(e) => setNewPhoneName(e.target.value)} className="max-w-[200px]" />
+                  <Input placeholder="06 12 34 56 78" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addPhone()} className="max-w-[200px]" />
+                  <Button onClick={addPhone}><Plus className="h-4 w-4 mr-1" /> Ajouter</Button>
+                </div>
+                {waRecipients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">Aucun destinataire WhatsApp.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {waRecipients.map((r) => (
+                      <li key={r.id} className="flex items-center justify-between py-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">{r.name || "—"}</span>
+                          <span className="text-muted-foreground text-sm">{r.phone}</span>
+                          <Badge variant={r.active ? "default" : "secondary"} className="cursor-pointer" onClick={() => toggleRecipient(r)}>
+                            {r.active ? "Actif" : "Inactif"}
+                          </Badge>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => removeRecipient(r.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </TabsContent>
+
+              <TabsContent value="email" className="space-y-3 pt-4">
+                <div className="flex gap-2">
+                  <Input type="email" placeholder="prenom@exemple.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addEmail()} />
+                  <Button onClick={addEmail}><Plus className="h-4 w-4 mr-1" /> Ajouter</Button>
+                </div>
+                {emailRecipients.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2">Aucun destinataire email.</p>
+                ) : (
+                  <ul className="divide-y">
+                    {emailRecipients.map((r) => (
+                      <li key={r.id} className="flex items-center justify-between py-2">
+                        <div className="flex items-center gap-3">
+                          <span className="font-medium">{r.email}</span>
+                          <Badge variant={r.active ? "default" : "secondary"} className="cursor-pointer" onClick={() => toggleRecipient(r)}>
+                            {r.active ? "Actif" : "Inactif"}
+                          </Badge>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => removeRecipient(r.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </TabsContent>
+            </Tabs>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Historique</CardTitle>
-            <CardDescription>50 derniers rapports générés</CardDescription>
+            <CardDescription>50 derniers rapports</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : reports.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-4">Aucun rapport pour l'instant. Cliquez sur « Générer » pour créer le premier.</p>
+              <p className="text-sm text-muted-foreground py-4">Aucun rapport pour l'instant. Cliquez sur « Générer ».</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -181,8 +274,8 @@ export default function WeeklyReports() {
                     <TableHead>Commandes</TableHead>
                     <TableHead>Versement</TableHead>
                     <TableHead>Statut</TableHead>
-                    <TableHead>Envoyé à</TableHead>
-                    <TableHead className="text-right">Fichier</TableHead>
+                    <TableHead>Envoi</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -200,14 +293,29 @@ export default function WeeklyReports() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
-                        {r.sent_to?.length ? `${r.sent_to.length} email(s)` : "—"}
+                        <div className="flex flex-col gap-0.5">
+                          {r.sent_via_whatsapp && r.sent_phones?.length ? (
+                            <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3 text-[#25D366]" /> {r.sent_phones.length}</span>
+                          ) : null}
+                          {r.sent_to?.length ? (
+                            <span className="flex items-center gap-1"><Mail className="h-3 w-3" /> {r.sent_to.length}</span>
+                          ) : null}
+                          {!r.sent_via_whatsapp && !r.sent_to?.length && "—"}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        {r.xlsx_path && (
-                          <Button size="sm" variant="ghost" onClick={() => download(r.xlsx_path!)}>
-                            <Download className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <div className="flex justify-end gap-1">
+                          {r.download_token && (
+                            <Button size="sm" variant="ghost" onClick={() => copyPublicLink(r)} title="Copier le lien public">
+                              {copiedId === r.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                            </Button>
+                          )}
+                          {r.xlsx_path && (
+                            <Button size="sm" variant="ghost" onClick={() => download(r.xlsx_path!)} title="Télécharger XLSX">
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
