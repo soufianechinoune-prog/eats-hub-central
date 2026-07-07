@@ -150,16 +150,41 @@ Deno.serve(async (req) => {
     const buffer = await wb.xlsx.writeBuffer()
     const bytes = new Uint8Array(buffer as ArrayBuffer)
 
+    // Build CSV (Jour x Restaurant) for BI re-import
+    const csvHeaders = ['Jour', 'Restaurant', 'CA brut TTC', 'CA brut HT', 'CA net TTC', 'CA net HT', 'Commission Uber', 'Marketing', 'Frais de service', 'Commandes', 'Versement Uber']
+    const csvEscape = (v: unknown) => {
+      const s = v == null ? '' : String(v)
+      return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
+    }
+    const csvLines = [csvHeaders.join(';')]
+    for (const r of byDayResto) {
+      csvLines.push([
+        r.local_date, r.restaurant_name,
+        r.ca_brut_ttc, r.ca_brut_ht, r.ca_net_ttc, r.ca_net_ht,
+        r.commission_uber, r.marketing_fee, r.service_fee,
+        r.orders_count, r.payout_total,
+      ].map(csvEscape).join(';'))
+    }
+    const csvBytes = new TextEncoder().encode('\uFEFF' + csvLines.join('\n'))
+
     // Upload to storage
     const slug = chainName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-    const path = `${chainId}/${weekStart}_${slug}_uber-weekly.xlsx`
+    const xlsxPath = `${chainId}/${weekStart}_${slug}_uber-weekly.xlsx`
+    const csvPath = `${chainId}/${weekStart}_${slug}_uber-weekly.csv`
     const { error: upErr } = await supabase.storage
       .from('weekly-reports')
-      .upload(path, bytes, {
+      .upload(xlsxPath, bytes, {
         contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         upsert: true,
       })
     if (upErr) throw upErr
+    const { error: upCsvErr } = await supabase.storage
+      .from('weekly-reports')
+      .upload(csvPath, csvBytes, {
+        contentType: 'text/csv; charset=utf-8',
+        upsert: true,
+      })
+    if (upCsvErr) throw upCsvErr
 
     const totals = {
       ca_brut_ttc: Number(network.ca_brut_ttc ?? 0),
@@ -173,13 +198,25 @@ Deno.serve(async (req) => {
       payout_total: Number(network.payout_total ?? 0),
     }
 
+
     // Upsert weekly_reports row
     const { data: existing } = await supabase
       .from('weekly_reports')
-      .select('id')
+      .select('id, download_token, token_expires_at')
       .eq('chain_id', chainId)
       .eq('week_start', weekStart)
       .maybeSingle()
+
+    // Generate token if none / expired
+    const now = new Date()
+    let downloadToken = existing?.download_token as string | null | undefined
+    let tokenExpiresAt = existing?.token_expires_at as string | null | undefined
+    if (!downloadToken || (tokenExpiresAt && new Date(tokenExpiresAt) < now)) {
+      const rand = new Uint8Array(9)
+      crypto.getRandomValues(rand)
+      downloadToken = Array.from(rand, b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
+      tokenExpiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
+    }
 
     let reportId: string
     if (existing) {
@@ -187,9 +224,12 @@ Deno.serve(async (req) => {
         .from('weekly_reports')
         .update({
           week_end: weekEnd,
-          xlsx_path: path,
+          xlsx_path: xlsxPath,
+          csv_path: csvPath,
           status: 'generated',
           totals,
+          download_token: downloadToken,
+          token_expires_at: tokenExpiresAt,
           error_message: null,
           updated_at: new Date().toISOString(),
         })
@@ -203,9 +243,12 @@ Deno.serve(async (req) => {
           chain_id: chainId,
           week_start: weekStart,
           week_end: weekEnd,
-          xlsx_path: path,
+          xlsx_path: xlsxPath,
+          csv_path: csvPath,
           status: 'generated',
           totals,
+          download_token: downloadToken,
+          token_expires_at: tokenExpiresAt,
         })
         .select('id')
         .single()
@@ -221,11 +264,15 @@ Deno.serve(async (req) => {
         weekStart,
         weekEnd,
         weekLabel,
-        xlsxPath: path,
+        xlsxPath,
+        csvPath,
+        downloadToken,
+        tokenExpiresAt,
         totals,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
+
   } catch (err) {
     console.error('generate-weekly-uber-report error', err)
     return new Response(
