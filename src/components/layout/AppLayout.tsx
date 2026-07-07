@@ -18,6 +18,9 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const { selectedChainId } = useAnalyticsContext();
+  const { data: role } = useUserRole();
+  const isReportsManager = role === "reports_manager";
+
 
   // Fetch active chain name
   const { data: chainData } = useQuery({
