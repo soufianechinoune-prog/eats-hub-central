@@ -51,7 +51,10 @@ const fmtEur = (n?: number) =>
 
 export default function WeeklyReports() {
   const { selectedChainId } = useAnalyticsContext();
+  const { data: role } = useUserRole();
+  const isReportsManager = role === "reports_manager";
   const [reports, setReports] = useState<ReportRow[]>([]);
+
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
