@@ -15,7 +15,7 @@ export function useUserRole() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  return useQuery({
+  const query = useQuery({
     queryKey: ["user-role", userId],
     queryFn: async () => {
       if (!userId) return null;
@@ -26,6 +26,12 @@ export function useUserRole() {
     enabled: userId !== undefined,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Treat "session not yet resolved" as loading so gates don't flash content.
+  return {
+    ...query,
+    isLoading: userId === undefined || query.isLoading,
+  } as typeof query;
 }
 
 export function useCanImport() {
