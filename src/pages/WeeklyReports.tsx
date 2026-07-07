@@ -196,8 +196,23 @@ export default function WeeklyReports() {
   const download = async (path: string) => {
     const { data, error } = await supabase.storage.from("weekly-reports").createSignedUrl(path, 60 * 5);
     if (error || !data) return toast.error("Lien indisponible");
-    window.open(data.signedUrl, "_blank");
+    try {
+      const res = await fetch(data.signedUrl);
+      if (!res.ok) throw new Error("Téléchargement échoué");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = path.split("/").pop() || "rapport.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e: any) {
+      toast.error(e?.message ?? "Erreur");
+    }
   };
+
 
   const downloadZip = async (r: ReportRow) => {
     const paths = [r.xlsx_path, r.csv_path].filter(Boolean) as string[];
