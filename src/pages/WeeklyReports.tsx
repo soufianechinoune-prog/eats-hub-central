@@ -55,6 +55,24 @@ export default function WeeklyReports() {
   const [newPhone, setNewPhone] = useState("");
   const [newPhoneName, setNewPhoneName] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [backfillWeeks, setBackfillWeeks] = useState(12);
+  const [backfillProgress, setBackfillProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Compute Monday..Sunday for the week that contains `ref` shifted by `weeksAgo` weeks (Europe/Paris local)
+  const computeWeek = (weeksAgo: number) => {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun..6=Sat
+    const daysSinceMonday = (day + 6) % 7;
+    const thisMonday = new Date(now);
+    thisMonday.setHours(0, 0, 0, 0);
+    thisMonday.setDate(now.getDate() - daysSinceMonday);
+    const monday = new Date(thisMonday);
+    monday.setDate(thisMonday.getDate() - 7 * weeksAgo);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return { start: format(monday, "yyyy-MM-dd"), end: format(sunday, "yyyy-MM-dd") };
+  };
+
 
   const load = async () => {
     if (!selectedChainId) return;
