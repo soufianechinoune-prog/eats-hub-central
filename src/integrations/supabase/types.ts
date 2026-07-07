@@ -4572,23 +4572,32 @@ export type Database = {
         Row: {
           active: boolean
           chain_id: string
+          channel: string
           created_at: string
-          email: string
+          email: string | null
           id: string
+          name: string | null
+          phone: string | null
         }
         Insert: {
           active?: boolean
           chain_id: string
+          channel?: string
           created_at?: string
-          email: string
+          email?: string | null
           id?: string
+          name?: string | null
+          phone?: string | null
         }
         Update: {
           active?: boolean
           chain_id?: string
+          channel?: string
           created_at?: string
-          email?: string
+          email?: string | null
           id?: string
+          name?: string | null
+          phone?: string | null
         }
         Relationships: [
           {
@@ -4604,43 +4613,61 @@ export type Database = {
         Row: {
           chain_id: string
           created_at: string
+          csv_path: string | null
+          download_token: string | null
           error_message: string | null
           id: string
           sent_at: string | null
+          sent_phones: string[] | null
           sent_to: string[] | null
+          sent_via_whatsapp: boolean | null
           status: string
+          token_expires_at: string | null
           totals: Json | null
           updated_at: string
           week_end: string
           week_start: string
+          whatsapp_batch_id: string | null
           xlsx_path: string | null
         }
         Insert: {
           chain_id: string
           created_at?: string
+          csv_path?: string | null
+          download_token?: string | null
           error_message?: string | null
           id?: string
           sent_at?: string | null
+          sent_phones?: string[] | null
           sent_to?: string[] | null
+          sent_via_whatsapp?: boolean | null
           status?: string
+          token_expires_at?: string | null
           totals?: Json | null
           updated_at?: string
           week_end: string
           week_start: string
+          whatsapp_batch_id?: string | null
           xlsx_path?: string | null
         }
         Update: {
           chain_id?: string
           created_at?: string
+          csv_path?: string | null
+          download_token?: string | null
           error_message?: string | null
           id?: string
           sent_at?: string | null
+          sent_phones?: string[] | null
           sent_to?: string[] | null
+          sent_via_whatsapp?: boolean | null
           status?: string
+          token_expires_at?: string | null
           totals?: Json | null
           updated_at?: string
           week_end?: string
           week_start?: string
+          whatsapp_batch_id?: string | null
           xlsx_path?: string | null
         }
         Relationships: [
