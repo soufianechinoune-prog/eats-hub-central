@@ -60,7 +60,16 @@ Deno.serve(async (req) => {
     }
 
     const t = gen.totals ?? {}
-    const publicUrl = `${APP_URL}/r/wr/${gen.downloadToken}`
+    let downloadToken = gen.downloadToken as string | undefined
+    if (!downloadToken && gen.reportId) {
+      const { data: reportToken } = await supabase
+        .from('weekly_reports')
+        .select('download_token')
+        .eq('id', gen.reportId)
+        .maybeSingle()
+      downloadToken = reportToken?.download_token ?? undefined
+    }
+    const publicUrl = downloadToken ? `${APP_URL}/r/wr/${downloadToken}` : APP_URL
 
     const message =
       `📊 *Rapport ${gen.chainName} — Uber Eats*\n` +
@@ -141,7 +150,8 @@ Deno.serve(async (req) => {
 
     return new Response(
       JSON.stringify({
-        success: true,
+        success: sentPhones.length > 0,
+        error: sentPhones.length === 0 && waResult?.error ? waResult.error : undefined,
         reportId: gen.reportId,
         publicUrl,
         sent: sentPhones,
