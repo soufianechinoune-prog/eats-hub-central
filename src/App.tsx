@@ -118,8 +118,21 @@ const queryClient = new QueryClient({
 });
 
 const P = ({ children }: { children: React.ReactNode }) => (
-  <ProtectedRoute>{children}</ProtectedRoute>
+  <ProtectedRoute>
+    <ReportsManagerGate>{children}</ReportsManagerGate>
+  </ProtectedRoute>
 );
+
+// If the logged-in user is a "reports_manager", lock them to /reports/weekly
+const ReportsManagerGate = ({ children }: { children: React.ReactNode }) => {
+  const { data: role, isLoading } = useUserRole();
+  const path = typeof window !== "undefined" ? window.location.pathname : "";
+  if (isLoading) return null;
+  if (role === "reports_manager" && path !== "/reports/weekly" && !path.startsWith("/r/wr/") && path !== "/account") {
+    return <Navigate to="/reports/weekly" replace />;
+  }
+  return <>{children}</>;
+};
 
 const ImportRoute = ({ children }: { children: React.ReactNode }) => {
   const { data: role, isLoading } = useUserRole();
@@ -135,6 +148,7 @@ const ImportRoute = ({ children }: { children: React.ReactNode }) => {
   if (role !== "super_admin" && role !== "importer") return <Navigate to="/overview" replace />;
   return <>{children}</>;
 };
+
 
 const SmartHome = () => {
   const [session, setSession] = useState<null | "loading" | "authed" | "anon">("loading");

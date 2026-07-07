@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useUserRole } from "@/hooks/useUserRole";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import JSZip from "jszip";
+
 
 
 type ReportRow = {
@@ -49,7 +51,10 @@ const fmtEur = (n?: number) =>
 
 export default function WeeklyReports() {
   const { selectedChainId } = useAnalyticsContext();
+  const { data: role } = useUserRole();
+  const isReportsManager = role === "reports_manager";
   const [reports, setReports] = useState<ReportRow[]>([]);
+
   const [recipients, setRecipients] = useState<Recipient[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -268,15 +273,20 @@ export default function WeeklyReports() {
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
               <span className="ml-2">Générer</span>
             </Button>
-            <Button onClick={sendWhatsApp} disabled={busy || !selectedChainId || waRecipients.filter(r => r.active).length === 0} className="bg-[#25D366] hover:bg-[#20b858] text-white">
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-              <span className="ml-2">Envoyer WhatsApp</span>
-            </Button>
-            <Button variant="secondary" onClick={sendEmail} disabled={busy || !selectedChainId || emailRecipients.filter(r => r.active).length === 0}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              <span className="ml-2">Envoyer Email</span>
-            </Button>
+            {!isReportsManager && (
+              <>
+                <Button onClick={sendWhatsApp} disabled={busy || !selectedChainId || waRecipients.filter(r => r.active).length === 0} className="bg-[#25D366] hover:bg-[#20b858] text-white">
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                  <span className="ml-2">Envoyer WhatsApp</span>
+                </Button>
+                <Button variant="secondary" onClick={sendEmail} disabled={busy || !selectedChainId || emailRecipients.filter(r => r.active).length === 0}>
+                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span className="ml-2">Envoyer Email</span>
+                </Button>
+              </>
+            )}
           </div>
+
         </div>
 
         <Card>
@@ -310,7 +320,9 @@ export default function WeeklyReports() {
         </Card>
 
 
+        {!isReportsManager && (
         <Card>
+
           <CardHeader>
             <CardTitle>Destinataires</CardTitle>
             <CardDescription>Ajoutez des numéros WhatsApp et/ou des emails. WhatsApp est envoyé automatiquement chaque jeudi 8h.</CardDescription>
@@ -378,6 +390,9 @@ export default function WeeklyReports() {
             </Tabs>
           </CardContent>
         </Card>
+        )}
+
+
 
         <Card>
           <CardHeader>
@@ -429,11 +444,12 @@ export default function WeeklyReports() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {r.download_token && (
+                          {r.download_token && !isReportsManager && (
                             <Button size="sm" variant="ghost" onClick={() => copyPublicLink(r)} title="Copier le lien public">
                               {copiedId === r.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                             </Button>
                           )}
+
                           {r.xlsx_path && (
                             <Button size="sm" variant="ghost" onClick={() => download(r.xlsx_path!)} title="Télécharger XLSX">
                               <Download className="h-4 w-4" />
