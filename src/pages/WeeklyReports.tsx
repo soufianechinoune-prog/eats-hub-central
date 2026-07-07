@@ -320,7 +320,9 @@ export default function WeeklyReports() {
         </Card>
 
 
+        {!isReportsManager && (
         <Card>
+
           <CardHeader>
             <CardTitle>Destinataires</CardTitle>
             <CardDescription>Ajoutez des numéros WhatsApp et/ou des emails. WhatsApp est envoyé automatiquement chaque jeudi 8h.</CardDescription>
