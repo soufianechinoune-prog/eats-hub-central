@@ -43,10 +43,10 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
-        <AppSidebar />
+        {!isReportsManager && <AppSidebar />}
         <main className="flex-1 bg-background">
           <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-card px-6 shadow-sm">
-            <SidebarTrigger className="mr-4" />
+            {!isReportsManager && <SidebarTrigger className="mr-4" />}
             <div className="flex items-center gap-3 flex-1">
               {chainLogoUrl ? (
                 <img src={chainLogoUrl} alt={displayName} className="h-9 w-9 rounded-md object-cover" />
@@ -55,14 +55,21 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
               ) : null}
               <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
             </div>
-            <NotificationBell />
+            {isReportsManager ? (
+              <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); window.location.href = "/login"; }}>
+                <LogOut className="h-4 w-4 mr-2" /> Déconnexion
+              </Button>
+            ) : (
+              <NotificationBell />
+            )}
           </header>
           <div className="p-6">
             {children}
           </div>
         </main>
-        <AIAdvisorWidget />
+        {!isReportsManager && <AIAdvisorWidget />}
       </div>
     </SidebarProvider>
   );
 };
+
