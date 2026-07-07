@@ -161,8 +161,9 @@ export default function WeeklyReports() {
     load();
   };
 
-
+  const sendWhatsApp = async () => {
     if (!selectedChainId) return;
+
     if (waRecipients.filter(r => r.active).length === 0) {
       toast.error("Aucun destinataire WhatsApp actif"); return;
     }
