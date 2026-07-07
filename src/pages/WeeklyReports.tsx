@@ -234,6 +234,37 @@ export default function WeeklyReports() {
 
         <Card>
           <CardHeader>
+            <CardTitle>Générer l'historique</CardTitle>
+            <CardDescription>Générer rétroactivement les N dernières semaines complètes (lundi → dimanche).</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3 flex-wrap">
+              <Input
+                type="number"
+                min={1}
+                max={52}
+                value={backfillWeeks}
+                onChange={(e) => setBackfillWeeks(Number(e.target.value))}
+                className="max-w-[120px]"
+                disabled={busy}
+              />
+              <span className="text-sm text-muted-foreground">semaines</span>
+              <Button onClick={backfillHistory} disabled={busy || !selectedChainId}>
+                {busy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Download className="h-4 w-4 mr-2" />}
+                Générer l'historique
+              </Button>
+              {backfillProgress && (
+                <span className="text-sm text-muted-foreground">
+                  {backfillProgress.done} / {backfillProgress.total}
+                </span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+
+        <Card>
+          <CardHeader>
             <CardTitle>Destinataires</CardTitle>
             <CardDescription>Ajoutez des numéros WhatsApp et/ou des emails. WhatsApp est envoyé automatiquement chaque jeudi 8h.</CardDescription>
           </CardHeader>
