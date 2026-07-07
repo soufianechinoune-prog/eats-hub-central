@@ -444,11 +444,12 @@ export default function WeeklyReports() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {r.download_token && (
+                          {r.download_token && !isReportsManager && (
                             <Button size="sm" variant="ghost" onClick={() => copyPublicLink(r)} title="Copier le lien public">
                               {copiedId === r.id ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
                             </Button>
                           )}
+
                           {r.xlsx_path && (
                             <Button size="sm" variant="ghost" onClick={() => download(r.xlsx_path!)} title="Télécharger XLSX">
                               <Download className="h-4 w-4" />
