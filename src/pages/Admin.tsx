@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Trash2, UserPlus, Plus, Building2, Users, Loader2 } from "lucide-react";
 import AdminBillingSection from "@/components/admin/AdminBillingSection";
+import { AdminApiKeysSection } from "@/components/admin/AdminApiKeysSection";
 
 interface UserAccess {
   access_id: string;
