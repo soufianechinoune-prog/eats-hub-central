@@ -82,12 +82,15 @@ export default function WeeklyReports() {
 
 
   const load = async () => {
-    if (!selectedChainId) return;
     setLoading(true);
-    const [r1, r2] = await Promise.all([
-      supabase.from("weekly_reports").select("*").eq("chain_id", selectedChainId).order("week_start", { ascending: false }).limit(50),
-      supabase.from("weekly_report_recipients").select("*").eq("chain_id", selectedChainId).order("created_at"),
-    ]);
+    // Rely on RLS to scope by accessible chains; filter client-side if a chain is selected
+    let reportsQuery = supabase.from("weekly_reports").select("*").order("week_start", { ascending: false }).limit(50);
+    let recipientsQuery = supabase.from("weekly_report_recipients").select("*").order("created_at");
+    if (selectedChainId) {
+      reportsQuery = reportsQuery.eq("chain_id", selectedChainId);
+      recipientsQuery = recipientsQuery.eq("chain_id", selectedChainId);
+    }
+    const [r1, r2] = await Promise.all([reportsQuery, recipientsQuery]);
     if (r1.data) setReports(r1.data as ReportRow[]);
     if (r2.data) setRecipients(r2.data as Recipient[]);
     setLoading(false);
