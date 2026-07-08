@@ -141,3 +141,6 @@ verify_jwt = true
 [functions.download-weekly-report]
 verify_jwt = false
 
+[functions.weekly-uber-api]
+verify_jwt = false
+
