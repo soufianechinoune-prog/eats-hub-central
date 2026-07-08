@@ -456,6 +456,9 @@ export default function Admin() {
         </CardContent>
       </Card>
       {/* SECTION 3: Billing */}
+      {/* SECTION 3: API Keys */}
+      <AdminApiKeysSection chains={chains ?? []} />
+      {/* SECTION 4: Billing */}
       <AdminBillingSection users={users} />
     </div>
   );
