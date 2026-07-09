@@ -32,7 +32,6 @@ Deno.serve(async (req) => {
     const url = new URL(req.url)
     const apiKey =
       req.headers.get('x-api-key') ||
-      url.searchParams.get('api_key') ||
       (req.headers.get('authorization')?.startsWith('ApiKey ')
         ? req.headers.get('authorization')!.slice(7)
         : null)
