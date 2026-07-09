@@ -86,22 +86,23 @@ Deno.serve(async (req) => {
       if (error) return json({ error: error.message }, 500)
 
       const weeksList = data ?? []
-      const results = await Promise.all(
-        weeksList.map(async (r) => {
-          const { data: agg, error: rpcErr } = await supabase.rpc('get_weekly_uber_report', {
-            p_chain_id: chainId,
-            p_week_start: r.week_start,
-            p_week_end: r.week_end,
-          })
-          return {
-            weekStart: r.week_start,
-            weekEnd: r.week_end,
-            status: r.status,
-            updatedAt: r.updated_at,
-            totals: rpcErr ? {} : (agg?.network ?? {}),
-          }
+      // Séquentiel : Promise.all sur 50+ semaines saturait le pool de connexions
+      // et renvoyait des totals vides sur les semaines les plus récentes.
+      const results: any[] = []
+      for (const r of weeksList) {
+        const { data: agg, error: rpcErr } = await supabase.rpc('get_weekly_uber_report', {
+          p_chain_id: chainId,
+          p_week_start: r.week_start,
+          p_week_end: r.week_end,
         })
-      )
+        results.push({
+          weekStart: r.week_start,
+          weekEnd: r.week_end,
+          status: r.status,
+          updatedAt: r.updated_at,
+          totals: rpcErr ? {} : (agg?.network ?? {}),
+        })
+      }
       return json({ chain, weeks: results })
     }
 
