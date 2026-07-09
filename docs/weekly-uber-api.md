@@ -1,212 +1,149 @@
 # API Rapport Hebdomadaire Uber Eats — CS Delivery Performance
 
-Cette API permet de récupérer, de manière programmatique, les mêmes données que celles envoyées chaque semaine dans les rapports Excel/CSV Uber Eats.
+**Base URL**
+```
+https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api
+```
 
-Les données sont issues du même agrégateur (`get_weekly_uber_report`) que les exports XLSX/CSV, garantissant une cohérence 1:1.
+**Principe** : cette API renvoie **uniquement des données brutes issues des CSV Uber Eats** (rapport `PAYMENT_DETAILS_REPORT`). Aucune valeur n'est recalculée, retraitée ou pondérée côté CS Delivery Performance. Ce sont des sommes agrégées (jour / restaurant / réseau) des colonnes originales Uber.
 
 ---
 
 ## 🔑 Authentification
 
-Toutes les requêtes doivent contenir l'en-tête HTTP :
+Une clé API par marque (chaîne). À transmettre dans l'entête :
 
 ```
-x-api-key: <votre clé>
+x-api-key: cs_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
-- Une clé API est **liée à une seule marque** (chain).
-- La clé est **révocable à tout moment** depuis le panneau d'administration.
-- **Ne partagez jamais votre clé publiquement.**
-
-Alternatives acceptées (utiliser une seule des trois) :
-- Header `x-api-key: <clé>`
-- Header `Authorization: ApiKey <clé>`
-- Query string `?api_key=<clé>` (à éviter, la clé apparaît dans les logs)
+Alternatives acceptées :
+- Header `Authorization: ApiKey cs_...`
+- Query string `?api_key=cs_...`
 
 ---
 
-## 🌐 Endpoint
+## 🌐 Endpoint unique
 
 ```
-GET https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api
+GET /weekly-uber-api
 ```
 
-Format de réponse : `application/json` (UTF-8).
+### Paramètres
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `list` | `1` | Liste toutes les semaines disponibles avec leurs totaux réseau |
+| `weekStart` | `YYYY-MM-DD` | Renvoie une semaine précise (lundi) |
+| `weekEnd` | `YYYY-MM-DD` | Fin de semaine (facultatif, défaut `weekStart + 6j`) |
+| `from` / `to` | `YYYY-MM-DD` | Renvoie toutes les semaines dont le lundi ∈ [from, to] |
+| `granularity` | `all` (défaut) / `network` / `by_day` / `by_restaurant` / `by_day_restaurant` | Niveau de détail |
+
+Sans paramètre de date : renvoie **la dernière semaine disponible**.
 
 ---
 
-## 📋 Paramètres
+## 🔁 Exemples
 
-| Paramètre     | Description                                                                 | Exemple                       |
-|---------------|-----------------------------------------------------------------------------|-------------------------------|
-| `list`        | Si `1` → retourne la liste de toutes les semaines disponibles avec totaux.  | `?list=1`                     |
-| `weekStart`   | Date de début de semaine (lundi, format `YYYY-MM-DD`). Retourne cette semaine. | `?weekStart=2026-06-29`       |
-| `weekEnd`     | Optionnel avec `weekStart`. Par défaut `weekStart + 6 jours`.               | `?weekEnd=2026-07-05`         |
-| `from` / `to` | Plage de semaines (basée sur `week_start`).                                 | `?from=2026-01-01&to=2026-06-30` |
-| `granularity` | Niveau de détail. `network`, `by_day`, `by_restaurant`, `by_day_restaurant`, `all` (défaut). | `?granularity=by_restaurant`  |
-
-**Comportement par défaut** (aucun paramètre) : dernière semaine générée disponible, toutes granularités.
-
----
-
-## 🔁 Cas d'usage
-
-### 1. Lister toutes les semaines disponibles
-
+**Lister toutes les semaines**
 ```bash
-curl -H "x-api-key: cs_xxx" \
+curl -H "x-api-key: cs_..." \
   "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?list=1"
 ```
 
-**Réponse :**
-```json
-{
-  "chain": { "id": "uuid", "name": "TASTY CROUSTY" },
-  "weeks": [
-    {
-      "weekStart": "2026-06-29",
-      "weekEnd": "2026-07-05",
-      "status": "ready",
-      "updatedAt": "2026-07-06T08:12:34Z",
-      "totals": {
-        "ca_brut_ttc": 128450.12,
-        "ca_brut_ht": 116772.83,
-        "ca_net_ht": 89234.55,
-        "ca_net_ttc": 98157.99,
-        "commission_uber": 22456.78,
-        "marketing_fee": 3120.44,
-        "service_fee": 852.10,
-        "orders_count": 5342,
-        "payout_total": 96011.23
-      }
-    }
-  ]
-}
+**Une semaine précise**
+```bash
+curl -H "x-api-key: cs_..." \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2025-06-30"
 ```
 
-### 2. Récupérer une semaine précise
-
+**Plage de semaines**
 ```bash
-curl -H "x-api-key: cs_xxx" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-06-29"
+curl -H "x-api-key: cs_..." \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?from=2025-01-01&to=2025-06-30"
 ```
 
-### 3. Récupérer une plage (ex : tout le premier semestre)
-
+**Uniquement le total réseau**
 ```bash
-curl -H "x-api-key: cs_xxx" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?from=2026-01-01&to=2026-06-30&granularity=by_day_restaurant"
-```
-
-### 4. Uniquement les totaux réseau
-
-```bash
-curl -H "x-api-key: cs_xxx" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-06-29&granularity=network"
+curl -H "x-api-key: cs_..." \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2025-06-30&granularity=network"
 ```
 
 ---
 
-## 📦 Structure de la réponse (détail)
+## 📦 Structure de la réponse
 
 ```json
 {
-  "chain": { "id": "uuid", "name": "TASTY CROUSTY" },
+  "chain": { "id": "…", "name": "Chicken Street" },
   "weeks": [
     {
-      "weekStart": "2026-06-29",
-      "weekEnd": "2026-07-05",
+      "weekStart": "2025-06-30",
+      "weekEnd": "2025-07-06",
       "network": {
-        "ca_brut_ttc": 128450.12,
-        "ca_brut_ht": 116772.83,
-        "ca_net_ht": 89234.55,
-        "ca_net_ttc": 98157.99,
-        "commission_uber": 22456.78,
-        "marketing_fee": 3120.44,
-        "service_fee": 852.10,
-        "orders_count": 5342,
-        "payout_total": 96011.23
+        "ca_brut_ttc": 0,
+        "ca_brut_ht": 0,
+        "commission_uber": 0,
+        "marketing_fee": 0,
+        "service_fee": 0,
+        "payout_total": 0
       },
-      "byDay": [
-        { "date": "2026-06-29", "ca_brut_ttc": 18200.5, "orders_count": 742, "...": "..." }
-      ],
-      "byRestaurant": [
-        { "restaurant_id": "uuid", "restaurant_name": "Tasty Crousty Paris 15", "ca_brut_ttc": 12450.3, "...": "..." }
-      ],
-      "byDayRestaurant": [
-        { "date": "2026-06-29", "restaurant_id": "uuid", "restaurant_name": "...", "ca_brut_ttc": 1780.2, "...": "..." }
-      ]
+      "byDay": [ { "local_date": "2025-06-30", "ca_brut_ttc": 0, "…": 0 } ],
+      "byRestaurant": [ { "restaurant_id": "…", "restaurant_name": "…", "ca_brut_ttc": 0, "…": 0 } ],
+      "byDayRestaurant": [ { "local_date": "…", "restaurant_id": "…", "restaurant_name": "…", "ca_brut_ttc": 0, "…": 0 } ]
     }
   ]
 }
 ```
 
-### Champs financiers (montants en euros)
+### Champs financiers renvoyés (100 % bruts Uber)
 
-| Champ              | Description                                         |
-|--------------------|-----------------------------------------------------|
-| `ca_brut_ttc`      | CA brut TTC (avant commissions Uber)                |
-| `ca_brut_ht`       | CA brut HT                                          |
-| `ca_net_ht`        | CA net HT après commissions Uber                    |
-| `ca_net_ttc`       | CA net TTC après commissions Uber                   |
-| `commission_uber`  | Commission Uber Eats                                |
-| `marketing_fee`    | Frais marketing (co-financement)                    |
-| `service_fee`      | Frais de service (Gold, etc.)                       |
-| `orders_count`     | Nombre de commandes livrées                         |
-| `payout_total`     | Versement total Uber (net_payout + titres-restaurant) |
+| Champ API | Colonne CSV Uber d'origine | Description |
+|---|---|---|
+| `ca_brut_ttc` | `sales_incl_vat` | CA brut TTC (avant commission Uber) |
+| `ca_brut_ht` | `sales_excl_vat` | CA brut HT |
+| `commission_uber` | `uber_fee_after_promo_incl_vat` | Frais/commission Uber TTC |
+| `marketing_fee` | `marketing_fee_adjustment` | Frais marketing / co-financement Uber |
+| `service_fee` | `service_fee` | Frais de service Uber |
+| `payout_total` | `net_payout` + `meal_voucher_amount` | Versement total reçu (net payout + titres restaurant) |
 
-Tous les montants sont en **euros (EUR)**, arrondis à 2 décimales.
-Toutes les dates sont en **timezone Europe/Paris**.
+> Ce sont uniquement les sommes des colonnes brutes du CSV Uber. Aucun calcul métier CS n'est appliqué.
 
 ---
 
 ## ⚠️ Codes d'erreur
 
-| Statut | Cas                                                  |
-|--------|------------------------------------------------------|
-| `200`  | OK                                                   |
-| `401`  | Clé manquante, invalide ou révoquée                  |
-| `405`  | Méthode HTTP non supportée (utilisez uniquement `GET`) |
-| `500`  | Erreur serveur (voir champ `error` dans la réponse)  |
-
-Exemple de réponse d'erreur :
-```json
-{ "error": "invalid api key" }
-```
+| HTTP | Cause |
+|---|---|
+| 401 | Clé API manquante, invalide, ou révoquée |
+| 405 | Méthode HTTP ≠ GET |
+| 500 | Erreur interne |
 
 ---
 
-## 🛠 Intégration Power BI / Excel
-
-**Power Query (Power BI ou Excel)** :
+## 🛠 Intégration Power BI (Power Query M)
 
 ```m
 let
-    url = "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?granularity=by_day_restaurant",
-    source = Json.Document(Web.Contents(url, [
-        Headers = [#"x-api-key" = "cs_votre_cle_ici"]
-    ]))
+  Source = Json.Document(Web.Contents(
+    "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api",
+    [ Headers = [ #"x-api-key" = "cs_..." ],
+      Query   = [ from = "2025-01-01", to = "2025-12-31", granularity = "by_restaurant" ] ]
+  ))
 in
-    source
+  Source
 ```
 
-**Python (pandas)** :
+## 🐍 Intégration Python
 
 ```python
 import requests, pandas as pd
-
 r = requests.get(
-    "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api",
-    params={"from": "2026-01-01", "to": "2026-06-30", "granularity": "by_day_restaurant"},
-    headers={"x-api-key": "cs_votre_cle_ici"},
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api",
+  headers={"x-api-key": "cs_..."},
+  params={"from": "2025-01-01", "to": "2025-12-31"},
 )
 data = r.json()
-rows = [row for w in data["weeks"] for row in w["byDayRestaurant"]]
+rows = [row for w in data["weeks"] for row in w["byRestaurant"]]
 df = pd.DataFrame(rows)
 ```
-
----
-
-## 📞 Support
-
-En cas de problème (clé perdue, erreur inattendue, besoin de rotation), contactez l'équipe CS Delivery Performance.
