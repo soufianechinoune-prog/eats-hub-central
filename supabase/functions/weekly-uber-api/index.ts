@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
         .eq('chain_id', chainId)
         .order('week_start', { ascending: false })
       if (error) return json({ error: error.message }, 500)
-      const RAW_KEYS = ['ca_brut_ttc', 'ca_brut_ht', 'commission_uber', 'marketing_fee', 'service_fee', 'payout_total']
+      const RAW_KEYS = ['ca_brut_ttc', 'ca_brut_ht', 'commission_uber', 'marketing_fee', 'service_fee', 'net_payout', 'meal_voucher_amount']
       return json({
         chain: chain,
         weeks: (data ?? []).map((r) => {
