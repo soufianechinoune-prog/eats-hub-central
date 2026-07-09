@@ -84,15 +84,21 @@ Deno.serve(async (req) => {
         .eq('chain_id', chainId)
         .order('week_start', { ascending: false })
       if (error) return json({ error: error.message }, 500)
+      const RAW_KEYS = ['ca_brut_ttc', 'ca_brut_ht', 'commission_uber', 'marketing_fee', 'service_fee', 'payout_total']
       return json({
         chain: chain,
-        weeks: (data ?? []).map((r) => ({
-          weekStart: r.week_start,
-          weekEnd: r.week_end,
-          status: r.status,
-          updatedAt: r.updated_at,
-          totals: r.totals,
-        })),
+        weeks: (data ?? []).map((r) => {
+          const t = (r.totals ?? {}) as Record<string, unknown>
+          const totals: Record<string, unknown> = {}
+          for (const k of RAW_KEYS) if (k in t) totals[k] = t[k]
+          return {
+            weekStart: r.week_start,
+            weekEnd: r.week_end,
+            status: r.status,
+            updatedAt: r.updated_at,
+            totals,
+          }
+        }),
       })
     }
 
