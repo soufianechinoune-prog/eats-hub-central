@@ -75,30 +75,34 @@ Deno.serve(async (req) => {
       .eq('id', chainId)
       .maybeSingle()
 
-    // Mode LIST: renvoie toutes les semaines disponibles avec totaux stockés
+    // Mode LIST: liste toutes les semaines connues + totaux réseau recalculés à la volée
+    // (aligné sur le comportement de `weekStart` pour éviter tout écart entre les deux chemins)
     if (listOnly) {
       const { data, error } = await supabase
         .from('weekly_reports')
-        .select('week_start, week_end, totals, status, updated_at')
+        .select('week_start, week_end, status, updated_at')
         .eq('chain_id', chainId)
         .order('week_start', { ascending: false })
       if (error) return json({ error: error.message }, 500)
-      const RAW_KEYS = ['ca_brut_ttc', 'ca_brut_ht', 'commission_uber', 'marketing_fee', 'service_fee', 'net_payout', 'meal_voucher_amount']
-      return json({
-        chain: chain,
-        weeks: (data ?? []).map((r) => {
-          const t = (r.totals ?? {}) as Record<string, unknown>
-          const totals: Record<string, unknown> = {}
-          for (const k of RAW_KEYS) if (k in t) totals[k] = t[k]
+
+      const weeksList = data ?? []
+      const results = await Promise.all(
+        weeksList.map(async (r) => {
+          const { data: agg, error: rpcErr } = await supabase.rpc('get_weekly_uber_report', {
+            p_chain_id: chainId,
+            p_week_start: r.week_start,
+            p_week_end: r.week_end,
+          })
           return {
             weekStart: r.week_start,
             weekEnd: r.week_end,
             status: r.status,
             updatedAt: r.updated_at,
-            totals,
+            totals: rpcErr ? {} : (agg?.network ?? {}),
           }
-        }),
-      })
+        })
+      )
+      return json({ chain, weeks: results })
     }
 
     // Détermination des semaines à retourner
