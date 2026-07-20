@@ -193,6 +193,7 @@ Deno.serve(async (req) => {
       ca_net_ttc: Number(network.ca_net_ttc ?? 0),
       ca_net_ht: Number(network.ca_net_ht ?? 0),
       commission_uber: Number(network.commission_uber ?? 0),
+      commission_uber_ht: Number(network.commission_uber_ht ?? 0),
       marketing_fee: Number(network.marketing_fee ?? 0),
       service_fee: Number(network.service_fee ?? 0),
       orders_count: Number(network.orders_count ?? 0),
