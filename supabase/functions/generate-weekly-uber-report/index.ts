@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     const bytes = new Uint8Array(buffer as ArrayBuffer)
 
     // Build CSV (Jour x Restaurant) for BI re-import
-    const csvHeaders = ['Jour', 'Restaurant', 'CA brut TTC', 'CA brut HT', 'CA net TTC', 'CA net HT', 'Commission Uber', 'Marketing', 'Frais de service', 'Commandes', 'Versement Uber']
+    const csvHeaders = ['Jour', 'Restaurant', 'CA brut TTC', 'CA brut HT', 'CA net TTC', 'CA net HT', 'Commission Uber', 'Commission Uber HT', 'Marketing', 'Frais de service', 'Commandes', 'Versement Uber']
     const csvEscape = (v: unknown) => {
       const s = v == null ? '' : String(v)
       return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
       csvLines.push([
         r.local_date, r.restaurant_name,
         r.ca_brut_ttc, r.ca_brut_ht, r.ca_net_ttc, r.ca_net_ht,
-        r.commission_uber, r.marketing_fee, r.service_fee,
+        r.commission_uber, r.commission_uber_ht, r.marketing_fee, r.service_fee,
         r.orders_count, r.payout_total,
       ].map(csvEscape).join(';'))
     }
