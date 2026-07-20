@@ -114,16 +114,17 @@ curl -H "x-api-key: cs_..." \
         "ca_brut_ttc": 187432.50,
         "ca_brut_ht": 170393.18,
         "commission_uber": -50607.78,
+        "commission_uber_ht": -42173.15,
         "marketing_fee": -4218.12,
         "net_payout": 128715.23,
         "meal_voucher_amount": 4102.87
       },
       "byDay": [
-        { "local_date": "2025-06-30", "ca_brut_ttc": 24518.90, "ca_brut_ht": 22289.91, "commission_uber": -6620.10, "marketing_fee": -540.20, "net_payout": 16847.12, "meal_voucher_amount": 512.30 }
+        { "local_date": "2025-06-30", "ca_brut_ttc": 24518.90, "ca_brut_ht": 22289.91, "commission_uber": -6620.10, "commission_uber_ht": -5516.75, "marketing_fee": -540.20, "net_payout": 16847.12, "meal_voucher_amount": 512.30 }
       ],
       "byRestaurant": [
-        { "restaurant_id": "a3b1c4d5-…", "restaurant_name": "Chicken Street Paris 11",     "ca_brut_ttc": 12480.30, "ca_brut_ht": 11345.72, "commission_uber": -3369.68, "marketing_fee": -281.44, "net_payout": 8571.10, "meal_voucher_amount": 278.42 },
-        { "restaurant_id": "f7e2a1b8-…", "restaurant_name": "Chicken Street Lyon Part-Dieu", "ca_brut_ttc": 10982.60, "ca_brut_ht": 9984.18,  "commission_uber": -2965.30, "marketing_fee": -247.80, "net_payout": 7542.90, "meal_voucher_amount": 244.65 }
+        { "restaurant_id": "a3b1c4d5-…", "restaurant_name": "Chicken Street Paris 11",     "ca_brut_ttc": 12480.30, "ca_brut_ht": 11345.72, "commission_uber": -3369.68, "commission_uber_ht": -2808.07, "marketing_fee": -281.44, "net_payout": 8571.10, "meal_voucher_amount": 278.42 },
+        { "restaurant_id": "f7e2a1b8-…", "restaurant_name": "Chicken Street Lyon Part-Dieu", "ca_brut_ttc": 10982.60, "ca_brut_ht": 9984.18,  "commission_uber": -2965.30, "commission_uber_ht": -2471.08, "marketing_fee": -247.80, "net_payout": 7542.90, "meal_voucher_amount": 244.65 }
       ],
       "byDayRestaurant": [ /* même schéma, une ligne par (jour, restaurant) */ ]
     }
@@ -137,14 +138,15 @@ curl -H "x-api-key: cs_..." \
 |---|---|---|---|
 | `ca_brut_ttc` | `Sales (incl. VAT)` | ≥ 0 | CA brut TTC (avant commission Uber) |
 | `ca_brut_ht` | `Sales (excl. VAT)` | ≥ 0 | CA brut HT |
-| `commission_uber` | `Marketplace Fee after discount (incl VAT)` | **≤ 0 (négatif)** | Commission Uber TTC prélevée (frais de service de la marketplace après promotion) |
+| `commission_uber` | `Marketplace Fee after discount (incl VAT)` | **≤ 0 (négatif)** | Commission Uber **TTC** prélevée (frais de service marketplace après promotion, TVA incluse) |
+| `commission_uber_ht` | `Uber Service Fee after discount (excluding VAT)` | **≤ 0 (négatif)** | Commission Uber **HT** prélevée (frais de service marketplace après promotion, hors TVA) |
 | `marketing_fee` | `Marketing Adjustment (incl. VAT)` | **≤ 0 (négatif)** | Ajustement des frais marketing / co-financement Uber (0 si aucune campagne co-financée sur la période) |
 | `net_payout` | `Total payout` | ≥ 0 | Versement net Uber (hors titres restaurant) |
 | `meal_voucher_amount` | `Meal Voucher` | ≥ 0 | Montant titres restaurant |
 
 > 🔐 **Aucun autre champ n'est renvoyé et aucun calcul n'est fait côté CS.** Ce sont strictement les sommes des colonnes brutes du CSV Uber. Pas de CA net, pas de taux de commission, pas d'agrégat métier, pas de nombre de commandes, pas d'addition de champs.
 >
-> ℹ️ **Note sur la commission Uber** : le rapport `PAYMENT_DETAILS_REPORT` ne publie qu'**une seule ligne de frais** pour la commission de marketplace (colonne `Marketplace Fee after discount (incl VAT)`). Il n'existe pas de colonne « service fee » distincte à côté. L'API n'expose donc **pas** de champ redondant : la ligne unique remontée dans `commission_uber` couvre la totalité de la commission Uber TTC.
+> ℹ️ **Commission Uber HT vs TTC** : le rapport `PAYMENT_DETAILS_REPORT` publie la commission de marketplace **à la fois hors taxes** (`Uber Service Fee after discount (excluding VAT)`) **et toutes taxes comprises** (`Marketplace Fee after discount (incl VAT)`). Les deux valeurs sont exposées telles quelles, sans recalcul. **L'API n'affirme aucun régime TVA** : le traitement comptable relève de la comptabilité sur la base des factures Uber.
 >
 > Pour obtenir le versement total Uber, additionnez côté BI : `net_payout + meal_voucher_amount`.
 

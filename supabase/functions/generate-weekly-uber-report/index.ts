@@ -34,6 +34,7 @@ function addMetricColumns(sheet: any, firstCol: string) {
   cols.push({ header: 'CA net TTC', key: 'ca_net_ttc', width: 15, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'CA net HT', key: 'ca_net_ht', width: 15, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Commission Uber', key: 'commission_uber', width: 16, style: { numFmt: CURRENCY_FMT } })
+  cols.push({ header: 'Commission Uber HT', key: 'commission_uber_ht', width: 18, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Marketing', key: 'marketing_fee', width: 14, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Frais de service', key: 'service_fee', width: 16, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Commandes', key: 'orders_count', width: 12, style: { numFmt: INT_FMT } })
@@ -145,13 +146,13 @@ Deno.serve(async (req) => {
     for (const r of byDayResto) s4.addRow(r)
     s4.getColumn('local_date').numFmt = 'yyyy-mm-dd'
     s4.views = [{ state: 'frozen', ySplit: 1 }]
-    s4.autoFilter = { from: 'A1', to: 'K1' }
+    s4.autoFilter = { from: 'A1', to: 'L1' }
 
     const buffer = await wb.xlsx.writeBuffer()
     const bytes = new Uint8Array(buffer as ArrayBuffer)
 
     // Build CSV (Jour x Restaurant) for BI re-import
-    const csvHeaders = ['Jour', 'Restaurant', 'CA brut TTC', 'CA brut HT', 'CA net TTC', 'CA net HT', 'Commission Uber', 'Marketing', 'Frais de service', 'Commandes', 'Versement Uber']
+    const csvHeaders = ['Jour', 'Restaurant', 'CA brut TTC', 'CA brut HT', 'CA net TTC', 'CA net HT', 'Commission Uber', 'Commission Uber HT', 'Marketing', 'Frais de service', 'Commandes', 'Versement Uber']
     const csvEscape = (v: unknown) => {
       const s = v == null ? '' : String(v)
       return /[";\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
@@ -161,7 +162,7 @@ Deno.serve(async (req) => {
       csvLines.push([
         r.local_date, r.restaurant_name,
         r.ca_brut_ttc, r.ca_brut_ht, r.ca_net_ttc, r.ca_net_ht,
-        r.commission_uber, r.marketing_fee, r.service_fee,
+        r.commission_uber, r.commission_uber_ht, r.marketing_fee, r.service_fee,
         r.orders_count, r.payout_total,
       ].map(csvEscape).join(';'))
     }
@@ -192,6 +193,7 @@ Deno.serve(async (req) => {
       ca_net_ttc: Number(network.ca_net_ttc ?? 0),
       ca_net_ht: Number(network.ca_net_ht ?? 0),
       commission_uber: Number(network.commission_uber ?? 0),
+      commission_uber_ht: Number(network.commission_uber_ht ?? 0),
       marketing_fee: Number(network.marketing_fee ?? 0),
       service_fee: Number(network.service_fee ?? 0),
       orders_count: Number(network.orders_count ?? 0),
