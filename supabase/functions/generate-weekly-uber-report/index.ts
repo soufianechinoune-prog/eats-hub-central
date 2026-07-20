@@ -146,7 +146,7 @@ Deno.serve(async (req) => {
     for (const r of byDayResto) s4.addRow(r)
     s4.getColumn('local_date').numFmt = 'yyyy-mm-dd'
     s4.views = [{ state: 'frozen', ySplit: 1 }]
-    s4.autoFilter = { from: 'A1', to: 'K1' }
+    s4.autoFilter = { from: 'A1', to: 'L1' }
 
     const buffer = await wb.xlsx.writeBuffer()
     const bytes = new Uint8Array(buffer as ArrayBuffer)
