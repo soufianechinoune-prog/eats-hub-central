@@ -1,139 +1,69 @@
-## Objectif
+# Ajout de `commission_uber_ht` à l'API hebdomadaire Uber (v2)
 
-Remplacer la livraison email (bloquée par DNS Hostinger) par un envoi WhatsApp automatisé chaque jeudi 8h Paris. Le message contient le résumé chiffré + un lien sécurisé pour télécharger les fichiers XLSX + CSV complets.
+Plan v2 intégrant les 3 réserves de l'ingénieure — toutes légitimes.
 
-Aucune donnée sensible en clair (pas de payout individuel resto dans le message texte — juste des agrégats réseau). Le détail est dans les fichiers téléchargeables via lien signé.
+## Constat après vérification base
 
----
+La colonne HT est **déjà stockée** dans `orders.uber_fee_after_promo_excl_vat`. Le `COUNT` montre 100 % de non-NULL sur 2023 → 2026 (~5,1 M lignes). Mais **non-NULL ≠ cohérent** : la vraie validation viendra du protocole de test ci-dessous, pas de ce chiffre.
 
-## Contenu du message WhatsApp
+Aucun backfill de données n'est prévu — c'est à confirmer par les tests, pas à affirmer.
 
-Exemple généré chaque jeudi 8h :
+## Ce qui va changer
 
+**API** — 1 champ ajouté (on passe de 6 à 7). Convention identique à `commission_uber` (négatif, ≤ 0).
+
+| Champ API | Colonne CSV Uber | Signe |
+|---|---|---|
+| `commission_uber` (existant) | Marketplace Fee after discount (incl VAT) | ≤ 0 |
+| **`commission_uber_ht`** (nouveau) | Uber Service Fee after discount (excluding VAT) | ≤ 0 |
+
+Le champ apparaîtra dans les 4 granularités (`network`, `by_day`, `by_restaurant`, `by_day_restaurant`) et dans les totaux de `list=1`.
+
+## Étapes techniques
+
+1. **Migration RPC `get_weekly_uber_report`** : ajouter `commission_uber_ht` construit **par copier-coller de l'expression `commission_uber` existante**, en changeant uniquement la colonne source (`uber_fee_after_promo_excl_vat` au lieu de `uber_fee_after_promo_incl_vat`). Même `COALESCE`, même signe négatif, même `WHERE status NOT ILIKE '%cancel%'`, même `AT TIME ZONE 'Europe/Paris'`. Objectif : éviter de recréer une variante du bug `service_fee ≡ commission_uber`.
+
+2. **Edge function `weekly-uber-api`** : ajouter `commission_uber_ht` à la liste `RAW_KEYS` utilisée pour filtrer les `totals` en mode `list=1`. Les 4 granularités le propageront automatiquement via la RPC. **Attention** : c'est ce code path qui a déjà oublié un champ une fois — vérification explicite au test.
+
+3. **Edge function `generate-weekly-uber-report`** (export XLSX interne) : ajouter la colonne "Commission Uber HT" dans les 4 feuilles + colonne CSV, format monétaire, pour rester cohérent avec l'API.
+
+4. **Doc `docs/weekly-uber-api.md`** :
+   - Tableau des champs → 7 lignes, ajouter `commission_uber_ht`.
+   - Exemple JSON → ajouter la valeur cohérente (~-42 173 pour ~83 % du TTC).
+   - Section principe → mentionner que la commission est disponible en HT **et** TTC, brutes Uber.
+   - **Note comptable neutre** (correction réserve n°1) : *"L'API expose les deux valeurs brutes Uber (HT et TTC). Le traitement TVA relève de la comptabilité sur la base des factures Uber."* Aucune mention d'autoliquidation, aucune affirmation sur le régime TVA — le ratio observé (~1,20) contredirait une telle note.
+
+5. **Régénération du PDF** via Playwright/Chromium → livraison dans `/mnt/documents/`. **Vérification manuelle avant livraison** : ouvrir le PDF, confirmer les 7 lignes du tableau, l'exemple JSON à jour, la note neutre.
+
+## Ce qui ne bouge pas
+
+- Aucun backfill de données (colonne déjà remplie).
+- Aucun changement de schéma DB.
+- Aucun changement de convention de signe sur les autres champs.
+- Auth `x-api-key`, endpoints, paramètres, `list=1` en live : identiques.
+
+## Protocole de test après déploiement
+
+Trois `curl` obligatoires, résultats collés dans le chat avant de prévenir le comptable :
+
+```bash
+# 1. Semaine récente
+curl -H "x-api-key: <clé>" \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-06-29&granularity=network"
+
+# 2. Semaine ancienne (couverture historique)
+curl -H "x-api-key: <clé>" \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-05-04&granularity=network"
+
+# 3. list=1 (code path déjà pris en défaut une fois)
+curl -H "x-api-key: <clé>" \
+  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?list=1"
 ```
-📊 Rapport Tasty Crousty — Semaine 27
-Du 30/06/2026 au 06/07/2026
 
-💶 CA brut : 145 230 € TTC (121 025 € HT)
-💰 CA net après commissions : 108 921 € HT
-🧾 Frais Uber : 12 104 € (commission, marketing, service)
-📦 Commandes : 4 287
-🏦 Versement Uber : 106 340 €
+**Critères de validation** :
+- `commission_uber_ht` présent dans les 3 réponses (dont chaque item de `list=1`).
+- Signe négatif systématique.
+- Ratio `commission_uber / commission_uber_ht ≈ 1,20` sur les deux semaines. Un ratio stable = construction saine ; un ratio qui dérape ou un signe qui diverge = bug de construction à corriger avant livraison.
+- Contrôle croisé ligne-à-ligne sur `by_restaurant` d'une semaine (facultatif mais rapide) pour confirmer que le ratio est stable au grain restaurant, pas seulement en agrégé.
 
-📥 Détail complet (XLSX + CSV) :
-https://cs-delivery-performance.com/r/wr/ab12cd34ef56
-Lien valable 30 jours.
-```
-
----
-
-## Architecture technique
-
-### 1. Table `weekly_report_runs` (traçabilité + tokens)
-
-```sql
-CREATE TABLE public.weekly_report_runs (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  chain_id uuid NOT NULL REFERENCES public.chains(id),
-  period_start date NOT NULL,     -- lundi
-  period_end date NOT NULL,       -- dimanche
-  aggregates jsonb NOT NULL,      -- ca_brut_ttc, ca_brut_ht, ca_net_ht, frais_uber, nb_orders, payout
-  xlsx_path text NOT NULL,        -- storage path
-  csv_path text NOT NULL,
-  download_token text NOT NULL UNIQUE,  -- token public court (12 chars)
-  token_expires_at timestamptz NOT NULL,
-  sent_via_whatsapp boolean DEFAULT false,
-  whatsapp_message_id text,
-  created_at timestamptz DEFAULT now(),
-  UNIQUE(chain_id, period_start, period_end)
-);
-```
-
-+ table `weekly_report_recipients (chain_id, phone, name, active)` pour lister les numéros à notifier (multi-destinataires possible).
-
-### 2. Bucket Storage `weekly-reports` (privé)
-
-Fichiers stockés sous `{chain_id}/{period_start}/{token}.xlsx` et `.csv`. Accès uniquement via URL signée générée par l'edge fn de download.
-
-### 3. Edge Function `generate-weekly-tc-report` (nouvelle)
-- Cron `pg_cron` jeudi 8h Paris.
-- Pour chaque `chain_id` configuré :
-  - Agrège via RPC `get_weekly_uber_aggregates(chain_id, period_start, period_end)` :
-    - CA brut TTC/HT
-    - CA net HT après commissions (sales_excl_vat - item_promo_excl_vat - uber_fee_after_promo_excl_vat)
-    - Frais Uber (commission + marketing + service)
-    - Nombre de commandes
-    - Versement Uber (somme `net_payout` de `payouts`)
-  - Génère XLSX (SheetJS) 4 onglets : Résumé / Détail jour / Détail resto / Jour×Resto
-  - Génère CSV Jour×Resto
-  - Upload dans bucket
-  - Crée `weekly_report_runs` avec token aléatoire 12 chars
-  - Pour chaque recipient : invoke `send-whatsapp` avec message formaté
-  - Log dans `notifications` (centre in-app) pour trace admin
-
-### 4. Edge Function `download-weekly-report` (nouvelle, publique)
-- Route : reçoit `?token=xxx&format=xlsx|csv`
-- Vérifie token + expiration
-- Génère URL signée Storage 5 min
-- Redirect 302 vers l'URL signée
-
-### 5. Route front `/r/wr/:token`
-- Page publique légère (pas d'auth requise, token = secret)
-- Affiche : nom chaîne, semaine, résumé chiffré, 2 boutons "Télécharger XLSX" / "Télécharger CSV"
-- Les boutons appellent l'edge fn `download-weekly-report`
-- Message si token expiré/invalide
-
-### 6. Page admin `/admin/weekly-reports`
-- Liste des runs (période, statut envoi WhatsApp, lien token)
-- Gestion des destinataires (add/remove numéro + nom)
-- Bouton "Relancer manuellement" pour une semaine donnée
-- Bouton "Générer maintenant" pour tester
-
-### 7. Notification in-app
-À chaque génération réussie, insertion dans `notifications` (centre créé phase précédente) :
-> "Rapport hebdo Tasty Crousty S27 envoyé à 2 destinataires WhatsApp"
-Lien : `/admin/weekly-reports`
-
----
-
-## Sécurité
-
-- Token 12 chars aléatoires (~10^18 combinaisons) + expiration 30 jours + révocable.
-- Bucket privé, jamais d'URL directe exposée.
-- RPC en `SECURITY DEFINER` avec filtre `chain_id`.
-- Pas de PII en clair dans le WhatsApp (juste agrégats).
-- Page publique du token n'expose que les données de CE run (pas navigation).
-- RLS `weekly_report_runs` et `weekly_report_recipients` : super_admin only.
-
----
-
-## Fichiers créés/modifiés
-
-**Migration SQL** :
-- `weekly_report_runs`, `weekly_report_recipients`, RPC `get_weekly_uber_aggregates`, bucket `weekly-reports`.
-
-**Edge Functions** :
-- `supabase/functions/generate-weekly-tc-report/index.ts` (nouveau)
-- `supabase/functions/download-weekly-report/index.ts` (nouveau)
-
-**Front** :
-- `src/pages/WeeklyReportDownload.tsx` (route publique `/r/wr/:token`)
-- `src/pages/AdminWeeklyReports.tsx` (route admin)
-- `src/App.tsx` : ajout des 2 routes
-- Item de menu dans `AppSidebar` (section Admin) : "Rapports hebdo"
-
-**Cron** :
-- `pg_cron` schedule dans la migration : `0 7 * * 4` UTC (8h Paris hiver / on gérera l'été via timezone).
-
----
-
-## Périmètre livraison en une passe
-
-1. Migration : tables + bucket + RPC + cron.
-2. Edge fn de génération + edge fn download.
-3. Page publique download + page admin.
-4. Test manuel avec ton numéro sur la semaine dernière.
-
-Le premier run auto tombera le prochain jeudi 8h. Tu pourras aussi cliquer "Générer maintenant" pour tester immédiatement.
-
-Question rapide avant que je code : **quel numéro WhatsApp** je pré-remplis dans les destinataires par défaut (le tien 06 99 56 40 00 + celui de ton responsable ?), ou tu ajoutes tout via la page admin après ?
+**Validation PDF** : ouvrir le fichier régénéré et vérifier visuellement le tableau à 7 lignes, l'exemple JSON, la note comptable neutre. Pas de livraison au comptable tant que les 3 curl + le PDF ne sont pas confirmés dans le chat.
