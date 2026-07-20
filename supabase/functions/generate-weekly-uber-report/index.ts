@@ -34,6 +34,7 @@ function addMetricColumns(sheet: any, firstCol: string) {
   cols.push({ header: 'CA net TTC', key: 'ca_net_ttc', width: 15, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'CA net HT', key: 'ca_net_ht', width: 15, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Commission Uber', key: 'commission_uber', width: 16, style: { numFmt: CURRENCY_FMT } })
+  cols.push({ header: 'Commission Uber HT', key: 'commission_uber_ht', width: 18, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Marketing', key: 'marketing_fee', width: 14, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Frais de service', key: 'service_fee', width: 16, style: { numFmt: CURRENCY_FMT } })
   cols.push({ header: 'Commandes', key: 'orders_count', width: 12, style: { numFmt: INT_FMT } })
