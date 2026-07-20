@@ -114,16 +114,17 @@ curl -H "x-api-key: cs_..." \
         "ca_brut_ttc": 187432.50,
         "ca_brut_ht": 170393.18,
         "commission_uber": -50607.78,
+        "commission_uber_ht": -42173.15,
         "marketing_fee": -4218.12,
         "net_payout": 128715.23,
         "meal_voucher_amount": 4102.87
       },
       "byDay": [
-        { "local_date": "2025-06-30", "ca_brut_ttc": 24518.90, "ca_brut_ht": 22289.91, "commission_uber": -6620.10, "marketing_fee": -540.20, "net_payout": 16847.12, "meal_voucher_amount": 512.30 }
+        { "local_date": "2025-06-30", "ca_brut_ttc": 24518.90, "ca_brut_ht": 22289.91, "commission_uber": -6620.10, "commission_uber_ht": -5516.75, "marketing_fee": -540.20, "net_payout": 16847.12, "meal_voucher_amount": 512.30 }
       ],
       "byRestaurant": [
-        { "restaurant_id": "a3b1c4d5-…", "restaurant_name": "Chicken Street Paris 11",     "ca_brut_ttc": 12480.30, "ca_brut_ht": 11345.72, "commission_uber": -3369.68, "marketing_fee": -281.44, "net_payout": 8571.10, "meal_voucher_amount": 278.42 },
-        { "restaurant_id": "f7e2a1b8-…", "restaurant_name": "Chicken Street Lyon Part-Dieu", "ca_brut_ttc": 10982.60, "ca_brut_ht": 9984.18,  "commission_uber": -2965.30, "marketing_fee": -247.80, "net_payout": 7542.90, "meal_voucher_amount": 244.65 }
+        { "restaurant_id": "a3b1c4d5-…", "restaurant_name": "Chicken Street Paris 11",     "ca_brut_ttc": 12480.30, "ca_brut_ht": 11345.72, "commission_uber": -3369.68, "commission_uber_ht": -2808.07, "marketing_fee": -281.44, "net_payout": 8571.10, "meal_voucher_amount": 278.42 },
+        { "restaurant_id": "f7e2a1b8-…", "restaurant_name": "Chicken Street Lyon Part-Dieu", "ca_brut_ttc": 10982.60, "ca_brut_ht": 9984.18,  "commission_uber": -2965.30, "commission_uber_ht": -2471.08, "marketing_fee": -247.80, "net_payout": 7542.90, "meal_voucher_amount": 244.65 }
       ],
       "byDayRestaurant": [ /* même schéma, une ligne par (jour, restaurant) */ ]
     }
