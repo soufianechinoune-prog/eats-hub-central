@@ -1100,6 +1100,10 @@ async function callAI(systemPrompt: string, userMessage: string): Promise<AIResu
 
 // Send WhatsApp reply via Ultramsg
 async function sendWhatsAppReply(phone: string, message: string): Promise<boolean> {
+  if (Deno.env.get('WHATSAPP_OUTBOUND_DISABLED') === 'true') {
+    console.log('[kill-switch] Outbound WhatsApp disabled, skipping reply to', phone);
+    return true;
+  }
   const INSTANCE_ID = Deno.env.get('ULTRAMSG_INSTANCE_ID');
   const TOKEN = Deno.env.get('ULTRAMSG_TOKEN');
 

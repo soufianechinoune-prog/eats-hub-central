@@ -29,6 +29,15 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (Deno.env.get('WHATSAPP_OUTBOUND_DISABLED') === 'true') {
+    console.log('[kill-switch] Outbound WhatsApp disabled, skipping process-scheduled-messages');
+    return new Response(
+      JSON.stringify({ processed: 0, skipped: true, reason: 'WHATSAPP_OUTBOUND_DISABLED' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
