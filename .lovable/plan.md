@@ -1,69 +1,53 @@
-# Ajout de `commission_uber_ht` à l'API hebdomadaire Uber (v2)
+## Diagnostic
 
-Plan v2 intégrant les 3 réserves de l'ingénieure — toutes légitimes.
+Les messages que tu reçois ne viennent PAS d'un cron. Ils sont générés en temps réel par le **chatbot IA** dans `ultramsg-webhook` : à chaque message WhatsApp entrant sur notre numéro UltraMsg, la fonction appelle l'IA puis répond automatiquement via `sendWhatsAppReply` (fetch vers `api.ultramsg.com/.../messages/chat`).
 
-## Constat après vérification base
+Vérifié dans `message_history` : 9 envois sortants ce matin entre 09:26 et 09:46 UTC, tous vers `+33699564000`, tous des réponses IA — pas d'envoi programmé (`scheduled_messages` pending = 0).
 
-La colonne HT est **déjà stockée** dans `orders.uber_fee_after_promo_excl_vat`. Le `COUNT` montre 100 % de non-NULL sur 2023 → 2026 (~5,1 M lignes). Mais **non-NULL ≠ cohérent** : la vraie validation viendra du protocole de test ci-dessous, pas de ce chiffre.
+Deux crons WhatsApp existent aussi (`weekly-uber-report-whatsapp` jeudi 07:00, et le rapport hebdo `weekly-uber-report` lundi 06:00) — pas responsables de ce que tu reçois, mais on les met en pause par sécurité tant que tu réutilises le numéro ailleurs.
 
-Aucun backfill de données n'est prévu — c'est à confirmer par les tests, pas à affirmer.
+## Plan : kill-switch global outbound WhatsApp
 
-## Ce qui va changer
+Une seule variable d'environnement `WHATSAPP_OUTBOUND_DISABLED` qui, quand elle vaut `true`, court-circuite tout envoi sortant vers UltraMsg. Aucune donnée perdue, réactivation instantanée en changeant la valeur.
 
-**API** — 1 champ ajouté (on passe de 6 à 7). Convention identique à `commission_uber` (négatif, ≤ 0).
+### 1. Secret
 
-| Champ API | Colonne CSV Uber | Signe |
-|---|---|---|
-| `commission_uber` (existant) | Marketplace Fee after discount (incl VAT) | ≤ 0 |
-| **`commission_uber_ht`** (nouveau) | Uber Service Fee after discount (excluding VAT) | ≤ 0 |
+Créer le secret `WHATSAPP_OUTBOUND_DISABLED = "true"` (via `set_secret`).
 
-Le champ apparaîtra dans les 4 granularités (`network`, `by_day`, `by_restaurant`, `by_day_restaurant`) et dans les totaux de `list=1`.
+### 2. Court-circuit dans chaque fonction qui appelle `api.ultramsg.com/.../messages/*`
 
-## Étapes techniques
-
-1. **Migration RPC `get_weekly_uber_report`** : ajouter `commission_uber_ht` construit **par copier-coller de l'expression `commission_uber` existante**, en changeant uniquement la colonne source (`uber_fee_after_promo_excl_vat` au lieu de `uber_fee_after_promo_incl_vat`). Même `COALESCE`, même signe négatif, même `WHERE status NOT ILIKE '%cancel%'`, même `AT TIME ZONE 'Europe/Paris'`. Objectif : éviter de recréer une variante du bug `service_fee ≡ commission_uber`.
-
-2. **Edge function `weekly-uber-api`** : ajouter `commission_uber_ht` à la liste `RAW_KEYS` utilisée pour filtrer les `totals` en mode `list=1`. Les 4 granularités le propageront automatiquement via la RPC. **Attention** : c'est ce code path qui a déjà oublié un champ une fois — vérification explicite au test.
-
-3. **Edge function `generate-weekly-uber-report`** (export XLSX interne) : ajouter la colonne "Commission Uber HT" dans les 4 feuilles + colonne CSV, format monétaire, pour rester cohérent avec l'API.
-
-4. **Doc `docs/weekly-uber-api.md`** :
-   - Tableau des champs → 7 lignes, ajouter `commission_uber_ht`.
-   - Exemple JSON → ajouter la valeur cohérente (~-42 173 pour ~83 % du TTC).
-   - Section principe → mentionner que la commission est disponible en HT **et** TTC, brutes Uber.
-   - **Note comptable neutre** (correction réserve n°1) : *"L'API expose les deux valeurs brutes Uber (HT et TTC). Le traitement TVA relève de la comptabilité sur la base des factures Uber."* Aucune mention d'autoliquidation, aucune affirmation sur le régime TVA — le ratio observé (~1,20) contredirait une telle note.
-
-5. **Régénération du PDF** via Playwright/Chromium → livraison dans `/mnt/documents/`. **Vérification manuelle avant livraison** : ouvrir le PDF, confirmer les 7 lignes du tableau, l'exemple JSON à jour, la note neutre.
-
-## Ce qui ne bouge pas
-
-- Aucun backfill de données (colonne déjà remplie).
-- Aucun changement de schéma DB.
-- Aucun changement de convention de signe sur les autres champs.
-- Auth `x-api-key`, endpoints, paramètres, `list=1` en live : identiques.
-
-## Protocole de test après déploiement
-
-Trois `curl` obligatoires, résultats collés dans le chat avant de prévenir le comptable :
-
-```bash
-# 1. Semaine récente
-curl -H "x-api-key: <clé>" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-06-29&granularity=network"
-
-# 2. Semaine ancienne (couverture historique)
-curl -H "x-api-key: <clé>" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?weekStart=2026-05-04&granularity=network"
-
-# 3. list=1 (code path déjà pris en défaut une fois)
-curl -H "x-api-key: <clé>" \
-  "https://akcicojkrzeirffefdet.supabase.co/functions/v1/weekly-uber-api?list=1"
+Ajouter en tête de la logique d'envoi :
+```ts
+if (Deno.env.get('WHATSAPP_OUTBOUND_DISABLED') === 'true') {
+  console.log('[kill-switch] Outbound WhatsApp disabled, skipping send');
+  return /* success sentinel adapté à la fonction */;
+}
 ```
 
-**Critères de validation** :
-- `commission_uber_ht` présent dans les 3 réponses (dont chaque item de `list=1`).
-- Signe négatif systématique.
-- Ratio `commission_uber / commission_uber_ht ≈ 1,20` sur les deux semaines. Un ratio stable = construction saine ; un ratio qui dérape ou un signe qui diverge = bug de construction à corriger avant livraison.
-- Contrôle croisé ligne-à-ligne sur `by_restaurant` d'une semaine (facultatif mais rapide) pour confirmer que le ratio est stable au grain restaurant, pas seulement en agrégé.
+Fonctions à patcher :
+- `supabase/functions/ultramsg-webhook/index.ts` → dans `sendWhatsAppReply` (ligne 1102) : c'est celle qui envoie les réponses IA en boucle
+- `supabase/functions/send-whatsapp/index.ts`
+- `supabase/functions/send-whatsapp-media/index.ts`
+- `supabase/functions/send-weekly-report-whatsapp/index.ts`
+- `supabase/functions/process-scheduled-messages/index.ts`
+- `supabase/functions/notify-tablet-pause/index.ts`
 
-**Validation PDF** : ouvrir le fichier régénéré et vérifier visuellement le tableau à 7 lignes, l'exemple JSON, la note comptable neutre. Pas de livraison au comptable tant que les 3 curl + le PDF ne sont pas confirmés dans le chat.
+Le webhook `ultramsg-webhook` continue de recevoir et logger les messages entrants (utile pour l'historique), il ne fait juste plus de réponse sortante.
+
+### 3. Désactiver les 2 crons WhatsApp
+
+```sql
+UPDATE cron.job SET active = false
+WHERE jobname IN ('weekly-uber-report-whatsapp', 'weekly-uber-report');
+```
+
+(`weekly-uber-report` ne fait que générer le ZIP mais on l'arrête aussi pour être sûr qu'aucun envoi automatique ne parte.)
+
+### 4. Vérification
+
+- Envoyer un message WhatsApp au numéro UltraMsg → vérifier dans les logs `ultramsg-webhook` qu'on lit bien `[kill-switch] Outbound WhatsApp disabled`
+- Vérifier que `message_history` n'a plus d'insertion sortante après le déploiement
+
+## Réactivation plus tard
+
+Changer le secret à `"false"` (ou le supprimer) + réactiver les 2 crons via `UPDATE cron.job SET active = true`. Aucun redéploiement de code nécessaire.
