@@ -83,6 +83,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (Deno.env.get('WHATSAPP_OUTBOUND_DISABLED') === 'true') {
+    console.log('[kill-switch] Outbound WhatsApp disabled, skipping notify-tablet-pause');
+    return new Response(
+      JSON.stringify({ success: true, skipped: true, reason: 'WHATSAPP_OUTBOUND_DISABLED' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+
   try {
     const ULTRAMSG_INSTANCE_ID = Deno.env.get('ULTRAMSG_INSTANCE_ID');
     const ULTRAMSG_TOKEN = Deno.env.get('ULTRAMSG_TOKEN');
