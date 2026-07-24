@@ -14,6 +14,15 @@ const fmtInt = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders })
 
+  if (Deno.env.get('WHATSAPP_OUTBOUND_DISABLED') === 'true') {
+    console.log('[kill-switch] Outbound WhatsApp disabled, skipping send-weekly-report-whatsapp')
+    return new Response(
+      JSON.stringify({ success: true, skipped: true, reason: 'WHATSAPP_OUTBOUND_DISABLED' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
