@@ -8,9 +8,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Info, Minus, Store } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Info, Minus, Store } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useSplashOnsiteMonthly, deltaPct } from "@/hooks/useSplashOnsiteMonthly";
+import { useSplashOnsiteMonthly, deltaPct, avgBasket } from "@/hooks/useSplashOnsiteMonthly";
 import { exportOnsiteSalesExcel } from "@/hooks/useOnsiteSalesExport";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
@@ -18,6 +19,33 @@ const YEARS = [2026, 2025];
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v));
+
+const fmtBasket = (revenue: number, orders: number) =>
+  orders > 0
+    ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(
+        avgBasket(revenue, orders)
+      )
+    : "--";
+
+function IncompleteBadge({ days }: { days: number }) {
+  if (days <= 0) return null;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-1 inline-flex align-middle text-amber-500">
+            <AlertTriangle className="h-3.5 w-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {fmtInt(days)} jour(s) restaurant sans données Splash sur ce mois
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 function Delta({ current, previous }: { current: number; previous: number }) {
   const d = deltaPct(current, previous);
@@ -36,6 +64,7 @@ function Delta({ current, previous }: { current: number; previous: number }) {
     </span>
   );
 }
+
 
 export default function OnsiteSales() {
   const [year, setYear] = useState(2026);
