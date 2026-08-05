@@ -263,6 +263,9 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">CA {year}</TableHead>
                       <TableHead className="text-right">CA {prev}</TableHead>
                       <TableHead className="text-right">Évol. brute</TableHead>
+                      <TableHead className="text-right">Cmd {year}</TableHead>
+                      <TableHead className="text-right">Évol. cmd</TableHead>
+                      <TableHead className="text-right">Panier moy.</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
                       <TableHead className="text-right">Mois LFL</TableHead>
                     </TableRow>
@@ -271,24 +274,29 @@ export default function OnsiteSales() {
                     {restaurants.map((r) => (
                       <Fragment key={r.restaurantId}>
                         <TableRow
-                          key={r.restaurantId}
                           className="cursor-pointer"
                           onClick={() => setExpanded(expanded === r.restaurantId ? null : r.restaurantId)}
                         >
                           <TableCell>
                             {expanded === r.restaurantId ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </TableCell>
-                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="font-medium">
+                            {r.name}
+                            <IncompleteBadge days={r.daysZeroCurrent} />
+                          </TableCell>
                           <TableCell className="text-right font-semibold">{fmt(r.current)}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{fmt(r.previous)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.current} previous={r.previous} /></TableCell>
+                          <TableCell className="text-right">{fmtInt(r.ordersCurrent)}</TableCell>
+                          <TableCell className="text-right"><Delta current={r.ordersCurrent} previous={r.ordersPrevious} /></TableCell>
+                          <TableCell className="text-right">{fmtBasket(r.current, r.ordersCurrent)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.lflCurrent} previous={r.lflPrevious} /></TableCell>
                           <TableCell className="text-right">{r.lflMonths}</TableCell>
                         </TableRow>
                         {expanded === r.restaurantId && (
-                          <TableRow key={`${r.restaurantId}-detail`} className="hover:bg-transparent">
+                          <TableRow className="hover:bg-transparent">
                             <TableCell />
-                            <TableCell colSpan={6} className="p-0 pb-4">
+                            <TableCell colSpan={9} className="p-0 pb-4">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="hover:bg-transparent">
@@ -296,16 +304,25 @@ export default function OnsiteSales() {
                                     <TableHead className="text-right">CA {year}</TableHead>
                                     <TableHead className="text-right">CA {prev}</TableHead>
                                     <TableHead className="text-right">Évol.</TableHead>
+                                    <TableHead className="text-right">Cmd {year}</TableHead>
+                                    <TableHead className="text-right">Cmd {prev}</TableHead>
+                                    <TableHead className="text-right">Panier moy.</TableHead>
                                     <TableHead className="text-right">Périmètre constant</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {r.months.map((m) => (
                                     <TableRow key={m.month}>
-                                      <TableCell>{MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}</TableCell>
+                                      <TableCell>
+                                        {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
+                                        <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                                      </TableCell>
                                       <TableCell className="text-right">{fmt(m.current)}</TableCell>
                                       <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>
                                       <TableCell className="text-right"><Delta current={m.current} previous={m.previous} /></TableCell>
+                                      <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
+                                      <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
+                                      <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
                                       <TableCell className="text-right">{m.lflRestaurants > 0 ? "Oui" : "Non"}</TableCell>
                                     </TableRow>
                                   ))}
@@ -317,6 +334,7 @@ export default function OnsiteSales() {
                       </Fragment>
                     ))}
                   </TableBody>
+
                 </Table>
               </CardContent>
             </Card>
