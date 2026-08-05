@@ -71,10 +71,11 @@ export default function OnsiteSales() {
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { networkMonths, restaurants, totals, isLoading, error, enabled } = useSplashOnsiteMonthly({
+  const { networkMonths, restaurants, totals, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
     year,
     includePartialMonth,
   });
+
 
   const prev = year - 1;
   const hasPartial = useMemo(() => networkMonths.some((m) => m.isPartial), [networkMonths]);
