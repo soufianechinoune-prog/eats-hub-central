@@ -14,6 +14,7 @@ export interface OnsiteRow {
   revenue_onsite_ht: number;
   orders_onsite: number;
   days_count: number;
+  days_zero: number;
 }
 
 export interface MonthAggregate {
@@ -23,6 +24,9 @@ export interface MonthAggregate {
   lflCurrent: number;
   lflPrevious: number;
   lflRestaurants: number;
+  ordersCurrent: number;
+  ordersPrevious: number;
+  daysZeroCurrent: number;
   isPartial: boolean;
 }
 
@@ -34,6 +38,9 @@ export interface RestaurantAggregate {
   lflCurrent: number;
   lflPrevious: number;
   lflMonths: number;
+  ordersCurrent: number;
+  ordersPrevious: number;
+  daysZeroCurrent: number;
   months: MonthAggregate[];
 }
 
@@ -42,19 +49,29 @@ interface Options {
   includePartialMonth: boolean;
 }
 
+interface Bucket {
+  ttc: number;
+  orders: number;
+  daysZero: number;
+}
+
+const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0 });
+
 export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
-  const { selectedChainId, selectedRestaurants } = useAnalyticsContext();
+  const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
 
   const query = useQuery({
-    queryKey: ["splash-onsite-monthly", selectedChainId, year, selectedRestaurants],
+    // Rapport direction : toujours sur le réseau complet de la marque,
+    // indépendamment de la sélection de restaurants du header.
+    queryKey: ["splash-onsite-monthly", selectedChainId, year],
     enabled,
     retry: false,
     queryFn: async () => {
       const { data, error } = await (supabase.rpc as any)("get_splash_onsite_monthly", {
         p_chain_id: selectedChainId,
-        p_restaurant_ids: selectedRestaurants.length > 0 ? selectedRestaurants : null,
+        p_restaurant_ids: null,
         p_year: year,
       });
       if (error) throw error;
@@ -64,6 +81,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
         revenue_onsite_ht: Number(r.revenue_onsite_ht) || 0,
         orders_onsite: Number(r.orders_onsite) || 0,
         days_count: Number(r.days_count) || 0,
+        days_zero: Number(r.days_zero) || 0,
       })) as OnsiteRow[];
     },
   });
@@ -75,7 +93,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
 
     const byRestaurant = new Map<string, RestaurantAggregate>();
     const key = (m: number, y: number) => `${y}-${m}`;
-    const valueMap = new Map<string, Map<string, number>>();
+    const valueMap = new Map<string, Map<string, Bucket>>();
 
     for (const row of rows) {
       if (!byRestaurant.has(row.restaurant_id)) {
@@ -87,12 +105,20 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
           lflCurrent: 0,
           lflPrevious: 0,
           lflMonths: 0,
+          ordersCurrent: 0,
+          ordersPrevious: 0,
+          daysZeroCurrent: 0,
           months: [],
         });
         valueMap.set(row.restaurant_id, new Map());
       }
       const map = valueMap.get(row.restaurant_id)!;
-      map.set(key(row.month_num, row.year_bucket), (map.get(key(row.month_num, row.year_bucket)) ?? 0) + row.revenue_onsite_ttc);
+      const k = key(row.month_num, row.year_bucket);
+      const b = map.get(k) ?? emptyBucket();
+      b.ttc += row.revenue_onsite_ttc;
+      b.orders += row.orders_onsite;
+      b.daysZero += row.days_zero;
+      map.set(k, b);
     }
 
     const networkMonths: MonthAggregate[] = Array.from({ length: 12 }, (_, i) => ({
@@ -102,14 +128,19 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       lflCurrent: 0,
       lflPrevious: 0,
       lflRestaurants: 0,
+      ordersCurrent: 0,
+      ordersPrevious: 0,
+      daysZeroCurrent: 0,
       isPartial: i + 1 === currentMonthPartial,
     }));
 
     for (const [rid, agg] of byRestaurant) {
       const map = valueMap.get(rid)!;
       for (let m = 1; m <= 12; m++) {
-        const cur = map.get(key(m, year)) ?? 0;
-        const prev = map.get(key(m, year - 1)) ?? 0;
+        const curB = map.get(key(m, year)) ?? emptyBucket();
+        const prevB = map.get(key(m, year - 1)) ?? emptyBucket();
+        const cur = curB.ttc;
+        const prev = prevB.ttc;
         if (cur === 0 && prev === 0) continue;
         const partial = m === currentMonthPartial;
         const countable = (includePartialMonth || !partial) && cur > 0;
@@ -122,6 +153,9 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
           lflCurrent: isLfl ? cur : 0,
           lflPrevious: isLfl ? prev : 0,
           lflRestaurants: isLfl ? 1 : 0,
+          ordersCurrent: curB.orders,
+          ordersPrevious: prevB.orders,
+          daysZeroCurrent: curB.daysZero,
           isPartial: partial,
         };
         agg.months.push(monthRow);
@@ -129,28 +163,26 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
         if (countable) {
           agg.current += cur;
           agg.previous += prev;
+          agg.ordersCurrent += curB.orders;
+          agg.ordersPrevious += prevB.orders;
+          agg.daysZeroCurrent += curB.daysZero;
           if (isLfl) {
             agg.lflCurrent += cur;
             agg.lflPrevious += prev;
             agg.lflMonths += 1;
           }
-          const nm = networkMonths[m - 1];
-          nm.current += cur;
-          nm.previous += prev;
-          if (isLfl) {
-            nm.lflCurrent += cur;
-            nm.lflPrevious += prev;
-            nm.lflRestaurants += 1;
-          }
-        } else {
-          const nm = networkMonths[m - 1];
-          nm.current += cur;
-          nm.previous += prev;
-          if (isLfl) {
-            nm.lflCurrent += cur;
-            nm.lflPrevious += prev;
-            nm.lflRestaurants += 1;
-          }
+        }
+
+        const nm = networkMonths[m - 1];
+        nm.current += cur;
+        nm.previous += prev;
+        nm.ordersCurrent += curB.orders;
+        nm.ordersPrevious += prevB.orders;
+        nm.daysZeroCurrent += curB.daysZero;
+        if (isLfl) {
+          nm.lflCurrent += cur;
+          nm.lflPrevious += prev;
+          nm.lflRestaurants += 1;
         }
       }
       agg.months.sort((a, b) => a.month - b.month);
@@ -166,6 +198,8 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       previous: countedMonths.reduce((s, m) => s + m.previous, 0),
       lflCurrent: countedMonths.reduce((s, m) => s + m.lflCurrent, 0),
       lflPrevious: countedMonths.reduce((s, m) => s + m.lflPrevious, 0),
+      ordersCurrent: countedMonths.reduce((s, m) => s + m.ordersCurrent, 0),
+      ordersPrevious: countedMonths.reduce((s, m) => s + m.ordersPrevious, 0),
       lflRestaurants: new Set(
         restaurants.filter((r) => r.lflMonths > 0).map((r) => r.restaurantId)
       ).size,
@@ -186,3 +220,6 @@ export const deltaPct = (current: number, previous: number): number | null => {
   if (!previous) return current > 0 ? 100 : null;
   return ((current - previous) / previous) * 100;
 };
+
+export const avgBasket = (revenue: number, orders: number): number =>
+  orders > 0 ? revenue / orders : 0;
