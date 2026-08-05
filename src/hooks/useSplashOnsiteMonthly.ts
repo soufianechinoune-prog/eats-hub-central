@@ -171,7 +171,12 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       ).size,
     };
 
-    return { networkMonths: networkMonths.filter((m) => m.current > 0 || m.previous > 0), restaurants, totals };
+    const inScope = (m: { month: number; current: number; previous: number }) =>
+      (m.current > 0 || m.previous > 0) && (currentMonthPartial === 0 || m.month <= currentMonthPartial);
+
+    for (const r of restaurants) r.months = r.months.filter(inScope);
+
+    return { networkMonths: networkMonths.filter(inScope), restaurants, totals };
   }, [query.data, year, includePartialMonth]);
 
   return { ...computed, isLoading: query.isLoading, error: query.error, enabled };
