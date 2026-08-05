@@ -159,7 +159,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
     const restaurants = Array.from(byRestaurant.values()).sort((a, b) => b.current - a.current);
 
     const countedMonths = networkMonths.filter(
-      (m) => (m.current > 0 || m.previous > 0) && (includePartialMonth || !m.isPartial)
+      (m) => m.current > 0 && (includePartialMonth || !m.isPartial)
     );
     const totals = {
       current: countedMonths.reduce((s, m) => s + m.current, 0),
