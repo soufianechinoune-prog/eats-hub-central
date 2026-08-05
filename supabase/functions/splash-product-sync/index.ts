@@ -96,6 +96,30 @@ serve(async (req) => {
     if (!email || !password) throw new Error("Credentials Splash360 introuvables");
 
     const token = await getAccessToken(email, password);
+
+    if (body.probe) {
+      const variants: Record<string, string> = {
+        base: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30`,
+        page1: `${SPLASH_BASE_URL}/api/export/orders?page=1&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30`,
+        datetime: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-04-01T00:00:00&toDate=2026-04-30T23:59:59`,
+        slashdates: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=01/04/2026&toDate=30/04/2026`,
+        noDates: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2`,
+        recent: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-08-01&toDate=2026-08-05`,
+        restaurants: `${SPLASH_BASE_URL}/api/statistics/user`,
+      };
+      const out: Record<string, unknown> = {};
+      for (const [k, u] of Object.entries(variants)) {
+        try {
+          const r = await fetch(u, { headers: { Authorization: `Bearer ${token}` } });
+          out[k] = { status: r.status, body: (await r.text()).slice(0, 600) };
+        } catch (err) {
+          out[k] = { error: String(err) };
+        }
+      }
+      return new Response(JSON.stringify({ probe: out, account: email }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const { from, to, monthDate } = monthBounds(month);
 
     // Pagination /api/export/orders
