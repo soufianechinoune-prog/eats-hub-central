@@ -5806,6 +5806,23 @@ export type Database = {
         }
         Returns: Json
       }
+      get_splash_onsite_monthly: {
+        Args: {
+          p_chain_id: string
+          p_restaurant_ids?: string[]
+          p_year?: number
+        }
+        Returns: {
+          days_count: number
+          month_num: number
+          orders_onsite: number
+          restaurant_id: string
+          restaurant_name: string
+          revenue_onsite_ht: number
+          revenue_onsite_ttc: number
+          year_bucket: number
+        }[]
+      }
       get_total_delivery_time_daily: {
         Args: {
           p_end_date: string
