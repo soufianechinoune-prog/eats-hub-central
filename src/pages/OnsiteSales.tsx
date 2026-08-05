@@ -71,10 +71,11 @@ export default function OnsiteSales() {
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { networkMonths, restaurants, totals, isLoading, error, enabled } = useSplashOnsiteMonthly({
+  const { networkMonths, restaurants, totals, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
     year,
     includePartialMonth,
   });
+
 
   const prev = year - 1;
   const hasPartial = useMemo(() => networkMonths.some((m) => m.isPartial), [networkMonths]);
@@ -128,15 +129,30 @@ export default function OnsiteSales() {
           </Alert>
         )}
 
-        {monthsWithGaps.length > 0 && (
+        {(monthsWithGaps.length > 0 || coverage.unmappedSplashIds > 0) && (
           <Alert>
             <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <AlertDescription>
-              Données Splash incomplètes sur : {monthsWithGaps.join(", ")} {year} — certains jours sont absents,
-              les totaux de ces mois sont sous-estimés (resynchronisation Splash nécessaire).
+            <AlertDescription className="space-y-1">
+              <p className="font-medium">Couverture des données Splash {year}</p>
+              {monthsWithGaps.length > 0 && (
+                <p>
+                  Jours manquants sur : {monthsWithGaps.join(", ")} — {fmtInt(coverage.daysZeroCurrent)} jours-restaurant
+                  sans données sur l'année. Les totaux de ces mois sont sous-estimés (resynchronisation Splash nécessaire).
+                </p>
+              )}
+              {coverage.unmappedSplashIds > 0 && (
+                <p>
+                  {coverage.unmappedSplashIds} restaurant(s) Splash non rattaché(s) à un restaurant de la plateforme, soit{" "}
+                  {fmt(coverage.unmappedRevenueTtc)} de CA sur place exclu de ce rapport.
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                C'est ce qui explique l'écart résiduel avec le dashboard Splash.
+              </p>
             </AlertDescription>
           </Alert>
         )}
+
 
 
         {error && (
