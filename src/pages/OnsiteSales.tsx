@@ -79,6 +79,10 @@ export default function OnsiteSales() {
   const prev = year - 1;
   const hasPartial = useMemo(() => networkMonths.some((m) => m.isPartial), [networkMonths]);
   const prevIncomplete = prev <= 2024;
+  const monthsWithGaps = useMemo(
+    () => networkMonths.filter((m) => m.daysZeroCurrent > 0 && !m.isPartial).map((m) => MONTHS[m.month - 1]),
+    [networkMonths]
+  );
 
   return (
     <AppLayout>
@@ -87,9 +91,10 @@ export default function OnsiteSales() {
           <div>
             <h1 className="text-2xl font-bold">Ventes sur place — {year} vs {prev}</h1>
             <p className="text-muted-foreground">
-              CA caisse (hors Uber Eats et Deliveroo), par restaurant et par mois, à périmètre constant.
+              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque, par restaurant et par mois.
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
