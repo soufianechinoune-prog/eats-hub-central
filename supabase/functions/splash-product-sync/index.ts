@@ -118,8 +118,14 @@ serve(async (req) => {
       lastUrl = url;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error(`export/orders error (${res.status}): ${(await res.text()).slice(0, 500)}`);
-      const json = await res.json();
-      const orders: any[] = Array.isArray(json) ? json : (json.data ?? json.orders ?? json.items ?? []);
+      const rawText = await res.text();
+      if (body.debug_raw) {
+        return new Response(JSON.stringify({ debug_raw: rawText.slice(0, 3000), url }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const json = JSON.parse(rawText);
+      const orders: any[] = Array.isArray(json) ? json : (json.data ?? json.orders ?? json.items ?? json.results ?? json.content ?? []);
       if (!orders.length) break;
       if (!sampleOrder) sampleOrder = orders[0];
 
