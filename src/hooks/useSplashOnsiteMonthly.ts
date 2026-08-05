@@ -242,7 +242,8 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
     return { networkMonths: networkMonths.filter(inScope), restaurants, totals };
   }, [query.data, year, includePartialMonth]);
 
-  return { ...computed, isLoading: query.isLoading, error: query.error, enabled };
+  return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
+
 }
 
 export const deltaPct = (current: number, previous: number): number | null => {
