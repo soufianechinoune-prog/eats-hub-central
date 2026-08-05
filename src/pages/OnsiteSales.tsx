@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -199,7 +199,7 @@ export default function OnsiteSales() {
                   </TableHeader>
                   <TableBody>
                     {restaurants.map((r) => (
-                      <>
+                      <Fragment key={r.restaurantId}>
                         <TableRow
                           key={r.restaurantId}
                           className="cursor-pointer"
@@ -244,7 +244,7 @@ export default function OnsiteSales() {
                             </TableCell>
                           </TableRow>
                         )}
-                      </>
+                      </Fragment>
                     ))}
                   </TableBody>
                 </Table>
