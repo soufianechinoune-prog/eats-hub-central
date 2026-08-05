@@ -5814,6 +5814,7 @@ export type Database = {
         }
         Returns: {
           days_count: number
+          days_zero: number
           month_num: number
           orders_onsite: number
           restaurant_id: string

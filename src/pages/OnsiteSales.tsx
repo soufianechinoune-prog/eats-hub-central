@@ -8,9 +8,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Info, Minus, Store } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, Info, Minus, Store } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { useSplashOnsiteMonthly, deltaPct } from "@/hooks/useSplashOnsiteMonthly";
+import { useSplashOnsiteMonthly, deltaPct, avgBasket } from "@/hooks/useSplashOnsiteMonthly";
 import { exportOnsiteSalesExcel } from "@/hooks/useOnsiteSalesExport";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
@@ -18,6 +19,33 @@ const YEARS = [2026, 2025];
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v));
+
+const fmtBasket = (revenue: number, orders: number) =>
+  orders > 0
+    ? new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 2 }).format(
+        avgBasket(revenue, orders)
+      )
+    : "--";
+
+function IncompleteBadge({ days }: { days: number }) {
+  if (days <= 0) return null;
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="ml-1 inline-flex align-middle text-amber-500">
+            <AlertTriangle className="h-3.5 w-3.5" />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          {fmtInt(days)} jour(s) restaurant sans données Splash sur ce mois
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 function Delta({ current, previous }: { current: number; previous: number }) {
   const d = deltaPct(current, previous);
@@ -37,6 +65,7 @@ function Delta({ current, previous }: { current: number; previous: number }) {
   );
 }
 
+
 export default function OnsiteSales() {
   const [year, setYear] = useState(2026);
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
@@ -50,6 +79,10 @@ export default function OnsiteSales() {
   const prev = year - 1;
   const hasPartial = useMemo(() => networkMonths.some((m) => m.isPartial), [networkMonths]);
   const prevIncomplete = prev <= 2024;
+  const monthsWithGaps = useMemo(
+    () => networkMonths.filter((m) => m.daysZeroCurrent > 0 && !m.isPartial).map((m) => MONTHS[m.month - 1]),
+    [networkMonths]
+  );
 
   return (
     <AppLayout>
@@ -58,9 +91,10 @@ export default function OnsiteSales() {
           <div>
             <h1 className="text-2xl font-bold">Ventes sur place — {year} vs {prev}</h1>
             <p className="text-muted-foreground">
-              CA caisse (hors Uber Eats et Deliveroo), par restaurant et par mois, à périmètre constant.
+              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque, par restaurant et par mois.
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center gap-2">
               <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
@@ -94,6 +128,17 @@ export default function OnsiteSales() {
           </Alert>
         )}
 
+        {monthsWithGaps.length > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertDescription>
+              Données Splash incomplètes sur : {monthsWithGaps.join(", ")} {year} — certains jours sont absents,
+              les totaux de ces mois sont sous-estimés (resynchronisation Splash nécessaire).
+            </AlertDescription>
+          </Alert>
+        )}
+
+
         {error && (
           <Alert variant="destructive">
             <AlertDescription>Impossible de charger les ventes sur place : {(error as Error).message}</AlertDescription>
@@ -109,7 +154,7 @@ export default function OnsiteSales() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
                 <CardContent><p className="text-2xl font-bold">{fmt(totals.current)}</p></CardContent>
@@ -121,6 +166,15 @@ export default function OnsiteSales() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution brute</CardTitle></CardHeader>
                 <CardContent><p className="text-2xl font-bold"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">{fmtInt(totals.ordersCurrent)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Panier moyen {fmtBasket(totals.current, totals.ordersCurrent)} · {fmtInt(totals.ordersPrevious)} en {prev}
+                  </p>
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
@@ -148,6 +202,10 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">CA {year}</TableHead>
                       <TableHead className="text-right">CA {prev}</TableHead>
                       <TableHead className="text-right">Évol. brute</TableHead>
+                      <TableHead className="text-right">Cmd {year}</TableHead>
+                      <TableHead className="text-right">Cmd {prev}</TableHead>
+                      <TableHead className="text-right">Évol. cmd</TableHead>
+                      <TableHead className="text-right">Panier moy. {year}</TableHead>
                       <TableHead className="text-right">LFL {year}</TableHead>
                       <TableHead className="text-right">LFL {prev}</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
@@ -157,10 +215,17 @@ export default function OnsiteSales() {
                   <TableBody>
                     {networkMonths.map((m) => (
                       <TableRow key={m.month} className={cn(m.isPartial && "opacity-70")}>
-                        <TableCell className="font-medium">{MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}</TableCell>
+                        <TableCell className="font-medium">
+                          {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
+                          <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                        </TableCell>
                         <TableCell className="text-right font-semibold">{fmt(m.current)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.current} previous={m.previous} /></TableCell>
+                        <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
+                        <TableCell className="text-right"><Delta current={m.ordersCurrent} previous={m.ordersPrevious} /></TableCell>
+                        <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
                         <TableCell className="text-right">{fmt(m.lflCurrent)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.lflPrevious)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.lflCurrent} previous={m.lflPrevious} /></TableCell>
@@ -172,6 +237,10 @@ export default function OnsiteSales() {
                       <TableCell className="text-right">{fmt(totals.current)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.previous)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.current} previous={totals.previous} /></TableCell>
+                      <TableCell className="text-right">{fmtInt(totals.ordersCurrent)}</TableCell>
+                      <TableCell className="text-right">{fmtInt(totals.ordersPrevious)}</TableCell>
+                      <TableCell className="text-right"><Delta current={totals.ordersCurrent} previous={totals.ordersPrevious} /></TableCell>
+                      <TableCell className="text-right">{fmtBasket(totals.current, totals.ordersCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></TableCell>
@@ -181,6 +250,7 @@ export default function OnsiteSales() {
                 </Table>
               </CardContent>
             </Card>
+
 
             <Card>
               <CardHeader><CardTitle>Détail par restaurant</CardTitle></CardHeader>
@@ -193,6 +263,9 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">CA {year}</TableHead>
                       <TableHead className="text-right">CA {prev}</TableHead>
                       <TableHead className="text-right">Évol. brute</TableHead>
+                      <TableHead className="text-right">Cmd {year}</TableHead>
+                      <TableHead className="text-right">Évol. cmd</TableHead>
+                      <TableHead className="text-right">Panier moy.</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
                       <TableHead className="text-right">Mois LFL</TableHead>
                     </TableRow>
@@ -201,24 +274,29 @@ export default function OnsiteSales() {
                     {restaurants.map((r) => (
                       <Fragment key={r.restaurantId}>
                         <TableRow
-                          key={r.restaurantId}
                           className="cursor-pointer"
                           onClick={() => setExpanded(expanded === r.restaurantId ? null : r.restaurantId)}
                         >
                           <TableCell>
                             {expanded === r.restaurantId ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           </TableCell>
-                          <TableCell className="font-medium">{r.name}</TableCell>
+                          <TableCell className="font-medium">
+                            {r.name}
+                            <IncompleteBadge days={r.daysZeroCurrent} />
+                          </TableCell>
                           <TableCell className="text-right font-semibold">{fmt(r.current)}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{fmt(r.previous)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.current} previous={r.previous} /></TableCell>
+                          <TableCell className="text-right">{fmtInt(r.ordersCurrent)}</TableCell>
+                          <TableCell className="text-right"><Delta current={r.ordersCurrent} previous={r.ordersPrevious} /></TableCell>
+                          <TableCell className="text-right">{fmtBasket(r.current, r.ordersCurrent)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.lflCurrent} previous={r.lflPrevious} /></TableCell>
                           <TableCell className="text-right">{r.lflMonths}</TableCell>
                         </TableRow>
                         {expanded === r.restaurantId && (
-                          <TableRow key={`${r.restaurantId}-detail`} className="hover:bg-transparent">
+                          <TableRow className="hover:bg-transparent">
                             <TableCell />
-                            <TableCell colSpan={6} className="p-0 pb-4">
+                            <TableCell colSpan={9} className="p-0 pb-4">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="hover:bg-transparent">
@@ -226,16 +304,25 @@ export default function OnsiteSales() {
                                     <TableHead className="text-right">CA {year}</TableHead>
                                     <TableHead className="text-right">CA {prev}</TableHead>
                                     <TableHead className="text-right">Évol.</TableHead>
+                                    <TableHead className="text-right">Cmd {year}</TableHead>
+                                    <TableHead className="text-right">Cmd {prev}</TableHead>
+                                    <TableHead className="text-right">Panier moy.</TableHead>
                                     <TableHead className="text-right">Périmètre constant</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {r.months.map((m) => (
                                     <TableRow key={m.month}>
-                                      <TableCell>{MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}</TableCell>
+                                      <TableCell>
+                                        {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
+                                        <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                                      </TableCell>
                                       <TableCell className="text-right">{fmt(m.current)}</TableCell>
                                       <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>
                                       <TableCell className="text-right"><Delta current={m.current} previous={m.previous} /></TableCell>
+                                      <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
+                                      <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
+                                      <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
                                       <TableCell className="text-right">{m.lflRestaurants > 0 ? "Oui" : "Non"}</TableCell>
                                     </TableRow>
                                   ))}
@@ -247,6 +334,7 @@ export default function OnsiteSales() {
                       </Fragment>
                     ))}
                   </TableBody>
+
                 </Table>
               </CardContent>
             </Card>
