@@ -4040,6 +4040,59 @@ export type Database = {
         }
         Relationships: []
       }
+      splash_product_monthly: {
+        Row: {
+          chain_id: string
+          created_at: string
+          id: string
+          month: string
+          order_count: number
+          product_id: string
+          product_name: string
+          quantity_total: number
+          restaurant_id: string
+          revenue_excl_vat: number
+          revenue_incl_vat: number
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          id?: string
+          month: string
+          order_count?: number
+          product_id: string
+          product_name: string
+          quantity_total?: number
+          restaurant_id: string
+          revenue_excl_vat?: number
+          revenue_incl_vat?: number
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+          order_count?: number
+          product_id?: string
+          product_name?: string
+          quantity_total?: number
+          restaurant_id?: string
+          revenue_excl_vat?: number
+          revenue_incl_vat?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_product_monthly_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       splash360_daily_sales: {
         Row: {
           average_basket: number
