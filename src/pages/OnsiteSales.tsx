@@ -154,7 +154,7 @@ export default function OnsiteSales() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
                 <CardContent><p className="text-2xl font-bold">{fmt(totals.current)}</p></CardContent>
@@ -166,6 +166,15 @@ export default function OnsiteSales() {
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution brute</CardTitle></CardHeader>
                 <CardContent><p className="text-2xl font-bold"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
+                <CardContent>
+                  <p className="text-2xl font-bold">{fmtInt(totals.ordersCurrent)}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Panier moyen {fmtBasket(totals.current, totals.ordersCurrent)} · {fmtInt(totals.ordersPrevious)} en {prev}
+                  </p>
+                </CardContent>
               </Card>
               <Card>
                 <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
@@ -193,6 +202,10 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">CA {year}</TableHead>
                       <TableHead className="text-right">CA {prev}</TableHead>
                       <TableHead className="text-right">Évol. brute</TableHead>
+                      <TableHead className="text-right">Cmd {year}</TableHead>
+                      <TableHead className="text-right">Cmd {prev}</TableHead>
+                      <TableHead className="text-right">Évol. cmd</TableHead>
+                      <TableHead className="text-right">Panier moy. {year}</TableHead>
                       <TableHead className="text-right">LFL {year}</TableHead>
                       <TableHead className="text-right">LFL {prev}</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
@@ -202,10 +215,17 @@ export default function OnsiteSales() {
                   <TableBody>
                     {networkMonths.map((m) => (
                       <TableRow key={m.month} className={cn(m.isPartial && "opacity-70")}>
-                        <TableCell className="font-medium">{MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}</TableCell>
+                        <TableCell className="font-medium">
+                          {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
+                          <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                        </TableCell>
                         <TableCell className="text-right font-semibold">{fmt(m.current)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.current} previous={m.previous} /></TableCell>
+                        <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
+                        <TableCell className="text-right"><Delta current={m.ordersCurrent} previous={m.ordersPrevious} /></TableCell>
+                        <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
                         <TableCell className="text-right">{fmt(m.lflCurrent)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.lflPrevious)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.lflCurrent} previous={m.lflPrevious} /></TableCell>
@@ -217,6 +237,10 @@ export default function OnsiteSales() {
                       <TableCell className="text-right">{fmt(totals.current)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.previous)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.current} previous={totals.previous} /></TableCell>
+                      <TableCell className="text-right">{fmtInt(totals.ordersCurrent)}</TableCell>
+                      <TableCell className="text-right">{fmtInt(totals.ordersPrevious)}</TableCell>
+                      <TableCell className="text-right"><Delta current={totals.ordersCurrent} previous={totals.ordersPrevious} /></TableCell>
+                      <TableCell className="text-right">{fmtBasket(totals.current, totals.ordersCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></TableCell>
@@ -226,6 +250,7 @@ export default function OnsiteSales() {
                 </Table>
               </CardContent>
             </Card>
+
 
             <Card>
               <CardHeader><CardTitle>Détail par restaurant</CardTitle></CardHeader>
