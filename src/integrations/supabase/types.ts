@@ -5824,6 +5824,14 @@ export type Database = {
           year_bucket: number
         }[]
       }
+      get_splash_onsite_monthly_v2: {
+        Args: {
+          p_chain_id: string
+          p_restaurant_ids?: string[]
+          p_year?: number
+        }
+        Returns: Json
+      }
       get_total_delivery_time_daily: {
         Args: {
           p_end_date: string
