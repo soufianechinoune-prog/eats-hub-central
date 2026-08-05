@@ -88,6 +88,7 @@ const analyticsSubItems = [
   { title: "Dashboard", url: "/overview", icon: LayoutDashboard },
   { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
+  { title: "Ventes sur place", url: "/analytics/onsite-sales", icon: Store },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw },
