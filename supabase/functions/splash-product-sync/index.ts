@@ -105,7 +105,11 @@ serve(async (req) => {
         slashdates: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=01/04/2026&toDate=30/04/2026`,
         noDates: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2`,
         recent: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-08-01&toDate=2026-08-05`,
-        restaurants: `${SPLASH_BASE_URL}/api/statistics/user`,
+        restaurantId: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30&restaurantId=63`,
+        restaurantsArr: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30&restaurants[]=63`,
+        resto: `${SPLASH_BASE_URL}/api/export/orders?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30&resto=63`,
+        exportProducts: `${SPLASH_BASE_URL}/api/export/products?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30&restaurant=63`,
+        exportOrderItems: `${SPLASH_BASE_URL}/api/export/order-items?page=0&pageSize=2&fromDate=2026-04-01&toDate=2026-04-30&restaurant=63`,
       };
       const out: Record<string, unknown> = {};
       for (const [k, u] of Object.entries(variants)) {
