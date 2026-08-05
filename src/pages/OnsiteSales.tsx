@@ -128,6 +128,17 @@ export default function OnsiteSales() {
           </Alert>
         )}
 
+        {monthsWithGaps.length > 0 && (
+          <Alert>
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <AlertDescription>
+              Données Splash incomplètes sur : {monthsWithGaps.join(", ")} {year} — certains jours sont absents,
+              les totaux de ces mois sont sous-estimés (resynchronisation Splash nécessaire).
+            </AlertDescription>
+          </Alert>
+        )}
+
+
         {error && (
           <Alert variant="destructive">
             <AlertDescription>Impossible de charger les ventes sur place : {(error as Error).message}</AlertDescription>
