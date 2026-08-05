@@ -112,7 +112,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
         const prev = map.get(key(m, year - 1)) ?? 0;
         if (cur === 0 && prev === 0) continue;
         const partial = m === currentMonthPartial;
-        const countable = includePartialMonth || !partial;
+        const countable = (includePartialMonth || !partial) && cur > 0;
         const isLfl = cur > 0 && prev > 0;
 
         const monthRow: MonthAggregate = {
