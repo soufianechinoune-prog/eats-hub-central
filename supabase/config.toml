@@ -144,3 +144,6 @@ verify_jwt = false
 [functions.weekly-uber-api]
 verify_jwt = false
 
+
+[functions.splash-product-sync]
+verify_jwt = false
