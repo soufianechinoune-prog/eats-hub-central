@@ -114,7 +114,10 @@ serve(async (req) => {
     let lastUrl = "";
 
     while (page < max_pages) {
-      const url = `${SPLASH_BASE_URL}/api/export/orders?page=${page}&pageSize=${page_size}&fromDate=${from}&toDate=${to}&restaurant=${splash_id}`;
+      const restaurantParam = body.restaurant_param === null || body.restaurant_param === "none"
+        ? ""
+        : `&${body.restaurant_param ?? "restaurant"}=${splash_id}`;
+      const url = `${SPLASH_BASE_URL}/api/export/orders?page=${page}&pageSize=${page_size}&fromDate=${from}&toDate=${to}${restaurantParam}`;
       lastUrl = url;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) throw new Error(`export/orders error (${res.status}): ${(await res.text()).slice(0, 500)}`);
