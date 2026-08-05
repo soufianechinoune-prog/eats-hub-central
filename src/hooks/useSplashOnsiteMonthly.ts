@@ -65,31 +65,60 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
   const query = useQuery({
     // Rapport direction : toujours sur le réseau complet de la marque,
     // indépendamment de la sélection de restaurants du header.
-    queryKey: ["splash-onsite-monthly", selectedChainId, year],
+    queryKey: ["splash-onsite-monthly-v2", selectedChainId, year],
     enabled,
     retry: false,
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("get_splash_onsite_monthly", {
+      // v2 renvoie un seul objet JSON agrégé : évite la troncature à 1000 lignes
+      // de l'API (2000+ lignes resto x mois sur 2 ans).
+      const { data, error } = await (supabase.rpc as any)("get_splash_onsite_monthly_v2", {
         p_chain_id: selectedChainId,
         p_restaurant_ids: null,
         p_year: year,
       });
       if (error) throw error;
-      return (data ?? []).map((r: any) => ({
-        ...r,
-        revenue_onsite_ttc: Number(r.revenue_onsite_ttc) || 0,
-        revenue_onsite_ht: Number(r.revenue_onsite_ht) || 0,
-        orders_onsite: Number(r.orders_onsite) || 0,
-        days_count: Number(r.days_count) || 0,
-        days_zero: Number(r.days_zero) || 0,
-      })) as OnsiteRow[];
+
+      const payload = (data ?? {}) as any;
+      const rows: OnsiteRow[] = [];
+      for (const r of payload.restaurants ?? []) {
+        for (const m of r.months ?? []) {
+          rows.push({
+            restaurant_id: r.restaurant_id,
+            restaurant_name: r.name,
+            year_bucket: Number(m.y),
+            month_num: Number(m.m),
+            revenue_onsite_ttc: Number(m.ttc) || 0,
+            revenue_onsite_ht: Number(m.ht) || 0,
+            orders_onsite: Number(m.orders) || 0,
+            days_count: Number(m.days_count) || 0,
+            days_zero: Number(m.days_zero) || 0,
+          });
+        }
+      }
+
+      const cov = payload.coverage ?? {};
+      return {
+        rows,
+        coverage: {
+          daysZeroCurrent: Number(cov.days_zero_current) || 0,
+          unmappedSplashIds: Number(cov.unmapped_splash_ids) || 0,
+          unmappedRevenueTtc: Number(cov.unmapped_revenue_ttc) || 0,
+        },
+      };
     },
   });
 
+  const coverage = query.data?.coverage ?? {
+    daysZeroCurrent: 0,
+    unmappedSplashIds: 0,
+    unmappedRevenueTtc: 0,
+  };
+
   const computed = useMemo(() => {
-    const rows = query.data ?? [];
+    const rows = query.data?.rows ?? [];
     const now = new Date();
     const currentMonthPartial = year === now.getFullYear() ? now.getMonth() + 1 : 0;
+
 
     const byRestaurant = new Map<string, RestaurantAggregate>();
     const key = (m: number, y: number) => `${y}-${m}`;
