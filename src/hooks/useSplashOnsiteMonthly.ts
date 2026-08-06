@@ -90,7 +90,7 @@ interface Bucket {
 
 const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
-export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
+export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12 }: Options) {
   const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
