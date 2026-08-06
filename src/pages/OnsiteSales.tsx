@@ -381,6 +381,7 @@ export default function OnsiteSales() {
                       <TableCell className="text-right">{fmtInt(totals.ordersPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.ordersCurrent} previous={totals.ordersPrevious} /></TableCell>
                       <TableCell className="text-right">{fmtBasket(totals.current, totals.ordersCurrent)}</TableCell>
+                      <TableCell className="text-right">{fmtBasket(totals.previous, totals.ordersPrevious)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></TableCell>
