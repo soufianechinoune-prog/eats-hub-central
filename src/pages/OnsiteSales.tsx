@@ -90,6 +90,9 @@ export default function OnsiteSales() {
   const [preset, setPreset] = useState("full");
   const [monthFrom, setMonthFrom] = useState(1);
   const [monthTo, setMonthTo] = useState(12);
+  const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
+  const { data: allRestaurants } = useActiveRestaurants();
+
 
   const applyPreset = (value: string) => {
     setPreset(value);
