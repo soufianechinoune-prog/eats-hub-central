@@ -161,7 +161,7 @@ export function OnsiteScopeChart({ months, year }: { months: MonthAggregate[]; y
   );
 
   return (
-    <Card>
+    <Card className="rounded-2xl">
       <CardHeader>
         <CardTitle>Taille du périmètre constant par mois</CardTitle>
         <p className="text-sm text-muted-foreground">

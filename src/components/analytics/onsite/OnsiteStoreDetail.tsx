@@ -81,7 +81,7 @@ export function OnsiteStoreDetail({
 
   if (!resto) {
     return (
-      <Card>
+      <Card className="rounded-2xl">
         <CardContent className="py-10 text-center text-muted-foreground">
           Aucun restaurant avec du CA sur place sur la période sélectionnée.
         </CardContent>
@@ -139,9 +139,9 @@ export function OnsiteStoreDetail({
       </Card>
 
 
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader>
-          <CardTitle>CA et commandes par mois — {resto.name}</CardTitle>
+          <CardTitle className="text-xl font-bold tracking-tight">CA et commandes par mois — {resto.name}</CardTitle>
         </CardHeader>
         <CardContent>
           <ResponsiveContainer width="100%" height={320}>
@@ -171,7 +171,7 @@ export function OnsiteStoreDetail({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader>
           <CardTitle>Panier moyen par mois — {resto.name}</CardTitle>
         </CardHeader>
@@ -198,7 +198,7 @@ export function OnsiteStoreDetail({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader><CardTitle>Détail mensuel — {resto.name}</CardTitle></CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
