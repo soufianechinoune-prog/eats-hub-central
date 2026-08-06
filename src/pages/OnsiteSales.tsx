@@ -13,6 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { useSplashOnsiteMonthly, deltaPct, avgBasket } from "@/hooks/useSplashOnsiteMonthly";
 import { exportOnsiteSalesExcel } from "@/hooks/useOnsiteSalesExport";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OnsiteEvolutionChart, OnsiteScopeChart } from "@/components/analytics/onsite/OnsiteEvolutionChart";
+import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDetail";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
@@ -71,7 +74,7 @@ export default function OnsiteSales() {
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { networkMonths, restaurants, totals, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
+  const { networkMonths, restaurants, totals, scope, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
     year,
     includePartialMonth,
   });
@@ -208,9 +211,27 @@ export default function OnsiteSales() {
               </Card>
             </div>
 
+            <Tabs defaultValue="charts" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="charts">Graphiques</TabsTrigger>
+                <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="charts" className="space-y-4">
+                <OnsiteEvolutionChart months={networkMonths} year={year} />
+                <OnsiteScopeChart months={networkMonths} year={year} />
+              </TabsContent>
+
+              <TabsContent value="scope">
+                <OnsiteScopeDetail scope={scope} year={year} />
+              </TabsContent>
+
+              <TabsContent value="tables" className="space-y-4">
             <Card>
               <CardHeader><CardTitle>Synthèse mensuelle réseau</CardTitle></CardHeader>
               <CardContent className="overflow-x-auto">
+
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
@@ -354,7 +375,11 @@ export default function OnsiteSales() {
                 </Table>
               </CardContent>
             </Card>
+              </TabsContent>
+            </Tabs>
           </>
+
+
         )}
       </div>
     </AppLayout>
