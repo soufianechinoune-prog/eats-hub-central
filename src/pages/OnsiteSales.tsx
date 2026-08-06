@@ -151,7 +151,7 @@ export default function OnsiteSales() {
                 CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
               </p>
             </div>
-            <OnsiteLflHelp year={year} className="mt-2 text-muted-foreground hover:text-foreground" />
+            <OnsiteLflHelp year={year} />
           </div>
           <Button
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
