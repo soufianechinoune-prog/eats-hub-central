@@ -344,6 +344,7 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">Cmd {prev}</TableHead>
                       <TableHead className="text-right">Évol. cmd</TableHead>
                       <TableHead className="text-right">Panier moy. {year}</TableHead>
+                      <TableHead className="text-right">Panier moy. {prev}</TableHead>
                       <TableHead className="text-right">LFL {year}</TableHead>
                       <TableHead className="text-right">LFL {prev}</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
@@ -364,6 +365,7 @@ export default function OnsiteSales() {
                         <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.ordersCurrent} previous={m.ordersPrevious} /></TableCell>
                         <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
+                        <TableCell className="text-right text-muted-foreground">{fmtBasket(m.previous, m.ordersPrevious)}</TableCell>
                         <TableCell className="text-right">{fmt(m.lflCurrent)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.lflPrevious)}</TableCell>
                         <TableCell className="text-right"><Delta current={m.lflCurrent} previous={m.lflPrevious} /></TableCell>
@@ -379,6 +381,7 @@ export default function OnsiteSales() {
                       <TableCell className="text-right">{fmtInt(totals.ordersPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.ordersCurrent} previous={totals.ordersPrevious} /></TableCell>
                       <TableCell className="text-right">{fmtBasket(totals.current, totals.ordersCurrent)}</TableCell>
+                      <TableCell className="text-right">{fmtBasket(totals.previous, totals.ordersPrevious)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflCurrent)}</TableCell>
                       <TableCell className="text-right">{fmt(totals.lflPrevious)}</TableCell>
                       <TableCell className="text-right"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></TableCell>
@@ -403,7 +406,8 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">Évol. brute</TableHead>
                       <TableHead className="text-right">Cmd {year}</TableHead>
                       <TableHead className="text-right">Évol. cmd</TableHead>
-                      <TableHead className="text-right">Panier moy.</TableHead>
+                      <TableHead className="text-right">Panier moy. {year}</TableHead>
+                      <TableHead className="text-right">Panier moy. {prev}</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
                       <TableHead className="text-right">Mois LFL</TableHead>
                     </TableRow>
@@ -428,13 +432,14 @@ export default function OnsiteSales() {
                           <TableCell className="text-right">{fmtInt(r.ordersCurrent)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.ordersCurrent} previous={r.ordersPrevious} /></TableCell>
                           <TableCell className="text-right">{fmtBasket(r.current, r.ordersCurrent)}</TableCell>
+                          <TableCell className="text-right text-muted-foreground">{fmtBasket(r.previous, r.ordersPrevious)}</TableCell>
                           <TableCell className="text-right"><Delta current={r.lflCurrent} previous={r.lflPrevious} /></TableCell>
                           <TableCell className="text-right">{r.lflMonths}</TableCell>
                         </TableRow>
                         {expanded === r.restaurantId && (
                           <TableRow className="hover:bg-transparent">
                             <TableCell />
-                            <TableCell colSpan={9} className="p-0 pb-4">
+                            <TableCell colSpan={10} className="p-0 pb-4">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="hover:bg-transparent">
@@ -444,7 +449,8 @@ export default function OnsiteSales() {
                                     <TableHead className="text-right">Évol.</TableHead>
                                     <TableHead className="text-right">Cmd {year}</TableHead>
                                     <TableHead className="text-right">Cmd {prev}</TableHead>
-                                    <TableHead className="text-right">Panier moy.</TableHead>
+                                    <TableHead className="text-right">Panier moy. {year}</TableHead>
+                                    <TableHead className="text-right">Panier moy. {prev}</TableHead>
                                     <TableHead className="text-right">Périmètre constant</TableHead>
                                   </TableRow>
                                 </TableHeader>
@@ -461,6 +467,7 @@ export default function OnsiteSales() {
                                       <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
                                       <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
                                       <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
+                                      <TableCell className="text-right text-muted-foreground">{fmtBasket(m.previous, m.ordersPrevious)}</TableCell>
                                       <TableCell className="text-right">{m.lflRestaurants > 0 ? "Oui" : "Non"}</TableCell>
                                     </TableRow>
                                   ))}
