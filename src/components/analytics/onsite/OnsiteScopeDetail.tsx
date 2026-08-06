@@ -168,6 +168,53 @@ export function OnsiteScopeDetail({ scope, year }: { scope: ScopeMonth[]; year: 
                 </Fragment>
               );
             })}
+            {scope.length > 0 && (() => {
+              const t = scope.reduce(
+                (acc, sm) => ({
+                  lflCurrent: acc.lflCurrent + sm.lflCurrent,
+                  lflPrevious: acc.lflPrevious + sm.lflPrevious,
+                  openedCurrent: acc.openedCurrent + sm.openedCurrent,
+                  closedPrevious: acc.closedPrevious + sm.closedPrevious,
+                }),
+                { lflCurrent: 0, lflPrevious: 0, openedCurrent: 0, closedPrevious: 0 },
+              );
+              const lflIds = new Set<string>();
+              const openedIds = new Set<string>();
+              const closedIds = new Set<string>();
+              scope.forEach((sm) => {
+                sm.lfl.forEach((r) => lflIds.add(r.restaurantId));
+                sm.opened.forEach((r) => openedIds.add(r.restaurantId));
+                sm.closed.forEach((r) => closedIds.add(r.restaurantId));
+              });
+              return (
+                <TableRow className="border-t-2 bg-muted/40 font-semibold hover:bg-muted/40">
+                  <TableCell />
+                  <TableCell>Total période</TableCell>
+                  <TableCell className="text-right">
+                    <Badge variant="secondary" className="gap-1">
+                      <Store className="h-3 w-3" />{lflIds.size}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{fmt(t.lflCurrent)}</TableCell>
+                  <TableCell className="text-right text-muted-foreground">{fmt(t.lflPrevious)}</TableCell>
+                  <TableCell className="text-right"><DeltaText current={t.lflCurrent} previous={t.lflPrevious} /></TableCell>
+                  <TableCell className="text-right">
+                    {openedIds.size > 0 ? (
+                      <span className="text-emerald-600">+{openedIds.size} · {fmt(t.openedCurrent)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">--</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {closedIds.size > 0 ? (
+                      <span className="text-destructive">-{closedIds.size} · {fmt(t.closedPrevious)}</span>
+                    ) : (
+                      <span className="text-muted-foreground">--</span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })()}
           </TableBody>
         </Table>
       </CardContent>
