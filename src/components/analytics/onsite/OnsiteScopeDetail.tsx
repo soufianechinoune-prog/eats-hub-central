@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,9 +99,8 @@ export function OnsiteScopeDetail({ scope, year }: { scope: ScopeMonth[]; year: 
             {scope.map((sm) => {
               const isOpen = open === sm.month;
               return (
-                <>
+                <Fragment key={sm.month}>
                   <TableRow
-                    key={sm.month}
                     className={cn("cursor-pointer", sm.isPartial && "opacity-70")}
                     onClick={() => setOpen(isOpen ? null : sm.month)}
                   >
@@ -135,7 +134,7 @@ export function OnsiteScopeDetail({ scope, year }: { scope: ScopeMonth[]; year: 
                     </TableCell>
                   </TableRow>
                   {isOpen && (
-                    <TableRow key={`${sm.month}-detail`} className="hover:bg-transparent">
+                    <TableRow className="hover:bg-transparent">
                       <TableCell />
                       <TableCell colSpan={7} className="space-y-6 p-0 pb-6">
                         <div>
@@ -166,7 +165,7 @@ export function OnsiteScopeDetail({ scope, year }: { scope: ScopeMonth[]; year: 
                       </TableCell>
                     </TableRow>
                   )}
-                </>
+                </Fragment>
               );
             })}
           </TableBody>
