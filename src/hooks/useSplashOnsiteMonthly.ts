@@ -149,8 +149,12 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     unmappedRevenueTtc: 0,
   };
 
+  const filterKey = (restaurantIds ?? []).slice().sort().join(",");
+
   const computed = useMemo(() => {
-    const rows = query.data?.rows ?? [];
+    const allRows = query.data?.rows ?? [];
+    const filterSet = filterKey ? new Set(filterKey.split(",")) : null;
+    const rows = filterSet ? allRows.filter((r) => filterSet.has(r.restaurant_id)) : allRows;
     const now = new Date();
     const currentMonthPartial = year === now.getFullYear() ? now.getMonth() + 1 : 0;
 
