@@ -15,10 +15,10 @@ export function OnsiteLflHelp({ year, className }: { year: number; className?: s
         <Button
           variant="ghost"
           size="icon"
-          className={className}
+          className={`inline-flex h-5 w-5 items-center justify-center rounded-full p-0 align-middle text-muted-foreground hover:text-foreground ${className ?? ""}`}
           aria-label="Comprendre le périmètre constant LFL"
         >
-          <Info className="h-4 w-4" />
+          <Info className="h-3.5 w-3.5" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -57,3 +57,4 @@ export function OnsiteLflHelp({ year, className }: { year: number; className?: s
     </Popover>
   );
 }
+
