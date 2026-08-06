@@ -208,9 +208,27 @@ export default function OnsiteSales() {
               </Card>
             </div>
 
+            <Tabs defaultValue="charts" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="charts">Graphiques</TabsTrigger>
+                <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="charts" className="space-y-4">
+                <OnsiteEvolutionChart months={networkMonths} year={year} />
+                <OnsiteScopeChart months={networkMonths} year={year} />
+              </TabsContent>
+
+              <TabsContent value="scope">
+                <OnsiteScopeDetail scope={scope} year={year} />
+              </TabsContent>
+
+              <TabsContent value="tables" className="space-y-4">
             <Card>
               <CardHeader><CardTitle>Synthèse mensuelle réseau</CardTitle></CardHeader>
               <CardContent className="overflow-x-auto">
+
                 <Table>
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
