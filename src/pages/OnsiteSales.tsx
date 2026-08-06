@@ -162,6 +162,11 @@ export default function OnsiteSales() {
         {/* Barre de filtres */}
         <div className="rounded-2xl border bg-muted/30 p-4">
           <div className="flex flex-wrap items-center gap-3">
+            <OnsiteRestaurantSelect
+              restaurants={allRestaurants ?? []}
+              selected={restaurantFilter}
+              onChange={setRestaurantFilter}
+            />
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
               <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
