@@ -13,6 +13,9 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { cn } from "@/lib/utils";
 import { useSplashOnsiteMonthly, deltaPct, avgBasket } from "@/hooks/useSplashOnsiteMonthly";
 import { exportOnsiteSalesExcel } from "@/hooks/useOnsiteSalesExport";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { OnsiteEvolutionChart, OnsiteScopeChart } from "@/components/analytics/onsite/OnsiteEvolutionChart";
+import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDetail";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
