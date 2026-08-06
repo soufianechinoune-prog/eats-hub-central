@@ -27,7 +27,35 @@ export interface MonthAggregate {
   ordersCurrent: number;
   ordersPrevious: number;
   daysZeroCurrent: number;
+  daysActiveCurrent: number;
+  daysActivePrevious: number;
   isPartial: boolean;
+}
+
+/** Statut d'un restaurant sur un mois donné, vis-à-vis du périmètre constant. */
+export type ScopeStatus = "lfl" | "opened" | "closed";
+
+export interface ScopeRestaurant {
+  restaurantId: string;
+  name: string;
+  status: ScopeStatus;
+  current: number;
+  previous: number;
+  daysActiveCurrent: number;
+  daysActivePrevious: number;
+  daysZeroCurrent: number;
+}
+
+export interface ScopeMonth {
+  month: number;
+  isPartial: boolean;
+  lfl: ScopeRestaurant[];
+  opened: ScopeRestaurant[];
+  closed: ScopeRestaurant[];
+  lflCurrent: number;
+  lflPrevious: number;
+  openedCurrent: number;
+  closedPrevious: number;
 }
 
 export interface RestaurantAggregate {
