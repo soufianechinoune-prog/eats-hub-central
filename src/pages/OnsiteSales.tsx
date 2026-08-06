@@ -374,6 +374,8 @@ export default function OnsiteSales() {
             </Card>
               </TabsContent>
             </Tabs>
+          </>
+
 
         )}
       </div>
