@@ -281,6 +281,7 @@ export default function OnsiteSales() {
               <TabsList>
                 <TabsTrigger value="charts">Graphiques</TabsTrigger>
                 <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger value="stores">Par restaurant</TabsTrigger>
                 <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
               </TabsList>
 
@@ -292,6 +293,11 @@ export default function OnsiteSales() {
               <TabsContent value="scope">
                 <OnsiteScopeDetail scope={scope} year={year} />
               </TabsContent>
+
+              <TabsContent value="stores">
+                <OnsiteStoreDetail restaurants={restaurants} year={year} />
+              </TabsContent>
+
 
               <TabsContent value="tables" className="space-y-4">
             <Card>
