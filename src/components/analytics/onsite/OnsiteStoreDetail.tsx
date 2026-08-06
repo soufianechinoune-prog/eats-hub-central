@@ -94,16 +94,16 @@ export function OnsiteStoreDetail({
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="rounded-2xl">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">
           <div>
-            <CardTitle>Analyse store par store</CardTitle>
-            <p className="text-sm text-muted-foreground">
+            <CardTitle className="text-2xl font-bold tracking-tight">Analyse store par store</CardTitle>
+            <p className="mt-1 text-sm text-muted-foreground">
               CA sur place, volume de commandes et panier moyen, {year} vs {prev}.
             </p>
           </div>
           <Select value={selected ?? undefined} onValueChange={setSelected}>
-            <SelectTrigger className="w-[320px]"><SelectValue placeholder="Choisir un restaurant" /></SelectTrigger>
+            <SelectTrigger className="h-12 w-[320px] rounded-xl bg-background"><SelectValue placeholder="Choisir un restaurant" /></SelectTrigger>
             <SelectContent className="max-h-80">
               {sorted.map((r) => (
                 <SelectItem key={r.restaurantId} value={r.restaurantId}>{r.name}</SelectItem>
@@ -113,23 +113,23 @@ export function OnsiteStoreDetail({
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <p className="text-sm text-muted-foreground">CA sur place</p>
-              <p className="text-2xl font-bold">{fmtEur(resto.current)}</p>
+            <div className="rounded-2xl bg-muted/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CA sur place</p>
+              <p className="mt-1 text-3xl font-bold tracking-tight">{fmtEur(resto.current)}</p>
               <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <Delta current={resto.current} previous={resto.previous} /> vs {fmtEur(resto.previous)} en {prev}
               </p>
             </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-sm text-muted-foreground">Commandes</p>
-              <p className="text-2xl font-bold">{fmtInt(resto.ordersCurrent)}</p>
+            <div className="rounded-2xl bg-muted/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commandes</p>
+              <p className="mt-1 text-3xl font-bold tracking-tight">{fmtInt(resto.ordersCurrent)}</p>
               <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <Delta current={resto.ordersCurrent} previous={resto.ordersPrevious} /> vs {fmtInt(resto.ordersPrevious)} en {prev}
               </p>
             </div>
-            <div className="rounded-lg border p-4">
-              <p className="text-sm text-muted-foreground">Panier moyen</p>
-              <p className="text-2xl font-bold">{resto.ordersCurrent > 0 ? fmtEur2(basketCur) : "--"}</p>
+            <div className="rounded-2xl bg-muted/30 p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Panier moyen</p>
+              <p className="mt-1 text-3xl font-bold tracking-tight">{resto.ordersCurrent > 0 ? fmtEur2(basketCur) : "--"}</p>
               <p className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
                 <Delta current={basketCur} previous={basketPrev} /> vs {resto.ordersPrevious > 0 ? fmtEur2(basketPrev) : "--"} en {prev}
               </p>
@@ -137,6 +137,7 @@ export function OnsiteStoreDetail({
           </div>
         </CardContent>
       </Card>
+
 
       <Card>
         <CardHeader>
