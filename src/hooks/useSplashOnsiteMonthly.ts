@@ -227,7 +227,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
         if (cur === 0 && prev === 0) continue;
         const partial = m === currentMonthPartial;
         const countable = (includePartialMonth || !partial) && cur > 0;
-        const isLfl = cur > 0 && prev > 0;
+        const isLfl = cur > 0 && prev > 0 && !partial;
 
         const monthRow: MonthAggregate = {
           month: m,
