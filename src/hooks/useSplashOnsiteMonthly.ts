@@ -75,6 +75,10 @@ export interface RestaurantAggregate {
 interface Options {
   year: number;
   includePartialMonth: boolean;
+  /** Premier mois inclus (1-12), défaut 1 */
+  monthFrom?: number;
+  /** Dernier mois inclus (1-12), défaut 12 */
+  monthTo?: number;
 }
 
 interface Bucket {
@@ -86,7 +90,7 @@ interface Bucket {
 
 const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
-export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
+export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12 }: Options) {
   const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
@@ -209,7 +213,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
 
     for (const [rid, agg] of byRestaurant) {
       const map = valueMap.get(rid)!;
-      for (let m = 1; m <= 12; m++) {
+      for (let m = monthFrom; m <= monthTo; m++) {
         const curB = map.get(key(m, year)) ?? emptyBucket();
         const prevB = map.get(key(m, year - 1)) ?? emptyBucket();
         const cur = curB.ttc;
@@ -305,8 +309,11 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       ).size,
     };
 
+    const inRange = (month: number) =>
+      month >= monthFrom && month <= monthTo && (currentMonthPartial === 0 || month <= currentMonthPartial);
+
     const inScope = (m: { month: number; current: number; previous: number }) =>
-      (m.current > 0 || m.previous > 0) && (currentMonthPartial === 0 || m.month <= currentMonthPartial);
+      (m.current > 0 || m.previous > 0) && inRange(m.month);
 
     for (const r of restaurants) r.months = r.months.filter(inScope);
 
@@ -318,12 +325,11 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
     }
 
     const scope = scopeMonths.filter((sm) =>
-      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) &&
-      (currentMonthPartial === 0 || sm.month <= currentMonthPartial)
+      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inRange(sm.month)
     );
 
     return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
-  }, [query.data, year, includePartialMonth]);
+  }, [query.data, year, includePartialMonth, monthFrom, monthTo]);
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
 

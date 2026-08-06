@@ -69,14 +69,50 @@ function Delta({ current, previous }: { current: number; previous: number }) {
 }
 
 
+const PRESETS: { value: string; label: string; range: [number, number] | null }[] = [
+  { value: "full", label: "Année complète", range: [1, 12] },
+  { value: "t1", label: "T1 (Jan-Mar)", range: [1, 3] },
+  { value: "t2", label: "T2 (Avr-Juin)", range: [4, 6] },
+  { value: "t3", label: "T3 (Juil-Sep)", range: [7, 9] },
+  { value: "t4", label: "T4 (Oct-Déc)", range: [10, 12] },
+  { value: "s1", label: "S1 (Jan-Juin)", range: [1, 6] },
+  { value: "s2", label: "S2 (Juil-Déc)", range: [7, 12] },
+  { value: "custom", label: "Personnalisé", range: null },
+];
+
 export default function OnsiteSales() {
   const [year, setYear] = useState(2026);
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [preset, setPreset] = useState("full");
+  const [monthFrom, setMonthFrom] = useState(1);
+  const [monthTo, setMonthTo] = useState(12);
+
+  const applyPreset = (value: string) => {
+    setPreset(value);
+    const p = PRESETS.find((x) => x.value === value);
+    if (p?.range) {
+      setMonthFrom(p.range[0]);
+      setMonthTo(p.range[1]);
+    }
+  };
+
+  const setFrom = (m: number) => {
+    setPreset("custom");
+    setMonthFrom(m);
+    if (m > monthTo) setMonthTo(m);
+  };
+  const setTo = (m: number) => {
+    setPreset("custom");
+    setMonthTo(m);
+    if (m < monthFrom) setMonthFrom(m);
+  };
 
   const { networkMonths, restaurants, totals, scope, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
     year,
     includePartialMonth,
+    monthFrom,
+    monthTo,
   });
 
 
@@ -88,6 +124,13 @@ export default function OnsiteSales() {
     [networkMonths]
   );
 
+  const periodLabel =
+    monthFrom === 1 && monthTo === 12
+      ? "année complète"
+      : monthFrom === monthTo
+        ? MONTHS[monthFrom - 1]
+        : `${MONTHS[monthFrom - 1]} → ${MONTHS[monthTo - 1]}`;
+
   return (
     <AppLayout>
       <div className="space-y-6">
@@ -95,7 +138,7 @@ export default function OnsiteSales() {
           <div>
             <h1 className="text-2xl font-bold">Ventes sur place — {year} vs {prev}</h1>
             <p className="text-muted-foreground">
-              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque, par restaurant et par mois.
+              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque · période : {periodLabel}.
             </p>
           </div>
 
@@ -110,6 +153,27 @@ export default function OnsiteSales() {
                 {YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Select value={preset} onValueChange={applyPreset}>
+              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-2">
+              <Select value={String(monthFrom)} onValueChange={(v) => setFrom(Number(v))}>
+                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <span className="text-muted-foreground">→</span>
+              <Select value={String(monthTo)} onValueChange={(v) => setTo(Number(v))}>
+                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <Button
               variant="outline"
               className="gap-2"
@@ -121,6 +185,7 @@ export default function OnsiteSales() {
             </Button>
           </div>
         </div>
+
 
         {(hasPartial || prevIncomplete) && (
           <Alert>
