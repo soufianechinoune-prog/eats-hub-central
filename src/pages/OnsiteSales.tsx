@@ -297,7 +297,7 @@ export default function OnsiteSales() {
                 <CardHeader className="pb-2">
                   <CardTitle className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
                     Évolution LFL
-                    <OnsiteLflHelp year={year} className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                    <OnsiteLflHelp year={year} />
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
