@@ -439,7 +439,7 @@ export default function OnsiteSales() {
                         {expanded === r.restaurantId && (
                           <TableRow className="hover:bg-transparent">
                             <TableCell />
-                            <TableCell colSpan={9} className="p-0 pb-4">
+                            <TableCell colSpan={10} className="p-0 pb-4">
                               <Table>
                                 <TableHeader>
                                   <TableRow className="hover:bg-transparent">
