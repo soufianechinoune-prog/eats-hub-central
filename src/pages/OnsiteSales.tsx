@@ -372,7 +372,9 @@ export default function OnsiteSales() {
                 </Table>
               </CardContent>
             </Card>
-          </>
+              </TabsContent>
+            </Tabs>
+
         )}
       </div>
     </AppLayout>
