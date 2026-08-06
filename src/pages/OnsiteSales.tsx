@@ -17,6 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnsiteEvolutionChart, OnsiteScopeChart } from "@/components/analytics/onsite/OnsiteEvolutionChart";
 import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDetail";
 import { OnsiteStoreDetail } from "@/components/analytics/onsite/OnsiteStoreDetail";
+import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRestaurantSelect";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
@@ -88,6 +90,9 @@ export default function OnsiteSales() {
   const [preset, setPreset] = useState("full");
   const [monthFrom, setMonthFrom] = useState(1);
   const [monthTo, setMonthTo] = useState(12);
+  const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
+  const { data: allRestaurants } = useActiveRestaurants();
+
 
   const applyPreset = (value: string) => {
     setPreset(value);
@@ -114,6 +119,7 @@ export default function OnsiteSales() {
     includePartialMonth,
     monthFrom,
     monthTo,
+    restaurantIds: restaurantFilter,
   });
 
 
@@ -156,6 +162,11 @@ export default function OnsiteSales() {
         {/* Barre de filtres */}
         <div className="rounded-2xl border bg-muted/30 p-4">
           <div className="flex flex-wrap items-center gap-3">
+            <OnsiteRestaurantSelect
+              restaurants={allRestaurants ?? []}
+              selected={restaurantFilter}
+              onChange={setRestaurantFilter}
+            />
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
               <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>

@@ -79,6 +79,8 @@ interface Options {
   monthFrom?: number;
   /** Dernier mois inclus (1-12), défaut 12 */
   monthTo?: number;
+  /** Filtre restaurants (vide/undefined = tout le réseau de la marque) */
+  restaurantIds?: string[];
 }
 
 interface Bucket {
@@ -90,7 +92,7 @@ interface Bucket {
 
 const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
-export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12 }: Options) {
+export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds }: Options) {
   const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
@@ -147,8 +149,12 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     unmappedRevenueTtc: 0,
   };
 
+  const filterKey = (restaurantIds ?? []).slice().sort().join(",");
+
   const computed = useMemo(() => {
-    const rows = query.data?.rows ?? [];
+    const allRows = query.data?.rows ?? [];
+    const filterSet = filterKey ? new Set(filterKey.split(",")) : null;
+    const rows = filterSet ? allRows.filter((r) => filterSet.has(r.restaurant_id)) : allRows;
     const now = new Date();
     const currentMonthPartial = year === now.getFullYear() ? now.getMonth() + 1 : 0;
 
@@ -329,7 +335,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     );
 
     return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
-  }, [query.data, year, includePartialMonth, monthFrom, monthTo]);
+  }, [query.data, year, includePartialMonth, monthFrom, monthTo, filterKey]);
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
 
