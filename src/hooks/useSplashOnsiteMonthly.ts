@@ -213,7 +213,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
 
     for (const [rid, agg] of byRestaurant) {
       const map = valueMap.get(rid)!;
-      for (let m = 1; m <= 12; m++) {
+      for (let m = monthFrom; m <= monthTo; m++) {
         const curB = map.get(key(m, year)) ?? emptyBucket();
         const prevB = map.get(key(m, year - 1)) ?? emptyBucket();
         const cur = curB.ttc;
