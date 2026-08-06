@@ -244,51 +244,52 @@ export default function OnsiteSales() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{fmt(totals.current)}</p></CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold tracking-tight">{fmt(totals.current)}</p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {prev}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{fmt(totals.previous)}</p></CardContent>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CA sur place {prev}</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold tracking-tight text-muted-foreground">{fmt(totals.previous)}</p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution brute</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution brute</CardTitle></CardHeader>
+                <CardContent><p className="text-3xl font-bold tracking-tight"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{fmtInt(totals.ordersCurrent)}</p>
+                  <p className="text-3xl font-bold tracking-tight">{fmtInt(totals.ordersCurrent)}</p>
                   <p className="text-xs text-muted-foreground">
                     Panier moyen {fmtBasket(totals.current, totals.ordersCurrent)} · {fmtInt(totals.ordersPrevious)} en {prev}
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
+                  <p className="text-3xl font-bold tracking-tight"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
                   <p className="text-xs text-muted-foreground">{fmt(totals.lflCurrent)} vs {fmt(totals.lflPrevious)}</p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Restaurants LFL</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Restaurants LFL</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="flex items-center gap-2 text-2xl font-bold"><Store className="h-5 w-5 text-muted-foreground" />{totals.lflRestaurants}</p>
+                  <p className="flex items-center gap-2 text-3xl font-bold tracking-tight"><Store className="h-5 w-5 text-muted-foreground" />{totals.lflRestaurants}</p>
                   <p className="text-xs text-muted-foreground">sur {restaurants.length} restaurants</p>
                 </CardContent>
               </Card>
             </div>
 
             <Tabs defaultValue="charts" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="charts">Graphiques</TabsTrigger>
-                <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
-                <TabsTrigger value="stores">Par restaurant</TabsTrigger>
-                <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
+              <TabsList className="h-auto gap-1 rounded-2xl bg-muted/40 p-1.5">
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="charts">Vue globale</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="stores">Par restaurant</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="tables">Tableaux détaillés</TabsTrigger>
               </TabsList>
+
 
               <TabsContent value="charts" className="space-y-4">
                 <OnsiteEvolutionChart months={networkMonths} year={year} />
