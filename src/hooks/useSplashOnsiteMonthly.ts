@@ -345,7 +345,8 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
 }
 
 export const deltaPct = (current: number, previous: number): number | null => {
-  if (!previous) return current > 0 ? 100 : null;
+  // Pas de base N-1 (0 €) => aucune évolution calculable (pas de "+100%" trompeur)
+  if (!previous) return null;
   return ((current - previous) / previous) * 100;
 };
 
