@@ -309,8 +309,11 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
       ).size,
     };
 
+    const inRange = (month: number) =>
+      month >= monthFrom && month <= monthTo && (currentMonthPartial === 0 || month <= currentMonthPartial);
+
     const inScope = (m: { month: number; current: number; previous: number }) =>
-      (m.current > 0 || m.previous > 0) && (currentMonthPartial === 0 || m.month <= currentMonthPartial);
+      (m.current > 0 || m.previous > 0) && inRange(m.month);
 
     for (const r of restaurants) r.months = r.months.filter(inScope);
 
@@ -322,12 +325,11 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     }
 
     const scope = scopeMonths.filter((sm) =>
-      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) &&
-      (currentMonthPartial === 0 || sm.month <= currentMonthPartial)
+      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inRange(sm.month)
     );
 
     return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
-  }, [query.data, year, includePartialMonth]);
+  }, [query.data, year, includePartialMonth, monthFrom, monthTo]);
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
 
