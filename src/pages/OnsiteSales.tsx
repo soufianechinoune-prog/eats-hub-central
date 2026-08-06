@@ -16,6 +16,7 @@ import { exportOnsiteSalesExcel } from "@/hooks/useOnsiteSalesExport";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnsiteEvolutionChart, OnsiteScopeChart } from "@/components/analytics/onsite/OnsiteEvolutionChart";
 import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDetail";
+import { OnsiteStoreDetail } from "@/components/analytics/onsite/OnsiteStoreDetail";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
@@ -280,6 +281,7 @@ export default function OnsiteSales() {
               <TabsList>
                 <TabsTrigger value="charts">Graphiques</TabsTrigger>
                 <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger value="stores">Par restaurant</TabsTrigger>
                 <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
               </TabsList>
 
@@ -291,6 +293,11 @@ export default function OnsiteSales() {
               <TabsContent value="scope">
                 <OnsiteScopeDetail scope={scope} year={year} />
               </TabsContent>
+
+              <TabsContent value="stores">
+                <OnsiteStoreDetail restaurants={restaurants} year={year} />
+              </TabsContent>
+
 
               <TabsContent value="tables" className="space-y-4">
             <Card>
