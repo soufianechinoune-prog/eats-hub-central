@@ -344,6 +344,7 @@ export default function OnsiteSales() {
                       <TableHead className="text-right">Cmd {prev}</TableHead>
                       <TableHead className="text-right">Évol. cmd</TableHead>
                       <TableHead className="text-right">Panier moy. {year}</TableHead>
+                      <TableHead className="text-right">Panier moy. {prev}</TableHead>
                       <TableHead className="text-right">LFL {year}</TableHead>
                       <TableHead className="text-right">LFL {prev}</TableHead>
                       <TableHead className="text-right">Évol. LFL</TableHead>
