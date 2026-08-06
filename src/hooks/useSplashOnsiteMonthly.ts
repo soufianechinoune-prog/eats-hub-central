@@ -318,6 +318,9 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     const inRange = (month: number) =>
       month >= monthFrom && month <= monthTo && (currentMonthPartial === 0 || month <= currentMonthPartial);
 
+    const inScopeRange = (month: number) =>
+      month >= monthFrom && month <= monthTo && (currentMonthPartial === 0 || month < currentMonthPartial);
+
     const inScope = (m: { month: number; current: number; previous: number }) =>
       (m.current > 0 || m.previous > 0) && inRange(m.month);
 
@@ -331,7 +334,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     }
 
     const scope = scopeMonths.filter((sm) =>
-      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inRange(sm.month)
+      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inScopeRange(sm.month)
     );
 
     return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
