@@ -119,6 +119,7 @@ export default function OnsiteSales() {
     includePartialMonth,
     monthFrom,
     monthTo,
+    restaurantIds: restaurantFilter,
   });
 
 
