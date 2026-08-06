@@ -43,28 +43,62 @@ export function OnsiteEvolutionChart({ months, year }: { months: MonthAggregate[
     [months, mode]
   );
 
+  const totals = useMemo(() => {
+    const cur = data.reduce((s, d) => s + (d.current || 0), 0);
+    const old = data.reduce((s, d) => s + (d.previous || 0), 0);
+    return { cur, old, delta: deltaPct(cur, old) };
+  }, [data]);
+
   return (
-    <Card>
+    <Card className="rounded-2xl">
       <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-4 space-y-0">
         <div>
-          <CardTitle>Évolution mensuelle {year} vs {prev}</CardTitle>
-          <p className="text-sm text-muted-foreground">
+          <CardTitle className="text-2xl font-bold tracking-tight">
+            Évolution du CA sur place{" "}
+            <span className="text-sm font-normal text-muted-foreground">({year} vs {prev})</span>
+          </CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">
             {mode === "lfl"
               ? "Périmètre constant : uniquement les restaurants ouverts sur les deux années, mois par mois."
               : "Vue brute : tout le réseau, y compris les ouvertures et fermetures."}
           </p>
         </div>
-        <ToggleGroup
-          type="single"
-          value={mode}
-          onValueChange={(v) => v && setMode(v as Mode)}
-          variant="outline"
-          size="sm"
-        >
-          <ToggleGroupItem value="brut">Brut</ToggleGroupItem>
-          <ToggleGroupItem value="lfl">Périmètre constant</ToggleGroupItem>
-        </ToggleGroup>
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-5 rounded-xl bg-muted/30 px-4 py-2.5">
+            <div className="text-right">
+              <p className="text-xs leading-tight text-muted-foreground">{year}</p>
+              <p className="text-lg font-bold leading-tight">{fmtEur(totals.cur)}</p>
+            </div>
+            <div className="text-right">
+              <p className="text-xs leading-tight text-muted-foreground">{prev}</p>
+              <p className="text-lg font-semibold leading-tight text-muted-foreground">{fmtEur(totals.old)}</p>
+            </div>
+            <p
+              className={
+                totals.delta === null
+                  ? "text-sm text-muted-foreground"
+                  : totals.delta >= 0
+                    ? "text-sm font-semibold text-emerald-600"
+                    : "text-sm font-semibold text-destructive"
+              }
+            >
+              {totals.delta === null ? "--" : `${totals.delta > 0 ? "+" : ""}${totals.delta.toFixed(1)}%`}
+            </p>
+          </div>
+          <ToggleGroup
+            type="single"
+            value={mode}
+            onValueChange={(v) => v && setMode(v as Mode)}
+            variant="outline"
+            size="sm"
+            className="rounded-xl"
+          >
+            <ToggleGroupItem className="rounded-lg" value="brut">Brut</ToggleGroupItem>
+            <ToggleGroupItem className="rounded-lg" value="lfl">Périmètre constant</ToggleGroupItem>
+          </ToggleGroup>
+        </div>
       </CardHeader>
+
       <CardContent>
         <ResponsiveContainer width="100%" height={340}>
           <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }}>
@@ -127,7 +161,7 @@ export function OnsiteScopeChart({ months, year }: { months: MonthAggregate[]; y
   );
 
   return (
-    <Card>
+    <Card className="rounded-2xl">
       <CardHeader>
         <CardTitle>Taille du périmètre constant par mois</CardTitle>
         <p className="text-sm text-muted-foreground">

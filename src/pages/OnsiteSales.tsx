@@ -135,57 +135,62 @@ export default function OnsiteSales() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        {/* Header façon "Revenus & Ventes" */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Ventes sur place — {year} vs {prev}</h1>
-            <p className="text-muted-foreground">
-              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque · période : {periodLabel}.
+            <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
+            <p className="mt-1 text-muted-foreground">
+              CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
             </p>
           </div>
+          <Button
+            className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={isLoading || restaurants.length === 0}
+            onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
+          >
+            <Download className="h-4 w-4" />
+            Exporter Excel
+          </Button>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
-              <Label htmlFor="partial" className="text-sm">Inclure le mois en cours</Label>
-            </div>
+        {/* Barre de filtres */}
+        <div className="rounded-2xl border bg-muted/30 p-4">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={preset} onValueChange={applyPreset}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-12 w-52 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
               <Select value={String(monthFrom)} onValueChange={(v) => setFrom(Number(v))}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 w-24 rounded-xl bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
               <span className="text-muted-foreground">→</span>
               <Select value={String(monthTo)} onValueChange={(v) => setTo(Number(v))}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 w-24 rounded-xl bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              variant="outline"
-              className="gap-2"
-              disabled={isLoading || restaurants.length === 0}
-              onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
-            >
-              <Download className="h-4 w-4" />
-              Export Excel
-            </Button>
+            <div className="ml-auto flex items-center gap-2 rounded-xl bg-background px-4 py-3">
+              <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
+              <Label htmlFor="partial" className="text-sm">Inclure le mois en cours</Label>
+            </div>
           </div>
         </div>
+
+
 
 
         {(hasPartial || prevIncomplete) && (
@@ -239,51 +244,52 @@ export default function OnsiteSales() {
           </div>
         ) : (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{fmt(totals.current)}</p></CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CA sur place {year}</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold tracking-tight">{fmt(totals.current)}</p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">CA sur place {prev}</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{fmt(totals.previous)}</p></CardContent>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">CA sur place {prev}</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold tracking-tight text-muted-foreground">{fmt(totals.previous)}</p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution brute</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution brute</CardTitle></CardHeader>
+                <CardContent><p className="text-2xl font-bold tracking-tight"><Delta current={totals.current} previous={totals.previous} /></p></CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Commandes {year}</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold">{fmtInt(totals.ordersCurrent)}</p>
+                  <p className="text-2xl font-bold tracking-tight">{fmtInt(totals.ordersCurrent)}</p>
                   <p className="text-xs text-muted-foreground">
                     Panier moyen {fmtBasket(totals.current, totals.ordersCurrent)} · {fmtInt(totals.ordersPrevious)} en {prev}
                   </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="text-2xl font-bold"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
+                  <p className="text-2xl font-bold tracking-tight"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
                   <p className="text-xs text-muted-foreground">{fmt(totals.lflCurrent)} vs {fmt(totals.lflPrevious)}</p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Restaurants LFL</CardTitle></CardHeader>
+              <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
+                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Restaurants LFL</CardTitle></CardHeader>
                 <CardContent>
-                  <p className="flex items-center gap-2 text-2xl font-bold"><Store className="h-5 w-5 text-muted-foreground" />{totals.lflRestaurants}</p>
+                  <p className="flex items-center gap-2 text-2xl font-bold tracking-tight"><Store className="h-5 w-5 text-muted-foreground" />{totals.lflRestaurants}</p>
                   <p className="text-xs text-muted-foreground">sur {restaurants.length} restaurants</p>
                 </CardContent>
               </Card>
             </div>
 
             <Tabs defaultValue="charts" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="charts">Graphiques</TabsTrigger>
-                <TabsTrigger value="scope">Périmètre constant</TabsTrigger>
-                <TabsTrigger value="stores">Par restaurant</TabsTrigger>
-                <TabsTrigger value="tables">Tableaux détaillés</TabsTrigger>
+              <TabsList className="h-auto gap-1 rounded-2xl bg-muted/40 p-1.5">
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="charts">Vue globale</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="scope">Périmètre constant</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="stores">Par restaurant</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="tables">Tableaux détaillés</TabsTrigger>
               </TabsList>
+
 
               <TabsContent value="charts" className="space-y-4">
                 <OnsiteEvolutionChart months={networkMonths} year={year} />
