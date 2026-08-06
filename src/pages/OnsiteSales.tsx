@@ -18,6 +18,7 @@ import { OnsiteEvolutionChart, OnsiteScopeChart } from "@/components/analytics/o
 import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDetail";
 import { OnsiteStoreDetail } from "@/components/analytics/onsite/OnsiteStoreDetail";
 import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRestaurantSelect";
+import { OnsiteLflHelp } from "@/components/analytics/onsite/OnsiteLflHelp";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
@@ -143,11 +144,14 @@ export default function OnsiteSales() {
       <div className="space-y-6">
         {/* Header façon "Revenus & Ventes" */}
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
-            <p className="mt-1 text-muted-foreground">
-              CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
-            </p>
+          <div className="flex items-start gap-2">
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
+              <p className="mt-1 text-muted-foreground">
+                CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
+              </p>
+            </div>
+            <OnsiteLflHelp year={year} />
           </div>
           <Button
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
@@ -290,7 +294,12 @@ export default function OnsiteSales() {
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
-                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Évolution LFL
+                    <OnsiteLflHelp year={year} />
+                  </CardTitle>
+                </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold tracking-tight"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
                   <p className="text-xs text-muted-foreground">{fmt(totals.lflCurrent)} vs {fmt(totals.lflPrevious)}</p>
