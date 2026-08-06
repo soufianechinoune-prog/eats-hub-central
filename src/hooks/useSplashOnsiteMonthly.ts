@@ -75,6 +75,10 @@ export interface RestaurantAggregate {
 interface Options {
   year: number;
   includePartialMonth: boolean;
+  /** Premier mois inclus (1-12), défaut 1 */
+  monthFrom?: number;
+  /** Dernier mois inclus (1-12), défaut 12 */
+  monthTo?: number;
 }
 
 interface Bucket {
