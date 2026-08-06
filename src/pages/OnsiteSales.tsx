@@ -294,7 +294,12 @@ export default function OnsiteSales() {
                 </CardContent>
               </Card>
               <Card className="rounded-2xl border-none bg-muted/30 shadow-none">
-                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Évolution LFL</CardTitle></CardHeader>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Évolution LFL
+                    <OnsiteLflHelp year={year} className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                  </CardTitle>
+                </CardHeader>
                 <CardContent>
                   <p className="text-2xl font-bold tracking-tight"><Delta current={totals.lflCurrent} previous={totals.lflPrevious} /></p>
                   <p className="text-xs text-muted-foreground">{fmt(totals.lflCurrent)} vs {fmt(totals.lflPrevious)}</p>
