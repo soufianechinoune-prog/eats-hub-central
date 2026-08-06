@@ -467,6 +467,7 @@ export default function OnsiteSales() {
                                       <TableCell className="text-right">{fmtInt(m.ordersCurrent)}</TableCell>
                                       <TableCell className="text-right text-muted-foreground">{fmtInt(m.ordersPrevious)}</TableCell>
                                       <TableCell className="text-right">{fmtBasket(m.current, m.ordersCurrent)}</TableCell>
+                                      <TableCell className="text-right text-muted-foreground">{fmtBasket(m.previous, m.ordersPrevious)}</TableCell>
                                       <TableCell className="text-right">{m.lflRestaurants > 0 ? "Oui" : "Non"}</TableCell>
                                     </TableRow>
                                   ))}
