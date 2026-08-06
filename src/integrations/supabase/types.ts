@@ -6032,6 +6032,21 @@ export type Database = {
         }[]
       }
       splash_backfill_reset_stuck: { Args: never; Returns: number }
+      splash_duplicate_mappings: {
+        Args: { p_chain_id: string }
+        Returns: {
+          days_count: number
+          first_sale: string
+          is_not_applicable: boolean
+          last_sale: string
+          order_count: number
+          restaurant_id: string
+          restaurant_name: string
+          restaurant_splash_id: number
+          revenue_ttc: number
+          splash_name: string
+        }[]
+      }
       splash_mapping_overview: {
         Args: { p_chain_id: string }
         Returns: {
