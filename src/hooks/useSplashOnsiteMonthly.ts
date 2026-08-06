@@ -229,6 +229,8 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
           ordersCurrent: curB.orders,
           ordersPrevious: prevB.orders,
           daysZeroCurrent: curB.daysZero,
+          daysActiveCurrent: curB.daysActive,
+          daysActivePrevious: prevB.daysActive,
           isPartial: partial,
         };
         agg.months.push(monthRow);
@@ -252,10 +254,35 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
         nm.ordersCurrent += curB.orders;
         nm.ordersPrevious += prevB.orders;
         nm.daysZeroCurrent += curB.daysZero;
+        nm.daysActiveCurrent += curB.daysActive;
+        nm.daysActivePrevious += prevB.daysActive;
         if (isLfl) {
           nm.lflCurrent += cur;
           nm.lflPrevious += prev;
           nm.lflRestaurants += 1;
+        }
+
+        const sm = scopeMonths[m - 1];
+        const entry: ScopeRestaurant = {
+          restaurantId: rid,
+          name: agg.name,
+          status: isLfl ? "lfl" : cur > 0 ? "opened" : "closed",
+          current: cur,
+          previous: prev,
+          daysActiveCurrent: curB.daysActive,
+          daysActivePrevious: prevB.daysActive,
+          daysZeroCurrent: curB.daysZero,
+        };
+        if (entry.status === "lfl") {
+          sm.lfl.push(entry);
+          sm.lflCurrent += cur;
+          sm.lflPrevious += prev;
+        } else if (entry.status === "opened") {
+          sm.opened.push(entry);
+          sm.openedCurrent += cur;
+        } else {
+          sm.closed.push(entry);
+          sm.closedPrevious += prev;
         }
       }
       agg.months.sort((a, b) => a.month - b.month);
@@ -283,7 +310,19 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
 
     for (const r of restaurants) r.months = r.months.filter(inScope);
 
-    return { networkMonths: networkMonths.filter(inScope), restaurants, totals };
+    for (const sm of scopeMonths) {
+      const desc = (a: ScopeRestaurant, b: ScopeRestaurant) => (b.current || b.previous) - (a.current || a.previous);
+      sm.lfl.sort(desc);
+      sm.opened.sort(desc);
+      sm.closed.sort(desc);
+    }
+
+    const scope = scopeMonths.filter((sm) =>
+      (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) &&
+      (currentMonthPartial === 0 || sm.month <= currentMonthPartial)
+    );
+
+    return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
   }, [query.data, year, includePartialMonth]);
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
