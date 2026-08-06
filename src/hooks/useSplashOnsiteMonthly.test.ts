@@ -63,7 +63,7 @@ const renderMonthly = async (includePartialMonth: boolean) => {
 
 describe("useSplashOnsiteMonthly — mois en cours et périmètre constant", () => {
   beforeAll(() => {
-    vi.useFakeTimers();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     // 6 août 2026 → le mois en cours est août (mois 8)
     vi.setSystemTime(new Date("2026-08-06T10:00:00Z"));
   });
