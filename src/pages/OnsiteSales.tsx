@@ -74,7 +74,7 @@ export default function OnsiteSales() {
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { networkMonths, restaurants, totals, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
+  const { networkMonths, restaurants, totals, scope, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
     year,
     includePartialMonth,
   });
