@@ -208,7 +208,7 @@ export default function OnsiteSales() {
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              {hasPartial && <>Le mois en cours est partiel : il est {includePartialMonth ? "inclus" : "exclu"} des totaux. </>}
+              {hasPartial && <>Le mois en cours (août) est partiel : il est {includePartialMonth ? "affiché mais exclu du périmètre constant LFL" : "exclu des totaux et du périmètre constant LFL"}. </>}
               {prevIncomplete && <>Les données Splash démarrent en mai 2024 : la comparaison sur {prev} est incomplète (janvier à avril manquants).</>}
             </AlertDescription>
           </Alert>
