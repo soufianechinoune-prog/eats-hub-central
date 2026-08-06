@@ -19,6 +19,7 @@ import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDeta
 import { OnsiteStoreDetail } from "@/components/analytics/onsite/OnsiteStoreDetail";
 import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRestaurantSelect";
 import { OnsiteLflHelp } from "@/components/analytics/onsite/OnsiteLflHelp";
+import { OnsiteVolumeBasket } from "@/components/analytics/onsite/OnsiteVolumeBasket";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
