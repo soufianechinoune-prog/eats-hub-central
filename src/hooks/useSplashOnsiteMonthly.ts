@@ -176,6 +176,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       b.ttc += row.revenue_onsite_ttc;
       b.orders += row.orders_onsite;
       b.daysZero += row.days_zero;
+      b.daysActive += Math.max(0, (row.days_count || 0) - (row.days_zero || 0));
       map.set(k, b);
     }
 
@@ -189,7 +190,21 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
       ordersCurrent: 0,
       ordersPrevious: 0,
       daysZeroCurrent: 0,
+      daysActiveCurrent: 0,
+      daysActivePrevious: 0,
       isPartial: i + 1 === currentMonthPartial,
+    }));
+
+    const scopeMonths: ScopeMonth[] = Array.from({ length: 12 }, (_, i) => ({
+      month: i + 1,
+      isPartial: i + 1 === currentMonthPartial,
+      lfl: [],
+      opened: [],
+      closed: [],
+      lflCurrent: 0,
+      lflPrevious: 0,
+      openedCurrent: 0,
+      closedPrevious: 0,
     }));
 
     for (const [rid, agg] of byRestaurant) {
