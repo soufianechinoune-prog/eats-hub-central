@@ -144,11 +144,14 @@ export default function OnsiteSales() {
       <div className="space-y-6">
         {/* Header façon "Revenus & Ventes" */}
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
-            <p className="mt-1 text-muted-foreground">
-              CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
-            </p>
+          <div className="flex items-start gap-2">
+            <div>
+              <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
+              <p className="mt-1 text-muted-foreground">
+                CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
+              </p>
+            </div>
+            <OnsiteLflHelp year={year} className="mt-2 text-muted-foreground hover:text-foreground" />
           </div>
           <Button
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
