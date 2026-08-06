@@ -215,27 +215,39 @@ export default function OnsiteSales() {
         )}
 
         {(monthsWithGaps.length > 0 || coverage.unmappedSplashIds > 0) && (
-          <Alert>
-            <AlertTriangle className="h-4 w-4 text-amber-500" />
-            <AlertDescription className="space-y-1">
-              <p className="font-medium">Couverture des données Splash {year}</p>
-              {monthsWithGaps.length > 0 && (
-                <p>
-                  Jours manquants sur : {monthsWithGaps.join(", ")} — {fmtInt(coverage.daysZeroCurrent)} jours-restaurant
-                  sans données sur l'année. Les totaux de ces mois sont sous-estimés (resynchronisation Splash nécessaire).
-                </p>
-              )}
-              {coverage.unmappedSplashIds > 0 && (
-                <p>
-                  {coverage.unmappedSplashIds} restaurant(s) Splash non rattaché(s) à un restaurant de la plateforme, soit{" "}
-                  {fmt(coverage.unmappedRevenueTtc)} de CA sur place exclu de ce rapport.
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                C'est ce qui explique l'écart résiduel avec le dashboard Splash.
-              </p>
-            </AlertDescription>
-          </Alert>
+          <div className="rounded-xl border bg-muted/20 px-4 py-2.5 text-sm text-muted-foreground">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500/80" />
+                <span>
+                  Couverture Splash {year} : {fmtInt(coverage.daysZeroCurrent)} jour(s)-restaurant sans données
+                  {coverage.unmappedSplashIds > 0 && (
+                    <>, {coverage.unmappedSplashIds} boutique(s) non rattachée(s)</>
+                  )}.
+                </span>
+              </div>
+              <button
+                onClick={() => setExpanded(expanded === "coverage" ? null : "coverage")}
+                className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-foreground hover:underline"
+              >
+                {expanded === "coverage" ? "Moins" : "Détails"}
+                {expanded === "coverage" ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+            {expanded === "coverage" && (
+              <div className="mt-2 space-y-1 border-t border-border/50 pt-2 text-xs">
+                {monthsWithGaps.length > 0 && (
+                  <p>Mois avec des jours manquants : {monthsWithGaps.join(", ")}. Les totaux de ces mois sont sous-estimés.</p>
+                )}
+                {coverage.unmappedSplashIds > 0 && (
+                  <p>
+                    {coverage.unmappedSplashIds} restaurant(s) Splash non rattaché(s), soit {fmt(coverage.unmappedRevenueTtc)} de CA sur place exclu de ce rapport.
+                  </p>
+                )}
+                <p className="text-muted-foreground/80">Ces écarts expliquent la différence résiduelle avec le dashboard Splash.</p>
+              </div>
+            )}
+          </div>
         )}
 
 
