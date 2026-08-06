@@ -19,6 +19,7 @@ import { OnsiteScopeDetail } from "@/components/analytics/onsite/OnsiteScopeDeta
 import { OnsiteStoreDetail } from "@/components/analytics/onsite/OnsiteStoreDetail";
 import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRestaurantSelect";
 import { OnsiteLflHelp } from "@/components/analytics/onsite/OnsiteLflHelp";
+import { OnsiteVolumeBasket } from "@/components/analytics/onsite/OnsiteVolumeBasket";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
@@ -317,6 +318,7 @@ export default function OnsiteSales() {
             <Tabs defaultValue="charts" className="space-y-4">
               <TabsList className="h-auto gap-1 rounded-2xl bg-muted/40 p-1.5">
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="charts">Vue globale</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="drivers">Volume vs panier</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="scope">Périmètre constant</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="stores">Par restaurant</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="tables">Tableaux détaillés</TabsTrigger>
@@ -326,6 +328,10 @@ export default function OnsiteSales() {
               <TabsContent value="charts" className="space-y-4">
                 <OnsiteEvolutionChart months={networkMonths} year={year} />
                 <OnsiteScopeChart months={networkMonths} year={year} />
+              </TabsContent>
+
+              <TabsContent value="drivers">
+                <OnsiteVolumeBasket months={networkMonths} restaurants={restaurants} year={year} />
               </TabsContent>
 
               <TabsContent value="scope">
