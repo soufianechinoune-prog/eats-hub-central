@@ -449,7 +449,8 @@ export default function OnsiteSales() {
                                     <TableHead className="text-right">Évol.</TableHead>
                                     <TableHead className="text-right">Cmd {year}</TableHead>
                                     <TableHead className="text-right">Cmd {prev}</TableHead>
-                                    <TableHead className="text-right">Panier moy.</TableHead>
+                                    <TableHead className="text-right">Panier moy. {year}</TableHead>
+                                    <TableHead className="text-right">Panier moy. {prev}</TableHead>
                                     <TableHead className="text-right">Périmètre constant</TableHead>
                                   </TableRow>
                                 </TableHeader>
