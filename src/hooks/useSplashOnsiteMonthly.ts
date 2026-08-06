@@ -79,6 +79,8 @@ interface Options {
   monthFrom?: number;
   /** Dernier mois inclus (1-12), défaut 12 */
   monthTo?: number;
+  /** Filtre restaurants (vide/undefined = tout le réseau de la marque) */
+  restaurantIds?: string[];
 }
 
 interface Bucket {
