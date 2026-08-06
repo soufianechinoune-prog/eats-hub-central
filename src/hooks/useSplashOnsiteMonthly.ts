@@ -81,9 +81,10 @@ interface Bucket {
   ttc: number;
   orders: number;
   daysZero: number;
+  daysActive: number;
 }
 
-const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0 });
+const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
 export function useSplashOnsiteMonthly({ year, includePartialMonth }: Options) {
   const { selectedChainId } = useAnalyticsContext();
