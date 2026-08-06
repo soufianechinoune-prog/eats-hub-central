@@ -135,57 +135,62 @@ export default function OnsiteSales() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
+        {/* Header façon "Revenus & Ventes" */}
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Ventes sur place — {year} vs {prev}</h1>
-            <p className="text-muted-foreground">
-              CA caisse Splash (hors Uber Eats et Deliveroo), réseau complet de la marque · période : {periodLabel}.
+            <h1 className="text-4xl font-bold tracking-tight">Ventes sur place</h1>
+            <p className="mt-1 text-muted-foreground">
+              CA caisse Splash (hors Uber Eats et Deliveroo) · {year} vs {prev} · période : {periodLabel}
             </p>
           </div>
+          <Button
+            className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
+            disabled={isLoading || restaurants.length === 0}
+            onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
+          >
+            <Download className="h-4 w-4" />
+            Exporter Excel
+          </Button>
+        </div>
 
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
-              <Label htmlFor="partial" className="text-sm">Inclure le mois en cours</Label>
-            </div>
+        {/* Barre de filtres */}
+        <div className="rounded-2xl border bg-muted/30 p-4">
+          <div className="flex flex-wrap items-center gap-3">
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
-              <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {YEARS.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
               </SelectContent>
             </Select>
             <Select value={preset} onValueChange={applyPreset}>
-              <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="h-12 w-52 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {PRESETS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
               </SelectContent>
             </Select>
             <div className="flex items-center gap-2">
               <Select value={String(monthFrom)} onValueChange={(v) => setFrom(Number(v))}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 w-24 rounded-xl bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
               <span className="text-muted-foreground">→</span>
               <Select value={String(monthTo)} onValueChange={(v) => setTo(Number(v))}>
-                <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 w-24 rounded-xl bg-background"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MONTHS.map((m, i) => <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              variant="outline"
-              className="gap-2"
-              disabled={isLoading || restaurants.length === 0}
-              onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
-            >
-              <Download className="h-4 w-4" />
-              Export Excel
-            </Button>
+            <div className="ml-auto flex items-center gap-2 rounded-xl bg-background px-4 py-3">
+              <Switch id="partial" checked={includePartialMonth} onCheckedChange={setIncludePartialMonth} />
+              <Label htmlFor="partial" className="text-sm">Inclure le mois en cours</Label>
+            </div>
           </div>
         </div>
+
+
 
 
         {(hasPartial || prevIncomplete) && (
