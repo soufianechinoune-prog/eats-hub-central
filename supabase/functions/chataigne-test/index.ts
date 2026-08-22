@@ -2,17 +2,21 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 const BASE = 'https://server.chataigne.ai'
 const LOC = 'loc_51oqv3UojF'
+const ORG = 'busorg_fJF9DesU33'
 
 const PII_HINTS = [
   'name', 'first_name', 'last_name', 'phone', 'tel', 'email', 'mail',
   'address', 'adresse', 'street', 'postal', 'zip', 'city', 'lat', 'lng',
-  'longitude', 'latitude', 'customer', 'contact', 'recipient', 'note',
-  'comment', 'instruction', 'company', 'building', 'floor', 'door', 'code',
+  'longitude', 'latitude', 'contact', 'recipient', 'note', 'comment',
+  'instruction', 'company', 'building', 'floor', 'door', 'code',
+  'external_id', 'customer_id', 'whatsapp', 'instagram', 'handle', 'avatar',
+  'birth', 'gender', 'ip', 'device',
 ]
 
 const SAFE_KEYS = new Set([
-  'product_name', 'item_name', 'category_name', 'location_name', 'status_name',
-  'name_id',
+  'location_name', 'status_name', 'loyalty_status', 'order_count',
+  'orders_count', 'total_orders', 'total_spent', 'created_at', 'updated_at',
+  'first_order_at', 'last_order_at', 'average_order_value', 'currency',
 ])
 
 function isPii(key: string): boolean {
@@ -26,16 +30,12 @@ function mask(value: unknown): string {
   return `<masqué:${t}>`
 }
 
-function sanitize(value: unknown, parentKey = ''): unknown {
-  if (Array.isArray(value)) return value.map((v) => sanitize(v, parentKey))
+function sanitize(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((v) => sanitize(v))
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      if (isPii(k)) {
-        out[k] = mask(v)
-      } else {
-        out[k] = sanitize(v, k)
-      }
+      out[k] = isPii(k) ? mask(v) : sanitize(v)
     }
     return out
   }
@@ -51,10 +51,21 @@ async function tryFetch(url: string, key: string) {
     const text = await res.text()
     let json: unknown = null
     try { json = JSON.parse(text) } catch { /* keep null */ }
-    return { url, status: res.status, json, raw: text.slice(0, 400) }
+    return { url, status: res.status, json, raw: text.slice(0, 300) }
   } catch (e) {
     return { url, status: 0, json: null, raw: `error: ${(e as Error).message}` }
   }
+}
+
+function extractArray(j: unknown): Record<string, unknown>[] {
+  if (Array.isArray(j)) return j as Record<string, unknown>[]
+  if (j && typeof j === 'object') {
+    const o = j as Record<string, unknown>
+    for (const k of ['data', 'customers', 'results', 'items']) {
+      if (Array.isArray(o[k])) return o[k] as Record<string, unknown>[]
+    }
+  }
+  return []
 }
 
 Deno.serve(async (req) => {
@@ -67,68 +78,43 @@ Deno.serve(async (req) => {
     })
   }
 
-  const ORG = 'busorg_fJF9DesU33'
   const candidates = [
-    `${BASE}/v1/locations/${LOC}/orders?limit=5`,
-    `${BASE}/v1/organizations/${ORG}/orders?limit=5`,
-    `${BASE}/v1/organizations/${ORG}/locations/${LOC}/orders?limit=5`,
-    `${BASE}/v1/locations/${LOC}/orders?limit=5&status=all`,
+    { base: `${BASE}/v1/locations/${LOC}`, url: `${BASE}/v1/locations/${LOC}/customers?limit=3` },
+    { base: `${BASE}/v1/organizations/${ORG}`, url: `${BASE}/v1/organizations/${ORG}/customers?limit=3` },
   ]
 
-  const attempts: { url: string; status: number; body?: string | null }[] = []
-  let listOk: { url: string; status: number; json: unknown; raw: string | null } | null = null
+  const endpoints: Record<string, { status: number; error?: string; count?: number }> = {}
+  let okBase: string | null = null
+  let firstCustomer: Record<string, unknown> | null = null
 
-  for (const url of candidates) {
-    const r = await tryFetch(url, key)
-    attempts.push({ url: r.url.replace(key, '***'), status: r.status, body: r.status === 200 ? null : (r.raw ?? '').replace(key, '***') })
-    if (r.status === 200) { listOk = r; break }
-  }
-
-  let listShape: unknown = null
-  let ordersCount = 0
-  let firstOrderId: string | null = null
-  let ordersArr: Record<string, unknown>[] = []
-
-  if (listOk?.json && typeof listOk.json === 'object') {
-    const j = listOk.json as Record<string, unknown>
-    const topKeys = Array.isArray(j) ? ['<array>'] : Object.keys(j)
-    ordersArr = Array.isArray(j)
-      ? (j as Record<string, unknown>[])
-      : (Array.isArray(j.data) ? j.data as Record<string, unknown>[]
-        : Array.isArray(j.orders) ? j.orders as Record<string, unknown>[]
-        : Array.isArray(j.results) ? j.results as Record<string, unknown>[] : [])
-    ordersCount = ordersArr.length
-    firstOrderId = (ordersArr[0]?.id as string) ?? (ordersArr[0]?.order_id as string) ?? null
-    listShape = {
-      top_level_keys: topKeys,
-      pagination: {
-        has_more: Array.isArray(j) ? null : j.has_more ?? null,
-        next_cursor_hint: firstOrderId ? `starting_after=<last order id>` : null,
-        observed_pagination_keys: topKeys.filter((k) => /more|cursor|next|page|total|count|after/i.test(k)),
-      },
-      item_keys_sample: ordersArr[0] ? Object.keys(ordersArr[0]) : [],
+  for (const c of candidates) {
+    const r = await tryFetch(c.url, key)
+    const arr = r.status === 200 ? extractArray(r.json) : []
+    endpoints[c.url] = {
+      status: r.status,
+      ...(r.status === 200 ? { count: arr.length } : { error: (r.raw ?? '').replace(key, '***') }),
+    }
+    if (r.status === 200 && !okBase) {
+      okBase = c.base
+      firstCustomer = arr[0] ?? null
     }
   }
 
-  let detailStatus = 0
-  let orderSchema: unknown = null
-  if (firstOrderId) {
-    const d = await tryFetch(`${BASE}/v1/locations/${LOC}/orders/${firstOrderId}`, key)
-    detailStatus = d.status
-    if (d.status === 200 && d.json) orderSchema = sanitize(d.json)
-    else if (ordersArr[0]) orderSchema = sanitize(ordersArr[0])
-  } else if (ordersArr[0]) {
-    orderSchema = sanitize(ordersArr[0])
+  let customerSchema: unknown = null
+  if (okBase && firstCustomer) {
+    const id = (firstCustomer.id as string) ?? (firstCustomer.customer_id as string) ?? null
+    if (id) {
+      const d = await tryFetch(`${okBase}/customers/${id}`, key)
+      endpoints[`${okBase}/customers/{id}`] = { status: d.status }
+      customerSchema = d.status === 200 && d.json ? sanitize(d.json) : sanitize(firstCustomer)
+    } else {
+      customerSchema = sanitize(firstCustomer)
+    }
   }
 
   return new Response(JSON.stringify({
-    ok: !!listOk,
-    attempts,
-    list_url: listOk?.url ?? null,
-    list_status: listOk?.status ?? attempts.at(-1)?.status ?? 0,
-    list_shape: listShape,
-    orders_count: ordersCount,
-    detail_status: detailStatus,
-    order_schema: orderSchema,
+    endpoints,
+    accessible: !!okBase,
+    customer_schema: customerSchema,
   }, null, 2), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 })
