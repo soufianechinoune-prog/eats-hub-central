@@ -150,3 +150,7 @@ verify_jwt = false
 
 [functions.chataigne-test]
 verify_jwt = true
+
+[functions.chataigne-sync-locations]
+verify_jwt = true
+
