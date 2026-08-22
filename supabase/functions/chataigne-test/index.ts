@@ -50,7 +50,11 @@ Deno.serve(async (req) => {
     return json({ mode, orgId, results: out })
   }
 
-  const loc = await call('/locations')
+  const org = await call('/organizations', 20000)
+  const firstOrgId = (org as any)?.body?.data?.[0]?.id
+  const loc = firstOrgId
+    ? await call(`/organizations/${firstOrgId}/locations`, 40000)
+    : await call('/locations', 20000)
   const locBody: any = (loc as any).body
   const rawList: any[] = Array.isArray(locBody)
     ? locBody
