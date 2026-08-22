@@ -34,6 +34,25 @@ Deno.serve(async (req) => {
   }
   console.log('probe', JSON.stringify(probe), 'keylen', cleanKey.length)
 
+  const variants: Record<string, Record<string, string>> = {
+    x_api_key: { 'x-api-key': cleanKey, Accept: 'application/json' },
+    bearer: { Authorization: `Bearer ${cleanKey}`, Accept: 'application/json' },
+    api_key: { 'api-key': cleanKey, Accept: 'application/json' },
+  }
+  const variant_results: Record<string, unknown> = {}
+  for (const [name, h] of Object.entries(variants)) {
+    const t = Date.now()
+    try {
+      const r = await fetch(`${BASE}/locations`, { headers: h, signal: AbortSignal.timeout(8000) })
+      const txt = (await r.text()).slice(0, 300)
+      variant_results[name] = { status: r.status, ms: Date.now() - t, body: txt }
+    } catch (e) {
+      variant_results[name] = { error: String(e), ms: Date.now() - t }
+    }
+  }
+  console.log('variants', JSON.stringify(variant_results))
+
+
   try {
     const locRes = await fetch(`${BASE}/locations`, opts())
 
@@ -82,9 +101,10 @@ Deno.serve(async (req) => {
       financials_status,
       financials_sample,
       probe,
+      variant_results,
       ...(locations.length === 0 ? { locations_raw: locBody } : {}),
     })
   } catch (e) {
-    return json({ ok: false, reason: 'fetch_error', error: String(e), probe }, 200)
+    return json({ ok: false, reason: 'fetch_error', error: String(e), probe, variant_results }, 200)
   }
 })
