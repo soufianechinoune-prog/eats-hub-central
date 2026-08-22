@@ -147,3 +147,6 @@ verify_jwt = false
 
 [functions.splash-product-sync]
 verify_jwt = false
+
+[functions.chataigne-test]
+verify_jwt = true
