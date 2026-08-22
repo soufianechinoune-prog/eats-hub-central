@@ -52,9 +52,24 @@ Deno.serve(async (req) => {
 
   const org = await call('/organizations', 20000)
   const firstOrgId = (org as any)?.body?.data?.[0]?.id
-  const loc = firstOrgId
-    ? await call(`/organizations/${firstOrgId}/locations`, 40000)
+  let loc = firstOrgId
+    ? await call(`/organizations/${firstOrgId}/locations?limit=100`, 40000)
     : await call('/locations', 20000)
+  // paginate if needed
+  const collected: any[] = Array.isArray((loc as any)?.body?.data) ? [...(loc as any).body.data] : []
+  if (firstOrgId && collected.length > 0) {
+    let offset = collected.length
+    for (let i = 0; i < 10; i++) {
+      const next = await call(`/organizations/${firstOrgId}/locations?limit=100&offset=${offset}`, 40000)
+      const arr = (next as any)?.body?.data
+      if (!Array.isArray(arr) || arr.length === 0) break
+      const fresh = arr.filter((a: any) => !collected.some((c) => c.id === a.id))
+      if (fresh.length === 0) break
+      collected.push(...fresh)
+      offset += arr.length
+    }
+    loc = { ...(loc as any), body: { ...(loc as any).body, data: collected } }
+  }
   const locBody: any = (loc as any).body
   const rawList: any[] = Array.isArray(locBody)
     ? locBody
