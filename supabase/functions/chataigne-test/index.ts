@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
 
   const cleanKey = key.trim()
   const headers = { 'x-api-key': cleanKey, Accept: 'application/json' }
-  const opts = () => ({ headers, signal: AbortSignal.timeout(15000) } as RequestInit)
+  const opts = () => ({ headers, signal: AbortSignal.timeout(120000) } as RequestInit)
 
   // connectivity probe without the key
   let probe: unknown = null
@@ -34,23 +34,7 @@ Deno.serve(async (req) => {
   }
   console.log('probe', JSON.stringify(probe), 'keylen', cleanKey.length)
 
-  const variants: Record<string, Record<string, string>> = {
-    x_api_key: { 'x-api-key': cleanKey, Accept: 'application/json' },
-    bearer: { Authorization: `Bearer ${cleanKey}`, Accept: 'application/json' },
-    api_key: { 'api-key': cleanKey, Accept: 'application/json' },
-  }
   const variant_results: Record<string, unknown> = {}
-  for (const [name, h] of Object.entries(variants)) {
-    const t = Date.now()
-    try {
-      const r = await fetch(`${BASE}/locations`, { headers: h, signal: AbortSignal.timeout(8000) })
-      const txt = (await r.text()).slice(0, 300)
-      variant_results[name] = { status: r.status, ms: Date.now() - t, body: txt }
-    } catch (e) {
-      variant_results[name] = { error: String(e), ms: Date.now() - t }
-    }
-  }
-  console.log('variants', JSON.stringify(variant_results))
 
 
   try {
