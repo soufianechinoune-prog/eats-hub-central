@@ -5201,6 +5201,37 @@ export type Database = {
           total_sales: number
         }[]
       }
+      get_chataigne_by_restaurant: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          ca_brut: number
+          city: string
+          commandes: number
+          dernier_jour: string
+          panier_moyen: number
+          restaurant_id: string
+          restaurant_name: string
+        }[]
+      }
+      get_chataigne_monthly: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          ca_brut: number
+          commandes: number
+          mois: string
+          restos_actifs: number
+        }[]
+      }
+      get_chataigne_overview: {
+        Args: { p_end: string; p_start: string }
+        Returns: {
+          ca_brut: number
+          commandes: number
+          derniere_sync: string
+          panier_moyen: number
+          restos_actifs: number
+        }[]
+      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string

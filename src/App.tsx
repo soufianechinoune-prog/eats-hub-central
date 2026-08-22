@@ -62,6 +62,7 @@ const UberStoreMapping = React.lazy(() => import("./pages/UberStoreMapping"));
 const DeliverooMatching = React.lazy(() => import("./pages/DeliverooMatching"));
 const ItemSales = React.lazy(() => import("./pages/ItemSales"));
 const OnsiteSales = React.lazy(() => import("./pages/OnsiteSales"));
+const Chataigne = React.lazy(() => import("./pages/Chataigne"));
 const MarketingAnalytics = React.lazy(() => import("./pages/MarketingAnalytics"));
 const SuccessScore = React.lazy(() => import("./pages/SuccessScore"));
 const Reviews = React.lazy(() => import("./pages/Reviews"));
@@ -233,6 +234,7 @@ const App = () => {
                     <Route path="/compare/profitability" element={<Navigate to="/analytics/finances" replace />} />
                     <Route path="/item-sales" element={<P><ItemSales /></P>} />
                     <Route path="/analytics/onsite-sales" element={<P><OnsiteSales /></P>} />
+                    <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                     <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
                     <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />

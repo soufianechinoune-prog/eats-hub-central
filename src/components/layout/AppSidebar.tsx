@@ -34,6 +34,7 @@ import {
   Plus,
   Plug,
   RotateCcw,
+  MessageCircle,
 
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
@@ -89,6 +90,7 @@ const analyticsSubItems = [
   { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
   { title: "Ventes sur place", url: "/analytics/onsite-sales", icon: Store },
+  { title: "Chataigne", url: "/chataigne", icon: MessageCircle },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw },
