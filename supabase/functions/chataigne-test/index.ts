@@ -81,9 +81,10 @@ Deno.serve(async (req) => {
       locations,
       financials_status,
       financials_sample,
+      probe,
       ...(locations.length === 0 ? { locations_raw: locBody } : {}),
     })
   } catch (e) {
-    return json({ ok: false, reason: 'fetch_error', error: String(e) }, 200)
+    return json({ ok: false, reason: 'fetch_error', error: String(e), probe }, 200)
   }
 })
