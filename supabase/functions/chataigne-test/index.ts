@@ -16,11 +16,27 @@ Deno.serve(async (req) => {
   const key = Deno.env.get('CHATAIGNE_API_KEY')
   if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
 
-  const headers = { 'x-api-key': key, Accept: 'application/json' }
-  const opts = { headers, signal: AbortSignal.timeout(20000) } as RequestInit
+  const cleanKey = key.trim()
+  const headers = { 'x-api-key': cleanKey, Accept: 'application/json' }
+  const opts = () => ({ headers, signal: AbortSignal.timeout(15000) } as RequestInit)
+
+  // connectivity probe without the key
+  let probe: unknown = null
+  try {
+    const t0 = Date.now()
+    const r = await fetch(`${BASE}/locations`, {
+      headers: { Accept: 'application/json' },
+      signal: AbortSignal.timeout(10000),
+    })
+    probe = { status: r.status, ms: Date.now() - t0 }
+  } catch (e) {
+    probe = { error: String(e) }
+  }
+  console.log('probe', JSON.stringify(probe), 'keylen', cleanKey.length)
 
   try {
-    const locRes = await fetch(`${BASE}/locations`, opts)
+    const locRes = await fetch(`${BASE}/locations`, opts())
+
     const locStatus = locRes.status
     const locText = await locRes.text()
     let locBody: any = null
