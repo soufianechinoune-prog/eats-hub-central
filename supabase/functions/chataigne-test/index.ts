@@ -1,109 +1,134 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
-const BASE = 'https://server.chataigne.ai/v1'
+const BASE = 'https://server.chataigne.ai'
+const LOC = 'loc_51oqv3UojF'
+
+const PII_HINTS = [
+  'name', 'first_name', 'last_name', 'phone', 'tel', 'email', 'mail',
+  'address', 'adresse', 'street', 'postal', 'zip', 'city', 'lat', 'lng',
+  'longitude', 'latitude', 'customer', 'contact', 'recipient', 'note',
+  'comment', 'instruction', 'company', 'building', 'floor', 'door', 'code',
+]
+
+const SAFE_KEYS = new Set([
+  'product_name', 'item_name', 'category_name', 'location_name', 'status_name',
+  'name_id',
+])
+
+function isPii(key: string): boolean {
+  const k = key.toLowerCase()
+  if (SAFE_KEYS.has(k)) return false
+  return PII_HINTS.some((h) => k.includes(h))
+}
+
+function mask(value: unknown): string {
+  const t = value === null ? 'null' : Array.isArray(value) ? 'array' : typeof value
+  return `<masqué:${t}>`
+}
+
+function sanitize(value: unknown, parentKey = ''): unknown {
+  if (Array.isArray(value)) return value.map((v) => sanitize(v, parentKey))
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (isPii(k)) {
+        out[k] = mask(v)
+      } else {
+        out[k] = sanitize(v, k)
+      }
+    }
+    return out
+  }
+  return value
+}
+
+async function tryFetch(url: string, key: string) {
+  try {
+    const res = await fetch(url, {
+      headers: { 'x-api-key': key, 'Accept': 'application/json' },
+      signal: AbortSignal.timeout(20000),
+    })
+    const text = await res.text()
+    let json: unknown = null
+    try { json = JSON.parse(text) } catch { /* keep null */ }
+    return { url, status: res.status, json, raw: text.slice(0, 400) }
+  } catch (e) {
+    return { url, status: 0, json: null, raw: `error: ${(e as Error).message}` }
+  }
+}
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
-
-  const json = (body: unknown, status = 200) =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const key = Deno.env.get('CHATAIGNE_API_KEY')
-  if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
-  const cleanKey = key.trim()
+  if (!key) {
+    return new Response(JSON.stringify({ ok: false, error: 'CHATAIGNE_API_KEY missing' }), {
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
 
-  const url = new URL(req.url)
-  const mode = url.searchParams.get('mode') ?? 'full'
-  const headers = { 'x-api-key': cleanKey, Accept: 'application/json' }
+  const ORG = 'busorg_fJF9DesU33'
+  const candidates = [
+    `${BASE}/v1/locations/${LOC}/orders?limit=5`,
+    `${BASE}/v1/organizations/${ORG}/orders?limit=5`,
+    `${BASE}/v1/organizations/${ORG}/locations/${LOC}/orders?limit=5`,
+    `${BASE}/v1/locations/${LOC}/orders?limit=5&status=all`,
+  ]
 
-  const call = async (path: string, ms = 40000) => {
-    const t = Date.now()
-    try {
-      const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(ms) })
-      const txt = await r.text()
-      let body: unknown
-      try { body = JSON.parse(txt) } catch { body = txt.slice(0, 500) }
-      return { status: r.status, ms: Date.now() - t, body }
-    } catch (e) {
-      return { status: null, ms: Date.now() - t, error: String(e) }
+  const attempts: { url: string; status: number; body?: string | null }[] = []
+  let listOk: { url: string; status: number; json: unknown; raw: string | null } | null = null
+
+  for (const url of candidates) {
+    const r = await tryFetch(url, key)
+    attempts.push({ url: r.url.replace(key, '***'), status: r.status, body: r.status === 200 ? null : (r.raw ?? '').replace(key, '***') })
+    if (r.status === 200) { listOk = r; break }
+  }
+
+  let listShape: unknown = null
+  let ordersCount = 0
+  let firstOrderId: string | null = null
+  let ordersArr: Record<string, unknown>[] = []
+
+  if (listOk?.json && typeof listOk.json === 'object') {
+    const j = listOk.json as Record<string, unknown>
+    const topKeys = Array.isArray(j) ? ['<array>'] : Object.keys(j)
+    ordersArr = Array.isArray(j)
+      ? (j as Record<string, unknown>[])
+      : (Array.isArray(j.data) ? j.data as Record<string, unknown>[]
+        : Array.isArray(j.orders) ? j.orders as Record<string, unknown>[]
+        : Array.isArray(j.results) ? j.results as Record<string, unknown>[] : [])
+    ordersCount = ordersArr.length
+    firstOrderId = (ordersArr[0]?.id as string) ?? (ordersArr[0]?.order_id as string) ?? null
+    listShape = {
+      top_level_keys: topKeys,
+      pagination: {
+        has_more: Array.isArray(j) ? null : j.has_more ?? null,
+        next_cursor_hint: firstOrderId ? `starting_after=<last order id>` : null,
+        observed_pagination_keys: topKeys.filter((k) => /more|cursor|next|page|total|count|after/i.test(k)),
+      },
+      item_keys_sample: ordersArr[0] ? Object.keys(ordersArr[0]) : [],
     }
   }
 
-  if (mode === 'probe') {
-    const orgRes = await call('/organizations', 15000)
-    const orgId = (orgRes as any)?.body?.data?.[0]?.id
-    const paths = [
-      `/organizations/${orgId}/locations`,
-      `/locations?organization_id=${orgId}`,
-      `/organizations/${orgId}`,
-    ]
-    const out: Record<string, unknown> = {}
-    for (const p of paths) {
-      const r = await call(p, 12000)
-      out[p] = { status: r.status, ms: r.ms, error: (r as any).error, bodyPreview: JSON.stringify((r as any).body ?? '').slice(0, 1500) }
-    }
-    return json({ mode, orgId, results: out })
+  let detailStatus = 0
+  let orderSchema: unknown = null
+  if (firstOrderId) {
+    const d = await tryFetch(`${BASE}/v1/locations/${LOC}/orders/${firstOrderId}`, key)
+    detailStatus = d.status
+    if (d.status === 200 && d.json) orderSchema = sanitize(d.json)
+    else if (ordersArr[0]) orderSchema = sanitize(ordersArr[0])
+  } else if (ordersArr[0]) {
+    orderSchema = sanitize(ordersArr[0])
   }
 
-  const org = await call('/organizations', 20000)
-  const firstOrgId = (org as any)?.body?.data?.[0]?.id
-  let loc = firstOrgId
-    ? await call(`/organizations/${firstOrgId}/locations?limit=100`, 40000)
-    : await call('/locations', 20000)
-  // paginate if needed
-  const collected: any[] = Array.isArray((loc as any)?.body?.data) ? [...(loc as any).body.data] : []
-  if (firstOrgId && collected.length > 0) {
-    let offset = collected.length
-    for (let i = 0; i < 10; i++) {
-      const next = await call(`/organizations/${firstOrgId}/locations?limit=100&offset=${offset}`, 40000)
-      const arr = (next as any)?.body?.data
-      if (!Array.isArray(arr) || arr.length === 0) break
-      const fresh = arr.filter((a: any) => !collected.some((c) => c.id === a.id))
-      if (fresh.length === 0) break
-      collected.push(...fresh)
-      offset += arr.length
-    }
-    loc = { ...(loc as any), body: { ...(loc as any).body, data: collected } }
-  }
-  const locBody: any = (loc as any).body
-  const rawList: any[] = Array.isArray(locBody)
-    ? locBody
-    : Array.isArray(locBody?.data) ? locBody.data
-    : Array.isArray(locBody?.locations) ? locBody.locations
-    : Array.isArray(locBody?.results) ? locBody.results
-    : []
-
-  const locations = rawList.map((l) => ({
-    id: l?.id,
-    organization_id: l?.organization_id ?? l?.organizationId ?? null,
-    name: l?.name ?? null,
-    timezone: l?.timezone ?? null,
-    currency: l?.currency ?? null,
-  }))
-
-  let financials_status: number | null = null
-  let financials_sample: unknown = null
-  if (locations.length > 0 && locations[0].id) {
-    const fin = await call(`/locations/${locations[0].id}/analytics/financials`)
-    financials_status = (fin as any).status
-    financials_sample = (fin as any).body ?? (fin as any).error
-  }
-
-  return json({
-    ok: loc.status === 200,
-    locations_status: loc.status,
-    locations_ms: loc.ms,
-    locations_error: (loc as any).error ?? null,
-    organization_id: locations[0]?.organization_id ?? null,
-    locations_count: locations.length,
-    locations,
-    financials_status,
-    financials_sample,
-    ...(locations.length === 0 ? { locations_raw: locBody ?? null } : {}),
-  })
+  return new Response(JSON.stringify({
+    ok: !!listOk,
+    attempts,
+    list_url: listOk?.url ?? null,
+    list_status: listOk?.status ?? attempts.at(-1)?.status ?? 0,
+    list_shape: listShape,
+    orders_count: ordersCount,
+    detail_status: detailStatus,
+    order_schema: orderSchema,
+  }, null, 2), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 })
