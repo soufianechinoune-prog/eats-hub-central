@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     if (locations.length > 0 && locations[0].id) {
       const finRes = await fetch(
         `${BASE}/locations/${locations[0].id}/analytics/financials`,
-        opts,
+        opts(),
       )
       financials_status = finRes.status
       const finText = await finRes.text()
