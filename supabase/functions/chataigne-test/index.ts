@@ -51,7 +51,7 @@ async function tryFetch(url: string, key: string) {
     const text = await res.text()
     let json: unknown = null
     try { json = JSON.parse(text) } catch { /* keep null */ }
-    return { url, status: res.status, json, raw: json ? null : text.slice(0, 300) }
+    return { url, status: res.status, json, raw: text.slice(0, 400) }
   } catch (e) {
     return { url, status: 0, json: null, raw: `error: ${(e as Error).message}` }
   }
@@ -67,19 +67,20 @@ Deno.serve(async (req) => {
     })
   }
 
+  const ORG = 'busorg_fJF9DesU33'
   const candidates = [
     `${BASE}/v1/locations/${LOC}/orders?limit=5`,
-    `${BASE}/v1/locations/${LOC}/orders`,
-    `${BASE}/v1/orders?location_id=${LOC}&limit=5`,
-    `${BASE}/v1/locations/${LOC}/order?limit=5`,
+    `${BASE}/v1/organizations/${ORG}/orders?limit=5`,
+    `${BASE}/v1/organizations/${ORG}/locations/${LOC}/orders?limit=5`,
+    `${BASE}/v1/locations/${LOC}/orders?limit=5&status=all`,
   ]
 
-  const attempts: { url: string; status: number }[] = []
+  const attempts: { url: string; status: number; body?: string | null }[] = []
   let listOk: { url: string; status: number; json: unknown; raw: string | null } | null = null
 
   for (const url of candidates) {
     const r = await tryFetch(url, key)
-    attempts.push({ url: r.url.replace(key, '***'), status: r.status })
+    attempts.push({ url: r.url.replace(key, '***'), status: r.status, body: r.status === 200 ? null : (r.raw ?? '').replace(key, '***') })
     if (r.status === 200) { listOk = r; break }
   }
 
