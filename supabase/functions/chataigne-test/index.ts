@@ -15,80 +15,70 @@ Deno.serve(async (req) => {
 
   const key = Deno.env.get('CHATAIGNE_API_KEY')
   if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
-
   const cleanKey = key.trim()
+
+  const url = new URL(req.url)
+  const mode = url.searchParams.get('mode') ?? 'full'
   const headers = { 'x-api-key': cleanKey, Accept: 'application/json' }
-  const opts = () => ({ headers, signal: AbortSignal.timeout(120000) } as RequestInit)
 
-  // connectivity probe without the key
-  let probe: unknown = null
-  try {
-    const t0 = Date.now()
-    const r = await fetch(`${BASE}/locations`, {
-      headers: { Accept: 'application/json' },
-      signal: AbortSignal.timeout(10000),
-    })
-    probe = { status: r.status, ms: Date.now() - t0 }
-  } catch (e) {
-    probe = { error: String(e) }
-  }
-  console.log('probe', JSON.stringify(probe), 'keylen', cleanKey.length)
-
-  const variant_results: Record<string, unknown> = {}
-
-
-  try {
-    const locRes = await fetch(`${BASE}/locations`, opts())
-
-    const locStatus = locRes.status
-    const locText = await locRes.text()
-    let locBody: any = null
-    try { locBody = JSON.parse(locText) } catch { locBody = locText }
-
-    const rawList: any[] = Array.isArray(locBody)
-      ? locBody
-      : Array.isArray(locBody?.data)
-        ? locBody.data
-        : Array.isArray(locBody?.locations)
-          ? locBody.locations
-          : Array.isArray(locBody?.results)
-            ? locBody.results
-            : []
-
-    const locations = rawList.map((l) => ({
-      id: l?.id,
-      organization_id: l?.organization_id ?? l?.organizationId ?? null,
-      name: l?.name ?? null,
-      timezone: l?.timezone ?? null,
-      currency: l?.currency ?? null,
-    }))
-
-    let financials_status: number | null = null
-    let financials_sample: unknown = null
-
-    if (locations.length > 0 && locations[0].id) {
-      const finRes = await fetch(
-        `${BASE}/locations/${locations[0].id}/analytics/financials`,
-        opts(),
-      )
-      financials_status = finRes.status
-      const finText = await finRes.text()
-      try { financials_sample = JSON.parse(finText) } catch { financials_sample = finText }
+  const call = async (path: string, ms = 40000) => {
+    const t = Date.now()
+    try {
+      const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(ms) })
+      const txt = await r.text()
+      let body: unknown
+      try { body = JSON.parse(txt) } catch { body = txt.slice(0, 500) }
+      return { status: r.status, ms: Date.now() - t, body }
+    } catch (e) {
+      return { status: null, ms: Date.now() - t, error: String(e) }
     }
-
-    return json({
-      ok: locRes.ok,
-      locations_status: locStatus,
-      organization_id: locations[0]?.organization_id ?? null,
-      locations_count: locations.length,
-      locations,
-      financials_status,
-      financials_sample,
-      probe,
-      variant_results,
-      ...(locations.length === 0 ? { locations_raw: locBody } : {}),
-    })
-  } catch (e) {
-    return json({ ok: false, reason: 'fetch_error', error: String(e), probe, variant_results }, 200)
   }
+
+  if (mode === 'probe') {
+    const paths = ['/locations?limit=1', '/organizations', '/me', '/locations']
+    const out: Record<string, unknown> = {}
+    for (const p of paths) {
+      const r = await call(p, 12000)
+      out[p] = { status: r.status, ms: r.ms, error: (r as any).error, bodyPreview: JSON.stringify((r as any).body ?? '').slice(0, 400) }
+    }
+    return json({ mode, results: out })
+  }
+
+  const loc = await call('/locations')
+  const locBody: any = (loc as any).body
+  const rawList: any[] = Array.isArray(locBody)
+    ? locBody
+    : Array.isArray(locBody?.data) ? locBody.data
+    : Array.isArray(locBody?.locations) ? locBody.locations
+    : Array.isArray(locBody?.results) ? locBody.results
+    : []
+
+  const locations = rawList.map((l) => ({
+    id: l?.id,
+    organization_id: l?.organization_id ?? l?.organizationId ?? null,
+    name: l?.name ?? null,
+    timezone: l?.timezone ?? null,
+    currency: l?.currency ?? null,
+  }))
+
+  let financials_status: number | null = null
+  let financials_sample: unknown = null
+  if (locations.length > 0 && locations[0].id) {
+    const fin = await call(`/locations/${locations[0].id}/analytics/financials`)
+    financials_status = (fin as any).status
+    financials_sample = (fin as any).body ?? (fin as any).error
+  }
+
+  return json({
+    ok: loc.status === 200,
+    locations_status: loc.status,
+    locations_ms: loc.ms,
+    locations_error: (loc as any).error ?? null,
+    organization_id: locations[0]?.organization_id ?? null,
+    locations_count: locations.length,
+    locations,
+    financials_status,
+    financials_sample,
+    ...(locations.length === 0 ? { locations_raw: locBody ?? null } : {}),
+  })
 })
