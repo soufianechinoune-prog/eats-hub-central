@@ -70,11 +70,13 @@ Deno.serve(async (req) => {
   try {
     const headers = { 'x-api-key': key.trim(), Accept: 'application/json' }
     const all: any[] = []
-    let offset = 0
+    let cursor: string | null = null
     let firstShape: string[] | null = null
 
     for (let page = 0; page < 30; page++) {
-      const url = `${BASE}/organizations/${ORG_ID}/locations?limit=100&offset=${offset}`
+      const qs = new URLSearchParams({ limit: '100' })
+      if (cursor) qs.set('starting_after', cursor)
+      const url = `${BASE}/organizations/${ORG_ID}/locations?${qs.toString()}`
       const r = await fetch(url, { headers, signal: AbortSignal.timeout(40000) })
       if (!r.ok) throw new Error(`locations HTTP ${r.status}`)
       const body = await r.json()
@@ -95,9 +97,10 @@ Deno.serve(async (req) => {
       const fresh = arr.filter((a) => !all.some((c) => c.id === a.id))
       if (fresh.length === 0) break
       all.push(...fresh)
-      offset += arr.length
-      if (arr.length < 100) break
+      cursor = arr[arr.length - 1]?.id ?? null
+      if (!body?.has_more || !cursor) break
     }
+
 
     // Restaurants Chicken Street
     const { data: restaurants, error: rErr } = await supabase
