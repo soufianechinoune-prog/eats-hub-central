@@ -35,13 +35,19 @@ Deno.serve(async (req) => {
   }
 
   if (mode === 'probe') {
-    const paths = ['/locations?limit=1', '/organizations', '/me', '/locations']
+    const orgRes = await call('/organizations', 15000)
+    const orgId = (orgRes as any)?.body?.data?.[0]?.id
+    const paths = [
+      `/organizations/${orgId}/locations`,
+      `/locations?organization_id=${orgId}`,
+      `/organizations/${orgId}`,
+    ]
     const out: Record<string, unknown> = {}
     for (const p of paths) {
       const r = await call(p, 12000)
-      out[p] = { status: r.status, ms: r.ms, error: (r as any).error, bodyPreview: JSON.stringify((r as any).body ?? '').slice(0, 400) }
+      out[p] = { status: r.status, ms: r.ms, error: (r as any).error, bodyPreview: JSON.stringify((r as any).body ?? '').slice(0, 1500) }
     }
-    return json({ mode, results: out })
+    return json({ mode, orgId, results: out })
   }
 
   const loc = await call('/locations')
