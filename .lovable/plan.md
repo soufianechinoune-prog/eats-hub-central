@@ -1,29 +1,31 @@
-# Splash Tasty Crousty : reconnexion et rattrapage des données manquantes
+# Fermeture des accès publics — les 8 tables restantes
 
-## Constat vérifié
+## Verdict : d'accord sur le fond, avec une réserve
 
-- La connexion Splash Tasty Crousty est marquée active dans la plateforme (compte `soufiane@tastycrousty.io`, dernière mise à jour 20/07/2026).
-- Les ventes sur place Tasty Crousty s'arrêtent au **31/07/2026** : aucune ligne en août, alors que Chicken Street est à jour au 20/08/2026.
-- Test d'authentification direct sur Splash360 ce jour :
-  - Chicken Street (`franchise@chickenstreet.fr`) : succès (token délivré).
-  - Tasty Crousty (`soufiane@tastycrousty.io` / mot de passe actuellement stocké) : **échec** (erreur serveur côté Splash, typique d'un compte désactivé ou d'un mot de passe modifié).
+J'ai vérifié chaque affirmation directement en base. Tout se confirme :
 
-Conclusion : ce ne sont pas les mappings (69 boutiques TC rattachées) ni le job de sync qui bloquent — ce sont les identifiants Splash Tasty Crousty qui ne fonctionnent plus.
+- **service_role a bien `bypassrls = true`** (vérifié). Et j'ai contrôlé les robots concernés (météo, UltraMsg, parsing des rapports Uber, rapports stats, promotions) : ils utilisent tous la clé service. Aucune collecte ne peut casser.
+- **Les 2 bonnes surprises sont réelles.** `price_history` et `restaurant_deliveroo_ids` ont bien une règle « par enseigne » déjà en place, court-circuitée par une vieille règle ouverte. Supprimer la mauvaise suffit.
+- **Les 6 autres tables** n'ont effectivement aucune règle correcte en dessous : `action_categories`, `csv_imports`, `import_guide_screenshots`, `promotions`, `report_templates`, `restaurant_name_aliases`, `weather_data` (soit 7 avec weather_data — le décompte « 6 » du message est légèrement optimiste, la liste du script est la bonne).
 
-## Ce qu'il faut de ta part
+## La réserve : price_history risque de se bloquer tout seul
 
-Obtenir auprès de Splash360 (ou du compte TC) des identifiants valides : soit réactivation du compte `Soufiane@tastycrousty.io`, soit un nouveau mot de passe / un compte franchise dédié avec accès à toutes les boutiques TC.
+La bonne règle sur `price_history` filtre via `restaurant_action_id`. Or le code de l'app (`useMenuItemTracking`) insère des lignes avec `restaurant_action_id = null` quand aucune action n'est liée. Avec la règle par enseigne seule, ces lignes deviennent **impossibles à créer et à lire** pour tout utilisateur non super-admin.
 
-## Plan une fois les nouveaux identifiants disponibles
+La table est vide aujourd'hui (0 ligne), donc rien n'est perdu — mais l'historique des prix cesserait silencieusement de fonctionner dès la prochaine modification de tarif.
 
-1. Mettre à jour les identifiants de la connexion Splash Tasty Crousty (stockés côté backend, jamais exposés dans le front).
-2. Vérifier immédiatement l'authentification et l'accès à la liste des boutiques TC (contrôle que les 69 boutiques mappées répondent bien).
-3. Relancer un backfill Splash Tasty Crousty du **01/08/2026 à aujourd'hui**, par lots journaliers, avec suivi de progression.
-4. Contrôler la couverture : nombre de jours-restaurant remplis en août, comparaison du CA quotidien avec le dashboard Splash sur 2-3 restaurants témoins.
-5. Confirmer que la sync quotidienne repart automatiquement les jours suivants.
+Correctif proposé, dans la même opération : rendre la règle tolérante aux lignes sans action liée, en la rattachant au menu_item plutôt qu'en bloquant sur un champ vide.
+
+## Ce que je ferai
+
+1. Appliquer le script fourni tel quel pour les 7 tables sans réserve (suppression des règles « tout le monde », remplacement par « utilisateurs connectés », et pour `restaurant_deliveroo_ids` simple suppression).
+2. Pour `price_history` : supprimer les 4 règles ouvertes **et** ajuster la règle par enseigne pour accepter les lignes sans action liée.
+3. Relancer la requête de vérification (attendu : 0 règle ouverte sans condition).
+
+Note : le passage du dépôt GitHub en privé est une action à faire de ton côté, je ne peux pas la déclencher.
 
 ## Détails techniques
 
-- Connexion concernée : ligne `chain_pos_connections` du connecteur `splash360` pour la chaîne Tasty Crousty.
-- Backfill via les jobs Splash existants (mêmes mécanismes que le rattrapage Chicken Street), pas d'insertion manuelle.
-- Aucune modification des règles d'isolation par marque : les triggers refusant tout mapping/ventes cross-marque restent en place.
+- Tout passe par une migration unique (les changements de règles ne peuvent pas être exécutés hors migration).
+- Règle `price_history` révisée : `is_super_admin() OR restaurant_action_id IS NULL OR restaurant_action_id IN (...)` pour la lecture/écriture, en conservant le filtrage par enseigne quand l'action est renseignée.
+- `weather_data` : la règle « Service role can manage weather data » est en réalité attribuée au rôle `public`, pas à service_role — sa suppression est donc bien un gain de sécurité, sans impact sur le robot météo.
