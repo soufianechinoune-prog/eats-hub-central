@@ -126,6 +126,21 @@ function flattenItems(items: unknown, currencyFallback: string | null): FlatItem
     const childKeysD1 = ['products', 'sub_products', 'bundle_items', 'menu_items', 'children']
     const childKeysD2 = ['options', 'modifiers', 'option_groups', 'modifier_groups', 'extras']
 
+    // Chataigne bundles: `lines` are group wrappers holding the real sub-products in `items`
+    if (Array.isArray(node.lines)) {
+      for (const line of node.lines as unknown[]) {
+        if (!line || typeof line !== 'object') continue
+        const ln = line as Record<string, unknown>
+        if (Array.isArray(ln.items)) {
+          for (const c of ln.items as unknown[]) {
+            if (c && typeof c === 'object')
+              push(c as Record<string, unknown>, Math.min(depth + 1, 2), id ? String(id) : parentId, 'sub_product')
+          }
+        } else {
+          push(ln, Math.min(depth + 1, 2), id ? String(id) : parentId, 'sub_product')
+        }
+      }
+    }
     for (const key of childKeysD1) {
       const arr = node[key]
       if (Array.isArray(arr)) {
