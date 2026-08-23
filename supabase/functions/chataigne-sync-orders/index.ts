@@ -195,6 +195,9 @@ Deno.serve(async (req) => {
       : 3
   const locationFilter: string | null =
     typeof body?.location_id === 'string' && body.location_id.trim() ? body.location_id.trim() : null
+  // optional batching over the mapping list (keeps long backfills under the exec limit)
+  const offset = Number.isFinite(body?.offset) ? Math.max(0, Math.floor(body.offset)) : 0
+  const batchLimit = Number.isFinite(body?.limit) ? Math.max(1, Math.floor(body.limit)) : null
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -247,6 +250,8 @@ Deno.serve(async (req) => {
       .select('chataigne_location_id, restaurant_id, chain_id, currency')
       .order('chataigne_location_id', { ascending: true })
     if (locationFilter) q = q.eq('chataigne_location_id', locationFilter)
+    else if (batchLimit) q = q.range(offset, offset + batchLimit - 1)
+    else if (offset) q = q.range(offset, offset + 9999)
     const { data: mappings, error: mErr } = await q
     if (mErr) throw mErr
 
