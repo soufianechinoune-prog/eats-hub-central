@@ -144,6 +144,13 @@ export default function Chataigne() {
   const [end, setEnd] = useState(today());
   const [sortKey, setSortKey] = useState<SortKey>("ca_brut");
   const [sortAsc, setSortAsc] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "details" ? "details" : "overview";
+  const setTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", v);
+    setSearchParams(next, { replace: true });
+  };
 
   const applyPreset = (v: string) => {
     setPreset(v);
