@@ -228,8 +228,8 @@ Deno.serve(async (req) => {
     body = {}
   }
 
-  const mode: 'test' | 'backfill' | 'incremental' =
-    body?.mode === 'test' || body?.mode === 'backfill' ? body.mode : 'incremental'
+  const mode: 'test' | 'backfill' | 'incremental' | 'rehash' =
+    body?.mode === 'test' || body?.mode === 'backfill' || body?.mode === 'rehash' ? body.mode : 'incremental'
   const days = Number.isFinite(body?.days)
     ? Math.max(1, Math.floor(body.days))
     : mode === 'backfill'
