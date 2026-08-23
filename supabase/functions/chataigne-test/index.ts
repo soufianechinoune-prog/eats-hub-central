@@ -4,7 +4,9 @@ const BASE = 'https://server.chataigne.ai'
 const LOC = 'loc_51oqv3UojF'
 
 const PII_HINTS = [
-  'name', 'first_name', 'last_name', 'phone', 'tel', 'email', 'mail',
+  'first_name', 'last_name', 'full_name', 'customer_name', 'contact_name',
+  'recipient_name', 'client_name', 'phone', 'tel', 'email', 'mail',
+
   'address', 'adresse', 'street', 'postal', 'zip', 'city', 'lat', 'lng',
   'longitude', 'latitude', 'contact', 'recipient', 'note', 'comment',
   'instruction', 'company', 'building', 'floor', 'door',
