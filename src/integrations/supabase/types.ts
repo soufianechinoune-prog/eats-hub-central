@@ -506,6 +506,183 @@ export type Database = {
           },
         ]
       }
+      chataigne_order_items: {
+        Row: {
+          chain_id: string
+          chataigne_location_id: string | null
+          chataigne_order_id: string
+          created_at: string
+          currency: string | null
+          depth: number | null
+          id: string
+          item_id: string | null
+          item_name: string | null
+          item_type: string | null
+          order_datetime: string | null
+          parent_item_id: string | null
+          quantity: number | null
+          raw: Json | null
+          restaurant_id: string | null
+          unit_price_amount: number | null
+        }
+        Insert: {
+          chain_id: string
+          chataigne_location_id?: string | null
+          chataigne_order_id: string
+          created_at?: string
+          currency?: string | null
+          depth?: number | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_type?: string | null
+          order_datetime?: string | null
+          parent_item_id?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          restaurant_id?: string | null
+          unit_price_amount?: number | null
+        }
+        Update: {
+          chain_id?: string
+          chataigne_location_id?: string | null
+          chataigne_order_id?: string
+          created_at?: string
+          currency?: string | null
+          depth?: number | null
+          id?: string
+          item_id?: string | null
+          item_name?: string | null
+          item_type?: string | null
+          order_datetime?: string | null
+          parent_item_id?: string | null
+          quantity?: number | null
+          raw?: Json | null
+          restaurant_id?: string | null
+          unit_price_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_order_items_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chataigne_order_items_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chataigne_orders: {
+        Row: {
+          chain_id: string
+          channel: string | null
+          chataigne_location_id: string
+          chataigne_order_id: string
+          created_at: string
+          currency: string | null
+          customer_language: string | null
+          discount_total_amount: number | null
+          discounts: Json | null
+          expected_delivery_time: string | null
+          expected_pickup_time: string | null
+          has_customer: boolean | null
+          id: string
+          item_count: number | null
+          order_datetime: string | null
+          payment_amount: number | null
+          payment_status: string | null
+          raw_payload: Json | null
+          restaurant_id: string | null
+          service_charge_amount: number | null
+          service_type: string | null
+          short_id: string | null
+          source_updated_at: string | null
+          status: string | null
+          status_version: number | null
+          total_amount: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          channel?: string | null
+          chataigne_location_id: string
+          chataigne_order_id: string
+          created_at?: string
+          currency?: string | null
+          customer_language?: string | null
+          discount_total_amount?: number | null
+          discounts?: Json | null
+          expected_delivery_time?: string | null
+          expected_pickup_time?: string | null
+          has_customer?: boolean | null
+          id?: string
+          item_count?: number | null
+          order_datetime?: string | null
+          payment_amount?: number | null
+          payment_status?: string | null
+          raw_payload?: Json | null
+          restaurant_id?: string | null
+          service_charge_amount?: number | null
+          service_type?: string | null
+          short_id?: string | null
+          source_updated_at?: string | null
+          status?: string | null
+          status_version?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          channel?: string | null
+          chataigne_location_id?: string
+          chataigne_order_id?: string
+          created_at?: string
+          currency?: string | null
+          customer_language?: string | null
+          discount_total_amount?: number | null
+          discounts?: Json | null
+          expected_delivery_time?: string | null
+          expected_pickup_time?: string | null
+          has_customer?: boolean | null
+          id?: string
+          item_count?: number | null
+          order_datetime?: string | null
+          payment_amount?: number | null
+          payment_status?: string | null
+          raw_payload?: Json | null
+          restaurant_id?: string | null
+          service_charge_amount?: number | null
+          service_type?: string | null
+          short_id?: string | null
+          source_updated_at?: string | null
+          status?: string | null
+          status_version?: number | null
+          total_amount?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_orders_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chataigne_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chataigne_sync_runs: {
         Row: {
           chain_id: string | null

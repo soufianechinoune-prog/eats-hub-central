@@ -157,3 +157,7 @@ verify_jwt = true
 [functions.chataigne-sync-analytics]
 verify_jwt = true
 
+[functions.chataigne-sync-orders]
+verify_jwt = true
+
+
