@@ -517,6 +517,8 @@ Deno.serve(async (req) => {
       locations_failed: failed,
       orders_upserted: ordersUpserted,
       item_rows_inserted: itemRowsInserted,
+      client_key_sources: keySrcCounts,
+      salt_configured: !!HASH_SALT,
       errors: errors.slice(0, 20),
     })
   } catch (e) {
