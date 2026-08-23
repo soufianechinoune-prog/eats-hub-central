@@ -68,6 +68,48 @@ function scrubOrder(order: Record<string, unknown>) {
   return { scrubbed, hasCustomer, customerLanguage }
 }
 
+// ---------- Pseudonymisation client (RGPD) ----------
+// La cle client (id ou telephone) n'existe qu'en memoire, n'est jamais stockee ni loggee.
+const HASH_SALT = Deno.env.get('CHATAIGNE_HASH_SALT') ?? ''
+
+function normalizePhone(raw: string): string | null {
+  let d = raw.replace(/[^\d+]/g, '')
+  if (d.startsWith('+')) d = d.slice(1)
+  d = d.replace(/\D/g, '')
+  if (d.startsWith('00')) d = d.slice(2)
+  if (d.length === 10 && d.startsWith('0')) d = '33' + d.slice(1)
+  if (d.length === 9 && d.startsWith('6')) d = '33' + d
+  return d.length >= 8 ? d : null
+}
+
+/** Returns { key, source } — key is raw and must NEVER be persisted or logged. */
+function extractClientKey(order: Record<string, unknown>): { key: string | null; source: 'customer_id' | 'phone' | null } {
+  const c = (order?.customer ?? null) as Record<string, unknown> | null
+  if (c && typeof c === 'object') {
+    const id = c.id ?? c.customer_id ?? c.uuid ?? null
+    if (id !== null && id !== undefined && String(id).trim() !== '') {
+      return { key: `id:${String(id).trim()}`, source: 'customer_id' }
+    }
+    const phoneRaw = (c.phone ?? c.phone_number ?? c.mobile ?? null) as unknown
+    if (typeof phoneRaw === 'string' && phoneRaw.trim()) {
+      const n = normalizePhone(phoneRaw)
+      if (n) return { key: `tel:${n}`, source: 'phone' }
+    }
+  }
+  const topId = (order?.customer_id ?? null) as unknown
+  if (typeof topId === 'string' && topId.trim()) return { key: `id:${topId.trim()}`, source: 'customer_id' }
+  return { key: null, source: null }
+}
+
+async function hashClientKey(key: string | null): Promise<string | null> {
+  if (!key || !HASH_SALT) return null
+  const bytes = new TextEncoder().encode(`${HASH_SALT}|${key}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 // ---------- helpers ----------
 const asNum = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v
