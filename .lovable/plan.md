@@ -1,39 +1,20 @@
-# Nettoyage de la contamination Splash Tasty Crousty → Chicken Street
+# Rendre visible « Analyse détaillée des commandes »
 
-## Verdict sur l'audit
+La section a bien été ajoutée à la page `/chataigne`, mais elle est placée **après** le tableau « Performance par restaurant » qui contient 105 lignes : elle se retrouve tout en bas, hors de vue.
 
-L'audit est juste sur le fond. J'ai revérifié en base, chiffre par chiffre :
+## Ce qu'on change
 
-| Contrôle | Audit | Vérifié en base |
-|---|---|---|
-| Lignes Chicken Street portant un identifiant Splash Tasty Crousty | 6 696 | 6 696 ✅ |
-| Identifiants Splash concernés | 72 | 72 ✅ |
-| Période | août uniquement | 2026-08-01 → 2026-08-31 ✅ |
-| Créées aujourd'hui | 100 % | 6 696 / 6 696 ✅ |
-| Rattachées à un restaurant Chicken Street | 0 | 0 ✅ |
-| CA gonflé (ligne « global ») | 4 182 685 € | 4 182 685 € ✅ |
+Réorganiser la page en **onglets** (shadcn `Tabs`), sous la barre de période et les KPI qui restent toujours visibles :
 
-Deux précisions que l'audit n'a pas relevées :
+- **Vue d'ensemble** — évolution mensuelle + tableau performance par restaurant (contenu actuel).
+- **Analyse détaillée** — produits les plus commandés, promotions, répartition (heure / emport-livraison / canal).
 
-1. **La contamination ne se limite pas à la ligne « global ».** Les 6 696 lignes se répartissent en 2 232 `global` (4,18 M€), 2 232 `uber_eats` (0,61 M€) et 2 232 `deliveroo` (0 €). Le `DELETE` proposé les emporte toutes — c'est correct, mais le vrai volume de CA retiré est de 4,80 M€ toutes plateformes confondues.
-2. **La table de correspondance est contaminée elle aussi.** 3 boutiques Tasty Crousty (TASTY CROUSTY NIMES, TASTY CROUSTY BORDEAUX LAC, TASTY TALENCE) ont été enregistrées sous l'enseigne Chicken Street dans `splash360_restaurant_mapping`, sans restaurant rattaché. Si on ne les retire pas, une prochaine synchro Chicken Street peut réintroduire des lignes TC. L'audit s'arrête au nettoyage des ventes et laisse cette porte ouverte.
+L'onglet actif est mémorisé dans l'URL (`?tab=`) pour pouvoir partager le lien direct vers l'analyse détaillée.
 
-Le critère de suppression proposé reste sûr : ces 3 identifiants ne sont rattachés à aucun restaurant Chicken Street, donc aucune donnée légitime n'est emportée. Les 1 926 lignes Chicken Street non rattachées antérieures ne sont pas touchées.
-
-## Correction proposée
-
-1. Supprimer les 6 696 lignes de `splash360_daily_sales` sous l'enseigne Chicken Street dont l'identifiant Splash appartient à Tasty Crousty (critère exact de l'audit, toutes plateformes).
-2. Supprimer les 3 lignes de correspondance Tasty Crousty enregistrées sous Chicken Street, pour que la contamination ne puisse pas revenir à la prochaine synchro.
-3. Vérifier derrière :
-   - le total réseau caisse Chicken Street d'août redescend au niveau attendu ;
-   - le contrôle de contamination croisée renvoie 0 ;
-   - Tasty Crousty est intact (les mêmes ventes existent bien sous leur enseigne d'origine).
-
-Aucune donnée n'est perdue : ces ventes existent déjà correctement sous Tasty Crousty.
+En complément : le tableau restaurants passe en hauteur limitée avec défilement interne, pour que la page reste navigable.
 
 ## Détails techniques
 
-- `DELETE FROM public.splash360_daily_sales WHERE chain_id = <CS> AND restaurant_splash_id IN (SELECT DISTINCT restaurant_splash_id FROM public.splash360_daily_sales WHERE chain_id = <TC> AND restaurant_splash_id <> 0)` — exécuté via l'outil de modification de données, pas une migration.
-- `DELETE FROM public.splash360_restaurant_mapping WHERE chain_id = <CS> AND restaurant_id IS NULL AND restaurant_splash_id IN (1564, 1575, 1587)`.
-- Contrôles post-nettoyage en lecture seule : comptage des lignes croisées (attendu 0), somme `revenue_ttc` par mois et par plateforme pour Chicken Street, comptage des lignes Tasty Crousty d'août (inchangé).
-- Aucun changement de schéma, de politique d'accès, de fonction ou de page front.
+- Seul `src/pages/Chataigne.tsx` est modifié : ajout de `Tabs/TabsList/TabsTrigger/TabsContent` autour des blocs existants, sans toucher aux requêtes ni au composant `ChataigneOrdersAnalysis`.
+- Les hooks `useChataigneProducts/Promos/Breakdown` restent pilotés par `start`/`end` déjà en place ; React Query ne relance rien au changement d'onglet.
+- Aucune modification base de données, aucune RPC créée, aucune autre page touchée.
