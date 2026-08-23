@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
@@ -135,8 +135,8 @@ function ItemRows({ nodes, level = 0 }: { nodes: ItemNode[]; level?: number }) {
   return (
     <>
       {nodes.map((n) => (
-        <>
-          <TableRow key={n.id} className={level > 0 ? "bg-muted/20" : undefined}>
+        <Fragment key={n.id}>
+          <TableRow className={level > 0 ? "bg-muted/20" : undefined}>
             <TableCell
               className={cn("py-1.5", level === 0 ? "font-medium" : "text-muted-foreground")}
               style={{ paddingLeft: `${12 + level * 20}px` }}
@@ -150,7 +150,7 @@ function ItemRows({ nodes, level = 0 }: { nodes: ItemNode[]; level?: number }) {
             </TableCell>
           </TableRow>
           {n.children.length > 0 && <ItemRows nodes={n.children} level={level + 1} />}
-        </>
+        </Fragment>
       ))}
     </>
   );
@@ -409,9 +409,8 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                 {rows.map((r) => {
                   const isOpen = expanded === r.chataigne_order_id;
                   return (
-                    <>
+                    <Fragment key={r.chataigne_order_id}>
                       <TableRow
-                        key={r.chataigne_order_id}
                         onClick={() => setExpanded(isOpen ? null : r.chataigne_order_id)}
                         className="cursor-pointer"
                       >
@@ -471,13 +470,13 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                         </TableCell>
                       </TableRow>
                       {isOpen && (
-                        <TableRow key={`${r.chataigne_order_id}-detail`} className="hover:bg-transparent">
+                        <TableRow className="hover:bg-transparent">
                           <TableCell colSpan={13} className="p-0">
                             <OrderDetail order={r} />
                           </TableCell>
                         </TableRow>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </TableBody>
