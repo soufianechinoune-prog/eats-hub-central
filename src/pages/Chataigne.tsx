@@ -42,6 +42,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import {
   useChataigneByRestaurant,
   useChataigneMonthly,
@@ -426,6 +427,12 @@ export default function Chataigne() {
                 )}
               </CardContent>
             </Card>
+
+            <ChataigneOrdersAnalysis
+              start={start}
+              end={end}
+              totalOrders={o?.commandes ?? 0}
+            />
           </>
         )}
       </div>

@@ -90,3 +90,85 @@ export function useChataigneByRestaurant(start: string, end: string) {
     },
   });
 }
+
+export interface ChataigneProduct {
+  item_name: string;
+  commandes: number;
+  quantite: number;
+  ca_estime: number;
+  pu_moyen: number;
+}
+
+export interface ChataignePromo {
+  promo: string;
+  utilisations: number;
+  montant_total: number;
+  remise_moyenne: number;
+}
+
+export interface ChataigneBreakdown {
+  dimension: "heure" | "service_type" | "canal" | string;
+  valeur: string;
+  commandes: number;
+  ca: number;
+  panier_moyen: number;
+}
+
+export function useChataigneProducts(start: string, end: string) {
+  return useQuery({
+    queryKey: ["chataigne-products", start, end],
+    queryFn: async (): Promise<ChataigneProduct[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_products" as never, {
+        p_start: start,
+        p_end: end,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneProduct[] | null) ?? []).map((r) => ({
+        item_name: r.item_name,
+        commandes: num(r.commandes),
+        quantite: num(r.quantite),
+        ca_estime: num(r.ca_estime),
+        pu_moyen: num(r.pu_moyen),
+      }));
+    },
+  });
+}
+
+export function useChataignePromos(start: string, end: string) {
+  return useQuery({
+    queryKey: ["chataigne-promos", start, end],
+    queryFn: async (): Promise<ChataignePromo[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_promos" as never, {
+        p_start: start,
+        p_end: end,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataignePromo[] | null) ?? []).map((r) => ({
+        promo: r.promo,
+        utilisations: num(r.utilisations),
+        montant_total: num(r.montant_total),
+        remise_moyenne: num(r.remise_moyenne),
+      }));
+    },
+  });
+}
+
+export function useChataigneBreakdown(start: string, end: string) {
+  return useQuery({
+    queryKey: ["chataigne-breakdown", start, end],
+    queryFn: async (): Promise<ChataigneBreakdown[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_orders_breakdown" as never, {
+        p_start: start,
+        p_end: end,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneBreakdown[] | null) ?? []).map((r) => ({
+        dimension: r.dimension,
+        valeur: String(r.valeur),
+        commandes: num(r.commandes),
+        ca: num(r.ca),
+        panier_moyen: num(r.panier_moyen),
+      }));
+    },
+  });
+}
