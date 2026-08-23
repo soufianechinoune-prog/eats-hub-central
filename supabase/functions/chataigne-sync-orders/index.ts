@@ -447,6 +447,7 @@ Deno.serve(async (req) => {
               discount_total_amount: discountTotal || null,
               discounts: discounts.length ? discounts : null,
               item_count: Array.isArray(full?.items) ? (full.items as unknown[]).length : null,
+              code_client: codeClient,
               raw_payload: scrubbed,
               updated_at: new Date().toISOString(),
             }
