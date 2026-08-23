@@ -314,6 +314,7 @@ Deno.serve(async (req) => {
     let processed = 0
     let failed = 0
     let ordersUpserted = 0
+    const keySrcCounts = { customer_id: 0, phone: 0, none: 0 }
     let itemRowsInserted = 0
     const errors: { location: string; error: string }[] = []
 
