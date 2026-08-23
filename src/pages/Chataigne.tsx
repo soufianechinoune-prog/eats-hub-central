@@ -42,6 +42,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import {
   useChataigneByRestaurant,
   useChataigneMonthly,
