@@ -189,3 +189,122 @@ export function useChataigneBreakdown(start: string, end: string, restaurantIds:
     enabled: restaurantIds !== undefined,
   });
 }
+
+export interface ChataigneOrderRow {
+  total_count: number;
+  chataigne_order_id: string;
+  short_id: string | null;
+  restaurant_id: string | null;
+  restaurant_name: string | null;
+  city: string | null;
+  order_datetime: string;
+  channel: string | null;
+  service_type: string | null;
+  status: string | null;
+  item_count: number;
+  total_amount: number;
+  delivery_fee_amount: number;
+  service_charge_amount: number;
+  discount_total_amount: number;
+  discounts: Array<{ name?: string; amount?: number }> | null;
+  payment_status: string | null;
+  payment_amount: number;
+  expected_pickup_time: string | null;
+  expected_delivery_time: string | null;
+}
+
+export type ChataigneOrdersSortField =
+  | "order_datetime"
+  | "total_amount"
+  | "delivery_fee_amount"
+  | "discount_total_amount"
+  | "restaurant_name";
+
+interface OrdersListParams {
+  start: string;
+  end: string;
+  restaurantIds: RestaurantScope;
+  serviceType?: string | null;
+  search?: string | null;
+  sortField: ChataigneOrdersSortField;
+  sortDir: "asc" | "desc";
+  limit: number;
+  offset: number;
+}
+
+export function useChataigneOrdersList(p: OrdersListParams) {
+  return useQuery({
+    queryKey: [
+      "chataigne-orders-list",
+      p.start,
+      p.end,
+      scopeKey(p.restaurantIds),
+      p.serviceType ?? "all",
+      p.search ?? "",
+      p.sortField,
+      p.sortDir,
+      p.limit,
+      p.offset,
+    ],
+    queryFn: async (): Promise<{ rows: ChataigneOrderRow[]; total: number }> => {
+      const { data, error } = await supabase.rpc("get_chataigne_orders_list" as never, {
+        p_start: p.start,
+        p_end: p.end,
+        p_restaurant_ids: p.restaurantIds ?? null,
+        p_service_type: p.serviceType || null,
+        p_search: p.search?.trim() ? p.search.trim() : null,
+        p_sort_field: p.sortField,
+        p_sort_dir: p.sortDir,
+        p_limit: p.limit,
+        p_offset: p.offset,
+      } as never);
+      if (error) throw error;
+      const raw = (data as unknown as ChataigneOrderRow[] | null) ?? [];
+      const rows = raw.map((r) => ({
+        ...r,
+        item_count: num(r.item_count),
+        total_amount: num(r.total_amount),
+        delivery_fee_amount: num(r.delivery_fee_amount),
+        service_charge_amount: num(r.service_charge_amount),
+        discount_total_amount: num(r.discount_total_amount),
+        payment_amount: num(r.payment_amount),
+        discounts: (r.discounts as ChataigneOrderRow["discounts"]) ?? [],
+      }));
+      return { rows, total: num(raw[0]?.total_count) };
+    },
+    enabled: p.restaurantIds !== undefined,
+    placeholderData: (prev) => prev,
+  });
+}
+
+export interface ChataigneOrderItemRow {
+  id: string;
+  item_id: string | null;
+  item_name: string | null;
+  item_type: string | null;
+  quantity: number;
+  unit_price_amount: number;
+  parent_item_id: string | null;
+  depth: number;
+}
+
+export function useChataigneOrderItems(orderId: string | null) {
+  return useQuery({
+    queryKey: ["chataigne-order-items", orderId],
+    queryFn: async (): Promise<ChataigneOrderItemRow[]> => {
+      const { data, error } = await supabase
+        .from("chataigne_order_items")
+        .select("id, item_id, item_name, item_type, quantity, unit_price_amount, parent_item_id, depth")
+        .eq("chataigne_order_id", orderId!)
+        .order("depth", { ascending: true });
+      if (error) throw error;
+      return ((data as ChataigneOrderItemRow[] | null) ?? []).map((r) => ({
+        ...r,
+        quantity: num(r.quantity),
+        unit_price_amount: num(r.unit_price_amount),
+        depth: num(r.depth),
+      }));
+    },
+    enabled: !!orderId,
+  });
+}
