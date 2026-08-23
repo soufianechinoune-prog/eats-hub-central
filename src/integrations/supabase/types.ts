@@ -587,6 +587,7 @@ export type Database = {
           created_at: string
           currency: string | null
           customer_language: string | null
+          delivery_fee_amount: number | null
           discount_total_amount: number | null
           discounts: Json | null
           expected_delivery_time: string | null
@@ -616,6 +617,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_language?: string | null
+          delivery_fee_amount?: number | null
           discount_total_amount?: number | null
           discounts?: Json | null
           expected_delivery_time?: string | null
@@ -645,6 +647,7 @@ export type Database = {
           created_at?: string
           currency?: string | null
           customer_language?: string | null
+          delivery_fee_amount?: number | null
           discount_total_amount?: number | null
           discounts?: Json | null
           expected_delivery_time?: string | null
@@ -5407,6 +5410,41 @@ export type Database = {
           dimension: string
           panier_moyen: number
           valeur: string
+        }[]
+      }
+      get_chataigne_orders_list: {
+        Args: {
+          p_end: string
+          p_limit?: number
+          p_offset?: number
+          p_restaurant_ids?: string[]
+          p_search?: string
+          p_service_type?: string
+          p_sort_dir?: string
+          p_sort_field?: string
+          p_start: string
+        }
+        Returns: {
+          channel: string
+          chataigne_order_id: string
+          city: string
+          delivery_fee_amount: number
+          discount_total_amount: number
+          discounts: Json
+          expected_delivery_time: string
+          expected_pickup_time: string
+          item_count: number
+          order_datetime: string
+          payment_amount: number
+          payment_status: string
+          restaurant_id: string
+          restaurant_name: string
+          service_charge_amount: number
+          service_type: string
+          short_id: string
+          status: string
+          total_amount: number
+          total_count: number
         }[]
       }
       get_chataigne_overview: {
