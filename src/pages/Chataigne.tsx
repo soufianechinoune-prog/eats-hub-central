@@ -46,6 +46,7 @@ import {
   resolveBrandScopedRestaurantIds,
 } from "@/lib/brandScope";
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
+import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import {
   useChataigneByRestaurant,
   useChataigneMonthly,
@@ -113,7 +114,8 @@ export default function Chataigne() {
   const [sortKey, setSortKey] = useState<SortKey>("ca_brut");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
-  const tab = searchParams.get("tab") === "details" ? "details" : "overview";
+  const tabParam = searchParams.get("tab");
+  const tab = tabParam === "details" || tabParam === "orders" ? tabParam : "overview";
   const setTab = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", v);
@@ -294,6 +296,7 @@ export default function Chataigne() {
             <TabsList>
               <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
+              <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -418,6 +421,10 @@ export default function Chataigne() {
                 totalOrders={o?.commandes ?? 0}
                 restaurantIds={restaurantFilter ?? null}
               />
+            </TabsContent>
+
+            <TabsContent value="orders">
+              <ChataigneOrdersTable start={start} end={end} restaurantIds={restaurantFilter} />
             </TabsContent>
           </Tabs>
         )}
