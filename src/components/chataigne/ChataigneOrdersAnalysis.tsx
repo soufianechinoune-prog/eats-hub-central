@@ -57,12 +57,13 @@ interface Props {
   start: string;
   end: string;
   totalOrders: number;
+  restaurantIds?: string[] | null;
 }
 
-export function ChataigneOrdersAnalysis({ start, end, totalOrders }: Props) {
-  const productsQ = useChataigneProducts(start, end);
-  const promosQ = useChataignePromos(start, end);
-  const breakdownQ = useChataigneBreakdown(start, end);
+export function ChataigneOrdersAnalysis({ start, end, totalOrders, restaurantIds = null }: Props) {
+  const productsQ = useChataigneProducts(start, end, restaurantIds);
+  const promosQ = useChataignePromos(start, end, restaurantIds);
+  const breakdownQ = useChataigneBreakdown(start, end, restaurantIds);
 
   const [sortKey, setSortKey] = useState<ProductSortKey>("commandes");
   const [sortAsc, setSortAsc] = useState(false);
