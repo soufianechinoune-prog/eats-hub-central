@@ -23,7 +23,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDown, ArrowUp, Bike, Clock, Instagram, MessageCircle, Sparkles, ShoppingBag, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Bike, Clock, MessageCircle, Sparkles, ShoppingBag, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   useChataigneBreakdown,
@@ -219,7 +219,7 @@ export function ChataigneOrdersAnalysis({ start, end, totalOrders }: Props) {
                         {fmtPct((r.commandes / total) * 100)}
                       </Badge>
                     </div>
-                    <p className="pl-4.5 text-xs text-muted-foreground">
+                    <p className="pl-[18px] text-xs text-muted-foreground">
                       {fmtInt(r.commandes)} commandes · panier moyen {fmtEur(r.panier_moyen, 2)}
                     </p>
                   </div>
