@@ -426,6 +426,12 @@ export default function Chataigne() {
                 )}
               </CardContent>
             </Card>
+
+            <ChataigneOrdersAnalysis
+              start={start}
+              end={end}
+              totalOrders={o?.commandes ?? 0}
+            />
           </>
         )}
       </div>
