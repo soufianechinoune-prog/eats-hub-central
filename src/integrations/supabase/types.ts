@@ -5379,7 +5379,7 @@ export type Database = {
         }[]
       }
       get_chataigne_by_restaurant: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
           ca_brut: number
           city: string
@@ -5391,7 +5391,7 @@ export type Database = {
         }[]
       }
       get_chataigne_monthly: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
           ca_brut: number
           commandes: number
@@ -5410,7 +5410,7 @@ export type Database = {
         }[]
       }
       get_chataigne_overview: {
-        Args: { p_end: string; p_start: string }
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
           ca_brut: number
           commandes: number

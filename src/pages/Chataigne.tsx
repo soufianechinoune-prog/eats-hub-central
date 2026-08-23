@@ -1,20 +1,13 @@
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/dashboard/KPICard";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -44,6 +37,14 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
+import {
+  EMPTY_BRAND_SCOPE_RESTAURANT_IDS,
+  resolveBrandScopedRestaurantIds,
+} from "@/lib/brandScope";
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import {
   useChataigneByRestaurant,
@@ -51,8 +52,6 @@ import {
   useChataigneOverview,
   type ChataigneRestaurant,
 } from "@/hooks/useChataigne";
-
-const CHANNEL_START = "2026-06-01";
 
 const fmtEur = (v: number, digits = 0) =>
   new Intl.NumberFormat("fr-FR", {
@@ -64,13 +63,6 @@ const fmtEur = (v: number, digits = 0) =>
 
 const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
 
-const today = () => {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
-};
-
 const MONTH_LABELS = [
   "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
   "Juil", "Août", "Sep", "Oct", "Nov", "Déc",
@@ -80,22 +72,6 @@ const monthLabel = (mois: string) => {
   const [y, m] = mois.split("-");
   const idx = Number(m) - 1;
   return `${MONTH_LABELS[idx] ?? mois} ${y?.slice(2) ?? ""}`;
-};
-
-const PRESETS = [
-  { value: "since-start", label: "Depuis le lancement (juin 2026)" },
-  { value: "30d", label: "30 derniers jours" },
-  { value: "90d", label: "90 derniers jours" },
-  { value: "current-month", label: "Mois en cours" },
-  { value: "custom", label: "Période personnalisée" },
-];
-
-const shiftDays = (days: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
 };
 
 function FreshnessBadge({ value, isLoading }: { value: string | null; isLoading: boolean }) {
@@ -125,12 +101,7 @@ function FreshnessBadge({ value, isLoading }: { value: string | null; isLoading:
           : "border-amber-500/40 bg-amber-500/10 text-amber-600"
       )}
     >
-      <span
-        className={cn(
-          "h-2 w-2 rounded-full",
-          fresh ? "bg-emerald-500" : "bg-amber-500"
-        )}
-      />
+      <span className={cn("h-2 w-2 rounded-full", fresh ? "bg-emerald-500" : "bg-amber-500")} />
       {fresh ? "Données à jour" : "Données à rafraîchir"} · dernière synchro {label}
     </Badge>
   );
@@ -139,9 +110,6 @@ function FreshnessBadge({ value, isLoading }: { value: string | null; isLoading:
 type SortKey = "restaurant_name" | "city" | "commandes" | "ca_brut" | "panier_moyen";
 
 export default function Chataigne() {
-  const [preset, setPreset] = useState("since-start");
-  const [start, setStart] = useState(CHANNEL_START);
-  const [end, setEnd] = useState(today());
   const [sortKey, setSortKey] = useState<SortKey>("ca_brut");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -152,27 +120,57 @@ export default function Chataigne() {
     setSearchParams(next, { replace: true });
   };
 
-  const applyPreset = (v: string) => {
-    setPreset(v);
-    if (v === "since-start") {
-      setStart(CHANNEL_START);
-      setEnd(today());
-    } else if (v === "30d") {
-      setStart(shiftDays(30));
-      setEnd(today());
-    } else if (v === "90d") {
-      setStart(shiftDays(90));
-      setEnd(today());
-    } else if (v === "current-month") {
-      const d = new Date();
-      setStart(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`);
-      setEnd(today());
-    }
-  };
+  const {
+    selectedRestaurants,
+    selectedChainId,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+  } = useAnalyticsContext();
 
-  const overviewQ = useChataigneOverview(start, end);
-  const monthlyQ = useChataigneMonthly(start, end);
-  const restaurantsQ = useChataigneByRestaurant(start, end);
+  const { startDate, endDate } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  });
+
+  const start = format(startDate, "yyyy-MM-dd");
+  const end = format(endDate, "yyyy-MM-dd");
+
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants", selectedChainId],
+    queryFn: async () => {
+      let query = supabase
+        .from("restaurants")
+        .select("id, name, city, is_pinned, is_active")
+        .order("name");
+      if (selectedChainId) query = query.eq("chain_id", selectedChainId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const chainRestaurantIds = useMemo(() => restaurants?.map((r) => r.id) ?? [], [restaurants]);
+
+  // undefined = scope pas encore résolu → requêtes en attente
+  const restaurantFilter = useMemo<string[] | null | undefined>(() => {
+    if (!restaurants) return undefined;
+    const resolved = resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: selectedRestaurants,
+      selectedChainId,
+      chainRestaurantIds,
+    });
+    if (!resolved) return null; // toutes marques accessibles
+    if (resolved === EMPTY_BRAND_SCOPE_RESTAURANT_IDS) return EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
+    return resolved;
+  }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
+
+  const overviewQ = useChataigneOverview(start, end, restaurantFilter);
+  const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
+  const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
 
   const chartData = useMemo(
     () =>
@@ -231,64 +229,30 @@ export default function Chataigne() {
   );
 
   const o = overviewQ.data;
-  const isLoading = overviewQ.isLoading || monthlyQ.isLoading || restaurantsQ.isLoading;
+  const isLoading =
+    restaurantFilter === undefined ||
+    overviewQ.isLoading ||
+    monthlyQ.isLoading ||
+    restaurantsQ.isLoading;
   const isEmpty =
-    !isLoading && (!o || (o.commandes === 0 && o.ca_brut === 0)) && (restaurantsQ.data ?? []).length === 0;
+    !isLoading &&
+    (!o || (o.commandes === 0 && o.ca_brut === 0)) &&
+    (restaurantsQ.data ?? []).length === 0;
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <h1 className="text-4xl font-bold tracking-tight">Chataigne</h1>
-            <p className="mt-1 text-muted-foreground">Canal WhatsApp &amp; Instagram</p>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Chataigne</h1>
+              <p className="text-muted-foreground">
+                Canal propre WhatsApp &amp; Instagram · démarré en juin 2026
+              </p>
+            </div>
+            <FreshnessBadge value={o?.derniere_sync ?? null} isLoading={overviewQ.isLoading} />
           </div>
-          <FreshnessBadge value={o?.derniere_sync ?? null} isLoading={overviewQ.isLoading} />
-        </div>
-
-        {/* Barre de période */}
-        <div className="rounded-2xl border bg-muted/30 p-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Période</Label>
-              <Select value={preset} onValueChange={applyPreset}>
-                <SelectTrigger className="h-12 w-72 rounded-xl bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRESETS.map((p) => (
-                    <SelectItem key={p.value} value={p.value}>
-                      {p.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Du</Label>
-              <Input
-                type="date"
-                value={start}
-                onChange={(e) => {
-                  setStart(e.target.value);
-                  setPreset("custom");
-                }}
-                className="h-12 w-44 rounded-xl bg-background"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Au</Label>
-              <Input
-                type="date"
-                value={end}
-                onChange={(e) => {
-                  setEnd(e.target.value);
-                  setPreset("custom");
-                }}
-                className="h-12 w-44 rounded-xl bg-background"
-              />
-            </div>
-          </div>
+          <AnalyticsHeader />
         </div>
 
         {/* KPI */}
@@ -309,9 +273,9 @@ export default function Chataigne() {
 
         <p className="text-xs text-muted-foreground">
           <MessageCircle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
-          CA brut = valeur des commandes passées via WhatsApp &amp; Instagram. Contrairement aux
-          marketplaces, il s'agit du canal propre de la marque : quasiment aucune commission n'est
-          prélevée, le CA brut est donc très proche du CA encaissé.
+          CA brut = valeur des commandes passées via WhatsApp &amp; Instagram. Canal propre de la
+          marque : quasiment aucune commission n'est prélevée, le CA brut est donc très proche du CA
+          encaissé. Comparaison N vs N-1 indisponible (—) : le canal a démarré en juin 2026.
         </p>
 
         {isEmpty ? (
@@ -320,7 +284,8 @@ export default function Chataigne() {
               <MessageCircle className="h-10 w-10 text-muted-foreground" />
               <p className="font-medium">Aucune donnée sur cette période</p>
               <p className="text-sm text-muted-foreground">
-                Élargis la période ou vérifie la synchronisation du canal Chataigne.
+                Élargis la période, vérifie la sélection de restaurants ou la synchronisation du
+                canal Chataigne.
               </p>
             </CardContent>
           </Card>
@@ -332,116 +297,118 @@ export default function Chataigne() {
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
-            {/* Évolution mensuelle */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Évolution mensuelle</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {monthlyQ.isLoading ? (
-                  <Skeleton className="h-[340px] w-full" />
-                ) : (
-                  <ResponsiveContainer width="100%" height={340}>
-                    <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                      <YAxis
-                        yAxisId="left"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickFormatter={(v) => fmtEur(Number(v))}
-                      />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        stroke="hsl(var(--muted-foreground))"
-                        fontSize={12}
-                        tickFormatter={(v) => fmtInt(Number(v))}
-                      />
-                      <RTooltip
-                        contentStyle={{
-                          background: "hsl(var(--popover))",
-                          border: "1px solid hsl(var(--border))",
-                          borderRadius: "0.75rem",
-                          color: "hsl(var(--popover-foreground))",
-                        }}
-                        formatter={(value: number, name: string) =>
-                          name === "CA brut" ? fmtEur(Number(value)) : fmtInt(Number(value))
-                        }
-                      />
-                      <Legend />
-                      <Bar
-                        yAxisId="left"
-                        dataKey="ca"
-                        name="CA brut"
-                        fill="hsl(var(--primary))"
-                        radius={[6, 6, 0, 0]}
-                      />
-                      <Line
-                        yAxisId="right"
-                        type="monotone"
-                        dataKey="commandes"
-                        name="Commandes"
-                        stroke="hsl(var(--accent-foreground))"
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                      />
-                    </ComposedChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
+              {/* Évolution mensuelle */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Évolution mensuelle</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {monthlyQ.isLoading ? (
+                    <Skeleton className="h-[340px] w-full" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={340}>
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                        <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickFormatter={(v) => fmtEur(Number(v))}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickFormatter={(v) => fmtInt(Number(v))}
+                        />
+                        <RTooltip
+                          contentStyle={{
+                            background: "hsl(var(--popover))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            color: "hsl(var(--popover-foreground))",
+                          }}
+                          formatter={(value: number, name: string) =>
+                            name === "CA brut" ? fmtEur(Number(value)) : fmtInt(Number(value))
+                          }
+                        />
+                        <Legend />
+                        <Bar
+                          yAxisId="left"
+                          dataKey="ca"
+                          name="CA brut"
+                          fill="hsl(var(--primary))"
+                          radius={[6, 6, 0, 0]}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="commandes"
+                          name="Commandes"
+                          stroke="hsl(var(--accent-foreground))"
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
+                </CardContent>
+              </Card>
 
-            {/* Tableau par restaurant */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Performance par restaurant</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {restaurantsQ.isLoading ? (
-                  <div className="space-y-2">
-                    {[0, 1, 2, 3, 4].map((i) => (
-                      <Skeleton key={i} className="h-10 w-full" />
-                    ))}
-                  </div>
-                ) : sorted.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    Aucun restaurant actif sur cette période.
-                  </p>
-                ) : (
-                  <div className="max-h-[520px] overflow-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <SortHead keyName="restaurant_name" label="Restaurant" />
-                          <SortHead keyName="city" label="Ville" />
-                          <SortHead keyName="commandes" label="Commandes" align="right" />
-                          <SortHead keyName="ca_brut" label="CA brut" align="right" />
-                          <SortHead keyName="panier_moyen" label="Panier moyen" align="right" />
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {sorted.map((r) => (
-                          <TableRow key={r.restaurant_id}>
-                            <TableCell className="font-medium">
-                              {r.restaurant_name ?? "—"}
-                            </TableCell>
-                            <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
-                            <TableCell className="text-right">{fmtInt(r.commandes)}</TableCell>
-                            <TableCell className="text-right font-medium">
-                              {fmtEur(r.ca_brut)}
-                            </TableCell>
-                            <TableCell className="text-right">
-                              {fmtEur(r.panier_moyen, 2)}
-                            </TableCell>
+              {/* Tableau par restaurant */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Performance par restaurant</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {restaurantsQ.isLoading ? (
+                    <div className="space-y-2">
+                      {[0, 1, 2, 3, 4].map((i) => (
+                        <Skeleton key={i} className="h-10 w-full" />
+                      ))}
+                    </div>
+                  ) : sorted.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Aucun restaurant actif sur cette période.
+                    </p>
+                  ) : (
+                    <div className="max-h-[520px] overflow-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <SortHead keyName="restaurant_name" label="Restaurant" />
+                            <SortHead keyName="city" label="Ville" />
+                            <SortHead keyName="commandes" label="Commandes" align="right" />
+                            <SortHead keyName="ca_brut" label="CA brut" align="right" />
+                            <SortHead keyName="panier_moyen" label="Panier moyen" align="right" />
+                            <TableHead className="text-right">vs N-1</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                        </TableHeader>
+                        <TableBody>
+                          {sorted.map((r) => (
+                            <TableRow key={r.restaurant_id}>
+                              <TableCell className="font-medium">
+                                {r.restaurant_name ?? "—"}
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
+                              <TableCell className="text-right">{fmtInt(r.commandes)}</TableCell>
+                              <TableCell className="text-right font-medium">
+                                {fmtEur(r.ca_brut)}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                {fmtEur(r.panier_moyen, 2)}
+                              </TableCell>
+                              <TableCell className="text-right text-muted-foreground">—</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             <TabsContent value="details">
@@ -449,6 +416,7 @@ export default function Chataigne() {
                 start={start}
                 end={end}
                 totalOrders={o?.commandes ?? 0}
+                restaurantIds={restaurantFilter ?? null}
               />
             </TabsContent>
           </Tabs>

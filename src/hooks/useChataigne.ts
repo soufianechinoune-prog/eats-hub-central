@@ -28,13 +28,19 @@ export interface ChataigneRestaurant {
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
-export function useChataigneOverview(start: string, end: string) {
+export type RestaurantScope = string[] | null | undefined;
+
+/** null = tout le réseau accessible ; undefined = scope pas encore résolu (query désactivée) */
+const scopeKey = (ids: RestaurantScope) => (ids === undefined ? "pending" : ids === null ? "all" : [...ids].sort().join(","));
+
+export function useChataigneOverview(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-overview", start, end],
+    queryKey: ["chataigne-overview", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneOverview | null> => {
       const { data, error } = await supabase.rpc("get_chataigne_overview" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       const row = (data as unknown as ChataigneOverview[] | null)?.[0];
@@ -47,16 +53,18 @@ export function useChataigneOverview(start: string, end: string) {
         derniere_sync: row.derniere_sync ?? null,
       };
     },
+    enabled: restaurantIds !== undefined,
   });
 }
 
-export function useChataigneMonthly(start: string, end: string) {
+export function useChataigneMonthly(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-monthly", start, end],
+    queryKey: ["chataigne-monthly", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneMonth[]> => {
       const { data, error } = await supabase.rpc("get_chataigne_monthly" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       return ((data as unknown as ChataigneMonth[] | null) ?? []).map((r) => ({
@@ -66,16 +74,18 @@ export function useChataigneMonthly(start: string, end: string) {
         ca_brut: num(r.ca_brut),
       }));
     },
+    enabled: restaurantIds !== undefined,
   });
 }
 
-export function useChataigneByRestaurant(start: string, end: string) {
+export function useChataigneByRestaurant(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-by-restaurant", start, end],
+    queryKey: ["chataigne-by-restaurant", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneRestaurant[]> => {
       const { data, error } = await supabase.rpc("get_chataigne_by_restaurant" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       return ((data as unknown as ChataigneRestaurant[] | null) ?? []).map((r) => ({
@@ -88,6 +98,7 @@ export function useChataigneByRestaurant(start: string, end: string) {
         dernier_jour: r.dernier_jour ?? null,
       }));
     },
+    enabled: restaurantIds !== undefined,
   });
 }
 
@@ -114,13 +125,14 @@ export interface ChataigneBreakdown {
   panier_moyen: number;
 }
 
-export function useChataigneProducts(start: string, end: string) {
+export function useChataigneProducts(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-products", start, end],
+    queryKey: ["chataigne-products", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneProduct[]> => {
       const { data, error } = await supabase.rpc("get_chataigne_products" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       return ((data as unknown as ChataigneProduct[] | null) ?? []).map((r) => ({
@@ -131,16 +143,18 @@ export function useChataigneProducts(start: string, end: string) {
         pu_moyen: num(r.pu_moyen),
       }));
     },
+    enabled: restaurantIds !== undefined,
   });
 }
 
-export function useChataignePromos(start: string, end: string) {
+export function useChataignePromos(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-promos", start, end],
+    queryKey: ["chataigne-promos", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataignePromo[]> => {
       const { data, error } = await supabase.rpc("get_chataigne_promos" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       return ((data as unknown as ChataignePromo[] | null) ?? []).map((r) => ({
@@ -150,16 +164,18 @@ export function useChataignePromos(start: string, end: string) {
         remise_moyenne: num(r.remise_moyenne),
       }));
     },
+    enabled: restaurantIds !== undefined,
   });
 }
 
-export function useChataigneBreakdown(start: string, end: string) {
+export function useChataigneBreakdown(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-breakdown", start, end],
+    queryKey: ["chataigne-breakdown", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneBreakdown[]> => {
       const { data, error } = await supabase.rpc("get_chataigne_orders_breakdown" as never, {
         p_start: start,
         p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
       return ((data as unknown as ChataigneBreakdown[] | null) ?? []).map((r) => ({
@@ -170,5 +186,6 @@ export function useChataigneBreakdown(start: string, end: string) {
         panier_moyen: num(r.panier_moyen),
       }));
     },
+    enabled: restaurantIds !== undefined,
   });
 }
