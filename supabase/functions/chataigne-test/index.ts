@@ -2,21 +2,25 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 const BASE = 'https://server.chataigne.ai'
 const LOC = 'loc_51oqv3UojF'
-const ORG = 'busorg_fJF9DesU33'
 
 const PII_HINTS = [
-  'name', 'first_name', 'last_name', 'phone', 'tel', 'email', 'mail',
+  'first_name', 'last_name', 'full_name', 'customer_name', 'contact_name',
+  'recipient_name', 'client_name', 'phone', 'tel', 'email', 'mail',
+
   'address', 'adresse', 'street', 'postal', 'zip', 'city', 'lat', 'lng',
   'longitude', 'latitude', 'contact', 'recipient', 'note', 'comment',
-  'instruction', 'company', 'building', 'floor', 'door', 'code',
+  'instruction', 'company', 'building', 'floor', 'door',
   'external_id', 'customer_id', 'whatsapp', 'instagram', 'handle', 'avatar',
   'birth', 'gender', 'ip', 'device',
 ]
 
+// Non-personal keys that would otherwise be caught by the hints above
 const SAFE_KEYS = new Set([
-  'location_name', 'status_name', 'loyalty_status', 'order_count',
-  'orders_count', 'total_orders', 'total_spent', 'created_at', 'updated_at',
-  'first_order_at', 'last_order_at', 'average_order_value', 'currency',
+  'location_name', 'status_name', 'product_name', 'item_name', 'option_name',
+  'category_name', 'menu_name', 'modifier_name', 'variant_name',
+  'payment_method_name', 'service_type_name', 'channel_name', 'brand_name',
+  'currency', 'created_at', 'updated_at', 'order_count', 'orders_count',
+  'total_orders', 'average_order_value',
 ])
 
 function isPii(key: string): boolean {
@@ -61,7 +65,7 @@ function extractArray(j: unknown): Record<string, unknown>[] {
   if (Array.isArray(j)) return j as Record<string, unknown>[]
   if (j && typeof j === 'object') {
     const o = j as Record<string, unknown>
-    for (const k of ['data', 'customers', 'results', 'items']) {
+    for (const k of ['data', 'orders', 'customers', 'results', 'items']) {
       if (Array.isArray(o[k])) return o[k] as Record<string, unknown>[]
     }
   }
@@ -77,44 +81,50 @@ Deno.serve(async (req) => {
       status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   }
+  const safeRaw = (s: string) => s.replace(key, '***')
 
-  const candidates = [
-    { base: `${BASE}/v1/locations/${LOC}`, url: `${BASE}/v1/locations/${LOC}/customers?limit=3` },
-    { base: `${BASE}/v1/organizations/${ORG}`, url: `${BASE}/v1/organizations/${ORG}/customers?limit=3` },
-  ]
+  // 1) ORDERS
+  const list = await tryFetch(`${BASE}/v1/locations/${LOC}/orders?limit=5`, key)
+  const orders = list.status === 200 ? extractArray(list.json) : []
 
-  const endpoints: Record<string, { status: number; error?: string; count?: number }> = {}
-  let okBase: string | null = null
-  let firstCustomer: Record<string, unknown> | null = null
-
-  for (const c of candidates) {
-    const r = await tryFetch(c.url, key)
-    const arr = r.status === 200 ? extractArray(r.json) : []
-    endpoints[c.url] = {
-      status: r.status,
-      ...(r.status === 200 ? { count: arr.length } : { error: (r.raw ?? '').replace(key, '***') }),
+  let ordersListShape: unknown = null
+  if (list.json && typeof list.json === 'object' && !Array.isArray(list.json)) {
+    const o = list.json as Record<string, unknown>
+    ordersListShape = {
+      top_level_keys: Object.keys(o),
+      pagination: Object.fromEntries(
+        Object.entries(o).filter(([k]) =>
+          ['has_more', 'next_cursor', 'cursor', 'starting_after', 'total', 'count', 'limit', 'page', 'meta'].includes(k),
+        ),
+      ),
     }
-    if (r.status === 200 && !okBase) {
-      okBase = c.base
-      firstCustomer = arr[0] ?? null
-    }
+  } else if (Array.isArray(list.json)) {
+    ordersListShape = { top_level_keys: '(array)', pagination: null }
+  } else {
+    ordersListShape = { error: safeRaw(list.raw ?? '') }
   }
 
-  let customerSchema: unknown = null
-  if (okBase && firstCustomer) {
-    const id = (firstCustomer.id as string) ?? (firstCustomer.customer_id as string) ?? null
-    if (id) {
-      const d = await tryFetch(`${okBase}/customers/${id}`, key)
-      endpoints[`${okBase}/customers/{id}`] = { status: d.status }
-      customerSchema = d.status === 200 && d.json ? sanitize(d.json) : sanitize(firstCustomer)
-    } else {
-      customerSchema = sanitize(firstCustomer)
-    }
+  let ordersDetailStatus: number | null = null
+  let orderSchema: unknown = null
+  const firstId = orders[0] ? ((orders[0].id as string) ?? (orders[0].order_id as string) ?? null) : null
+  if (firstId) {
+    const d = await tryFetch(`${BASE}/v1/locations/${LOC}/orders/${firstId}`, key)
+    ordersDetailStatus = d.status
+    orderSchema = d.status === 200 && d.json ? sanitize(d.json) : sanitize(orders[0])
+  } else if (orders[0]) {
+    orderSchema = sanitize(orders[0])
   }
+
+  // 2) CUSTOMERS
+  const cust = await tryFetch(`${BASE}/v1/locations/${LOC}/customers?limit=3`, key)
 
   return new Response(JSON.stringify({
-    endpoints,
-    accessible: !!okBase,
-    customer_schema: customerSchema,
+    orders_list_status: list.status,
+    orders_detail_status: ordersDetailStatus,
+    orders_count: orders.length,
+    orders_list_shape: ordersListShape,
+    order_schema: orderSchema,
+    customers_status: cust.status,
+    customers_error: cust.status === 200 ? null : safeRaw(cust.raw ?? ''),
   }, null, 2), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 })
