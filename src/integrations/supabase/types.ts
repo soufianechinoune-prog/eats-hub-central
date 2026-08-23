@@ -5399,6 +5399,16 @@ export type Database = {
           restos_actifs: number
         }[]
       }
+      get_chataigne_orders_breakdown: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca: number
+          commandes: number
+          dimension: string
+          panier_moyen: number
+          valeur: string
+        }[]
+      }
       get_chataigne_overview: {
         Args: { p_end: string; p_start: string }
         Returns: {
@@ -5407,6 +5417,25 @@ export type Database = {
           derniere_sync: string
           panier_moyen: number
           restos_actifs: number
+        }[]
+      }
+      get_chataigne_products: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca_estime: number
+          commandes: number
+          item_name: string
+          pu_moyen: number
+          quantite: number
+        }[]
+      }
+      get_chataigne_promos: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          montant_total: number
+          promo: string
+          remise_moyenne: number
+          utilisations: number
         }[]
       }
       get_daily_revenue_from_orders: {
