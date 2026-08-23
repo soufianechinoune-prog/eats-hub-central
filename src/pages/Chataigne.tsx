@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/dashboard/KPICard";
@@ -142,6 +144,13 @@ export default function Chataigne() {
   const [end, setEnd] = useState(today());
   const [sortKey, setSortKey] = useState<SortKey>("ca_brut");
   const [sortAsc, setSortAsc] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "details" ? "details" : "overview";
+  const setTab = (v: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("tab", v);
+    setSearchParams(next, { replace: true });
+  };
 
   const applyPreset = (v: string) => {
     setPreset(v);
@@ -316,7 +325,13 @@ export default function Chataigne() {
             </CardContent>
           </Card>
         ) : (
-          <>
+          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+              <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
             {/* Évolution mensuelle */}
             <Card>
               <CardHeader>
@@ -394,7 +409,7 @@ export default function Chataigne() {
                     Aucun restaurant actif sur cette période.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[520px] overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -427,13 +442,16 @@ export default function Chataigne() {
                 )}
               </CardContent>
             </Card>
+            </TabsContent>
 
-            <ChataigneOrdersAnalysis
-              start={start}
-              end={end}
-              totalOrders={o?.commandes ?? 0}
-            />
-          </>
+            <TabsContent value="details">
+              <ChataigneOrdersAnalysis
+                start={start}
+                end={end}
+                totalOrders={o?.commandes ?? 0}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </AppLayout>
