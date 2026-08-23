@@ -316,7 +316,13 @@ export default function Chataigne() {
             </CardContent>
           </Card>
         ) : (
-          <>
+          <Tabs value={tab} onValueChange={setTab} className="space-y-6">
+            <TabsList>
+              <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
+              <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="overview" className="space-y-6">
             {/* Évolution mensuelle */}
             <Card>
               <CardHeader>
