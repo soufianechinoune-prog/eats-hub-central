@@ -352,7 +352,11 @@ Deno.serve(async (req) => {
             }
 
             let full: Record<string, unknown> = listOrder
-            if (!Array.isArray(listOrder?.items) || listOrder.items.length === 0) {
+            const needsDetail =
+              mode === 'rehash'
+                ? !listOrder?.customer
+                : !Array.isArray(listOrder?.items) || listOrder.items.length === 0
+            if (needsDetail) {
               const oid = listOrder?.id ?? listOrder?.order_id
               if (oid) {
                 try {
@@ -366,6 +370,23 @@ Deno.serve(async (req) => {
 
             const orderId = String(full?.id ?? full?.order_id ?? '')
             if (!orderId) continue
+
+            // cle client en memoire uniquement -> hash sale irreversible
+            const { key: clientKey, source: keySource } = extractClientKey(full)
+            const codeClient = await hashClientKey(clientKey)
+            if (keySource === 'customer_id') keySrcCounts.customer_id++
+            else if (keySource === 'phone') keySrcCounts.phone++
+            else keySrcCounts.none++
+
+            if (mode === 'rehash') {
+              const { error: rErr } = await supabase
+                .from('chataigne_orders')
+                .update({ code_client: codeClient })
+                .eq('chataigne_order_id', orderId)
+              if (rErr) throw rErr
+              if (codeClient) ordersUpserted++
+              continue
+            }
 
             const { scrubbed, hasCustomer, customerLanguage } = scrubOrder(full)
 
