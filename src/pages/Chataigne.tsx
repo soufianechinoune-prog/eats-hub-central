@@ -400,7 +400,7 @@ export default function Chataigne() {
                     Aucun restaurant actif sur cette période.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="max-h-[520px] overflow-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -433,13 +433,16 @@ export default function Chataigne() {
                 )}
               </CardContent>
             </Card>
+            </TabsContent>
 
-            <ChataigneOrdersAnalysis
-              start={start}
-              end={end}
-              totalOrders={o?.commandes ?? 0}
-            />
-          </>
+            <TabsContent value="details">
+              <ChataigneOrdersAnalysis
+                start={start}
+                end={end}
+                totalOrders={o?.commandes ?? 0}
+              />
+            </TabsContent>
+          </Tabs>
         )}
       </div>
     </AppLayout>
