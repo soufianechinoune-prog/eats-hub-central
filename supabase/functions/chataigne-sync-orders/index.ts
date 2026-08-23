@@ -68,6 +68,48 @@ function scrubOrder(order: Record<string, unknown>) {
   return { scrubbed, hasCustomer, customerLanguage }
 }
 
+// ---------- Pseudonymisation client (RGPD) ----------
+// La cle client (id ou telephone) n'existe qu'en memoire, n'est jamais stockee ni loggee.
+const HASH_SALT = Deno.env.get('CHATAIGNE_HASH_SALT') ?? ''
+
+function normalizePhone(raw: string): string | null {
+  let d = raw.replace(/[^\d+]/g, '')
+  if (d.startsWith('+')) d = d.slice(1)
+  d = d.replace(/\D/g, '')
+  if (d.startsWith('00')) d = d.slice(2)
+  if (d.length === 10 && d.startsWith('0')) d = '33' + d.slice(1)
+  if (d.length === 9 && d.startsWith('6')) d = '33' + d
+  return d.length >= 8 ? d : null
+}
+
+/** Returns { key, source } — key is raw and must NEVER be persisted or logged. */
+function extractClientKey(order: Record<string, unknown>): { key: string | null; source: 'customer_id' | 'phone' | null } {
+  const c = (order?.customer ?? null) as Record<string, unknown> | null
+  if (c && typeof c === 'object') {
+    const id = c.id ?? c.customer_id ?? c.uuid ?? null
+    if (id !== null && id !== undefined && String(id).trim() !== '') {
+      return { key: `id:${String(id).trim()}`, source: 'customer_id' }
+    }
+    const phoneRaw = (c.phone ?? c.phone_number ?? c.mobile ?? null) as unknown
+    if (typeof phoneRaw === 'string' && phoneRaw.trim()) {
+      const n = normalizePhone(phoneRaw)
+      if (n) return { key: `tel:${n}`, source: 'phone' }
+    }
+  }
+  const topId = (order?.customer_id ?? null) as unknown
+  if (typeof topId === 'string' && topId.trim()) return { key: `id:${topId.trim()}`, source: 'customer_id' }
+  return { key: null, source: null }
+}
+
+async function hashClientKey(key: string | null): Promise<string | null> {
+  if (!key || !HASH_SALT) return null
+  const bytes = new TextEncoder().encode(`${HASH_SALT}|${key}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('')
+}
+
 // ---------- helpers ----------
 const asNum = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v
@@ -186,8 +228,8 @@ Deno.serve(async (req) => {
     body = {}
   }
 
-  const mode: 'test' | 'backfill' | 'incremental' =
-    body?.mode === 'test' || body?.mode === 'backfill' ? body.mode : 'incremental'
+  const mode: 'test' | 'backfill' | 'incremental' | 'rehash' =
+    body?.mode === 'test' || body?.mode === 'backfill' || body?.mode === 'rehash' ? body.mode : 'incremental'
   const days = Number.isFinite(body?.days)
     ? Math.max(1, Math.floor(body.days))
     : mode === 'backfill'
@@ -272,6 +314,7 @@ Deno.serve(async (req) => {
     let processed = 0
     let failed = 0
     let ordersUpserted = 0
+    const keySrcCounts = { customer_id: 0, phone: 0, none: 0 }
     let itemRowsInserted = 0
     const errors: { location: string; error: string }[] = []
 
@@ -310,7 +353,11 @@ Deno.serve(async (req) => {
             }
 
             let full: Record<string, unknown> = listOrder
-            if (!Array.isArray(listOrder?.items) || listOrder.items.length === 0) {
+            const needsDetail =
+              mode === 'rehash'
+                ? !listOrder?.customer
+                : !Array.isArray(listOrder?.items) || listOrder.items.length === 0
+            if (needsDetail) {
               const oid = listOrder?.id ?? listOrder?.order_id
               if (oid) {
                 try {
@@ -324,6 +371,23 @@ Deno.serve(async (req) => {
 
             const orderId = String(full?.id ?? full?.order_id ?? '')
             if (!orderId) continue
+
+            // cle client en memoire uniquement -> hash sale irreversible
+            const { key: clientKey, source: keySource } = extractClientKey(full)
+            const codeClient = await hashClientKey(clientKey)
+            if (keySource === 'customer_id') keySrcCounts.customer_id++
+            else if (keySource === 'phone') keySrcCounts.phone++
+            else keySrcCounts.none++
+
+            if (mode === 'rehash') {
+              const { error: rErr } = await supabase
+                .from('chataigne_orders')
+                .update({ code_client: codeClient })
+                .eq('chataigne_order_id', orderId)
+              if (rErr) throw rErr
+              if (codeClient) ordersUpserted++
+              continue
+            }
 
             const { scrubbed, hasCustomer, customerLanguage } = scrubOrder(full)
 
@@ -383,6 +447,7 @@ Deno.serve(async (req) => {
               discount_total_amount: discountTotal || null,
               discounts: discounts.length ? discounts : null,
               item_count: Array.isArray(full?.items) ? (full.items as unknown[]).length : null,
+              code_client: codeClient,
               raw_payload: scrubbed,
               updated_at: new Date().toISOString(),
             }
@@ -452,6 +517,8 @@ Deno.serve(async (req) => {
       locations_failed: failed,
       orders_upserted: ordersUpserted,
       item_rows_inserted: itemRowsInserted,
+      client_key_sources: keySrcCounts,
+      salt_configured: !!HASH_SALT,
       errors: errors.slice(0, 20),
     })
   } catch (e) {

@@ -1,0 +1,3 @@
+ALTER TABLE public.chataigne_orders ADD COLUMN IF NOT EXISTS code_client text;
+COMMENT ON COLUMN public.chataigne_orders.code_client IS 'Identifiant client pseudonymise (hash SHA-256 sale, irreversible, du telephone/id client). Aucune donnee nominative n''est stockee : ni telephone, ni nom, ni email, ni adresse.';
+CREATE INDEX IF NOT EXISTS idx_chataigne_orders_code_client ON public.chataigne_orders (code_client) WHERE code_client IS NOT NULL;

@@ -584,6 +584,7 @@ export type Database = {
           channel: string | null
           chataigne_location_id: string
           chataigne_order_id: string
+          code_client: string | null
           created_at: string
           currency: string | null
           customer_language: string | null
@@ -614,6 +615,7 @@ export type Database = {
           channel?: string | null
           chataigne_location_id: string
           chataigne_order_id: string
+          code_client?: string | null
           created_at?: string
           currency?: string | null
           customer_language?: string | null
@@ -644,6 +646,7 @@ export type Database = {
           channel?: string | null
           chataigne_location_id?: string
           chataigne_order_id?: string
+          code_client?: string | null
           created_at?: string
           currency?: string | null
           customer_language?: string | null
