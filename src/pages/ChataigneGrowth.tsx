@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -10,16 +10,18 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  LabelList,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Percent, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -29,11 +31,13 @@ import {
   resolveBrandScopedRestaurantIds,
 } from "@/lib/brandScope";
 import {
+  useChataigneBasketSegments,
   useChataigneCohortRetention,
   useChataigneCustomerEvolution,
   type GrowthGranularity,
 } from "@/hooks/useChataigneGrowth";
 import { cn } from "@/lib/utils";
+
 
 const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
 const fmtEur = (v: number, digits = 0) =>
