@@ -5690,6 +5690,16 @@ export type Database = {
           taux_reachat: number
         }[]
       }
+      get_chataigne_retention_by_acquisition: {
+        Args: { p_restaurant_ids?: string[] }
+        Returns: {
+          clients: number
+          ordre: number
+          revenus: number
+          taux_reachat: number
+          type_acquisition: string
+        }[]
+      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string
