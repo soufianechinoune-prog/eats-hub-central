@@ -114,17 +114,26 @@ function PaymentBadge({ status, amount }: { status: string | null; amount: numbe
   );
 }
 
-function ClientBadge({ total, rank }: { total: number | null; rank: number | null }) {
+function ClientBadge({
+  total,
+  rank,
+  onClick,
+}: {
+  total: number | null;
+  rank: number | null;
+  onClick?: () => void;
+}) {
   if (!total || total < 1) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   const isNew = total === 1;
-  return (
+  const content = (
     <div className="flex flex-col items-start">
       <Badge
         variant="outline"
         className={cn(
           "text-xs font-medium",
+          onClick && "cursor-pointer hover:brightness-95",
           isNew
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
             : "border-blue-500/40 bg-blue-500/10 text-blue-600"
@@ -138,6 +147,20 @@ function ClientBadge({ total, rank }: { total: number | null; rank: number | nul
         </span>
       )}
     </div>
+  );
+  if (!onClick) return content;
+  return (
+    <button
+      type="button"
+      title="Voir le détail client (anonyme)"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="text-left"
+    >
+      {content}
+    </button>
   );
 }
 
