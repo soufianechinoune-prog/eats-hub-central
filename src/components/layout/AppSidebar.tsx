@@ -91,6 +91,7 @@ const analyticsSubItems = [
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
   { title: "Ventes sur place", url: "/analytics/onsite-sales", icon: Store },
   { title: "Chataigne", url: "/chataigne", icon: MessageCircle },
+  { title: "Chataigne — Croissance & Clients", url: "/chataigne/croissance", icon: Users },
   { title: "Chataigne — Écarts & Markup", url: "/chataigne/tarification", icon: Tag },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
