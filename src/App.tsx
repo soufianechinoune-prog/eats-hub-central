@@ -63,6 +63,7 @@ const DeliverooMatching = React.lazy(() => import("./pages/DeliverooMatching"));
 const ItemSales = React.lazy(() => import("./pages/ItemSales"));
 const OnsiteSales = React.lazy(() => import("./pages/OnsiteSales"));
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
+const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarification"));
 const MarketingAnalytics = React.lazy(() => import("./pages/MarketingAnalytics"));
 const SuccessScore = React.lazy(() => import("./pages/SuccessScore"));
 const Reviews = React.lazy(() => import("./pages/Reviews"));
