@@ -136,7 +136,8 @@ export function useChataigneReferralSummary(
         p_restaurant_ids: restaurantIds ?? null,
       } as never);
       if (error) throw error;
-      const row = (Array.isArray(data) ? data[0] : data) as ChataigneReferralSummary | undefined;
+      const raw = data as unknown;
+      const row = (Array.isArray(raw) ? raw[0] : raw) as ChataigneReferralSummary | undefined;
       return {
         filleuls: num(row?.filleuls),
         conversions: num(row?.conversions),
