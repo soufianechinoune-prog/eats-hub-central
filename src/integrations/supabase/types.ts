@@ -5431,6 +5431,8 @@ export type Database = {
           channel: string
           chataigne_order_id: string
           city: string
+          client_order_rank: number
+          client_total_orders: number
           delivery_fee_amount: number
           discount_total_amount: number
           discounts: Json
