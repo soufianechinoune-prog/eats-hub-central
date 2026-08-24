@@ -53,7 +53,6 @@ export interface VersionRestaurantRow {
   restaurant_name: string | null;
   city: string | null;
   method: string | null;
-  nb_commandes: number;
 }
 
 export function useRestaurantPriceVersions() {
@@ -68,7 +67,6 @@ export function useRestaurantPriceVersions() {
         restaurant_name: r.restaurant_name,
         city: r.city,
         method: r.method,
-        nb_commandes: num(r.nb_commandes),
       }));
     },
   });

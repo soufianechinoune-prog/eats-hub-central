@@ -6421,7 +6421,6 @@ export type Database = {
         Returns: {
           city: string
           method: string
-          nb_commandes: number
           restaurant_id: string
           restaurant_name: string
           version: string
