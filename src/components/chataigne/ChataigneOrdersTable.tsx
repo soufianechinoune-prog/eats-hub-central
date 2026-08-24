@@ -55,6 +55,7 @@ import {
   type ChataigneOrdersSortField,
   type RestaurantScope,
 } from "@/hooks/useChataigne";
+import { ChataigneCustomerDrawer } from "./ChataigneCustomerDrawer";
 
 const fmtEur = (v: number, digits = 2) =>
   new Intl.NumberFormat("fr-FR", {
@@ -334,6 +335,7 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
   const [sortField, setSortField] = useState<ChataigneOrdersSortField>("order_datetime");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [customerRef, setCustomerRef] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 350);
@@ -502,7 +504,13 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                         </TableCell>
                         <TableCell className="text-muted-foreground">{r.short_id ?? "—"}</TableCell>
                         <TableCell className="text-right">
-                          <ClientBadge total={r.client_total_orders} rank={r.client_order_rank} />
+                          <ClientBadge
+                            total={r.client_total_orders}
+                            rank={r.client_order_rank}
+                            onClick={
+                              r.customer_ref ? () => setCustomerRef(r.customer_ref) : undefined
+                            }
+                          />
                         </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {r.channel ?? "—"}
@@ -585,6 +593,10 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
           </div>
         </div>
       </CardContent>
+      <ChataigneCustomerDrawer
+        customerRef={customerRef}
+        onOpenChange={(open) => !open && setCustomerRef(null)}
+      />
     </Card>
   );
 }
