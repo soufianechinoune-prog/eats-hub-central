@@ -213,6 +213,8 @@ export interface ChataigneOrderRow {
   expected_delivery_time: string | null;
   client_total_orders: number | null;
   client_order_rank: number | null;
+  /** Identifiant client anonyme opaque — ne jamais afficher */
+  customer_ref: string | null;
 }
 
 export type ChataigneOrdersSortField =
