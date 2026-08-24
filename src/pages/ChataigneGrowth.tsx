@@ -317,8 +317,18 @@ export default function ChataigneGrowth() {
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
                     <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <defs>
+                        <linearGradient id="gradCaNouveaux" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                        </linearGradient>
+                        <linearGradient id="gradCaRecurrents" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => fmtEur(Number(v))} />
                       <RTooltip
                         formatter={(v: number, name) => [fmtEur(Number(v), 2), name as string]}
@@ -336,23 +346,94 @@ export default function ChataigneGrowth() {
                         name="CA nouveaux"
                         stackId="ca"
                         stroke="hsl(var(--primary))"
-                        fill="hsl(var(--primary))"
-                        fillOpacity={0.35}
+                        strokeWidth={2}
+                        fill="url(#gradCaNouveaux)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
                       <Area
                         type="monotone"
                         dataKey="ca_recurrents"
                         name="CA récurrents"
                         stackId="ca"
-                        stroke="hsl(var(--chart-2, var(--accent)))"
-                        fill="hsl(var(--chart-2, var(--accent)))"
-                        fillOpacity={0.35}
+                        stroke="hsl(142 71% 45%)"
+                        strokeWidth={2}
+                        fill="url(#gradCaRecurrents)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingBasket className="h-4 w-4 text-muted-foreground" />
+                  Panier moyen par type de client
+                </CardTitle>
+                <CardDescription>
+                  Panier moyen (€) et volume de commandes par segment sur la période sélectionnée
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {basketQ.isLoading ? (
+                  <Skeleton className="h-[340px] w-full" />
+                ) : basketSegments.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune donnée sur cette période.
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={340}>
+                    <BarChart
+                      data={basketSegments}
+                      layout="vertical"
+                      margin={{ top: 8, right: 56, bottom: 0, left: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-border" opacity={0.5} />
+                      <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => fmtEur(Number(v))} />
+                      <YAxis type="category" dataKey="segment" width={140} tick={{ fontSize: 12 }} />
+                      <RTooltip
+                        formatter={(v: number, _n, item) => [
+                          `${fmtEur(Number(v), 2)} · ${fmtInt((item?.payload as { commandes?: number })?.commandes ?? 0)} commandes`,
+                          "Panier moyen",
+                        ]}
+                        contentStyle={{
+                          background: "hsl(var(--popover))",
+                          borderColor: "hsl(var(--border))",
+                          color: "hsl(var(--popover-foreground))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Bar dataKey="panier_moyen" name="Panier moyen" radius={[0, 6, 6, 0]} barSize={22}>
+                        {basketSegments.map((s, i) => (
+                          <Cell key={s.segment} fill={SEGMENT_COLORS[i % SEGMENT_COLORS.length]} />
+                        ))}
+                        <LabelList
+                          dataKey="panier_moyen"
+                          position="right"
+                          formatter={(v: number) => fmtEur(Number(v), 2)}
+                          className="fill-foreground"
+                          style={{ fontSize: 12, fontWeight: 600 }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+                {basketSegments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {basketSegments.map((s) => (
+                      <span key={s.segment}>
+                        {s.segment} : {fmtInt(s.commandes)} cmdes
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
 
             <Card>
               <CardHeader>
