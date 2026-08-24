@@ -236,6 +236,7 @@ const App = () => {
                     <Route path="/item-sales" element={<P><ItemSales /></P>} />
                     <Route path="/analytics/onsite-sales" element={<P><OnsiteSales /></P>} />
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
+                    <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
                     <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                     <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
                     <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
