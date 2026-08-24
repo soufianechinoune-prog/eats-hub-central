@@ -476,13 +476,9 @@ export default function ChataigneGrowth() {
 
             <Card>
               <CardHeader>
-                <CardTitle>
-                  Rétention par cohorte — % des clients acquis un mois donné qui recommandent les mois
-                  suivants
-                </CardTitle>
+                <CardTitle>Est-ce que les clients reviennent ?</CardTitle>
                 <CardDescription>
-                  Le canal a démarré en juin 2026 ; les cohortes récentes ont eu moins de temps pour
-                  revenir.
+                  Pour chaque groupe de clients selon leur mois d'arrivée, part de ceux qui ont recommandé les mois suivants.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -493,55 +489,88 @@ export default function ChataigneGrowth() {
                     Aucune cohorte disponible.
                   </p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-separate border-spacing-1 text-sm">
-                      <thead>
-                        <tr>
-                          <th className="sticky left-0 z-10 bg-background text-left font-medium text-muted-foreground">
-                            Cohorte
-                          </th>
-                          <th className="text-right font-medium text-muted-foreground">Taille</th>
-                          {offsets.map((o) => (
-                            <th key={o} className="min-w-[56px] text-center font-medium text-muted-foreground">
-                              M{o}
+                  <div className="space-y-3">
+                    {/* Dynamic "How to read" example */}
+                    {(() => {
+                      const first = cohorts[0];
+                      if (!first) return null;
+                      const m1 = first.cells.get(1);
+                      const m2 = first.cells.get(2);
+                      return (
+                        <p className="text-sm text-muted-foreground">
+                          <span className="font-medium text-foreground">Comment lire :</span>{" "}
+                          Exemple — sur {fmtInt(first.taille)} clients {cohortLabelFull(first.cohorte).toLowerCase()},
+                          {m1 !== undefined ? ` ${m1.toFixed(0)}% sont revenus le mois suivant` : ""}
+                          {m1 !== undefined && m2 !== undefined ? "," : ""}
+                          {m2 !== undefined ? ` ${m2.toFixed(0)}% deux mois après` : ""}
+                          .
+                        </p>
+                      );
+                    })()}
+
+                    <div className="overflow-x-auto">
+                      <table className="w-full border-separate border-spacing-1 text-sm">
+                        <thead>
+                          <tr>
+                            <th className="sticky left-0 z-10 bg-background text-left font-medium text-muted-foreground">
+                              Arrivés
                             </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {cohorts.map((c) => (
-                          <tr key={c.cohorte}>
-                            <td className="sticky left-0 z-10 bg-background whitespace-nowrap font-medium">
-                              {cohortLabel(c.cohorte)}
-                            </td>
-                            <td className="text-right tabular-nums text-muted-foreground">
-                              {fmtInt(c.taille)}
-                            </td>
-                            {offsets.map((o) => {
-                              const val = c.cells.get(o);
-                              return (
-                                <td key={o} className="p-0">
-                                  {val === undefined ? (
-                                    <div className="rounded-md py-1.5 text-center text-xs text-muted-foreground">
-                                      —
-                                    </div>
-                                  ) : (
-                                    <div
-                                      className={cn(
-                                        "rounded-md py-1.5 text-center text-xs font-medium tabular-nums",
-                                        retentionColor(val)
-                                      )}
-                                    >
-                                      {val.toFixed(0)}%
-                                    </div>
-                                  )}
-                                </td>
-                              );
-                            })}
+                            <th className="text-right font-medium text-muted-foreground">Nb clients</th>
+                            {offsets.map((o) => (
+                              <th key={o} className="min-w-[56px] text-center font-medium text-muted-foreground">
+                                {offsetLabel(o)}
+                              </th>
+                            ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {cohorts.map((c) => (
+                            <tr key={c.cohorte}>
+                              <td className="sticky left-0 z-10 bg-background whitespace-nowrap font-medium">
+                                {cohortLabelFull(c.cohorte)}
+                              </td>
+                              <td className="text-right tabular-nums text-muted-foreground">
+                                {fmtInt(c.taille)}
+                              </td>
+                              {offsets.map((o) => {
+                                const val = c.cells.get(o);
+                                return (
+                                  <td key={o} className="p-0">
+                                    {val === undefined ? (
+                                      <div className="rounded-md py-1.5 text-center text-xs text-muted-foreground">
+                                        —
+                                      </div>
+                                    ) : (
+                                      <div
+                                        className={cn(
+                                          "rounded-md py-1.5 text-center text-xs font-medium tabular-nums",
+                                          retentionColor(val)
+                                        )}
+                                      >
+                                        {val.toFixed(0)}%
+                                      </div>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Color legend + note */}
+                    <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500/10" />
+                        <span>faible</span>
+                        <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-600/75" />
+                        <span>fort</span>
+                      </span>
+                      <span>
+                        Le canal a démarré en juin 2026 ; les cohortes récentes ont eu moins de temps pour revenir.
+                      </span>
+                    </div>
                   </div>
                 )}
               </CardContent>
