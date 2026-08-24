@@ -21,7 +21,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Gift, HandCoins, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -34,6 +34,8 @@ import {
   useChataigneBasketSegments,
   useChataigneCohortRetention,
   useChataigneCustomerEvolution,
+  useChataigneReferralEvolution,
+  useChataigneReferralSummary,
   type GrowthGranularity,
 } from "@/hooks/useChataigneGrowth";
 import { cn } from "@/lib/utils";
@@ -144,6 +146,27 @@ export default function ChataigneGrowth() {
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
   const basketSegments = basketQ.data ?? [];
 
+  const referralSummaryQ = useChataigneReferralSummary(start, end, restaurantFilter);
+  const referral = referralSummaryQ.data ?? {
+    filleuls: 0,
+    conversions: 0,
+    cout_total: 0,
+    panier_moyen_filleul: 0,
+    filleuls_revenus: 0,
+    taux_reachat: 0,
+  };
+  const referralEvolutionQ = useChataigneReferralEvolution(start, end, granularity, restaurantFilter);
+  const referralChartData = useMemo(
+    () =>
+      (referralEvolutionQ.data ?? []).map((r) => ({
+        label: periodLabel(r.periode, granularity),
+        filleuls: r.filleuls,
+        parrains_convertis: r.parrains_convertis,
+      })),
+    [referralEvolutionQ.data, granularity]
+  );
+
+
 
 
   const rows = evolutionQ.data ?? [];
@@ -170,6 +193,13 @@ export default function ChataigneGrowth() {
     const partRec = caN + caR > 0 ? (caR / (caN + caR)) * 100 : 0;
     return { nouveaux, recurrents, actifs, caN, caR, partRec };
   }, [rows]);
+
+  const globalBasket = useMemo(() => {
+    const ca = rows.reduce((s, r) => s + r.ca_nouveaux + r.ca_recurrents, 0);
+    const cmd = rows.reduce((s, r) => s + r.commandes, 0);
+    return cmd > 0 ? ca / cmd : 0;
+  }, [rows]);
+
 
   const cohortRows = cohortQ.data ?? [];
   const cohorts = useMemo(() => {
@@ -509,6 +539,133 @@ export default function ChataigneGrowth() {
                 )}
               </CardContent>
             </Card>
+
+            <div className="space-y-4 pt-2">
+              <div>
+                <h2 className="flex items-center gap-2 text-xl font-bold">
+                  <Gift className="h-5 w-5 text-muted-foreground" />
+                  Parrainage
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Clients acquis via le programme de parrainage — filleuls (-25%) et parrains
+                  récompensés (-15%). 100% anonyme.
+                </p>
+              </div>
+
+              {referralSummaryQ.isLoading ? (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <Skeleton key={i} className="h-32 rounded-xl" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                  <KPICard title="Filleuls acquis" value={fmtInt(referral.filleuls)} icon={UserPlus} />
+                  <KPICard
+                    title="Parrainages convertis"
+                    value={fmtInt(referral.conversions)}
+                    icon={HandCoins}
+                  />
+                  <KPICard
+                    title="Coût du programme"
+                    value={fmtEur(referral.cout_total, 2)}
+                    icon={Euro}
+                  />
+                  <KPICard
+                    title="Panier moyen filleul"
+                    value={fmtEur(referral.panier_moyen_filleul, 2)}
+                    icon={ShoppingBasket}
+                  />
+                  <div className="space-y-1">
+                    <KPICard
+                      title="Taux de réachat filleuls"
+                      value={fmtPct(referral.taux_reachat)}
+                      icon={Percent}
+                    />
+                    <p className="text-[11px] leading-tight text-muted-foreground">
+                      Programme récent : la plupart des filleuls sont trop récents pour avoir eu le
+                      temps de revenir — ce taux montera.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Évolution du parrainage</CardTitle>
+                  <CardDescription>
+                    Filleuls acquis et parrainages convertis par{" "}
+                    {granularity === "day" ? "jour" : granularity === "week" ? "semaine" : "mois"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {referralEvolutionQ.isLoading ? (
+                    <Skeleton className="h-[320px] w-full" />
+                  ) : referralChartData.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">
+                      Aucune donnée de parrainage sur cette période.
+                    </p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={320}>
+                      <AreaChart data={referralChartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                        <defs>
+                          <linearGradient id="gradFilleuls" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.03} />
+                          </linearGradient>
+                          <linearGradient id="gradParrains" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(38 92% 50%)" stopOpacity={0.45} />
+                            <stop offset="100%" stopColor="hsl(38 92% 50%)" stopOpacity={0.03} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                        <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
+                        <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+                        <RTooltip
+                          formatter={(v: number, name) => [fmtInt(Number(v)), name as string]}
+                          contentStyle={{
+                            background: "hsl(var(--popover))",
+                            borderColor: "hsl(var(--border))",
+                            color: "hsl(var(--popover-foreground))",
+                            borderRadius: 8,
+                          }}
+                        />
+                        <Legend />
+                        <Area
+                          type="monotone"
+                          dataKey="filleuls"
+                          name="Filleuls acquis"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2}
+                          fill="url(#gradFilleuls)"
+                          dot={{ r: 2 }}
+                          activeDot={{ r: 4 }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="parrains_convertis"
+                          name="Parrainages convertis"
+                          stroke="hsl(38 92% 50%)"
+                          strokeWidth={2}
+                          fill="url(#gradParrains)"
+                          dot={{ r: 2 }}
+                          activeDot={{ r: 4 }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                  {referral.panier_moyen_filleul > 0 && (
+                    <p className="mt-3 text-sm text-muted-foreground">
+                      Panier moyen filleul {fmtEur(referral.panier_moyen_filleul, 2)} vs panier global
+                      du canal {fmtEur(globalBasket, 2)} —{" "}
+                      {referral.panier_moyen_filleul >= globalBasket
+                        ? "les filleuls commandent plus gros."
+                        : "les filleuls commandent un peu moins gros."}
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
 
             <p className="text-xs text-muted-foreground">
               <Euro className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />

@@ -112,3 +112,77 @@ export function useChataigneBasketSegments(
     enabled: restaurantIds !== undefined,
   });
 }
+
+export interface ChataigneReferralSummary {
+  filleuls: number;
+  conversions: number;
+  cout_total: number;
+  panier_moyen_filleul: number;
+  filleuls_revenus: number;
+  taux_reachat: number;
+}
+
+export function useChataigneReferralSummary(
+  start: string,
+  end: string,
+  restaurantIds: RestaurantScope = null
+) {
+  return useQuery({
+    queryKey: ["chataigne-referral-summary", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneReferralSummary> => {
+      const { data, error } = await supabase.rpc("get_chataigne_referral_summary" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      const raw = data as unknown;
+      const row = (Array.isArray(raw) ? raw[0] : raw) as ChataigneReferralSummary | undefined;
+      return {
+        filleuls: num(row?.filleuls),
+        conversions: num(row?.conversions),
+        cout_total: num(row?.cout_total),
+        panier_moyen_filleul: num(row?.panier_moyen_filleul),
+        filleuls_revenus: num(row?.filleuls_revenus),
+        taux_reachat: num(row?.taux_reachat),
+      };
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
+
+export interface ChataigneReferralEvolutionRow {
+  periode: string;
+  filleuls: number;
+  parrains_convertis: number;
+  cout: number;
+  panier_moyen_filleuls: number;
+}
+
+export function useChataigneReferralEvolution(
+  start: string,
+  end: string,
+  granularity: GrowthGranularity,
+  restaurantIds: RestaurantScope = null
+) {
+  return useQuery({
+    queryKey: ["chataigne-referral-evolution", start, end, granularity, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneReferralEvolutionRow[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_referral_evolution" as never, {
+        p_start: start,
+        p_end: end,
+        p_granularity: granularity,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneReferralEvolutionRow[] | null) ?? []).map((r) => ({
+        periode: String(r.periode),
+        filleuls: num(r.filleuls),
+        parrains_convertis: num(r.parrains_convertis),
+        cout: num(r.cout),
+        panier_moyen_filleuls: num(r.panier_moyen_filleuls),
+      }));
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
