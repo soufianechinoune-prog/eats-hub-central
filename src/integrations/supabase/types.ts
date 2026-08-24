@@ -5396,6 +5396,34 @@ export type Database = {
           restaurant_name: string
         }[]
       }
+      get_chataigne_customer_orders: {
+        Args: { p_code_client: string }
+        Returns: {
+          chataigne_order_id: string
+          delivery_fee_amount: number
+          discount_total_amount: number
+          item_count: number
+          order_datetime: string
+          restaurant_name: string
+          service_type: string
+          short_id: string
+          status: string
+          total_amount: number
+        }[]
+      }
+      get_chataigne_customer_summary: {
+        Args: { p_code_client: string }
+        Returns: {
+          avg_basket: number
+          avg_days_between: number
+          first_order: string
+          last_order: string
+          pct_delivery: number
+          total_discount: number
+          total_orders: number
+          total_spent: number
+        }[]
+      }
       get_chataigne_monthly: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
@@ -5433,6 +5461,7 @@ export type Database = {
           city: string
           client_order_rank: number
           client_total_orders: number
+          customer_ref: string
           delivery_fee_amount: number
           discount_total_amount: number
           discounts: Json
