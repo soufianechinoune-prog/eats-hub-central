@@ -194,6 +194,13 @@ export default function ChataigneGrowth() {
     return { nouveaux, recurrents, actifs, caN, caR, partRec };
   }, [rows]);
 
+  const globalBasket = useMemo(() => {
+    const ca = rows.reduce((s, r) => s + r.ca_nouveaux + r.ca_recurrents, 0);
+    const cmd = rows.reduce((s, r) => s + r.commandes, 0);
+    return cmd > 0 ? ca / cmd : 0;
+  }, [rows]);
+
+
   const cohortRows = cohortQ.data ?? [];
   const cohorts = useMemo(() => {
     const map = new Map<string, { cohorte: string; taille: number; cells: Map<number, number> }>();
