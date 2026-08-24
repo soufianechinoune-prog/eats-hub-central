@@ -568,7 +568,7 @@ export default function ChataigneGrowth() {
                         <span>fort</span>
                       </span>
                       <span>
-                        Le canal a démarré en juin 2026 ; les cohortes récentes ont eu moins de temps pour revenir.
+                        Lancement officiel du canal ~7 juillet 2026. La cohorte de juin est un pilote pré-lancement (petit groupe, non représentatif). Les cohortes de juillet/août sont encore trop récentes pour juger la rétention — chiffres à réévaluer dans 1-2 mois.
                       </span>
                     </div>
                   </div>
