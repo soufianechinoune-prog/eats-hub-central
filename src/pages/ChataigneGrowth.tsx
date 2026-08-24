@@ -235,12 +235,22 @@ export default function ChataigneGrowth() {
                   <Skeleton className="h-[320px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
-                    <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="gradNouveaux" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.03} />
+                        </linearGradient>
+                        <linearGradient id="gradRecurrents" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                       <RTooltip
-                        formatter={(v: number, name) => [fmtInt(v), name as string]}
+                        formatter={(v: number, name) => [fmtInt(Number(v)), name as string]}
                         contentStyle={{
                           background: "hsl(var(--popover))",
                           borderColor: "hsl(var(--border))",
@@ -249,24 +259,29 @@ export default function ChataigneGrowth() {
                         }}
                       />
                       <Legend />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="nouveaux"
                         name="Nouveaux clients"
                         stroke="hsl(var(--primary))"
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#gradNouveaux)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="recurrents"
                         name="Clients récurrents"
-                        stroke="hsl(var(--chart-2, var(--accent)))"
+                        stroke="hsl(142 71% 45%)"
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#gradRecurrents)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
+
                 )}
               </CardContent>
             </Card>
