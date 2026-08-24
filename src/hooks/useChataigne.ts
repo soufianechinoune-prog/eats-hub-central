@@ -362,7 +362,11 @@ export interface ChataigneCustomerOrder {
   item_count: number;
   total_amount: number;
   delivery_fee_amount: number;
+  service_charge_amount: number;
   discount_total_amount: number;
+  payment_status: string | null;
+  expected_pickup_time: string | null;
+  expected_delivery_time: string | null;
 }
 
 export function useChataigneCustomerOrders(codeClient: string | null) {
@@ -378,6 +382,7 @@ export function useChataigneCustomerOrders(codeClient: string | null) {
         item_count: num(r.item_count),
         total_amount: num(r.total_amount),
         delivery_fee_amount: num(r.delivery_fee_amount),
+        service_charge_amount: num(r.service_charge_amount),
         discount_total_amount: num(r.discount_total_amount),
       }));
     },
