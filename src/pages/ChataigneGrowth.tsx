@@ -53,9 +53,15 @@ const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
 
 const MONTH_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 
-const cohortLabel = (cohorte: string) => {
+const cohortLabelFull = (cohorte: string) => {
   const [y, m] = cohorte.split("-");
-  return `${MONTH_LABELS[Number(m) - 1] ?? cohorte} ${y?.slice(2) ?? ""}`;
+  const monthName = MONTH_LABELS[Number(m) - 1] ?? cohorte;
+  return `Arrivés en ${monthName.toLowerCase()} ${y}`;
+};
+
+const offsetLabel = (o: number) => {
+  if (o === 1) return "Revenus le mois suivant";
+  return `Revenus ${o} mois après`;
 };
 
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
@@ -217,7 +223,8 @@ export default function ChataigneGrowth() {
     () => cohortRows.reduce((m, r) => Math.max(m, r.mois_offset), 0),
     [cohortRows]
   );
-  const offsets = useMemo(() => Array.from({ length: maxOffset + 1 }, (_, i) => i), [maxOffset]);
+  // Exclude M0 (always 100%, confusing) — start from M1
+  const offsets = useMemo(() => Array.from({ length: Math.max(0, maxOffset) }, (_, i) => i + 1), [maxOffset]);
 
   const isLoading = restaurantFilter === undefined || evolutionQ.isLoading;
   const isEmpty = !isLoading && rows.length === 0;
