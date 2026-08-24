@@ -21,7 +21,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Gift, HandCoins, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -34,6 +34,8 @@ import {
   useChataigneBasketSegments,
   useChataigneCohortRetention,
   useChataigneCustomerEvolution,
+  useChataigneReferralEvolution,
+  useChataigneReferralSummary,
   type GrowthGranularity,
 } from "@/hooks/useChataigneGrowth";
 import { cn } from "@/lib/utils";
