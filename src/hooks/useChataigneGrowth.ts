@@ -187,3 +187,34 @@ export function useChataigneReferralEvolution(
     enabled: restaurantIds !== undefined,
   });
 }
+
+export interface ChataigneRetentionByAcquisitionRow {
+  type_acquisition: string;
+  ordre: number;
+  clients: number;
+  revenus: number;
+  taux_reachat: number;
+}
+
+export function useChataigneRetentionByAcquisition(restaurantIds: RestaurantScope = null) {
+  return useQuery({
+    queryKey: ["chataigne-retention-by-acquisition", scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneRetentionByAcquisitionRow[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_retention_by_acquisition" as never, {
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneRetentionByAcquisitionRow[] | null) ?? [])
+        .map((r) => ({
+          type_acquisition: String(r.type_acquisition),
+          ordre: num(r.ordre),
+          clients: num(r.clients),
+          revenus: num(r.revenus),
+          taux_reachat: num(r.taux_reachat),
+        }))
+        .sort((a, b) => a.ordre - b.ordre);
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
+
