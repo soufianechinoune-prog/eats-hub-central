@@ -404,8 +404,22 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
               <SelectItem value="delivery">Livraison</SelectItem>
             </SelectContent>
           </Select>
-          <span className="ml-auto text-sm text-muted-foreground">
+          <span className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground">
             {query.isLoading ? "Chargement…" : `${fmtInt(total)} commande${total > 1 ? "s" : ""}`}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 cursor-help text-muted-foreground/70 hover:text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="text-xs">
+                    Récurrence calculée de façon anonyme, sans données personnelles.
+                    Le « Client » affiche uniquement le nombre total de commandes du profil
+                    pseudonymisé.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </span>
         </div>
 
