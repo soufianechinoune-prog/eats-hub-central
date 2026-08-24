@@ -153,6 +153,9 @@ export default function ChataigneGrowth() {
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
   const basketSegments = basketQ.data ?? [];
+  const retentionByAcquisitionQ = useChataigneRetentionByAcquisition(restaurantFilter);
+  const retentionByAcquisition = retentionByAcquisitionQ.data ?? [];
+
 
   const referralSummaryQ = useChataigneReferralSummary(start, end, restaurantFilter);
   const referral = referralSummaryQ.data ?? {
