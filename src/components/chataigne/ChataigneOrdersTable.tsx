@@ -464,6 +464,9 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">{r.short_id ?? "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <ClientBadge total={r.client_total_orders} rank={r.client_order_rank} />
+                        </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {r.channel ?? "—"}
                         </TableCell>
