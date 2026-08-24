@@ -55,6 +55,7 @@ import {
   type ChataigneOrdersSortField,
   type RestaurantScope,
 } from "@/hooks/useChataigne";
+import { ChataigneCustomerDrawer } from "./ChataigneCustomerDrawer";
 
 const fmtEur = (v: number, digits = 2) =>
   new Intl.NumberFormat("fr-FR", {
@@ -114,17 +115,26 @@ function PaymentBadge({ status, amount }: { status: string | null; amount: numbe
   );
 }
 
-function ClientBadge({ total, rank }: { total: number | null; rank: number | null }) {
+function ClientBadge({
+  total,
+  rank,
+  onClick,
+}: {
+  total: number | null;
+  rank: number | null;
+  onClick?: () => void;
+}) {
   if (!total || total < 1) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   const isNew = total === 1;
-  return (
+  const content = (
     <div className="flex flex-col items-start">
       <Badge
         variant="outline"
         className={cn(
           "text-xs font-medium",
+          onClick && "cursor-pointer hover:brightness-95",
           isNew
             ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
             : "border-blue-500/40 bg-blue-500/10 text-blue-600"
@@ -138,6 +148,20 @@ function ClientBadge({ total, rank }: { total: number | null; rank: number | nul
         </span>
       )}
     </div>
+  );
+  if (!onClick) return content;
+  return (
+    <button
+      type="button"
+      title="Voir le détail client (anonyme)"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="text-left"
+    >
+      {content}
+    </button>
   );
 }
 
@@ -311,6 +335,7 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
   const [sortField, setSortField] = useState<ChataigneOrdersSortField>("order_datetime");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [customerRef, setCustomerRef] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setSearch(searchInput), 350);
@@ -479,7 +504,13 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                         </TableCell>
                         <TableCell className="text-muted-foreground">{r.short_id ?? "—"}</TableCell>
                         <TableCell className="text-right">
-                          <ClientBadge total={r.client_total_orders} rank={r.client_order_rank} />
+                          <ClientBadge
+                            total={r.client_total_orders}
+                            rank={r.client_order_rank}
+                            onClick={
+                              r.customer_ref ? () => setCustomerRef(r.customer_ref) : undefined
+                            }
+                          />
                         </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {r.channel ?? "—"}
@@ -562,6 +593,10 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
           </div>
         </div>
       </CardContent>
+      <ChataigneCustomerDrawer
+        customerRef={customerRef}
+        onOpenChange={(open) => !open && setCustomerRef(null)}
+      />
     </Card>
   );
 }

@@ -213,6 +213,8 @@ export interface ChataigneOrderRow {
   expected_delivery_time: string | null;
   client_total_orders: number | null;
   client_order_rank: number | null;
+  /** Identifiant client anonyme opaque — ne jamais afficher */
+  customer_ref: string | null;
 }
 
 export type ChataigneOrdersSortField =
@@ -311,5 +313,74 @@ export function useChataigneOrderItems(orderId: string | null) {
       }));
     },
     enabled: !!orderId,
+  });
+}
+
+export interface ChataigneCustomerSummary {
+  total_orders: number;
+  total_spent: number;
+  first_order: string | null;
+  last_order: string | null;
+  avg_basket: number;
+  pct_delivery: number;
+  avg_days_between: number | null;
+  total_discount: number;
+}
+
+export function useChataigneCustomerSummary(codeClient: string | null) {
+  return useQuery({
+    queryKey: ["chataigne-customer-summary", codeClient],
+    queryFn: async (): Promise<ChataigneCustomerSummary | null> => {
+      const { data, error } = await supabase.rpc("get_chataigne_customer_summary" as never, {
+        p_code_client: codeClient!,
+      } as never);
+      if (error) throw error;
+      const raw = data as unknown;
+      const row = (Array.isArray(raw) ? raw[0] : raw) as ChataigneCustomerSummary | undefined;
+      if (!row) return null;
+      return {
+        ...row,
+        total_orders: num(row.total_orders),
+        total_spent: num(row.total_spent),
+        avg_basket: num(row.avg_basket),
+        pct_delivery: num(row.pct_delivery),
+        avg_days_between: row.avg_days_between === null ? null : num(row.avg_days_between),
+        total_discount: num(row.total_discount),
+      };
+    },
+    enabled: !!codeClient,
+  });
+}
+
+export interface ChataigneCustomerOrder {
+  chataigne_order_id: string;
+  short_id: string | null;
+  order_datetime: string;
+  restaurant_name: string | null;
+  service_type: string | null;
+  status: string | null;
+  item_count: number;
+  total_amount: number;
+  delivery_fee_amount: number;
+  discount_total_amount: number;
+}
+
+export function useChataigneCustomerOrders(codeClient: string | null) {
+  return useQuery({
+    queryKey: ["chataigne-customer-orders", codeClient],
+    queryFn: async (): Promise<ChataigneCustomerOrder[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_customer_orders" as never, {
+        p_code_client: codeClient!,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneCustomerOrder[] | null) ?? []).map((r) => ({
+        ...r,
+        item_count: num(r.item_count),
+        total_amount: num(r.total_amount),
+        delivery_fee_amount: num(r.delivery_fee_amount),
+        discount_total_amount: num(r.discount_total_amount),
+      }));
+    },
+    enabled: !!codeClient,
   });
 }
