@@ -5664,6 +5664,32 @@ export type Database = {
           utilisations: number
         }[]
       }
+      get_chataigne_referral_evolution: {
+        Args: {
+          p_end: string
+          p_granularity?: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          cout: number
+          filleuls: number
+          panier_moyen_filleuls: number
+          parrains_convertis: number
+          periode: string
+        }[]
+      }
+      get_chataigne_referral_summary: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          conversions: number
+          cout_total: number
+          filleuls: number
+          filleuls_revenus: number
+          panier_moyen_filleul: number
+          taux_reachat: number
+        }[]
+      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string
