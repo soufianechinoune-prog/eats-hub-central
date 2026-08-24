@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -473,9 +473,8 @@ function MarkupSection({ restaurantIds }: { restaurantIds: string[] | null | und
               </TableHeader>
               <TableBody>
                 {stores.map((s) => (
-                  <>
+                  <Fragment key={s.id}>
                     <TableRow
-                      key={s.id}
                       className="cursor-pointer"
                       onClick={() => setOpen((o) => ({ ...o, [s.id]: !o[s.id] }))}
                     >
@@ -495,7 +494,7 @@ function MarkupSection({ restaurantIds }: { restaurantIds: string[] | null | und
                       </TableCell>
                     </TableRow>
                     {open[s.id] && (
-                      <TableRow key={`${s.id}-detail`}>
+                      <TableRow>
                         <TableCell colSpan={4} className="bg-muted/40 p-0">
                           <Table>
                             <TableHeader>
@@ -526,7 +525,7 @@ function MarkupSection({ restaurantIds }: { restaurantIds: string[] | null | und
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 ))}
               </TableBody>
             </Table>
