@@ -146,6 +146,27 @@ export default function ChataigneGrowth() {
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
   const basketSegments = basketQ.data ?? [];
 
+  const referralSummaryQ = useChataigneReferralSummary(start, end, restaurantFilter);
+  const referral = referralSummaryQ.data ?? {
+    filleuls: 0,
+    conversions: 0,
+    cout_total: 0,
+    panier_moyen_filleul: 0,
+    filleuls_revenus: 0,
+    taux_reachat: 0,
+  };
+  const referralEvolutionQ = useChataigneReferralEvolution(start, end, granularity, restaurantFilter);
+  const referralChartData = useMemo(
+    () =>
+      (referralEvolutionQ.data ?? []).map((r) => ({
+        label: periodLabel(r.periode, granularity),
+        filleuls: r.filleuls,
+        parrains_convertis: r.parrains_convertis,
+      })),
+    [referralEvolutionQ.data, granularity]
+  );
+
+
 
 
   const rows = evolutionQ.data ?? [];
