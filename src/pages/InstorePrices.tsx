@@ -251,7 +251,7 @@ function VersionsSection() {
                         <TableRow>
                           <TableHead>Restaurant</TableHead>
                           <TableHead>Ville</TableHead>
-                          <TableHead className="text-right">Commandes</TableHead>
+                          
                           <TableHead>Méthode</TableHead>
                           <TableHead className="w-40">Version</TableHead>
                         </TableRow>
@@ -261,7 +261,7 @@ function VersionsSection() {
                           <TableRow key={r.restaurant_id}>
                             <TableCell className="font-medium">{r.restaurant_name ?? "—"}</TableCell>
                             <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
-                            <TableCell className="text-right tabular-nums">{fmtInt(r.nb_commandes)}</TableCell>
+                            
                             <TableCell>
                               <Badge variant={r.method === "manuel" ? "default" : "outline"}>
                                 {methodLabel(r.method)}
