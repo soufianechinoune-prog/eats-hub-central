@@ -59,13 +59,23 @@ const cohortLabel = (cohorte: string) => {
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
   try {
     const d = parseISO(periode);
-    if (granularity === "month") return format(d, "MMM yy", { locale: fr });
+    if (granularity === "month") return format(d, "MMM yyyy", { locale: fr });
     if (granularity === "week") return `S${format(d, "II", { locale: fr })} · ${format(d, "dd/MM")}`;
     return format(d, "dd/MM");
   } catch {
     return periode;
   }
 };
+
+const SEGMENT_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(142 71% 45%)",
+  "hsl(38 92% 50%)",
+  "hsl(280 65% 60%)",
+  "hsl(199 89% 48%)",
+  "hsl(var(--muted-foreground))",
+];
+
 
 function retentionColor(pct: number) {
   if (pct <= 0) return "bg-muted text-muted-foreground";
