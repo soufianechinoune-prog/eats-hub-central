@@ -13,6 +13,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -35,6 +41,7 @@ import {
   ChevronRight,
   ChevronLeft,
   ChevronRight as ChevronRightIcon,
+  HelpCircle,
   Search,
   ShoppingBag,
   Tag,
@@ -103,6 +110,33 @@ function PaymentBadge({ status, amount }: { status: string | null; amount: numbe
     <div className="flex flex-col items-end">
       <span className="text-sm">{fmtEur(amount)}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function ClientBadge({ total, rank }: { total: number | null; rank: number | null }) {
+  if (!total || total < 1) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const isNew = total === 1;
+  return (
+    <div className="flex flex-col items-start">
+      <Badge
+        variant="outline"
+        className={cn(
+          "text-xs font-medium",
+          isNew
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+            : "border-blue-500/40 bg-blue-500/10 text-blue-600"
+        )}
+      >
+        {isNew ? "Nouveau" : `${total} cmdes`}
+      </Badge>
+      {!isNew && rank != null && rank > 0 && (
+        <span className="mt-0.5 text-[10px] text-muted-foreground">
+          {rank === 1 ? "1ʳᵉ commande" : `${rank}ᵉ commande`}
+        </span>
+      )}
     </div>
   );
 }
@@ -370,8 +404,22 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
               <SelectItem value="delivery">Livraison</SelectItem>
             </SelectContent>
           </Select>
-          <span className="ml-auto text-sm text-muted-foreground">
+          <span className="ml-auto inline-flex items-center gap-2 text-sm text-muted-foreground">
             {query.isLoading ? "Chargement…" : `${fmtInt(total)} commande${total > 1 ? "s" : ""}`}
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <HelpCircle className="h-4 w-4 cursor-help text-muted-foreground/70 hover:text-muted-foreground" />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="max-w-xs">
+                  <p className="text-xs">
+                    Récurrence calculée de façon anonyme, sans données personnelles.
+                    Le « Client » affiche uniquement le nombre total de commandes du profil
+                    pseudonymisé.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </span>
         </div>
 
@@ -394,6 +442,7 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                   <SortHead field="order_datetime" label="Date / heure" />
                   <SortHead field="restaurant_name" label="Store" />
                   <TableHead>N°</TableHead>
+                  <SortHead field="client_total_orders" label="Client" align="right" />
                   <TableHead>Canal</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Statut</TableHead>
@@ -429,6 +478,9 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">{r.short_id ?? "—"}</TableCell>
+                        <TableCell className="text-right">
+                          <ClientBadge total={r.client_total_orders} rank={r.client_order_rank} />
+                        </TableCell>
                         <TableCell className="capitalize text-muted-foreground">
                           {r.channel ?? "—"}
                         </TableCell>
@@ -469,13 +521,13 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                           <PaymentBadge status={r.payment_status} amount={r.payment_amount} />
                         </TableCell>
                       </TableRow>
-                      {isOpen && (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={13} className="p-0">
-                            <OrderDetail order={r} />
-                          </TableCell>
-                        </TableRow>
-                      )}
+                        {isOpen && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={14} className="p-0">
+                              <OrderDetail order={r} />
+                            </TableCell>
+                          </TableRow>
+                        )}
                     </Fragment>
                   );
                 })}

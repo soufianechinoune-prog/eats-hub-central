@@ -211,6 +211,8 @@ export interface ChataigneOrderRow {
   payment_amount: number;
   expected_pickup_time: string | null;
   expected_delivery_time: string | null;
+  client_total_orders: number | null;
+  client_order_rank: number | null;
 }
 
 export type ChataigneOrdersSortField =
@@ -218,7 +220,8 @@ export type ChataigneOrdersSortField =
   | "total_amount"
   | "delivery_fee_amount"
   | "discount_total_amount"
-  | "restaurant_name";
+  | "restaurant_name"
+  | "client_total_orders";
 
 interface OrdersListParams {
   start: string;
@@ -268,6 +271,8 @@ export function useChataigneOrdersList(p: OrdersListParams) {
         service_charge_amount: num(r.service_charge_amount),
         discount_total_amount: num(r.discount_total_amount),
         payment_amount: num(r.payment_amount),
+        client_total_orders: r.client_total_orders === null ? null : num(r.client_total_orders),
+        client_order_rank: r.client_order_rank === null ? null : num(r.client_order_rank),
         discounts: (r.discounts as ChataigneOrderRow["discounts"]) ?? [],
       }));
       return { rows, total: num(raw[0]?.total_count) };
