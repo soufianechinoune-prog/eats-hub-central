@@ -239,7 +239,16 @@ function OrderRow({ order }: { order: ChataigneCustomerOrder }) {
           )}
         </div>
       </button>
-      {open && <ItemsList orderId={order.chataigne_order_id} />}
+      {open && (
+        <div className="border-t bg-muted/20 p-3">
+          <ItemsList orderId={order.chataigne_order_id} />
+          <div className="mt-3 flex justify-end">
+            <div className="w-full sm:w-2/3">
+              <OrderRecap order={order} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
