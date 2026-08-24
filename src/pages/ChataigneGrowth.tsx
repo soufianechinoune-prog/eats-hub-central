@@ -96,6 +96,15 @@ function retentionColor(pct: number) {
   return "bg-emerald-600/75 text-emerald-50";
 }
 
+function acquisitionBarColor(pct: number) {
+  if (pct <= 0) return "hsl(var(--muted-foreground))";
+  if (pct < 5) return "hsl(35 92% 50%)";
+  if (pct < 15) return "hsl(142 60% 45%)";
+  if (pct < 30) return "hsl(142 70% 40%)";
+  return "hsl(142 76% 36%)";
+}
+
+
 export default function ChataigneGrowth() {
   const [granularity, setGranularity] = useState<GrowthGranularity>("week");
 
