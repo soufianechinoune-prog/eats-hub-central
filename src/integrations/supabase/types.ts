@@ -5485,6 +5485,33 @@ export type Database = {
           restaurant_name: string
         }[]
       }
+      get_chataigne_cohort_retention: {
+        Args: { p_restaurant_ids?: string[] }
+        Returns: {
+          clients_actifs: number
+          cohorte: string
+          mois_offset: number
+          taille_cohorte: number
+          taux_pct: number
+        }[]
+      }
+      get_chataigne_customer_evolution: {
+        Args: {
+          p_end: string
+          p_granularity?: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          actifs: number
+          ca_nouveaux: number
+          ca_recurrents: number
+          commandes: number
+          nouveaux: number
+          periode: string
+          recurrents: number
+        }[]
+      }
       get_chataigne_customer_orders: {
         Args: { p_code_client: string }
         Returns: {
