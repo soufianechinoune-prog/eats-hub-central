@@ -7,7 +7,7 @@ const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 const scopeKey = (ids: RestaurantScope) =>
   ids === undefined ? "pending" : ids === null ? "all" : [...ids].sort().join(",");
 
-export const GRID_VERSIONS = ["V1", "V2", "V4", "V4bis"] as const;
+export const GRID_VERSIONS = ["V2", "V4", "V4bis", "V5"] as const;
 export type GridVersion = (typeof GRID_VERSIONS)[number];
 
 export interface GridPriceRow {
