@@ -89,12 +89,30 @@ function retentionColor(pct: number) {
 export default function ChataigneGrowth() {
   const [granularity, setGranularity] = useState<GrowthGranularity>("week");
 
-  const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } =
-    useAnalyticsContext();
+  const {
+    selectedRestaurants,
+    selectedChainId,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+    setPeriodMode,
+    setDateRange,
+  } = useAnalyticsContext();
+
+  // Par défaut sur cette page : tout l'historique du canal (1er juin 2026 → aujourd'hui)
+  const didInitPeriod = useRef(false);
+  useEffect(() => {
+    if (didInitPeriod.current) return;
+    didInitPeriod.current = true;
+    setDateRange({ from: new Date(2026, 5, 1), to: new Date() });
+    setPeriodMode("range");
+  }, [setDateRange, setPeriodMode]);
 
   const { startDate, endDate } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
+
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
