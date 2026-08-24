@@ -211,6 +211,8 @@ export interface ChataigneOrderRow {
   payment_amount: number;
   expected_pickup_time: string | null;
   expected_delivery_time: string | null;
+  client_total_orders: number | null;
+  client_order_rank: number | null;
 }
 
 export type ChataigneOrdersSortField =
@@ -218,7 +220,8 @@ export type ChataigneOrdersSortField =
   | "total_amount"
   | "delivery_fee_amount"
   | "discount_total_amount"
-  | "restaurant_name";
+  | "restaurant_name"
+  | "client_total_orders";
 
 interface OrdersListParams {
   start: string;
