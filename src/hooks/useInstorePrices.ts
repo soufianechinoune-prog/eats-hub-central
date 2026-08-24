@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
-export const GRID_VERSIONS = ["V2", "V4", "V4bis", "V5"] as const;
+export const GRID_VERSIONS = ["RESTO","V1","V1BIS","V2","V2BIS","V3","V4","V4BIS","V5","VREUNION"] as const;
 export type GridVersion = (typeof GRID_VERSIONS)[number];
 
 export interface GridPriceRow {

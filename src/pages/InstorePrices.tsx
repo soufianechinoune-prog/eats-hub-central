@@ -43,7 +43,15 @@ const fmtEur = (v: number | null | undefined, digits = 2) =>
 
 
 const VERSION_SECTIONS = [...GRID_VERSIONS, "A_CONFIRMER"] as const;
-const versionLabel = (v: string) => (v === "A_CONFIRMER" ? "À affecter" : v);
+const VERSION_LABELS: Record<string, string> = {
+  RESTO: "Tarif Resto",
+  V1BIS: "V1 BIS",
+  V2BIS: "V2 BIS",
+  V4BIS: "V4 BIS",
+  VREUNION: "V Réunion",
+  A_CONFIRMER: "À affecter",
+};
+const versionLabel = (v: string) => VERSION_LABELS[v] ?? v;
 const methodLabel = (m: string | null) => (m === "manuel" ? "manuel" : "auto");
 
 function PriceCell({ value, onSave }: { value: number | null; onSave: (price: number) => void }) {
@@ -157,10 +165,10 @@ function GridSection() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Produit</TableHead>
+                  <TableHead className="sticky left-0 z-20 min-w-[220px] bg-card">Produit</TableHead>
                   {GRID_VERSIONS.map((v) => (
-                    <TableHead key={v} className="text-right">
-                      {v}
+                    <TableHead key={v} className="whitespace-nowrap text-right">
+                      {versionLabel(v)}
                     </TableHead>
                   ))}
                 </TableRow>
@@ -168,7 +176,7 @@ function GridSection() {
               <TableBody>
                 {products.map((p) => (
                   <TableRow key={p.key}>
-                    <TableCell className="font-medium">{p.label}</TableCell>
+                    <TableCell className="sticky left-0 z-10 min-w-[220px] bg-card font-medium">{p.label}</TableCell>
                     {GRID_VERSIONS.map((v) => (
                       <TableCell key={v} className="text-right">
                         <div className="flex justify-end">
