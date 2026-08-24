@@ -428,6 +428,7 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                   <SortHead field="order_datetime" label="Date / heure" />
                   <SortHead field="restaurant_name" label="Store" />
                   <TableHead>N°</TableHead>
+                  <SortHead field="client_total_orders" label="Client" align="right" />
                   <TableHead>Canal</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Statut</TableHead>
