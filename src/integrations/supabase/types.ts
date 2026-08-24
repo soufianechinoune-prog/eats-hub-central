@@ -5402,9 +5402,13 @@ export type Database = {
           chataigne_order_id: string
           delivery_fee_amount: number
           discount_total_amount: number
+          expected_delivery_time: string
+          expected_pickup_time: string
           item_count: number
           order_datetime: string
+          payment_status: string
           restaurant_name: string
+          service_charge_amount: number
           service_type: string
           short_id: string
           status: string

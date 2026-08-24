@@ -127,6 +127,62 @@ function ItemsList({ orderId }: { orderId: string }) {
   );
 }
 
+function OrderRecap({ order }: { order: ChataigneCustomerOrder }) {
+  const subtotal =
+    order.total_amount -
+    order.delivery_fee_amount -
+    order.service_charge_amount +
+    order.discount_total_amount;
+
+  const expectedTime =
+    order.service_type === "delivery" ? order.expected_delivery_time : order.expected_pickup_time;
+
+  return (
+    <div className="space-y-1.5 rounded-md border bg-card p-3 text-xs">
+      <div className="flex justify-between">
+        <span className="text-muted-foreground">Sous-total</span>
+        <span className="font-medium tabular-nums">{fmtEur(subtotal)}</span>
+      </div>
+      {order.delivery_fee_amount > 0 && (
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Frais de livraison</span>
+          <span className="font-medium tabular-nums">{fmtEur(order.delivery_fee_amount)}</span>
+        </div>
+      )}
+      {order.service_charge_amount > 0 && (
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Frais de service</span>
+          <span className="font-medium tabular-nums">{fmtEur(order.service_charge_amount)}</span>
+        </div>
+      )}
+      {order.discount_total_amount > 0 && (
+        <div className="flex justify-between">
+          <span className="text-muted-foreground">Total remises</span>
+          <span className="font-medium tabular-nums text-destructive">
+            -{fmtEur(order.discount_total_amount)}
+          </span>
+        </div>
+      )}
+      <Separator className="my-1.5" />
+      <div className="flex justify-between">
+        <span className="font-medium">Total TTC</span>
+        <span className="font-semibold tabular-nums">{fmtEur(order.total_amount)}</span>
+      </div>
+      {order.payment_status && (
+        <p className="pt-1 text-muted-foreground">
+          Paiement : <span className="text-foreground">{order.payment_status}</span>
+        </p>
+      )}
+      {expectedTime && (
+        <p className="text-muted-foreground">
+          {order.service_type === "delivery" ? "Livraison prévue" : "Retrait prévu"} :{" "}
+          <span className="text-foreground">{dt(expectedTime, "dd/MM/yyyy HH:mm")}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
 function OrderRow({ order }: { order: ChataigneCustomerOrder }) {
   const [open, setOpen] = useState(false);
   return (
@@ -183,7 +239,16 @@ function OrderRow({ order }: { order: ChataigneCustomerOrder }) {
           )}
         </div>
       </button>
-      {open && <ItemsList orderId={order.chataigne_order_id} />}
+      {open && (
+        <div className="border-t bg-muted/20 p-3">
+          <ItemsList orderId={order.chataigne_order_id} />
+          <div className="mt-3 flex justify-end">
+            <div className="w-full sm:w-2/3">
+              <OrderRecap order={order} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
