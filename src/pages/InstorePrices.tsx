@@ -44,11 +44,8 @@ const fmtEur = (v: number | null | undefined, digits = 2) =>
 
 const VERSION_SECTIONS = [...GRID_VERSIONS, "A_CONFIRMER"] as const;
 const VERSION_LABELS: Record<string, string> = {
-  RESTO: "Tarif Resto",
-  V1BIS: "V1 BIS",
-  V2BIS: "V2 BIS",
-  V4BIS: "V4 BIS",
-  VREUNION: "V Réunion",
+  V4BIS: "V4 Bis",
+  VRE: "V Réunion",
   A_CONFIRMER: "À affecter",
 };
 const versionLabel = (v: string) => VERSION_LABELS[v] ?? v;
