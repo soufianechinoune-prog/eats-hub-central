@@ -335,7 +335,8 @@ export function useChataigneCustomerSummary(codeClient: string | null) {
         p_code_client: codeClient!,
       } as never);
       if (error) throw error;
-      const row = (Array.isArray(data) ? data[0] : data) as ChataigneCustomerSummary | undefined;
+      const raw = data as unknown;
+      const row = (Array.isArray(raw) ? raw[0] : raw) as ChataigneCustomerSummary | undefined;
       if (!row) return null;
       return {
         ...row,
