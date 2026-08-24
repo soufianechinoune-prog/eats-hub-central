@@ -36,8 +36,10 @@ import {
   useChataigneCustomerEvolution,
   useChataigneReferralEvolution,
   useChataigneReferralSummary,
+  useChataigneRetentionByAcquisition,
   type GrowthGranularity,
 } from "@/hooks/useChataigneGrowth";
+
 import { cn } from "@/lib/utils";
 
 
