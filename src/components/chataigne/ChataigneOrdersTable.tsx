@@ -114,6 +114,33 @@ function PaymentBadge({ status, amount }: { status: string | null; amount: numbe
   );
 }
 
+function ClientBadge({ total, rank }: { total: number | null; rank: number | null }) {
+  if (!total || total < 1) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  const isNew = total === 1;
+  return (
+    <div className="flex flex-col items-start">
+      <Badge
+        variant="outline"
+        className={cn(
+          "text-xs font-medium",
+          isNew
+            ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
+            : "border-blue-500/40 bg-blue-500/10 text-blue-600"
+        )}
+      >
+        {isNew ? "Nouveau" : `${total} cmdes`}
+      </Badge>
+      {!isNew && rank != null && rank > 0 && (
+        <span className="mt-0.5 text-[10px] text-muted-foreground">
+          {rank === 1 ? "1ʳᵉ commande" : `${rank}ᵉ commande`}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function dt(value: string | null, pattern = "dd/MM/yyyy HH:mm") {
   if (!value) return "—";
   return format(new Date(value), pattern, { locale: fr });
