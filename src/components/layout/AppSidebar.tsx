@@ -91,7 +91,7 @@ const analyticsSubItems = [
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
   { title: "Ventes sur place", url: "/analytics/onsite-sales", icon: Store },
   { title: "Chataigne", url: "/chataigne", icon: MessageCircle },
-  { title: "Tarification Chataigne", url: "/chataigne/tarification", icon: Tag },
+  { title: "Chataigne — Écarts & Markup", url: "/chataigne/tarification", icon: Tag },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw },
@@ -123,6 +123,11 @@ const mainItems = [
 
 // Gestion des données
 const dataItems = [
+  {
+    title: "Prix sur place",
+    url: "/prix-sur-place",
+    icon: Tag,
+  },
   {
     title: "Saisie de données",
     url: "/data-entry",
