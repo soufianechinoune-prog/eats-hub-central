@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -10,16 +10,18 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Area,
   AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  Cell,
+  LabelList,
   Legend,
-  Line,
-  LineChart,
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Percent, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -29,11 +31,13 @@ import {
   resolveBrandScopedRestaurantIds,
 } from "@/lib/brandScope";
 import {
+  useChataigneBasketSegments,
   useChataigneCohortRetention,
   useChataigneCustomerEvolution,
   type GrowthGranularity,
 } from "@/hooks/useChataigneGrowth";
 import { cn } from "@/lib/utils";
+
 
 const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
 const fmtEur = (v: number, digits = 0) =>
@@ -55,13 +59,23 @@ const cohortLabel = (cohorte: string) => {
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
   try {
     const d = parseISO(periode);
-    if (granularity === "month") return format(d, "MMM yy", { locale: fr });
+    if (granularity === "month") return format(d, "MMM yyyy", { locale: fr });
     if (granularity === "week") return `S${format(d, "II", { locale: fr })} · ${format(d, "dd/MM")}`;
     return format(d, "dd/MM");
   } catch {
     return periode;
   }
 };
+
+const SEGMENT_COLORS = [
+  "hsl(var(--primary))",
+  "hsl(142 71% 45%)",
+  "hsl(38 92% 50%)",
+  "hsl(280 65% 60%)",
+  "hsl(199 89% 48%)",
+  "hsl(var(--muted-foreground))",
+];
+
 
 function retentionColor(pct: number) {
   if (pct <= 0) return "bg-muted text-muted-foreground";
@@ -75,12 +89,30 @@ function retentionColor(pct: number) {
 export default function ChataigneGrowth() {
   const [granularity, setGranularity] = useState<GrowthGranularity>("week");
 
-  const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } =
-    useAnalyticsContext();
+  const {
+    selectedRestaurants,
+    selectedChainId,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+    setPeriodMode,
+    setDateRange,
+  } = useAnalyticsContext();
+
+  // Par défaut sur cette page : tout l'historique du canal (1er juin 2026 → aujourd'hui)
+  const didInitPeriod = useRef(false);
+  useEffect(() => {
+    if (didInitPeriod.current) return;
+    didInitPeriod.current = true;
+    setDateRange({ from: new Date(2026, 5, 1), to: new Date() });
+    setPeriodMode("range");
+  }, [setDateRange, setPeriodMode]);
 
   const { startDate, endDate } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
+
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -109,6 +141,10 @@ export default function ChataigneGrowth() {
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
+  const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
+  const basketSegments = basketQ.data ?? [];
+
+
 
   const rows = evolutionQ.data ?? [];
 
@@ -221,12 +257,22 @@ export default function ChataigneGrowth() {
                   <Skeleton className="h-[320px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
-                    <LineChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                    <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <defs>
+                        <linearGradient id="gradNouveaux" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.03} />
+                        </linearGradient>
+                        <linearGradient id="gradRecurrents" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.45} />
+                          <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
                       <RTooltip
-                        formatter={(v: number, name) => [fmtInt(v), name as string]}
+                        formatter={(v: number, name) => [fmtInt(Number(v)), name as string]}
                         contentStyle={{
                           background: "hsl(var(--popover))",
                           borderColor: "hsl(var(--border))",
@@ -235,24 +281,29 @@ export default function ChataigneGrowth() {
                         }}
                       />
                       <Legend />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="nouveaux"
                         name="Nouveaux clients"
                         stroke="hsl(var(--primary))"
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#gradNouveaux)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="recurrents"
                         name="Clients récurrents"
-                        stroke="hsl(var(--chart-2, var(--accent)))"
+                        stroke="hsl(142 71% 45%)"
                         strokeWidth={2}
-                        dot={false}
+                        fill="url(#gradRecurrents)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
-                    </LineChart>
+                    </AreaChart>
                   </ResponsiveContainer>
+
                 )}
               </CardContent>
             </Card>
@@ -268,8 +319,18 @@ export default function ChataigneGrowth() {
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
                     <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <defs>
+                        <linearGradient id="gradCaNouveaux" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.05} />
+                        </linearGradient>
+                        <linearGradient id="gradCaRecurrents" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.5} />
+                          <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0.05} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => fmtEur(Number(v))} />
                       <RTooltip
                         formatter={(v: number, name) => [fmtEur(Number(v), 2), name as string]}
@@ -287,23 +348,94 @@ export default function ChataigneGrowth() {
                         name="CA nouveaux"
                         stackId="ca"
                         stroke="hsl(var(--primary))"
-                        fill="hsl(var(--primary))"
-                        fillOpacity={0.35}
+                        strokeWidth={2}
+                        fill="url(#gradCaNouveaux)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
                       <Area
                         type="monotone"
                         dataKey="ca_recurrents"
                         name="CA récurrents"
                         stackId="ca"
-                        stroke="hsl(var(--chart-2, var(--accent)))"
-                        fill="hsl(var(--chart-2, var(--accent)))"
-                        fillOpacity={0.35}
+                        stroke="hsl(142 71% 45%)"
+                        strokeWidth={2}
+                        fill="url(#gradCaRecurrents)"
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
                       />
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShoppingBasket className="h-4 w-4 text-muted-foreground" />
+                  Panier moyen par type de client
+                </CardTitle>
+                <CardDescription>
+                  Panier moyen (€) et volume de commandes par segment sur la période sélectionnée
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {basketQ.isLoading ? (
+                  <Skeleton className="h-[340px] w-full" />
+                ) : basketSegments.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune donnée sur cette période.
+                  </p>
+                ) : (
+                  <ResponsiveContainer width="100%" height={340}>
+                    <BarChart
+                      data={basketSegments}
+                      layout="vertical"
+                      margin={{ top: 8, right: 56, bottom: 0, left: 8 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-border" opacity={0.5} />
+                      <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => fmtEur(Number(v))} />
+                      <YAxis type="category" dataKey="segment" width={140} tick={{ fontSize: 12 }} />
+                      <RTooltip
+                        formatter={(v: number, _n, item) => [
+                          `${fmtEur(Number(v), 2)} · ${fmtInt((item?.payload as { commandes?: number })?.commandes ?? 0)} commandes`,
+                          "Panier moyen",
+                        ]}
+                        contentStyle={{
+                          background: "hsl(var(--popover))",
+                          borderColor: "hsl(var(--border))",
+                          color: "hsl(var(--popover-foreground))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Bar dataKey="panier_moyen" name="Panier moyen" radius={[0, 6, 6, 0]} barSize={22}>
+                        {basketSegments.map((s, i) => (
+                          <Cell key={s.segment} fill={SEGMENT_COLORS[i % SEGMENT_COLORS.length]} />
+                        ))}
+                        <LabelList
+                          dataKey="panier_moyen"
+                          position="right"
+                          formatter={(v: number) => fmtEur(Number(v), 2)}
+                          className="fill-foreground"
+                          style={{ fontSize: 12, fontWeight: 600 }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+                {basketSegments.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    {basketSegments.map((s) => (
+                      <span key={s.segment}>
+                        {s.segment} : {fmtInt(s.commandes)} cmdes
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
 
             <Card>
               <CardHeader>

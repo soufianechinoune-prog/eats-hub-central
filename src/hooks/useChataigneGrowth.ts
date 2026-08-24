@@ -76,3 +76,39 @@ export function useChataigneCohortRetention(restaurantIds: RestaurantScope = nul
     enabled: restaurantIds !== undefined,
   });
 }
+
+export interface ChataigneBasketSegmentRow {
+  segment: string;
+  ordre: number;
+  commandes: number;
+  panier_moyen: number;
+  ca: number;
+}
+
+export function useChataigneBasketSegments(
+  start: string,
+  end: string,
+  restaurantIds: RestaurantScope = null
+) {
+  return useQuery({
+    queryKey: ["chataigne-basket-segments", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneBasketSegmentRow[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_basket_segments" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneBasketSegmentRow[] | null) ?? [])
+        .map((r) => ({
+          segment: String(r.segment),
+          ordre: num(r.ordre),
+          commandes: num(r.commandes),
+          panier_moyen: num(r.panier_moyen),
+          ca: num(r.ca),
+        }))
+        .sort((a, b) => a.ordre - b.ordre);
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}

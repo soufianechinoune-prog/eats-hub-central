@@ -5473,6 +5473,16 @@ export type Database = {
           total_sales: number
         }[]
       }
+      get_chataigne_basket_segments: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca: number
+          commandes: number
+          ordre: number
+          panier_moyen: number
+          segment: string
+        }[]
+      }
       get_chataigne_by_restaurant: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
