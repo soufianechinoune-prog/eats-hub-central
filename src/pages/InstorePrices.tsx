@@ -40,7 +40,7 @@ const fmtEur = (v: number | null | undefined, digits = 2) =>
         maximumFractionDigits: digits,
       }).format(v);
 
-const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
+
 
 const VERSION_SECTIONS = [...GRID_VERSIONS, "A_CONFIRMER"] as const;
 const versionLabel = (v: string) => (v === "A_CONFIRMER" ? "À affecter" : v);
