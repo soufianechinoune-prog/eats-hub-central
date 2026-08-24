@@ -590,7 +590,68 @@ export default function ChataigneGrowth() {
               </CardContent>
             </Card>
 
+            <Card>
+              <CardHeader>
+                <CardTitle>Qui revient le plus ? — réachat par type d&apos;acquisition</CardTitle>
+                <CardDescription>
+                  Part des clients qui recommandent, selon la façon dont ils sont arrivés.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {retentionByAcquisitionQ.isLoading ? (
+                  <Skeleton className="h-[260px] w-full" />
+                ) : retentionByAcquisition.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    Aucune donnée de réachat par type d&apos;acquisition.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart
+                        data={retentionByAcquisition}
+                        layout="vertical"
+                        margin={{ top: 8, right: 64, bottom: 0, left: 8 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} className="stroke-border" opacity={0.5} />
+                        <XAxis type="number" tick={{ fontSize: 12 }} tickFormatter={(v) => `${v.toFixed(0)}%`} domain={[0, "auto"]} />
+                        <YAxis type="category" dataKey="type_acquisition" width={160} tick={{ fontSize: 12 }} />
+                        <RTooltip
+                          formatter={(v: number, _n, item) => [
+                            `${fmtPct(Number(v))} · ${fmtInt((item?.payload as { clients?: number })?.clients ?? 0)} clients`,
+                            "Taux de réachat",
+                          ]}
+                          contentStyle={{
+                            background: "hsl(var(--popover))",
+                            borderColor: "hsl(var(--border))",
+                            color: "hsl(var(--popover-foreground))",
+                            borderRadius: 8,
+                          }}
+                        />
+                        <Bar dataKey="taux_reachat" name="Taux de réachat" radius={[0, 6, 6, 0]} barSize={28}>
+                          {retentionByAcquisition.map((row) => (
+                            <Cell key={row.type_acquisition} fill={acquisitionBarColor(row.taux_reachat)} />
+                          ))}
+                          <LabelList
+                            dataKey="taux_reachat"
+                            position="right"
+                            formatter={(v: number) => fmtPct(Number(v))}
+                            className="fill-foreground"
+                            style={{ fontSize: 12, fontWeight: 600 }}
+                          />
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                    <p className="text-sm text-muted-foreground">
+                      Les clients arrivés sans promo reviennent bien plus que ceux acquis au bon de
+                      bienvenue : la promo attire du volume, pas forcément des habitués.
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
             <div className="space-y-4 pt-2">
+
               <div>
                 <h2 className="flex items-center gap-2 text-xl font-bold">
                   <Gift className="h-5 w-5 text-muted-foreground" />
