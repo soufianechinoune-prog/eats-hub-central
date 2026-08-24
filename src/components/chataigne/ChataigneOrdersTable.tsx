@@ -507,13 +507,13 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                           <PaymentBadge status={r.payment_status} amount={r.payment_amount} />
                         </TableCell>
                       </TableRow>
-                      {isOpen && (
-                        <TableRow className="hover:bg-transparent">
-                          <TableCell colSpan={13} className="p-0">
-                            <OrderDetail order={r} />
-                          </TableCell>
-                        </TableRow>
-                      )}
+                        {isOpen && (
+                          <TableRow className="hover:bg-transparent">
+                            <TableCell colSpan={14} className="p-0">
+                              <OrderDetail order={r} />
+                            </TableCell>
+                          </TableRow>
+                        )}
                     </Fragment>
                   );
                 })}
