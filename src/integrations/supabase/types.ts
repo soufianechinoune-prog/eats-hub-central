@@ -461,30 +461,6 @@ export type Database = {
         }
         Relationships: []
       }
-      chataigne_instore_price: {
-        Row: {
-          id: string
-          price: number
-          product_key: string
-          product_label: string
-          version: string
-        }
-        Insert: {
-          id?: string
-          price: number
-          product_key: string
-          product_label: string
-          version: string
-        }
-        Update: {
-          id?: string
-          price?: number
-          product_key?: string
-          product_label?: string
-          version?: string
-        }
-        Relationships: []
-      }
       chataigne_item_instore_ref: {
         Row: {
           instore_price: number
@@ -744,35 +720,6 @@ export type Database = {
             foreignKeyName: "chataigne_orders_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
-            referencedRelation: "restaurants"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      chataigne_price_version: {
-        Row: {
-          method: string | null
-          restaurant_id: string
-          updated_at: string
-          version: string
-        }
-        Insert: {
-          method?: string | null
-          restaurant_id: string
-          updated_at?: string
-          version: string
-        }
-        Update: {
-          method?: string | null
-          restaurant_id?: string
-          updated_at?: string
-          version?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "chataigne_price_version_restaurant_id_fkey"
-            columns: ["restaurant_id"]
-            isOneToOne: true
             referencedRelation: "restaurants"
             referencedColumns: ["id"]
           },
@@ -1990,6 +1937,30 @@ export type Database = {
           notes?: string | null
           screenshot_url?: string
           uploaded_at?: string | null
+        }
+        Relationships: []
+      }
+      instore_price_grid: {
+        Row: {
+          id: string
+          price: number
+          product_key: string
+          product_label: string
+          version: string
+        }
+        Insert: {
+          id?: string
+          price: number
+          product_key: string
+          product_label: string
+          version: string
+        }
+        Update: {
+          id?: string
+          price?: number
+          product_key?: string
+          product_label?: string
+          version?: string
         }
         Relationships: []
       }
@@ -4188,6 +4159,35 @@ export type Database = {
           },
         ]
       }
+      restaurant_price_version: {
+        Row: {
+          method: string | null
+          restaurant_id: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          method?: string | null
+          restaurant_id: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          method?: string | null
+          restaurant_id?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_price_version_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: true
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_uber_ids: {
         Row: {
           created_at: string
@@ -5517,15 +5517,6 @@ export type Database = {
           total_spent: number
         }[]
       }
-      get_chataigne_grid_prices: {
-        Args: never
-        Returns: {
-          price: number
-          product_key: string
-          product_label: string
-          version: string
-        }[]
-      }
       get_chataigne_markup: {
         Args: { p_restaurant_ids?: string[] }
         Returns: {
@@ -5634,17 +5625,6 @@ export type Database = {
           promo: string
           remise_moyenne: number
           utilisations: number
-        }[]
-      }
-      get_chataigne_version_restaurants: {
-        Args: never
-        Returns: {
-          city: string
-          method: string
-          nb_commandes: number
-          restaurant_id: string
-          restaurant_name: string
-          version: string
         }[]
       }
       get_daily_revenue_from_orders: {
@@ -5822,6 +5802,15 @@ export type Database = {
               revenue: number
             }[]
           }
+      get_instore_price_grid: {
+        Args: never
+        Returns: {
+          price: number
+          product_key: string
+          product_label: string
+          version: string
+        }[]
+      }
       get_live_dishop_today: {
         Args: { p_day: string; p_restaurant_ids: string[] }
         Returns: Json
@@ -6427,6 +6416,17 @@ export type Database = {
           postal_code: string
         }[]
       }
+      get_restaurant_price_versions: {
+        Args: never
+        Returns: {
+          city: string
+          method: string
+          nb_commandes: number
+          restaurant_id: string
+          restaurant_name: string
+          version: string
+        }[]
+      }
       get_restaurants_data_source_summary: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
@@ -6652,11 +6652,11 @@ export type Database = {
           skipped_count: number
         }[]
       }
-      set_chataigne_grid_price: {
+      set_instore_grid_price: {
         Args: { p_price: number; p_product_key: string; p_version: string }
         Returns: undefined
       }
-      set_chataigne_restaurant_version: {
+      set_restaurant_price_version: {
         Args: { p_restaurant_id: string; p_version: string }
         Returns: undefined
       }
