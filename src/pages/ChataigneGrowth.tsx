@@ -141,6 +141,8 @@ export default function ChataigneGrowth() {
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
+  const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
+
 
   const rows = evolutionQ.data ?? [];
 
