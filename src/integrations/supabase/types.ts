@@ -6568,6 +6568,13 @@ export type Database = {
           restaurant_id: string
         }[]
       }
+      get_uber_available_weeks: {
+        Args: { p_chain_id: string }
+        Returns: {
+          week_end: string
+          week_start: string
+        }[]
+      }
       get_uber_one_stats: {
         Args: {
           p_end_date: string

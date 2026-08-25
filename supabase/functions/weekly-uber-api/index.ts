@@ -75,31 +75,47 @@ Deno.serve(async (req) => {
       .eq('id', chainId)
       .maybeSingle()
 
-    // Mode LIST: liste toutes les semaines connues + totaux réseau recalculés à la volée
-    // (aligné sur le comportement de `weekStart` pour éviter tout écart entre les deux chemins)
-    if (listOnly) {
-      const { data, error } = await supabase
-        .from('weekly_reports')
-        .select('week_start, week_end, status, updated_at')
-        .eq('chain_id', chainId)
-        .order('week_start', { ascending: false })
-      if (error) return json({ error: error.message }, 500)
+    // Semaines réellement couvertes par les commandes Uber (source de vérité).
+    // On ne dépend PAS de `weekly_reports` : si la génération hebdo est en pause,
+    // l'API doit quand même exposer les semaines les plus récentes.
+    async function availableWeeks(): Promise<{ start: string; end: string }[]> {
+      const { data, error } = await supabase.rpc('get_uber_available_weeks', {
+        p_chain_id: chainId,
+      })
+      if (error) throw new Error(error.message)
+      return (data ?? []).map((r: any) => ({ start: r.week_start, end: r.week_end }))
+    }
 
-      const weeksList = data ?? []
+    // Statuts éventuels des rapports générés (informatif uniquement)
+    async function reportStatuses(): Promise<Record<string, { status: string; updatedAt: string }>> {
+      const { data } = await supabase
+        .from('weekly_reports')
+        .select('week_start, status, updated_at')
+        .eq('chain_id', chainId)
+      const map: Record<string, { status: string; updatedAt: string }> = {}
+      for (const r of data ?? []) map[r.week_start] = { status: r.status, updatedAt: r.updated_at }
+      return map
+    }
+
+    // Mode LIST: liste toutes les semaines disponibles + totaux réseau recalculés à la volée
+    if (listOnly) {
+      const weeksList = await availableWeeks()
+      const statuses = await reportStatuses()
+
       // Séquentiel : Promise.all sur 50+ semaines saturait le pool de connexions
       // et renvoyait des totals vides sur les semaines les plus récentes.
       const results: any[] = []
-      for (const r of weeksList) {
+      for (const w of weeksList) {
         const { data: agg, error: rpcErr } = await supabase.rpc('get_weekly_uber_report', {
           p_chain_id: chainId,
-          p_week_start: r.week_start,
-          p_week_end: r.week_end,
+          p_week_start: w.start,
+          p_week_end: w.end,
         })
         results.push({
-          weekStart: r.week_start,
-          weekEnd: r.week_end,
-          status: r.status,
-          updatedAt: r.updated_at,
+          weekStart: w.start,
+          weekEnd: w.end,
+          status: statuses[w.start]?.status ?? 'live',
+          updatedAt: statuses[w.start]?.updatedAt ?? null,
           totals: rpcErr ? {} : (agg?.network ?? {}),
         })
       }
@@ -112,25 +128,15 @@ Deno.serve(async (req) => {
     if (weekStart) {
       weeks = [{ start: weekStart, end: weekEnd || addDays(weekStart, 6) }]
     } else if (from && to) {
-      const { data, error } = await supabase
-        .from('weekly_reports')
-        .select('week_start, week_end')
-        .eq('chain_id', chainId)
-        .gte('week_start', from)
-        .lte('week_start', to)
-        .order('week_start', { ascending: true })
-      if (error) return json({ error: error.message }, 500)
-      weeks = (data ?? []).map((r) => ({ start: r.week_start, end: r.week_end }))
+      weeks = (await availableWeeks())
+        .filter((w) => w.start >= from && w.start <= to)
+        .sort((a, b) => (a.start < b.start ? -1 : 1))
     } else {
       // par défaut : dernière semaine disponible
-      const { data } = await supabase
-        .from('weekly_reports')
-        .select('week_start, week_end')
-        .eq('chain_id', chainId)
-        .order('week_start', { ascending: false })
-        .limit(1)
-      if (data?.[0]) weeks = [{ start: data[0].week_start, end: data[0].week_end }]
+      const all = await availableWeeks()
+      if (all[0]) weeks = [all[0]]
     }
+
 
     if (weeks.length === 0) {
       return json({ chain, weeks: [] })
