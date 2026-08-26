@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
@@ -27,6 +27,8 @@ import {
   useChataignePriceAlerts,
   type MarkupRow,
 } from "@/hooks/useChataigneTarification";
+import { useChataigneTarifExport, type MarkupStore } from "@/hooks/useChataigneTarifExport";
+
 
 const fmtEur = (v: number | null | undefined, digits = 2) =>
   v === null || v === undefined
@@ -43,10 +45,31 @@ const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v
 
 const versionLabel = (v: string) => (v === "A_CONFIRMER" ? "À affecter" : v);
 
+export function groupMarkupStores(data: MarkupRow[] | undefined): MarkupStore[] {
+  const map = new Map<string, { id: string; name: string | null; items: MarkupRow[] }>();
+  for (const r of data ?? []) {
+    const entry = map.get(r.restaurant_id) ?? {
+      id: r.restaurant_id,
+      name: r.restaurant_name,
+      items: [],
+    };
+    entry.items.push(r);
+    map.set(r.restaurant_id, entry);
+  }
+  return [...map.values()]
+    .map((s) => ({
+      ...s,
+      avg: s.items.reduce((acc, i) => acc + i.markup_pct, 0) / (s.items.length || 1),
+      items: [...s.items].sort((a, b) => b.markup_pct - a.markup_pct),
+    }))
+    .sort((a, b) => b.avg - a.avg);
+}
+
 /* --------------------------- 3. Alertes de prix -------------------------- */
 
 function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | undefined }) {
   const { data, isLoading } = useChataignePriceAlerts(restaurantIds);
+  const { exportAlertsXlsx } = useChataigneTarifExport();
 
   const rows = useMemo(
     () => [...(data ?? [])].sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart)),
@@ -55,15 +78,26 @@ function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | und
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-500" /> Écarts de prix EMPORT vs grille
-        </CardTitle>
-        <CardDescription>
-          Compare le prix emport réellement pratiqué au prix de la grille de la version du
-          restaurant. Concerne uniquement l'emport.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" /> Écarts de prix EMPORT vs grille
+          </CardTitle>
+          <CardDescription>
+            Compare le prix emport réellement pratiqué au prix de la grille de la version du
+            restaurant. Concerne uniquement l'emport.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={rows.length === 0}
+          onClick={() => exportAlertsXlsx(rows)}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+        </Button>
       </CardHeader>
+
       <CardContent>
         {isLoading || restaurantIds === undefined ? (
           <div className="space-y-2">
@@ -125,37 +159,31 @@ function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | und
 function MarkupSection({ restaurantIds }: { restaurantIds: string[] | null | undefined }) {
   const { data, isLoading } = useChataigneMarkup(restaurantIds);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const { exportMarkupXlsx } = useChataigneTarifExport();
 
-  const stores = useMemo(() => {
-    const map = new Map<string, { id: string; name: string | null; items: MarkupRow[] }>();
-    for (const r of data ?? []) {
-      const entry = map.get(r.restaurant_id) ?? {
-        id: r.restaurant_id,
-        name: r.restaurant_name,
-        items: [],
-      };
-      entry.items.push(r);
-      map.set(r.restaurant_id, entry);
-    }
-    return [...map.values()]
-      .map((s) => ({
-        ...s,
-        avg: s.items.reduce((acc, i) => acc + i.markup_pct, 0) / (s.items.length || 1),
-        items: [...s.items].sort((a, b) => b.markup_pct - a.markup_pct),
-      }))
-      .sort((a, b) => b.avg - a.avg);
-  }, [data]);
+  const stores = useMemo(() => groupMarkupStores(data), [data]);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" /> Markup livraison
-        </CardTitle>
-        <CardDescription>
-          Écart moyen entre le prix livraison et le prix emport, par point de vente.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" /> Markup livraison
+          </CardTitle>
+          <CardDescription>
+            Écart moyen entre le prix livraison et le prix emport, par point de vente.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={stores.length === 0}
+          onClick={() => exportMarkupXlsx(stores)}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+        </Button>
       </CardHeader>
+
       <CardContent>
         {isLoading || restaurantIds === undefined ? (
           <div className="space-y-2">
@@ -273,18 +301,43 @@ export default function ChataigneTarification() {
     return resolved;
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
+  const { data: alertsData } = useChataignePriceAlerts(restaurantFilter);
+  const { data: markupData } = useChataigneMarkup(restaurantFilter);
+  const { exportPdf } = useChataigneTarifExport();
+
+  const alerts = useMemo(
+    () => [...(alertsData ?? [])].sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart)),
+    [alertsData]
+  );
+  const stores = useMemo(() => groupMarkupStores(markupData), [markupData]);
+
+  const scopeLabel =
+    !selectedRestaurants || selectedRestaurants.length === 0
+      ? "Tous les restaurants"
+      : `${selectedRestaurants.length} restaurant${selectedRestaurants.length > 1 ? "s" : ""}`;
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Chataigne — Écarts & Markup</h1>
-            <p className="text-muted-foreground">
-              Écarts de prix emport et markup livraison, basés sur les prix sur place.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Chataigne — Écarts & Markup</h1>
+              <p className="text-muted-foreground">
+                Écarts de prix emport et markup livraison, basés sur les prix sur place.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={alerts.length === 0 && stores.length === 0}
+              onClick={() => exportPdf({ alerts, stores, scopeLabel })}
+            >
+              <FileDown className="mr-2 h-4 w-4" /> Export PDF
+            </Button>
           </div>
           <AnalyticsHeader />
         </div>
+
 
         <AlertsSection restaurantIds={restaurantFilter} />
         <MarkupSection restaurantIds={restaurantFilter} />
