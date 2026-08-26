@@ -147,13 +147,16 @@ export default function OnsiteSales() {
     if (m < monthFrom) setMonthFrom(m);
   };
 
-  const { networkMonths, restaurants, totals, scope, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
-    year,
-    includePartialMonth,
-    monthFrom,
-    monthTo,
-    restaurantIds: restaurantFilter,
-  });
+  const { networkMonths, restaurants, totals, scope, coverage, candidates, excludedImpact, isLoading, error, enabled } =
+    useSplashOnsiteMonthly({
+      year,
+      includePartialMonth,
+      monthFrom,
+      monthTo,
+      restaurantIds: restaurantFilter,
+      excludedRestaurantIds: excluded,
+    });
+
 
 
   const prev = year - 1;
