@@ -86,6 +86,7 @@ const PRESETS: { value: string; label: string; range: [number, number] | null }[
 ];
 
 export default function OnsiteSales() {
+  const { selectedChainId } = useAnalyticsContext();
   const [year, setYear] = useState(2026);
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -93,7 +94,33 @@ export default function OnsiteSales() {
   const [monthFrom, setMonthFrom] = useState(1);
   const [monthTo, setMonthTo] = useState(12);
   const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
+  const [excluded, setExcluded] = useState<string[]>([]);
   const { data: allRestaurants } = useActiveRestaurants();
+
+  const exclusionsKey = selectedChainId ? `onsite-exclusions:${selectedChainId}` : null;
+
+  // Restauration / persistance des exclusions par marque
+  useEffect(() => {
+    if (!exclusionsKey) return;
+    try {
+      const raw = localStorage.getItem(exclusionsKey);
+      setExcluded(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      setExcluded([]);
+    }
+  }, [exclusionsKey]);
+
+  const updateExcluded = (ids: string[]) => {
+    setExcluded(ids);
+    if (exclusionsKey) {
+      try {
+        localStorage.setItem(exclusionsKey, JSON.stringify(ids));
+      } catch {
+        /* stockage indisponible : on garde l'état en mémoire */
+      }
+    }
+  };
+
 
 
   const applyPreset = (value: string) => {
