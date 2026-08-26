@@ -47,6 +47,8 @@ import {
 } from "@/lib/brandScope";
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
+import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
+
 import {
   useChataigneByRestaurant,
   useChataigneMonthly,
