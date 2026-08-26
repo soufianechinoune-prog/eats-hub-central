@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRest
 import { OnsiteLflHelp } from "@/components/analytics/onsite/OnsiteLflHelp";
 import { OnsiteVolumeBasket } from "@/components/analytics/onsite/OnsiteVolumeBasket";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { OnsiteExclusionsControl } from "@/components/analytics/onsite/OnsiteExclusionsControl";
+import { OnsiteExclusionsBar } from "@/components/analytics/onsite/OnsiteExclusionsBar";
+
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
@@ -86,6 +90,7 @@ const PRESETS: { value: string; label: string; range: [number, number] | null }[
 ];
 
 export default function OnsiteSales() {
+  const { selectedChainId } = useAnalyticsContext();
   const [year, setYear] = useState(2026);
   const [includePartialMonth, setIncludePartialMonth] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -93,7 +98,33 @@ export default function OnsiteSales() {
   const [monthFrom, setMonthFrom] = useState(1);
   const [monthTo, setMonthTo] = useState(12);
   const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
+  const [excluded, setExcluded] = useState<string[]>([]);
   const { data: allRestaurants } = useActiveRestaurants();
+
+  const exclusionsKey = selectedChainId ? `onsite-exclusions:${selectedChainId}` : null;
+
+  // Restauration / persistance des exclusions par marque
+  useEffect(() => {
+    if (!exclusionsKey) return;
+    try {
+      const raw = localStorage.getItem(exclusionsKey);
+      setExcluded(raw ? (JSON.parse(raw) as string[]) : []);
+    } catch {
+      setExcluded([]);
+    }
+  }, [exclusionsKey]);
+
+  const updateExcluded = (ids: string[]) => {
+    setExcluded(ids);
+    if (exclusionsKey) {
+      try {
+        localStorage.setItem(exclusionsKey, JSON.stringify(ids));
+      } catch {
+        /* stockage indisponible : on garde l'état en mémoire */
+      }
+    }
+  };
+
 
 
   const applyPreset = (value: string) => {
@@ -116,13 +147,16 @@ export default function OnsiteSales() {
     if (m < monthFrom) setMonthFrom(m);
   };
 
-  const { networkMonths, restaurants, totals, scope, coverage, isLoading, error, enabled } = useSplashOnsiteMonthly({
-    year,
-    includePartialMonth,
-    monthFrom,
-    monthTo,
-    restaurantIds: restaurantFilter,
-  });
+  const { networkMonths, restaurants, totals, scope, coverage, candidates, excludedImpact, isLoading, error, enabled } =
+    useSplashOnsiteMonthly({
+      year,
+      includePartialMonth,
+      monthFrom,
+      monthTo,
+      restaurantIds: restaurantFilter,
+      excludedRestaurantIds: excluded,
+    });
+
 
 
   const prev = year - 1;
@@ -157,7 +191,15 @@ export default function OnsiteSales() {
           <Button
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
             disabled={isLoading || restaurants.length === 0}
-            onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
+            onClick={() =>
+              exportOnsiteSalesExcel({
+                year,
+                networkMonths,
+                restaurants,
+                totals,
+                excludedNames: excludedImpact.items.map((i) => i.name),
+              })
+            }
           >
             <Download className="h-4 w-4" />
             Exporter Excel
@@ -172,6 +214,13 @@ export default function OnsiteSales() {
               selected={restaurantFilter}
               onChange={setRestaurantFilter}
             />
+            <OnsiteExclusionsControl
+              candidates={candidates}
+              excluded={excluded}
+              onChange={updateExcluded}
+              year={year}
+            />
+
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
               <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -206,7 +255,12 @@ export default function OnsiteSales() {
           </div>
         </div>
 
-
+        <OnsiteExclusionsBar
+          items={excludedImpact.items}
+          year={year}
+          onRemove={(id) => updateExcluded(excluded.filter((x) => x !== id))}
+          onReset={() => updateExcluded([])}
+        />
 
 
         {(hasPartial || prevIncomplete) && (

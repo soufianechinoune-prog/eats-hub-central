@@ -81,6 +81,8 @@ interface Options {
   monthTo?: number;
   /** Filtre restaurants (vide/undefined = tout le réseau de la marque) */
   restaurantIds?: string[];
+  /** Restaurants retirés manuellement du comparatif (ouvertures, fermetures administratives...) */
+  excludedRestaurantIds?: string[];
 }
 
 interface Bucket {
@@ -92,7 +94,8 @@ interface Bucket {
 
 const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
-export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds }: Options) {
+export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds, excludedRestaurantIds }: Options) {
+
   const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
@@ -150,11 +153,43 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
   };
 
   const filterKey = (restaurantIds ?? []).slice().sort().join(",");
+  const excludeKey = (excludedRestaurantIds ?? []).slice().sort().join(",");
 
   const computed = useMemo(() => {
     const allRows = query.data?.rows ?? [];
     const filterSet = filterKey ? new Set(filterKey.split(",")) : null;
-    const rows = filterSet ? allRows.filter((r) => filterSet.has(r.restaurant_id)) : allRows;
+    const scopedRows = filterSet ? allRows.filter((r) => filterSet.has(r.restaurant_id)) : allRows;
+
+    // Liste des restaurants disponibles (avant exclusion) + leur CA sur la période,
+    // pour alimenter le sélecteur d'exclusions.
+    const candidateMap = new Map<string, { restaurantId: string; name: string; current: number; previous: number }>();
+    for (const r of scopedRows) {
+      if (r.month_num < monthFrom || r.month_num > monthTo) continue;
+      const c = candidateMap.get(r.restaurant_id) ?? {
+        restaurantId: r.restaurant_id,
+        name: r.restaurant_name,
+        current: 0,
+        previous: 0,
+      };
+      if (r.year_bucket === year) c.current += r.revenue_onsite_ttc;
+      else if (r.year_bucket === year - 1) c.previous += r.revenue_onsite_ttc;
+      candidateMap.set(r.restaurant_id, c);
+    }
+    const candidates = Array.from(candidateMap.values()).sort(
+      (a, b) => (b.current || b.previous) - (a.current || a.previous)
+    );
+
+    const excludeSet = excludeKey ? new Set(excludeKey.split(",")) : null;
+    const rows = excludeSet ? scopedRows.filter((r) => !excludeSet.has(r.restaurant_id)) : scopedRows;
+
+    const excludedList = excludeSet ? candidates.filter((c) => excludeSet.has(c.restaurantId)) : [];
+    const excludedImpact = {
+      count: excludedList.length,
+      current: excludedList.reduce((s, c) => s + c.current, 0),
+      previous: excludedList.reduce((s, c) => s + c.previous, 0),
+      items: excludedList,
+    };
+
     const now = new Date();
     const currentMonthPartial = year === now.getFullYear() ? now.getMonth() + 1 : 0;
 
@@ -337,8 +372,9 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
       (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inScopeRange(sm.month)
     );
 
-    return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
-  }, [query.data, year, includePartialMonth, monthFrom, monthTo, filterKey]);
+    return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope, candidates, excludedImpact };
+  }, [query.data, year, includePartialMonth, monthFrom, monthTo, filterKey, excludeKey]);
+
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
 
