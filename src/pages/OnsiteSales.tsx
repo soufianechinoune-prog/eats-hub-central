@@ -52,7 +52,10 @@ function IncompleteBadge({ days }: { days: number }) {
           </span>
         </TooltipTrigger>
         <TooltipContent>
-          {fmtInt(days)} jour(s) restaurant sans données Splash sur ce mois
+          <span className="block max-w-[260px]">
+            {fmtInt(days)} trou(s) de synchro ce mois-ci (resto ouvert mais 0 € remonté un jour, à
+            vérifier). Les restos non ouverts, fermés ou sans caisse Splash ne sont pas comptés.
+          </span>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
@@ -163,7 +166,7 @@ export default function OnsiteSales() {
   const hasPartial = useMemo(() => networkMonths.some((m) => m.isPartial), [networkMonths]);
   const prevIncomplete = prev <= 2024;
   const monthsWithGaps = useMemo(
-    () => networkMonths.filter((m) => m.daysZeroCurrent > 0 && !m.isPartial).map((m) => MONTHS[m.month - 1]),
+    () => networkMonths.filter((m) => m.daysGapCurrent > 0 && !m.isPartial).map((m) => MONTHS[m.month - 1]),
     [networkMonths]
   );
 
@@ -279,7 +282,7 @@ export default function OnsiteSales() {
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500/80" />
                 <span>
-                  Couverture Splash {year} : {fmtInt(coverage.daysZeroCurrent)} jour(s)-restaurant sans données
+                  Couverture Splash {year} : {fmtInt(coverage.daysGapCurrent)} jour(s) à vérifier (trous de synchro réels)
                   {coverage.unmappedSplashIds > 0 && (
                     <>, {coverage.unmappedSplashIds} boutique(s) non rattachée(s)</>
                   )}.
@@ -425,7 +428,7 @@ export default function OnsiteSales() {
                       <TableRow key={m.month} className={cn(m.isPartial && "opacity-70")}>
                         <TableCell className="font-medium">
                           {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
-                          <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                          <IncompleteBadge days={m.isPartial ? 0 : m.daysGapCurrent} />
                         </TableCell>
                         <TableCell className="text-right font-semibold">{fmt(m.current)}</TableCell>
                         <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>
@@ -493,7 +496,7 @@ export default function OnsiteSales() {
                           </TableCell>
                           <TableCell className="font-medium">
                             {r.name}
-                            <IncompleteBadge days={r.daysZeroCurrent} />
+                            <IncompleteBadge days={r.daysGapCurrent} />
                           </TableCell>
                           <TableCell className="text-right font-semibold">{fmt(r.current)}</TableCell>
                           <TableCell className="text-right text-muted-foreground">{fmt(r.previous)}</TableCell>
@@ -528,7 +531,7 @@ export default function OnsiteSales() {
                                     <TableRow key={m.month}>
                                       <TableCell>
                                         {MONTHS[m.month - 1]}{m.isPartial ? " *" : ""}
-                                        <IncompleteBadge days={m.isPartial ? 0 : m.daysZeroCurrent} />
+                                        <IncompleteBadge days={m.isPartial ? 0 : m.daysGapCurrent} />
                                       </TableCell>
                                       <TableCell className="text-right">{fmt(m.current)}</TableCell>
                                       <TableCell className="text-right text-muted-foreground">{fmt(m.previous)}</TableCell>

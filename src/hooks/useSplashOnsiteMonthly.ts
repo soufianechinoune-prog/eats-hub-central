@@ -15,6 +15,7 @@ export interface OnsiteRow {
   orders_onsite: number;
   days_count: number;
   days_zero: number;
+  days_gap: number;
 }
 
 export interface MonthAggregate {
@@ -27,6 +28,7 @@ export interface MonthAggregate {
   ordersCurrent: number;
   ordersPrevious: number;
   daysZeroCurrent: number;
+  daysGapCurrent: number;
   daysActiveCurrent: number;
   daysActivePrevious: number;
   isPartial: boolean;
@@ -44,6 +46,7 @@ export interface ScopeRestaurant {
   daysActiveCurrent: number;
   daysActivePrevious: number;
   daysZeroCurrent: number;
+  daysGapCurrent: number;
 }
 
 export interface ScopeMonth {
@@ -69,6 +72,7 @@ export interface RestaurantAggregate {
   ordersCurrent: number;
   ordersPrevious: number;
   daysZeroCurrent: number;
+  daysGapCurrent: number;
   months: MonthAggregate[];
 }
 
@@ -89,10 +93,11 @@ interface Bucket {
   ttc: number;
   orders: number;
   daysZero: number;
+  daysGap: number;
   daysActive: number;
 }
 
-const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
+const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysGap: 0, daysActive: 0 });
 
 export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds, excludedRestaurantIds }: Options) {
 
@@ -130,6 +135,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
             orders_onsite: Number(m.orders) || 0,
             days_count: Number(m.days_count) || 0,
             days_zero: Number(m.days_zero) || 0,
+            days_gap: Number(m.days_gap) || 0,
           });
         }
       }
@@ -139,6 +145,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
         rows,
         coverage: {
           daysZeroCurrent: Number(cov.days_zero_current) || 0,
+          daysGapCurrent: Number(cov.days_gap_current) || 0,
           unmappedSplashIds: Number(cov.unmapped_splash_ids) || 0,
           unmappedRevenueTtc: Number(cov.unmapped_revenue_ttc) || 0,
         },
@@ -148,6 +155,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
 
   const coverage = query.data?.coverage ?? {
     daysZeroCurrent: 0,
+    daysGapCurrent: 0,
     unmappedSplashIds: 0,
     unmappedRevenueTtc: 0,
   };
@@ -231,6 +239,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
           ordersCurrent: 0,
           ordersPrevious: 0,
           daysZeroCurrent: 0,
+          daysGapCurrent: 0,
           months: [],
         });
         valueMap.set(row.restaurant_id, new Map());
@@ -241,6 +250,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
       b.ttc += row.revenue_onsite_ttc;
       b.orders += row.orders_onsite;
       b.daysZero += row.days_zero;
+      b.daysGap += row.days_gap;
       b.daysActive += Math.max(0, (row.days_count || 0) - (row.days_zero || 0));
       map.set(k, b);
     }
@@ -255,6 +265,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
       ordersCurrent: 0,
       ordersPrevious: 0,
       daysZeroCurrent: 0,
+      daysGapCurrent: 0,
       daysActiveCurrent: 0,
       daysActivePrevious: 0,
       isPartial: i + 1 === currentMonthPartial,
@@ -294,6 +305,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
           ordersCurrent: curB.orders,
           ordersPrevious: prevB.orders,
           daysZeroCurrent: curB.daysZero,
+          daysGapCurrent: curB.daysGap,
           daysActiveCurrent: curB.daysActive,
           daysActivePrevious: prevB.daysActive,
           isPartial: partial,
@@ -306,6 +318,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
           agg.ordersCurrent += curB.orders;
           agg.ordersPrevious += prevB.orders;
           agg.daysZeroCurrent += curB.daysZero;
+          agg.daysGapCurrent += curB.daysGap;
           if (isLfl) {
             agg.lflCurrent += cur;
             agg.lflPrevious += prev;
@@ -319,6 +332,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
         nm.ordersCurrent += curB.orders;
         nm.ordersPrevious += prevB.orders;
         nm.daysZeroCurrent += curB.daysZero;
+        nm.daysGapCurrent += curB.daysGap;
         nm.daysActiveCurrent += curB.daysActive;
         nm.daysActivePrevious += prevB.daysActive;
         if (isLfl) {
@@ -337,6 +351,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
           daysActiveCurrent: curB.daysActive,
           daysActivePrevious: prevB.daysActive,
           daysZeroCurrent: curB.daysZero,
+          daysGapCurrent: curB.daysGap,
         };
         if (entry.status === "lfl") {
           sm.lfl.push(entry);
