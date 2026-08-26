@@ -19,6 +19,8 @@ export interface ExclusionCandidate {
   name: string;
   current: number;
   previous: number;
+  /** Premier mois avec des commandes (= ouverture). null si antérieure aux données. */
+  firstSale?: { year: number; month: number } | null;
 }
 
 interface Props {
@@ -32,6 +34,12 @@ interface Props {
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+const monthLong = (y: number, m: number) =>
+  new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1));
+
+const monthShort = (y: number, m: number) =>
+  new Intl.DateTimeFormat("fr-FR", { month: "short", year: "numeric" }).format(new Date(y, m - 1, 1));
 
 export function OnsiteExclusionsControl({ candidates, excluded, onChange, year, className }: Props) {
   const [open, setOpen] = useState(false);
