@@ -19,6 +19,8 @@ export interface ExclusionCandidate {
   name: string;
   current: number;
   previous: number;
+  /** Premier mois avec des commandes (= ouverture). null si antérieure aux données. */
+  firstSale?: { year: number; month: number } | null;
 }
 
 interface Props {
@@ -32,6 +34,12 @@ interface Props {
 
 const fmt = (v: number) =>
   new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 }).format(v);
+
+const monthLong = (y: number, m: number) =>
+  new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1));
+
+const monthShort = (y: number, m: number) =>
+  new Intl.DateTimeFormat("fr-FR", { month: "short", year: "numeric" }).format(new Date(y, m - 1, 1));
 
 export function OnsiteExclusionsControl({ candidates, excluded, onChange, year, className }: Props) {
   const [open, setOpen] = useState(false);
@@ -110,6 +118,8 @@ export function OnsiteExclusionsControl({ candidates, excluded, onChange, year, 
                 const checked = excluded.includes(c.restaurantId);
                 const isOpening = c.current > 0 && c.previous === 0;
                 const isClosing = c.current === 0 && c.previous > 0;
+                const openedThisYear = c.firstSale && c.firstSale.year === year;
+                const openedLastYear = c.firstSale && c.firstSale.year === year - 1;
                 return (
                   <CommandItem
                     key={c.restaurantId}
@@ -123,19 +133,26 @@ export function OnsiteExclusionsControl({ candidates, excluded, onChange, year, 
                         <span className={cn("truncate", checked && "text-muted-foreground line-through")}>
                           {c.name}
                         </span>
-                        {isOpening && (
-                          <Badge variant="outline" className="h-5 border-sky-500/40 bg-sky-500/10 text-[10px] text-sky-700">
-                            Ouverture
+                        {openedThisYear ? (
+                          <Badge variant="outline" className="h-5 shrink-0 border-sky-500/40 bg-sky-500/10 text-[10px] text-sky-700">
+                            Ouvert en {monthLong(c.firstSale!.year, c.firstSale!.month)}
                           </Badge>
+                        ) : (
+                          isOpening && (
+                            <Badge variant="outline" className="h-5 shrink-0 border-sky-500/40 bg-sky-500/10 text-[10px] text-sky-700">
+                              Ouverture
+                            </Badge>
+                          )
                         )}
                         {isClosing && (
-                          <Badge variant="outline" className="h-5 border-rose-500/40 bg-rose-500/10 text-[10px] text-rose-700">
+                          <Badge variant="outline" className="h-5 shrink-0 border-rose-500/40 bg-rose-500/10 text-[10px] text-rose-700">
                             Fermeture
                           </Badge>
                         )}
                       </div>
                       <span className="text-xs text-muted-foreground">
                         {fmt(c.current)} en {year} · {fmt(c.previous)} en {year - 1}
+                        {openedLastYear && ` · ouvert en ${monthShort(c.firstSale!.year, c.firstSale!.month)}`}
                       </span>
                     </div>
                     {checked && <X className="h-3.5 w-3.5 shrink-0 text-amber-600" />}
