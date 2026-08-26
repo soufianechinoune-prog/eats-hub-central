@@ -13,7 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AlertTriangle, ChevronDown, ChevronRight, TrendingUp } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, FileDown, FileSpreadsheet, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
@@ -27,6 +27,8 @@ import {
   useChataignePriceAlerts,
   type MarkupRow,
 } from "@/hooks/useChataigneTarification";
+import { useChataigneTarifExport, type MarkupStore } from "@/hooks/useChataigneTarifExport";
+
 
 const fmtEur = (v: number | null | undefined, digits = 2) =>
   v === null || v === undefined
