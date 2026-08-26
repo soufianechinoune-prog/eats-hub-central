@@ -21,6 +21,10 @@ import { OnsiteRestaurantSelect } from "@/components/analytics/onsite/OnsiteRest
 import { OnsiteLflHelp } from "@/components/analytics/onsite/OnsiteLflHelp";
 import { OnsiteVolumeBasket } from "@/components/analytics/onsite/OnsiteVolumeBasket";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { OnsiteExclusionsControl } from "@/components/analytics/onsite/OnsiteExclusionsControl";
+import { OnsiteExclusionsBar } from "@/components/analytics/onsite/OnsiteExclusionsBar";
+
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
 const YEARS = [2026, 2025];
