@@ -255,7 +255,12 @@ export default function OnsiteSales() {
           </div>
         </div>
 
-
+        <OnsiteExclusionsBar
+          items={excludedImpact.items}
+          year={year}
+          onRemove={(id) => updateExcluded(excluded.filter((x) => x !== id))}
+          onReset={() => updateExcluded([])}
+        />
 
 
         {(hasPartial || prevIncomplete) && (
