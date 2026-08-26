@@ -301,18 +301,43 @@ export default function ChataigneTarification() {
     return resolved;
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
+  const { data: alertsData } = useChataignePriceAlerts(restaurantFilter);
+  const { data: markupData } = useChataigneMarkup(restaurantFilter);
+  const { exportPdf } = useChataigneTarifExport();
+
+  const alerts = useMemo(
+    () => [...(alertsData ?? [])].sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart)),
+    [alertsData]
+  );
+  const stores = useMemo(() => groupMarkupStores(markupData), [markupData]);
+
+  const scopeLabel =
+    !selectedRestaurants || selectedRestaurants.length === 0
+      ? "Tous les restaurants"
+      : `${selectedRestaurants.length} restaurant${selectedRestaurants.length > 1 ? "s" : ""}`;
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
-          <div>
-            <h1 className="text-2xl font-bold">Chataigne — Écarts & Markup</h1>
-            <p className="text-muted-foreground">
-              Écarts de prix emport et markup livraison, basés sur les prix sur place.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Chataigne — Écarts & Markup</h1>
+              <p className="text-muted-foreground">
+                Écarts de prix emport et markup livraison, basés sur les prix sur place.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              disabled={alerts.length === 0 && stores.length === 0}
+              onClick={() => exportPdf({ alerts, stores, scopeLabel })}
+            >
+              <FileDown className="mr-2 h-4 w-4" /> Export PDF
+            </Button>
           </div>
           <AnalyticsHeader />
         </div>
+
 
         <AlertsSection restaurantIds={restaurantFilter} />
         <MarkupSection restaurantIds={restaurantFilter} />
