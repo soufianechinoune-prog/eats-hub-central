@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -5552,6 +5552,23 @@ export type Database = {
           total_discount: number
           total_orders: number
           total_spent: number
+        }[]
+      }
+      get_chataigne_heatmap: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          commandes: number
+          heure: number
+          jour: number
+        }[]
+      }
+      get_chataigne_hourly: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca: number
+          commandes: number
+          heure: number
+          panier_moyen: number
         }[]
       }
       get_chataigne_markup: {

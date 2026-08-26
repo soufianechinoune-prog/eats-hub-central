@@ -47,6 +47,8 @@ import {
 } from "@/lib/brandScope";
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
+import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
+
 import {
   useChataigneByRestaurant,
   useChataigneMonthly,
@@ -412,7 +414,15 @@ export default function Chataigne() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Horaires de commande */}
+              <ChataigneHourlySection
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter}
+              />
             </TabsContent>
+
 
             <TabsContent value="details">
               <ChataigneOrdersAnalysis
