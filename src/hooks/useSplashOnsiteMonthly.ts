@@ -83,7 +83,7 @@ interface Options {
   restaurantIds?: string[];
   /** Restaurants retirés manuellement du comparatif (ouvertures, fermetures administratives...) */
   excludedRestaurantIds?: string[];
-
+}
 
 interface Bucket {
   ttc: number;
@@ -94,7 +94,8 @@ interface Bucket {
 
 const emptyBucket = (): Bucket => ({ ttc: 0, orders: 0, daysZero: 0, daysActive: 0 });
 
-export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds }: Options) {
+export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 1, monthTo = 12, restaurantIds, excludedRestaurantIds }: Options) {
+
   const { selectedChainId } = useAnalyticsContext();
 
   const enabled = !!selectedChainId && selectedChainId !== SENTINEL;
