@@ -81,7 +81,9 @@ interface Options {
   monthTo?: number;
   /** Filtre restaurants (vide/undefined = tout le réseau de la marque) */
   restaurantIds?: string[];
-}
+  /** Restaurants retirés manuellement du comparatif (ouvertures, fermetures administratives...) */
+  excludedRestaurantIds?: string[];
+
 
 interface Bucket {
   ttc: number;
