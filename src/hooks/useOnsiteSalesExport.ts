@@ -24,8 +24,11 @@ export function exportOnsiteSalesExcel(params: {
     ordersPrevious: number;
   };
   chainName?: string;
+  /** Restaurants retirés manuellement du comparatif */
+  excludedNames?: string[];
 }) {
-  const { year, networkMonths, restaurants, totals, chainName } = params;
+  const { year, networkMonths, restaurants, totals, chainName, excludedNames } = params;
+
   const prev = year - 1;
 
   const synthese: any[] = networkMonths.map((m) => ({
