@@ -372,8 +372,9 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
       (sm.lfl.length > 0 || sm.opened.length > 0 || sm.closed.length > 0) && inScopeRange(sm.month)
     );
 
-    return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope };
-  }, [query.data, year, includePartialMonth, monthFrom, monthTo, filterKey]);
+    return { networkMonths: networkMonths.filter(inScope), restaurants, totals, scope, candidates, excludedImpact };
+  }, [query.data, year, includePartialMonth, monthFrom, monthTo, filterKey, excludeKey]);
+
 
   return { ...computed, coverage, isLoading: query.isLoading, error: query.error, enabled };
 
