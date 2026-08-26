@@ -191,7 +191,15 @@ export default function OnsiteSales() {
           <Button
             className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700"
             disabled={isLoading || restaurants.length === 0}
-            onClick={() => exportOnsiteSalesExcel({ year, networkMonths, restaurants, totals })}
+            onClick={() =>
+              exportOnsiteSalesExcel({
+                year,
+                networkMonths,
+                restaurants,
+                totals,
+                excludedNames: excludedImpact.items.map((i) => i.name),
+              })
+            }
           >
             <Download className="h-4 w-4" />
             Exporter Excel
@@ -206,6 +214,13 @@ export default function OnsiteSales() {
               selected={restaurantFilter}
               onChange={setRestaurantFilter}
             />
+            <OnsiteExclusionsControl
+              candidates={candidates}
+              excluded={excluded}
+              onChange={updateExcluded}
+              year={year}
+            />
+
             <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
               <SelectTrigger className="h-12 w-32 rounded-xl bg-background"><SelectValue /></SelectTrigger>
               <SelectContent>
