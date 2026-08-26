@@ -160,9 +160,28 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
     const filterSet = filterKey ? new Set(filterKey.split(",")) : null;
     const scopedRows = filterSet ? allRows.filter((r) => filterSet.has(r.restaurant_id)) : allRows;
 
+    // Premier mois avec du CA (sur TOUTES les lignes chargées, sans filtre de
+    // période) = date d'ouverture (« début des commandes »). Si ce premier mois
+    // est janvier N-1 (1er mois du jeu de données), l'ouverture est antérieure
+    // aux données → null (on n'affiche pas de date trompeuse).
+    const firstSaleMap = new Map<string, { year: number; month: number }>();
+    for (const r of scopedRows) {
+      if (r.revenue_onsite_ttc <= 0) continue;
+      const cur = firstSaleMap.get(r.restaurant_id);
+      if (!cur || r.year_bucket < cur.year || (r.year_bucket === cur.year && r.month_num < cur.month)) {
+        firstSaleMap.set(r.restaurant_id, { year: r.year_bucket, month: r.month_num });
+      }
+    }
+    for (const [rid, fs] of firstSaleMap) {
+      if (fs.year === year - 1 && fs.month === 1) firstSaleMap.delete(rid);
+    }
+
     // Liste des restaurants disponibles (avant exclusion) + leur CA sur la période,
     // pour alimenter le sélecteur d'exclusions.
-    const candidateMap = new Map<string, { restaurantId: string; name: string; current: number; previous: number }>();
+    const candidateMap = new Map<
+      string,
+      { restaurantId: string; name: string; current: number; previous: number; firstSale: { year: number; month: number } | null }
+    >();
     for (const r of scopedRows) {
       if (r.month_num < monthFrom || r.month_num > monthTo) continue;
       const c = candidateMap.get(r.restaurant_id) ?? {
@@ -170,6 +189,7 @@ export function useSplashOnsiteMonthly({ year, includePartialMonth, monthFrom = 
         name: r.restaurant_name,
         current: 0,
         previous: 0,
+        firstSale: firstSaleMap.get(r.restaurant_id) ?? null,
       };
       if (r.year_bucket === year) c.current += r.revenue_onsite_ttc;
       else if (r.year_bucket === year - 1) c.previous += r.revenue_onsite_ttc;
