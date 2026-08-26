@@ -101,5 +101,15 @@ export function exportOnsiteSalesExcel(params: {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(synthese), "Synthèse mensuelle");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(parResto), "Par restaurant");
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detail), "Détail resto x mois");
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet(
+      (excludedNames ?? []).length > 0
+        ? (excludedNames ?? []).map((name) => ({ "Restaurant exclu du comparatif": name }))
+        : [{ "Restaurant exclu du comparatif": "Aucune exclusion appliquée" }]
+    ),
+    "Exclusions"
+  );
+
   XLSX.writeFile(wb, `ventes-sur-place_${(chainName || "reseau").replace(/\s+/g, "-").toLowerCase()}_${year}-vs-${prev}.xlsx`);
 }
