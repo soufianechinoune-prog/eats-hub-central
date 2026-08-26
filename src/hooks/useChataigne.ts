@@ -389,3 +389,57 @@ export function useChataigneCustomerOrders(codeClient: string | null) {
     enabled: !!codeClient,
   });
 }
+
+export interface ChataigneHourly {
+  heure: number;
+  commandes: number;
+  ca: number;
+  panier_moyen: number;
+}
+
+export function useChataigneHourly(start: string, end: string, restaurantIds: RestaurantScope = null) {
+  return useQuery({
+    queryKey: ["chataigne-hourly", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneHourly[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_hourly" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneHourly[] | null) ?? []).map((r) => ({
+        heure: num(r.heure),
+        commandes: num(r.commandes),
+        ca: num(r.ca),
+        panier_moyen: num(r.panier_moyen),
+      }));
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
+
+export interface ChataigneHeatmapCell {
+  jour: number;
+  heure: number;
+  commandes: number;
+}
+
+export function useChataigneHeatmap(start: string, end: string, restaurantIds: RestaurantScope = null) {
+  return useQuery({
+    queryKey: ["chataigne-heatmap", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneHeatmapCell[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_heatmap" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneHeatmapCell[] | null) ?? []).map((r) => ({
+        jour: num(r.jour),
+        heure: num(r.heure),
+        commandes: num(r.commandes),
+      }));
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
