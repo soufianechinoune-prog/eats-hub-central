@@ -45,10 +45,31 @@ const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v
 
 const versionLabel = (v: string) => (v === "A_CONFIRMER" ? "À affecter" : v);
 
+export function groupMarkupStores(data: MarkupRow[] | undefined): MarkupStore[] {
+  const map = new Map<string, { id: string; name: string | null; items: MarkupRow[] }>();
+  for (const r of data ?? []) {
+    const entry = map.get(r.restaurant_id) ?? {
+      id: r.restaurant_id,
+      name: r.restaurant_name,
+      items: [],
+    };
+    entry.items.push(r);
+    map.set(r.restaurant_id, entry);
+  }
+  return [...map.values()]
+    .map((s) => ({
+      ...s,
+      avg: s.items.reduce((acc, i) => acc + i.markup_pct, 0) / (s.items.length || 1),
+      items: [...s.items].sort((a, b) => b.markup_pct - a.markup_pct),
+    }))
+    .sort((a, b) => b.avg - a.avg);
+}
+
 /* --------------------------- 3. Alertes de prix -------------------------- */
 
 function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | undefined }) {
   const { data, isLoading } = useChataignePriceAlerts(restaurantIds);
+  const { exportAlertsXlsx } = useChataigneTarifExport();
 
   const rows = useMemo(
     () => [...(data ?? [])].sort((a, b) => Math.abs(b.ecart) - Math.abs(a.ecart)),
@@ -57,15 +78,26 @@ function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | und
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <AlertTriangle className="h-5 w-5 text-amber-500" /> Écarts de prix EMPORT vs grille
-        </CardTitle>
-        <CardDescription>
-          Compare le prix emport réellement pratiqué au prix de la grille de la version du
-          restaurant. Concerne uniquement l'emport.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" /> Écarts de prix EMPORT vs grille
+          </CardTitle>
+          <CardDescription>
+            Compare le prix emport réellement pratiqué au prix de la grille de la version du
+            restaurant. Concerne uniquement l'emport.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={rows.length === 0}
+          onClick={() => exportAlertsXlsx(rows)}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+        </Button>
       </CardHeader>
+
       <CardContent>
         {isLoading || restaurantIds === undefined ? (
           <div className="space-y-2">
