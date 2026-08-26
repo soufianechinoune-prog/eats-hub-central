@@ -159,37 +159,31 @@ function AlertsSection({ restaurantIds }: { restaurantIds: string[] | null | und
 function MarkupSection({ restaurantIds }: { restaurantIds: string[] | null | undefined }) {
   const { data, isLoading } = useChataigneMarkup(restaurantIds);
   const [open, setOpen] = useState<Record<string, boolean>>({});
+  const { exportMarkupXlsx } = useChataigneTarifExport();
 
-  const stores = useMemo(() => {
-    const map = new Map<string, { id: string; name: string | null; items: MarkupRow[] }>();
-    for (const r of data ?? []) {
-      const entry = map.get(r.restaurant_id) ?? {
-        id: r.restaurant_id,
-        name: r.restaurant_name,
-        items: [],
-      };
-      entry.items.push(r);
-      map.set(r.restaurant_id, entry);
-    }
-    return [...map.values()]
-      .map((s) => ({
-        ...s,
-        avg: s.items.reduce((acc, i) => acc + i.markup_pct, 0) / (s.items.length || 1),
-        items: [...s.items].sort((a, b) => b.markup_pct - a.markup_pct),
-      }))
-      .sort((a, b) => b.avg - a.avg);
-  }, [data]);
+  const stores = useMemo(() => groupMarkupStores(data), [data]);
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <TrendingUp className="h-5 w-5 text-primary" /> Markup livraison
-        </CardTitle>
-        <CardDescription>
-          Écart moyen entre le prix livraison et le prix emport, par point de vente.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-4">
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5 text-primary" /> Markup livraison
+          </CardTitle>
+          <CardDescription>
+            Écart moyen entre le prix livraison et le prix emport, par point de vente.
+          </CardDescription>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={stores.length === 0}
+          onClick={() => exportMarkupXlsx(stores)}
+        >
+          <FileSpreadsheet className="mr-2 h-4 w-4" /> Excel
+        </Button>
       </CardHeader>
+
       <CardContent>
         {isLoading || restaurantIds === undefined ? (
           <div className="space-y-2">
