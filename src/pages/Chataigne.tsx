@@ -412,7 +412,15 @@ export default function Chataigne() {
                   )}
                 </CardContent>
               </Card>
+
+              {/* Horaires de commande */}
+              <ChataigneHourlySection
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter}
+              />
             </TabsContent>
+
 
             <TabsContent value="details">
               <ChataigneOrdersAnalysis
