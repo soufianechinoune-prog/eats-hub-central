@@ -188,7 +188,7 @@ function GridSection() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="sticky left-0 z-20 min-w-[220px] bg-card">Produit</TableHead>
-                  {GRID_VERSIONS.map((v) => (
+                  {versions.map((v) => (
                     <TableHead key={v} className="whitespace-nowrap text-right">
                       {versionLabel(v)}
                     </TableHead>
@@ -199,7 +199,7 @@ function GridSection() {
                 {products.map((p) => (
                   <TableRow key={p.key}>
                     <TableCell className="sticky left-0 z-10 min-w-[220px] bg-card font-medium">{p.label}</TableCell>
-                    {GRID_VERSIONS.map((v) => (
+                    {versions.map((v) => (
                       <TableCell key={v} className="text-right">
                         <div className="flex justify-end">
                           <PriceCell value={p.prices[v] ?? null} onSave={(price) => save(v, p.key, price)} />
