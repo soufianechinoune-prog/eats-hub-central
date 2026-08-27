@@ -155,6 +155,14 @@ function GridSection() {
               <Skeleton key={i} className="h-10 w-full" />
             ))}
           </div>
+        ) : (data ?? []).length === 0 ? (
+          <div className="rounded-md border border-dashed py-12 text-center">
+            <Tag className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
+            <p className="text-sm font-medium">Aucune grille de prix sur place n'est encore chargée pour cette enseigne.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Importez ou saisissez une grille tarifaire pour commencer.
+            </p>
+          </div>
         ) : products.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">Aucun produit trouvé.</p>
         ) : (
