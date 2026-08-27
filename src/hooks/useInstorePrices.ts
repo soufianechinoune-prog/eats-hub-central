@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
 
@@ -14,10 +15,14 @@ export interface GridPriceRow {
 }
 
 export function useInstoreGridPrices() {
+  const { selectedChainId } = useAnalyticsContext();
   return useQuery({
-    queryKey: ["instore-grid-prices"],
+    queryKey: ["instore-grid-prices", selectedChainId],
+    enabled: !!selectedChainId,
     queryFn: async (): Promise<GridPriceRow[]> => {
-      const { data, error } = await supabase.rpc("get_instore_price_grid" as never);
+      const { data, error } = await supabase.rpc("get_instore_price_grid" as never, {
+        p_chain_id: selectedChainId,
+      } as never);
       if (error) throw error;
       return ((data as unknown as GridPriceRow[] | null) ?? []).map((r) => ({
         version: r.version,
@@ -31,9 +36,11 @@ export function useInstoreGridPrices() {
 
 export function useSetInstoreGridPrice() {
   const qc = useQueryClient();
+  const { selectedChainId } = useAnalyticsContext();
   return useMutation({
     mutationFn: async (v: { version: string; product_key: string; price: number }) => {
       const { error } = await supabase.rpc("set_instore_grid_price" as never, {
+        p_chain_id: selectedChainId,
         p_version: v.version,
         p_product_key: v.product_key,
         p_price: v.price,
@@ -56,10 +63,14 @@ export interface VersionRestaurantRow {
 }
 
 export function useRestaurantPriceVersions() {
+  const { selectedChainId } = useAnalyticsContext();
   return useQuery({
-    queryKey: ["restaurant-price-versions"],
+    queryKey: ["restaurant-price-versions", selectedChainId],
+    enabled: !!selectedChainId,
     queryFn: async (): Promise<VersionRestaurantRow[]> => {
-      const { data, error } = await supabase.rpc("get_restaurant_price_versions" as never);
+      const { data, error } = await supabase.rpc("get_restaurant_price_versions" as never, {
+        p_chain_id: selectedChainId,
+      } as never);
       if (error) throw error;
       return ((data as unknown as VersionRestaurantRow[] | null) ?? []).map((r) => ({
         version: r.version,
