@@ -96,11 +96,26 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (price: nu
   );
 }
 
+const sortVersions = (versions: string[]) =>
+  [...versions].sort((a, b) => {
+    const ia = GRID_VERSIONS.indexOf(a as never);
+    const ib = GRID_VERSIONS.indexOf(b as never);
+    if (ia !== -1 && ib !== -1) return ia - ib;
+    if (ia !== -1) return -1;
+    if (ib !== -1) return 1;
+    return a.localeCompare(b, "fr");
+  });
+
 function GridSection() {
   const { data, isLoading } = useInstoreGridPrices();
   const setPrice = useSetInstoreGridPrice();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+
+  const versions = useMemo(
+    () => sortVersions([...new Set((data ?? []).map((r) => r.version))]),
+    [data]
+  );
 
   const products = useMemo(() => {
     const map = new Map<string, { key: string; label: string; prices: Record<string, number> }>();
@@ -136,7 +151,9 @@ function GridSection() {
           <CardTitle className="flex items-center gap-2">
             <Tag className="h-5 w-5 text-primary" /> Grilles tarifaires
           </CardTitle>
-          <CardDescription>4 versions de grille. Cliquez sur un prix pour le modifier.</CardDescription>
+          <CardDescription>
+            {versions.length} version{versions.length > 1 ? "s" : ""} de grille. Cliquez sur un prix pour le modifier.
+          </CardDescription>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
