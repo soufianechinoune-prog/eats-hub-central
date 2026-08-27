@@ -1942,6 +1942,7 @@ export type Database = {
       }
       instore_price_grid: {
         Row: {
+          chain_id: string
           id: string
           price: number
           product_key: string
@@ -1949,6 +1950,7 @@ export type Database = {
           version: string
         }
         Insert: {
+          chain_id: string
           id?: string
           price: number
           product_key: string
@@ -1956,13 +1958,22 @@ export type Database = {
           version: string
         }
         Update: {
+          chain_id?: string
           id?: string
           price?: number
           product_key?: string
           product_label?: string
           version?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "instore_price_grid_chain_fk"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       manager_restaurants: {
         Row: {
@@ -5893,7 +5904,7 @@ export type Database = {
             }[]
           }
       get_instore_price_grid: {
-        Args: never
+        Args: { p_chain_id: string }
         Returns: {
           price: number
           product_key: string
@@ -6507,7 +6518,7 @@ export type Database = {
         }[]
       }
       get_restaurant_price_versions: {
-        Args: never
+        Args: { p_chain_id: string }
         Returns: {
           city: string
           method: string
@@ -6749,7 +6760,12 @@ export type Database = {
         }[]
       }
       set_instore_grid_price: {
-        Args: { p_price: number; p_product_key: string; p_version: string }
+        Args: {
+          p_chain_id: string
+          p_price: number
+          p_product_key: string
+          p_version: string
+        }
         Returns: undefined
       }
       set_restaurant_price_version: {
