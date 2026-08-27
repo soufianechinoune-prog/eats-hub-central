@@ -243,7 +243,12 @@ function VersionsSection() {
         {isLoading ? (
           [0, 1].map((i) => <Skeleton key={i} className="h-40 w-full" />)
         ) : (data ?? []).length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Aucun restaurant.</p>
+          <div className="rounded-md border border-dashed py-12 text-center">
+            <p className="text-sm font-medium">Aucune affectation restaurant → grille pour cette enseigne.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Les affectations apparaîtront ici une fois la grille tarifaire chargée.
+            </p>
+          </div>
         ) : (
           VERSION_SECTIONS.map((v) => {
             const rows = grouped.get(v) ?? [];
