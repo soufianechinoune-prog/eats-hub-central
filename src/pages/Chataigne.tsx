@@ -48,6 +48,8 @@ import {
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
+import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
+import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 
 import {
   useChataigneByRestaurant,
