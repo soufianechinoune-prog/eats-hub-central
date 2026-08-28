@@ -694,6 +694,7 @@ export default function DeliveryProfitability() {
                     <TableRow>
                       <TableCell className="font-semibold">Total</TableCell>
                       <TableCell />
+                      <TableCell />
                       <TableCell className="text-right font-semibold tabular-nums">
                         {fmtInt(totals.nb)}
                       </TableCell>
