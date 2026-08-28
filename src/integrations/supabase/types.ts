@@ -5814,6 +5814,7 @@ export type Database = {
           bogo_full_value: number
           frais_livraison: number
           markup_total: number
+          naan_tenders_price: number
           nb_bogo: number
           nb_livraisons: number
           restaurant_id: string
