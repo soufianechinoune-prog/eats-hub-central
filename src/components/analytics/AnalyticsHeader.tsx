@@ -85,9 +85,17 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
 
   const [activeTab, setActiveTab] = useState<string>(derivedTab);
 
+  // Plage temporaire pour l'onglet "Période perso." (appliquée seulement au clic sur Appliquer)
+  const [tempRange, setTempRange] = useState<DateRange | undefined>(dateRange);
+
   useEffect(() => {
-    if (periodOpen) setActiveTab(derivedTab);
+    if (periodOpen) {
+      setActiveTab(derivedTab);
+      setTempRange(dateRange);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodOpen, derivedTab]);
+
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
