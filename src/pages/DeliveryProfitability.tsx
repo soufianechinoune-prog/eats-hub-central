@@ -662,6 +662,9 @@ export default function DeliveryProfitability() {
                           <Badge variant="outline">{r.version}</Badge>
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
+                          {r.naan_tenders_price === null ? "—" : fmtEur(r.naan_tenders_price, 2)}
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
                           {fmtInt(r.nb_livraisons)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
