@@ -27,7 +27,6 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { Separator } from "@/components/ui/separator";
-import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -57,6 +56,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
 
 /* ------------------------------- helpers -------------------------------- */
 
@@ -121,17 +121,17 @@ type SortKey =
   | "coutBogo"
   | "gain";
 
-const DEFAULT_START = new Date(new Date().getFullYear(), 5, 1); // 1er juin
-
 /* -------------------------------- page ---------------------------------- */
 
 export default function DeliveryProfitability() {
-  const { selectedRestaurants, selectedChainId } = useAnalyticsContext();
-  const [range, setRange] = useState<DateRange | undefined>({
-    from: DEFAULT_START,
-    to: new Date(),
-  });
-  const [periodOpen, setPeriodOpen] = useState(false);
+  const {
+    selectedRestaurants,
+    selectedChainId,
+    selectedYear,
+    selectedMonth,
+    periodMode,
+    dateRange,
+  } = useAnalyticsContext();
   const [versionFilter, setVersionFilter] = useState<string[]>([]);
   const [versionOpen, setVersionOpen] = useState(false);
 
@@ -143,8 +143,15 @@ export default function DeliveryProfitability() {
   const [sortKey, setSortKey] = useState<SortKey>("gain");
   const [sortAsc, setSortAsc] = useState(false);
 
-  const start = range?.from ? format(range.from, "yyyy-MM-dd") : format(DEFAULT_START, "yyyy-MM-dd");
-  const end = range?.to ? format(range.to, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+  const { startDate, endDate } = useDataGranularity({
+    periodMode,
+    selectedYear,
+    selectedMonth,
+    dateRange,
+  });
+
+  const start = format(startDate, "yyyy-MM-dd");
+  const end = format(endDate, "yyyy-MM-dd");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -287,17 +294,12 @@ export default function DeliveryProfitability() {
     XLSX.writeFile(wb, `rentabilite_livraison_${start}_${end}.xlsx`);
   };
 
-  const periodLabel =
-    range?.from && range?.to
-      ? `${format(range.from, "d MMM yyyy", { locale: fr })} → ${format(range.to, "d MMM yyyy", { locale: fr })}`
-      : "Sélectionner une période";
-
   const positive = totals.gain >= 0;
 
   return (
     <AppLayout>
       <div className="space-y-6 p-4 md:p-6">
-        <AnalyticsHeader hidePeriodSelector />
+        <AnalyticsHeader />
 
         {/* ------------------------- Titre ------------------------- */}
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -321,27 +323,6 @@ export default function DeliveryProfitability() {
         {/* ------------------------- Filtres ------------------------- */}
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-4">
-            {/* période */}
-            <Popover open={periodOpen} onOpenChange={setPeriodOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="justify-start gap-2">
-                  <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-                  {periodLabel}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <CalendarComponent
-                  mode="range"
-                  numberOfMonths={2}
-                  defaultMonth={range?.from}
-                  selected={range}
-                  onSelect={setRange}
-                  locale={fr}
-                  className="pointer-events-auto"
-                />
-              </PopoverContent>
-            </Popover>
-
             {/* versions */}
             <Popover open={versionOpen} onOpenChange={setVersionOpen}>
               <PopoverTrigger asChild>
