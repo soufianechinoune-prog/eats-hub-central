@@ -198,20 +198,35 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
     setPeriodOpen(false);
   };
 
-  const handleDateRangeSelect = (range: DateRange | undefined) => {
-    if (weekOnlyRange && range?.from) {
-      const snappedFrom = startOfWeek(range.from, { weekStartsOn: 1 });
-      const snappedTo = endOfWeek(range.to || range.from, { weekStartsOn: 1 });
-      const snapped = { from: snappedFrom, to: snappedTo };
-      setPeriodMode("range");
-      setDateRange(snapped);
-    } else if (range?.from && range?.to) {
-      setPeriodMode("range");
-      setDateRange(range);
-    } else {
-      setDateRange(range);
+  // Sélection en 2 clics explicite : 1er clic = nouveau début, 2e clic = fin
+  const handleDayClick = (day: Date, modifiers?: { disabled?: boolean }) => {
+    if (modifiers?.disabled) return;
+
+    if (weekOnlyRange) {
+      setTempRange({
+        from: startOfWeek(day, { weekStartsOn: 1 }),
+        to: endOfWeek(day, { weekStartsOn: 1 }),
+      });
+      return;
     }
+
+    setTempRange((prev) => {
+      // Pas de sélection en cours, ou plage déjà complète -> on repart de zéro
+      if (!prev?.from || (prev.from && prev.to)) {
+        return { from: day, to: undefined };
+      }
+      // 2e clic : on complète (inversion si date antérieure au début)
+      return day < prev.from ? { from: day, to: prev.from } : { from: prev.from, to: day };
+    });
   };
+
+  const applyTempRange = () => {
+    if (!tempRange?.from || !tempRange?.to) return;
+    setPeriodMode("range");
+    setDateRange(tempRange);
+    setPeriodOpen(false);
+  };
+
 
   const handleQuickSelect = (mode: "previous_week" | "7d" | "30d" | "current_month") => {
     const today = new Date();
