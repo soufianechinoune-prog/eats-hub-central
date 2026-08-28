@@ -94,6 +94,7 @@ const analyticsSubItems = [
   { title: "Chataigne", url: "/chataigne", icon: MessageCircle },
   { title: "Chataigne — Croissance & Clients", url: "/chataigne/croissance", icon: Users },
   { title: "Chataigne — Écarts & Markup", url: "/chataigne/tarification", icon: Tag },
+  { title: "Chataigne — Rentabilité", url: "/chataigne/rentabilite", icon: Bike },
   { title: "Conversion", url: "/analytics/conversion", icon: TrendingUp },
   { title: "Finances & Frais", url: "/analytics/finances", icon: Wallet },
   { title: "Remboursements", url: "/analytics/refunds", icon: RotateCcw },
