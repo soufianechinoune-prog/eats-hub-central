@@ -62,6 +62,28 @@ import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 /* ------------------------------- helpers -------------------------------- */
 
+function InfoTooltip({ text, label }: { text: string; label?: string }) {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4 p-0 align-middle text-muted-foreground hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label={label || text}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="center" className="max-w-xs text-xs">
+          <p>{text}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 const fmtEur = (v: number, digits = 0) =>
   new Intl.NumberFormat("fr-FR", {
     style: "currency",
