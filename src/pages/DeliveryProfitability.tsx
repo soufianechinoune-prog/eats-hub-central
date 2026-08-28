@@ -50,11 +50,6 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import {
-  EMPTY_BRAND_SCOPE_RESTAURANT_IDS,
-  resolveBrandScopedRestaurantIds,
-} from "@/lib/brandScope";
 
 /* ------------------------------- helpers -------------------------------- */
 
@@ -96,12 +91,11 @@ type SortKey =
   | "gain";
 
 const DEFAULT_START = new Date(new Date().getFullYear(), 5, 1); // 1er juin
+const DIAGNOSTIC_START = "2026-06-01";
 
 /* -------------------------------- page ---------------------------------- */
 
 export default function DeliveryProfitability() {
-  const { selectedRestaurants, selectedChainId } = useAnalyticsContext();
-
   const [range, setRange] = useState<DateRange | undefined>({
     from: DEFAULT_START,
     to: new Date(),
@@ -118,50 +112,16 @@ export default function DeliveryProfitability() {
   const [sortKey, setSortKey] = useState<SortKey>("gain");
   const [sortAsc, setSortAsc] = useState(false);
 
-  /* ---- scope restaurants ---- */
-  const { data: chainRestaurants } = useQuery({
-    queryKey: ["delivery-pnl-restaurants", selectedChainId],
+  const start = DIAGNOSTIC_START;
+  const end = format(new Date(), "yyyy-MM-dd");
+
+  const { data, isLoading, error: rpcError } = useQuery<PnlRow[], Error>({
+    queryKey: ["delivery-pnl-diagnostic", start, end],
     queryFn: async () => {
-      let query = supabase.from("restaurants").select("id").order("name");
-      if (selectedChainId) query = query.eq("chain_id", selectedChainId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const chainRestaurantIds = useMemo(
-    () => chainRestaurants?.map((r) => r.id) ?? [],
-    [chainRestaurants]
-  );
-
-  const restaurantFilter = useMemo<string[] | null | undefined>(() => {
-    if (!chainRestaurants) return undefined;
-    const resolved = resolveBrandScopedRestaurantIds({
-      selectedRestaurantIds: selectedRestaurants,
-      selectedChainId,
-      chainRestaurantIds,
-    });
-    if (!resolved) return null;
-    return resolved;
-  }, [chainRestaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
-
-  const start = range?.from ? format(range.from, "yyyy-MM-dd") : null;
-  const end = range?.to ? format(range.to, "yyyy-MM-dd") : start;
-
-  const isEmptyScope = restaurantFilter === EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
-
-  const { data, isLoading } = useQuery({
-    queryKey: ["delivery-pnl", selectedChainId, start, end, restaurantFilter],
-    enabled: Boolean(selectedChainId && start && end) && restaurantFilter !== undefined && !isEmptyScope,
-    queryFn: async () => {
-      // Même convention que les autres pages Chataigne : périmètre = liste
-      // explicite des restaurants de l'enseigne (jamais null quand une
-      // enseigne est sélectionnée).
       const { data, error } = await supabase.rpc("get_delivery_pnl", {
         p_start: start,
         p_end: end,
-        p_restaurant_ids: restaurantFilter,
+        p_restaurant_ids: null,
       });
       if (error) throw error;
       return (data ?? []) as PnlRow[];
@@ -290,6 +250,24 @@ export default function DeliveryProfitability() {
           <Button variant="outline" size="sm" onClick={exportXlsx} disabled={rows.length === 0}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Export Excel
           </Button>
+        </div>
+
+        {rpcError && (
+          <div role="alert" className="rounded-md border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
+            <strong>Erreur RPC get_delivery_pnl :</strong> {rpcError.message}
+          </div>
+        )}
+
+        <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
+          <strong className="text-foreground">Debug RPC</strong>
+          <span className="mx-2">·</span>
+          lignes : <span className="font-mono text-foreground">{data?.length ?? 0}</span>
+          <span className="mx-2">·</span>
+          p_start : <span className="font-mono text-foreground">{start}</span>
+          <span className="mx-2">·</span>
+          p_end : <span className="font-mono text-foreground">{end}</span>
+          <span className="mx-2">·</span>
+          p_restaurant_ids : <span className="font-mono text-foreground">null</span>
         </div>
 
         {/* ------------------------- Filtres ------------------------- */}
@@ -470,7 +448,7 @@ export default function DeliveryProfitability() {
         </div>
 
         {/* ------------------------- KPI hero ------------------------- */}
-        {isLoading || restaurantFilter === undefined ? (
+        {isLoading ? (
           <div className="grid gap-4 md:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
               <Skeleton key={i} className="h-32 w-full" />
@@ -629,7 +607,7 @@ export default function DeliveryProfitability() {
             <CardDescription>Cliquez sur une colonne pour trier.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading || restaurantFilter === undefined ? (
+            {isLoading ? (
               <div className="space-y-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <Skeleton key={i} className="h-10 w-full" />
