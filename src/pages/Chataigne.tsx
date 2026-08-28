@@ -124,7 +124,8 @@ export default function Chataigne() {
   const [sortAsc, setSortAsc] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab = tabParam === "details" || tabParam === "orders" ? tabParam : "overview";
+  const tab =
+    tabParam === "details" || tabParam === "orders" || tabParam === "daily" ? tabParam : "overview";
   const setTab = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", v);
