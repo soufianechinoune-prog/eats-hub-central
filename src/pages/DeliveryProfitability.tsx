@@ -520,6 +520,10 @@ export default function DeliveryProfitability() {
                     <ArrowDownRight className="h-4 w-4 text-red-500" />
                   )}
                   Gain livraison net
+                  <InfoTooltip
+                    text="Somme sur la période = Markup + Frais de livraison − Coût Uber − Coût BOGO, tous restos du périmètre."
+                    label="Gain livraison net : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
