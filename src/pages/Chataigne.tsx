@@ -48,6 +48,8 @@ import {
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
+import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
+import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 
 import {
   useChataigneByRestaurant,
@@ -69,6 +71,11 @@ const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v
 const MONTH_LABELS = [
   "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
   "Juil", "Août", "Sep", "Oct", "Nov", "Déc",
+];
+
+const FULL_MONTHS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
 ];
 
 const monthLabel = (mois: string) => {
@@ -117,7 +124,8 @@ export default function Chataigne() {
   const [sortAsc, setSortAsc] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const tab = tabParam === "details" || tabParam === "orders" ? tabParam : "overview";
+  const tab =
+    tabParam === "details" || tabParam === "orders" || tabParam === "daily" ? tabParam : "overview";
   const setTab = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", v);
@@ -142,6 +150,12 @@ export default function Chataigne() {
 
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
+
+  // Mois affiché pour la vue quotidienne (dérivé de la fin de période sélectionnée)
+  const dailyYear = endDate.getFullYear();
+  const dailyMonth = endDate.getMonth() + 1;
+  const prevMonthIndex = dailyMonth === 1 ? 11 : dailyMonth - 2;
+  const prevMonthYear = dailyMonth === 1 ? dailyYear - 1 : dailyYear;
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -299,6 +313,7 @@ export default function Chataigne() {
               <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
               <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
+              <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
@@ -435,6 +450,23 @@ export default function Chataigne() {
 
             <TabsContent value="orders">
               <ChataigneOrdersTable start={start} end={end} restaurantIds={restaurantFilter} />
+            </TabsContent>
+
+            <TabsContent value="daily" className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Comparaison jour par jour du mois de {FULL_MONTHS[dailyMonth - 1]} {dailyYear} avec{" "}
+                {FULL_MONTHS[prevMonthIndex]} {prevMonthYear}.
+              </p>
+              <DailyComparisonCharts
+                cacheKey="chataigne"
+                fetcher={fetchDailyChataigne}
+                year={dailyYear}
+                month={dailyMonth}
+                restaurantIds={restaurantFilter}
+                comparisonMode="previous_month"
+                currentLabel={FULL_MONTHS[dailyMonth - 1]}
+                prevLabel={FULL_MONTHS[prevMonthIndex]}
+              />
             </TabsContent>
           </Tabs>
         )}

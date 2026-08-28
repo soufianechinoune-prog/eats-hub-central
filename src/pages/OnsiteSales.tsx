@@ -24,6 +24,8 @@ import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { OnsiteExclusionsControl } from "@/components/analytics/onsite/OnsiteExclusionsControl";
 import { OnsiteExclusionsBar } from "@/components/analytics/onsite/OnsiteExclusionsBar";
+import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
+import { fetchDailyOnsite } from "@/lib/dailyChannelFetchers";
 
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
@@ -102,7 +104,15 @@ export default function OnsiteSales() {
   const [monthTo, setMonthTo] = useState(12);
   const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const [dailyMonth, setDailyMonth] = useState(new Date().getMonth() + 1);
   const { data: allRestaurants } = useActiveRestaurants();
+
+  const dailyRestaurantIds = useMemo(() => {
+    if (!allRestaurants) return undefined;
+    const base = restaurantFilter.length > 0 ? restaurantFilter : allRestaurants.map((r) => r.id);
+    const ids = base.filter((id) => !excluded.includes(id));
+    return ids.length > 0 ? ids : null;
+  }, [allRestaurants, restaurantFilter, excluded]);
 
   const exclusionsKey = selectedChainId ? `onsite-exclusions:${selectedChainId}` : null;
 
@@ -375,6 +385,7 @@ export default function OnsiteSales() {
             <Tabs defaultValue="charts" className="space-y-4">
               <TabsList className="h-auto gap-1 rounded-2xl bg-muted/40 p-1.5">
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="charts">Vue globale</TabsTrigger>
+                <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="daily">Vue quotidienne</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="drivers">Volume vs panier</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="scope">Périmètre constant</TabsTrigger>
                 <TabsTrigger className="rounded-xl px-4 py-2 text-sm data-[state=active]:shadow-sm" value="stores">Par restaurant</TabsTrigger>
@@ -386,6 +397,37 @@ export default function OnsiteSales() {
                 <OnsiteEvolutionChart months={networkMonths} year={year} />
                 <OnsiteScopeChart months={networkMonths} year={year} />
               </TabsContent>
+
+              <TabsContent value="daily" className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <Label className="text-sm text-muted-foreground">Mois analysé</Label>
+                  <Select value={String(dailyMonth)} onValueChange={(v) => setDailyMonth(Number(v))}>
+                    <SelectTrigger className="h-9 w-[140px] rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {MONTHS.map((m, i) => (
+                        <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <span className="text-sm text-muted-foreground">
+                    {MONTHS[dailyMonth - 1]} {year} vs {MONTHS[dailyMonth - 1]} {prev}
+                  </span>
+                </div>
+                <DailyComparisonCharts
+                  cacheKey="onsite"
+                  fetcher={fetchDailyOnsite}
+                  year={year}
+                  month={dailyMonth}
+                  restaurantIds={dailyRestaurantIds}
+                  comparisonMode="year"
+                  currentLabel={String(year)}
+                  prevLabel={String(prev)}
+                  comparisonSuffix={`(${MONTHS[dailyMonth - 1]} ${year} vs ${MONTHS[dailyMonth - 1]} ${prev})`}
+                />
+              </TabsContent>
+
 
               <TabsContent value="drivers">
                 <OnsiteVolumeBasket months={networkMonths} restaurants={restaurants} year={year} />
