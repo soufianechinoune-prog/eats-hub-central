@@ -607,7 +607,7 @@ export default function DeliveryProfitability() {
             <CardDescription>Cliquez sur une colonne pour trier.</CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading || restaurantFilter === undefined ? (
+            {isLoading ? (
               <div className="space-y-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <Skeleton key={i} className="h-10 w-full" />
