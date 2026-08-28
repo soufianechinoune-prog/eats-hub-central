@@ -5728,6 +5728,34 @@ export type Database = {
           type_acquisition: string
         }[]
       }
+      get_daily_chataigne: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          average_basket: number
+          date: string
+          order_count: number
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
+      get_daily_onsite_from_splash: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          average_basket: number
+          date: string
+          order_count: number
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string
