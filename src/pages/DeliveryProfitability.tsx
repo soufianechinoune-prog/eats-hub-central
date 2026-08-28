@@ -802,6 +802,7 @@ function SortableHead({
   label,
   k,
   align = "left",
+  tooltip,
   sortKey,
   sortAsc,
   toggleSort,
@@ -809,6 +810,7 @@ function SortableHead({
   label: string;
   k: SortKey;
   align?: "left" | "right";
+  tooltip?: string;
   sortKey: SortKey;
   sortAsc: boolean;
   toggleSort: (k: SortKey) => void;
@@ -821,6 +823,7 @@ function SortableHead({
     >
       <span className="inline-flex items-center gap-1">
         {label}
+        {tooltip && <InfoTooltip text={tooltip} label={`${label} : informations`} />}
         {active &&
           (sortAsc ? (
             <ArrowUpRight className="h-3 w-3" />
