@@ -73,6 +73,11 @@ const MONTH_LABELS = [
   "Juil", "Août", "Sep", "Oct", "Nov", "Déc",
 ];
 
+const FULL_MONTHS = [
+  "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+  "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre",
+];
+
 const monthLabel = (mois: string) => {
   const [y, m] = mois.split("-");
   const idx = Number(m) - 1;
