@@ -16,6 +16,7 @@ import {
   Euro,
   FileSpreadsheet,
   Gift,
+  Info,
   Layers,
   Truck,
 } from "lucide-react";
