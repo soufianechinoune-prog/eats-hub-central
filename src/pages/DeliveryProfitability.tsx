@@ -582,6 +582,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Gift className="h-4 w-4" /> Coût réel BOGO
+                  <InfoTooltip
+                    text="Coût total des naans offerts selon le réglage de la jauge (€ ou %)."
+                    label="Coût réel BOGO : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
