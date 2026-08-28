@@ -406,6 +406,10 @@ export default function DeliveryProfitability() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Gift className="h-4 w-4 text-fuchsia-500" /> Coût réel du BOGO (naan offert)
+                <InfoTooltip
+                  text="Ce qu'un naan offert t'a réellement coûté (coût matière, pas le prix de vente). En € = montant fixe par naan ; en % = part du prix du naan."
+                  label="Coût réel du BOGO : informations"
+                />
               </CardTitle>
               <CardDescription>
                 {fmtInt(totals.nbBogo)} BOGO sur la période · valeur faciale{" "}
