@@ -85,9 +85,17 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
 
   const [activeTab, setActiveTab] = useState<string>(derivedTab);
 
+  // Plage temporaire pour l'onglet "Période perso." (appliquée seulement au clic sur Appliquer)
+  const [tempRange, setTempRange] = useState<DateRange | undefined>(dateRange);
+
   useEffect(() => {
-    if (periodOpen) setActiveTab(derivedTab);
+    if (periodOpen) {
+      setActiveTab(derivedTab);
+      setTempRange(dateRange);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodOpen, derivedTab]);
+
 
   // Fetch restaurants
   const { data: restaurants } = useQuery({
@@ -190,20 +198,35 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
     setPeriodOpen(false);
   };
 
-  const handleDateRangeSelect = (range: DateRange | undefined) => {
-    if (weekOnlyRange && range?.from) {
-      const snappedFrom = startOfWeek(range.from, { weekStartsOn: 1 });
-      const snappedTo = endOfWeek(range.to || range.from, { weekStartsOn: 1 });
-      const snapped = { from: snappedFrom, to: snappedTo };
-      setPeriodMode("range");
-      setDateRange(snapped);
-    } else if (range?.from && range?.to) {
-      setPeriodMode("range");
-      setDateRange(range);
-    } else {
-      setDateRange(range);
+  // Sélection en 2 clics explicite : 1er clic = nouveau début, 2e clic = fin
+  const handleDayClick = (day: Date, modifiers?: { disabled?: boolean }) => {
+    if (modifiers?.disabled) return;
+
+    if (weekOnlyRange) {
+      setTempRange({
+        from: startOfWeek(day, { weekStartsOn: 1 }),
+        to: endOfWeek(day, { weekStartsOn: 1 }),
+      });
+      return;
     }
+
+    setTempRange((prev) => {
+      // Pas de sélection en cours, ou plage déjà complète -> on repart de zéro
+      if (!prev?.from || (prev.from && prev.to)) {
+        return { from: day, to: undefined };
+      }
+      // 2e clic : on complète (inversion si date antérieure au début)
+      return day < prev.from ? { from: day, to: prev.from } : { from: prev.from, to: day };
+    });
   };
+
+  const applyTempRange = () => {
+    if (!tempRange?.from || !tempRange?.to) return;
+    setPeriodMode("range");
+    setDateRange(tempRange);
+    setPeriodOpen(false);
+  };
+
 
   const handleQuickSelect = (mode: "previous_week" | "7d" | "30d" | "current_month") => {
     const today = new Date();
@@ -583,11 +606,14 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                   <div className="p-2">
                     <CalendarComponent
                       mode="range"
-                      selected={dateRange}
-                      onSelect={handleDateRangeSelect}
+                      selected={tempRange}
+                      onSelect={() => {}}
+                      onDayClick={handleDayClick}
+                      defaultMonth={tempRange?.from}
                       numberOfMonths={2}
                       locale={fr}
                       disabled={{ after: today }}
+
                       className="pointer-events-auto"
                       classNames={{
                         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
@@ -620,20 +646,24 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                       Sélection par semaine uniquement (lun–dim)
                     </p>
                   )}
-                  {dateRange?.from && dateRange?.to && (
-                    <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        {format(dateRange.from, "dd MMM yyyy", { locale: fr })} – {format(dateRange.to, "dd MMM yyyy", { locale: fr })}
-                      </span>
-                      <Button 
-                        size="sm" 
-                        className="bg-primary hover:bg-primary/90"
-                        onClick={() => setPeriodOpen(false)}
-                      >
-                        Appliquer
-                      </Button>
-                    </div>
-                  )}
+                  <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {tempRange?.from
+                        ? tempRange?.to
+                          ? `${format(tempRange.from, "dd MMM yyyy", { locale: fr })} – ${format(tempRange.to, "dd MMM yyyy", { locale: fr })}`
+                          : `${format(tempRange.from, "dd MMM yyyy", { locale: fr })} – sélectionnez la fin`
+                        : "Sélectionnez une date de début"}
+                    </span>
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90"
+                      disabled={!tempRange?.from || !tempRange?.to}
+                      onClick={applyTempRange}
+                    >
+                      Appliquer
+                    </Button>
+                  </div>
+
                 </TabsContent>
               </Tabs>
             </PopoverContent>
