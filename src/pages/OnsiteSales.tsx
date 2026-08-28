@@ -24,6 +24,8 @@ import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { OnsiteExclusionsControl } from "@/components/analytics/onsite/OnsiteExclusionsControl";
 import { OnsiteExclusionsBar } from "@/components/analytics/onsite/OnsiteExclusionsBar";
+import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
+import { fetchDailyOnsite } from "@/lib/dailyChannelFetchers";
 
 
 const MONTHS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
