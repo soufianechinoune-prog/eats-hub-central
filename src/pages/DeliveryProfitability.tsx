@@ -16,6 +16,7 @@ import {
   Euro,
   FileSpreadsheet,
   Gift,
+  Info,
   Layers,
   Truck,
 } from "lucide-react";
@@ -48,12 +49,40 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 /* ------------------------------- helpers -------------------------------- */
+
+function InfoTooltip({ text, label }: { text: string; label?: string }) {
+  return (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-4 w-4 p-0 align-middle text-muted-foreground hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+            aria-label={label || text}
+          >
+            <Info className="h-3.5 w-3.5" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="center" className="max-w-xs text-xs">
+          <p>{text}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const fmtEur = (v: number, digits = 0) =>
   new Intl.NumberFormat("fr-FR", {
@@ -377,6 +406,10 @@ export default function DeliveryProfitability() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Gift className="h-4 w-4 text-fuchsia-500" /> Coût réel du BOGO (naan offert)
+                <InfoTooltip
+                  text="Ce qu'un naan offert t'a réellement coûté (coût matière, pas le prix de vente). En € = montant fixe par naan ; en % = part du prix du naan."
+                  label="Coût réel du BOGO : informations"
+                />
               </CardTitle>
               <CardDescription>
                 {fmtInt(totals.nbBogo)} BOGO sur la période · valeur faciale{" "}
@@ -436,6 +469,10 @@ export default function DeliveryProfitability() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Bike className="h-4 w-4 text-sky-500" /> Coût livreur (TTC)
+                <InfoTooltip
+                  text="Prix payé au livreur par course. 3,60 € pendant l'offre Uber (jusqu'à fin septembre). Monte le curseur pour simuler le tarif après l'offre."
+                  label="Coût livreur : informations"
+                />
               </CardTitle>
               <CardDescription>Appliqué à chaque livraison de la période.</CardDescription>
             </CardHeader>
@@ -491,6 +528,10 @@ export default function DeliveryProfitability() {
                     <ArrowDownRight className="h-4 w-4 text-red-500" />
                   )}
                   Gain livraison net
+                  <InfoTooltip
+                    text="Somme sur la période = Markup + Frais de livraison − Coût Uber − Coût BOGO, tous restos du périmètre."
+                    label="Gain livraison net : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -510,6 +551,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Euro className="h-4 w-4" /> Gain / livraison
+                  <InfoTooltip
+                    text="Gain net total ÷ nombre de livraisons = marge nette moyenne par commande livrée."
+                    label="Gain par livraison : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -529,6 +574,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Truck className="h-4 w-4" /> Nb livraisons
+                  <InfoTooltip
+                    text="Nombre total de commandes livrées Chataigne sur la période et le périmètre."
+                    label="Nombre de livraisons : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -541,6 +590,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Gift className="h-4 w-4" /> Coût réel BOGO
+                  <InfoTooltip
+                    text="Coût total des naans offerts selon le réglage de la jauge (€ ou %)."
+                    label="Coût réel BOGO : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -558,7 +611,13 @@ export default function DeliveryProfitability() {
         {/* ------------------------- Décomposition ------------------------- */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Décomposition du gain</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Décomposition du gain
+              <InfoTooltip
+                text="Markup + Frais de livraison − Coût livreur − Coût BOGO = Gain net. Chaque bloc se recalcule quand tu bouges les jauges ou les filtres."
+                label="Décomposition du gain : informations"
+              />
+            </CardTitle>
             <CardDescription>
               Markup + Frais de livraison − Coût livreur − Coût BOGO = Gain net
             </CardDescription>
@@ -645,13 +704,55 @@ export default function DeliveryProfitability() {
                     <TableRow>
                       <SortableHead label="Restaurant" k="restaurant_name" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Version" k="version" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Prix Naan (grille)" k="naan_tenders_price" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Livraisons" k="nb_livraisons" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Markup" k="markup_total" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Frais livr." k="frais_livraison" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Coût Uber" k="coutUber" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Coût BOGO" k="coutBogo" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Gain net" k="gain" align="right" {...{ sortKey, sortAsc, toggleSort }} />
+                      <SortableHead
+                        label="Prix Naan (grille)"
+                        k="naan_tenders_price"
+                        align="right"
+                        tooltip="Prix du Naan Tenders à l'unité selon la version de prix du restaurant. Référence pour vérifier le coût du BOGO."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Livraisons"
+                        k="nb_livraisons"
+                        align="right"
+                        tooltip="Nombre de commandes livrées (canal Chataigne) sur la période et le périmètre sélectionnés."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Markup"
+                        k="markup_total"
+                        align="right"
+                        tooltip="Surprix produits appliqué en livraison vs le prix sur place. Pour chaque produit livré : (prix livraison − prix sur place) × quantité, cumulé sur la période."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Frais livr."
+                        k="frais_livraison"
+                        align="right"
+                        tooltip="Frais de livraison payés par le client et encaissés par le restaurant."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Coût Uber"
+                        k="coutUber"
+                        align="right"
+                        tooltip="Coût du livreur payé à Uber = prix par course (curseur, 3,60 € par défaut) × nombre de livraisons."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Coût BOGO"
+                        k="coutBogo"
+                        align="right"
+                        tooltip="Coût réel des naans offerts. En € : coût matière fixe × nombre de BOGO. En % : pourcentage × valeur faciale des naans offerts."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Gain net"
+                        k="gain"
+                        align="right"
+                        tooltip="Ce qui reste en poche = Markup + Frais de livraison − Coût Uber − Coût BOGO."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -773,6 +874,7 @@ function SortableHead({
   label,
   k,
   align = "left",
+  tooltip,
   sortKey,
   sortAsc,
   toggleSort,
@@ -780,6 +882,7 @@ function SortableHead({
   label: string;
   k: SortKey;
   align?: "left" | "right";
+  tooltip?: string;
   sortKey: SortKey;
   sortAsc: boolean;
   toggleSort: (k: SortKey) => void;
@@ -792,6 +895,7 @@ function SortableHead({
     >
       <span className="inline-flex items-center gap-1">
         {label}
+        {tooltip && <InfoTooltip text={tooltip} label={`${label} : informations`} />}
         {active &&
           (sortAsc ? (
             <ArrowUpRight className="h-3 w-3" />
