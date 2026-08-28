@@ -469,6 +469,10 @@ export default function DeliveryProfitability() {
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Bike className="h-4 w-4 text-sky-500" /> Coût livreur (TTC)
+                <InfoTooltip
+                  text="Prix payé au livreur par course. 3,60 € pendant l'offre Uber (jusqu'à fin septembre). Monte le curseur pour simuler le tarif après l'offre."
+                  label="Coût livreur : informations"
+                />
               </CardTitle>
               <CardDescription>Appliqué à chaque livraison de la période.</CardDescription>
             </CardHeader>
