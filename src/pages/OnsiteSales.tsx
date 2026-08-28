@@ -102,7 +102,15 @@ export default function OnsiteSales() {
   const [monthTo, setMonthTo] = useState(12);
   const [restaurantFilter, setRestaurantFilter] = useState<string[]>([]);
   const [excluded, setExcluded] = useState<string[]>([]);
+  const [dailyMonth, setDailyMonth] = useState(new Date().getMonth() + 1);
   const { data: allRestaurants } = useActiveRestaurants();
+
+  const dailyRestaurantIds = useMemo(() => {
+    if (!allRestaurants) return undefined;
+    const base = restaurantFilter.length > 0 ? restaurantFilter : allRestaurants.map((r) => r.id);
+    const ids = base.filter((id) => !excluded.includes(id));
+    return ids.length > 0 ? ids : null;
+  }, [allRestaurants, restaurantFilter, excluded]);
 
   const exclusionsKey = selectedChainId ? `onsite-exclusions:${selectedChainId}` : null;
 
