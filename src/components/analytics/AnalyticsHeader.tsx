@@ -646,20 +646,24 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                       Sélection par semaine uniquement (lun–dim)
                     </p>
                   )}
-                  {dateRange?.from && dateRange?.to && (
-                    <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">
-                        {format(dateRange.from, "dd MMM yyyy", { locale: fr })} – {format(dateRange.to, "dd MMM yyyy", { locale: fr })}
-                      </span>
-                      <Button 
-                        size="sm" 
-                        className="bg-primary hover:bg-primary/90"
-                        onClick={() => setPeriodOpen(false)}
-                      >
-                        Appliquer
-                      </Button>
-                    </div>
-                  )}
+                  <div className="p-4 border-t bg-muted/30 flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      {tempRange?.from
+                        ? tempRange?.to
+                          ? `${format(tempRange.from, "dd MMM yyyy", { locale: fr })} – ${format(tempRange.to, "dd MMM yyyy", { locale: fr })}`
+                          : `${format(tempRange.from, "dd MMM yyyy", { locale: fr })} – sélectionnez la fin`
+                        : "Sélectionnez une date de début"}
+                    </span>
+                    <Button
+                      size="sm"
+                      className="bg-primary hover:bg-primary/90"
+                      disabled={!tempRange?.from || !tempRange?.to}
+                      onClick={applyTempRange}
+                    >
+                      Appliquer
+                    </Button>
+                  </div>
+
                 </TabsContent>
               </Tabs>
             </PopoverContent>
