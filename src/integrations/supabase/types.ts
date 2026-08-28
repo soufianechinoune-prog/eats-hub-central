@@ -5809,12 +5809,7 @@ export type Database = {
         }[]
       }
       get_delivery_pnl: {
-        Args: {
-          p_chain_id: string
-          p_end: string
-          p_restaurant_ids?: string[]
-          p_start: string
-        }
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
           bogo_full_value: number
           frais_livraison: number
