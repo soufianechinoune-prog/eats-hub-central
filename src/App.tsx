@@ -240,6 +240,7 @@ const App = () => {
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
                     <Route path="/chataigne/croissance" element={<P><ChataigneGrowth /></P>} />
+                    <Route path="/chataigne/rentabilite" element={<P><DeliveryProfitability /></P>} />
                     <Route path="/prix-sur-place" element={<P><InstorePrices /></P>} />
                     <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                     <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />
