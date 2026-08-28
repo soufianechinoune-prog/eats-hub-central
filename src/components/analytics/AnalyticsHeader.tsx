@@ -606,11 +606,14 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
                   <div className="p-2">
                     <CalendarComponent
                       mode="range"
-                      selected={dateRange}
-                      onSelect={handleDateRangeSelect}
+                      selected={tempRange}
+                      onSelect={() => {}}
+                      onDayClick={handleDayClick}
+                      defaultMonth={tempRange?.from}
                       numberOfMonths={2}
                       locale={fr}
                       disabled={{ after: today }}
+
                       className="pointer-events-auto"
                       classNames={{
                         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
