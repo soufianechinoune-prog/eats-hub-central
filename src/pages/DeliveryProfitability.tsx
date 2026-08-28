@@ -50,6 +50,8 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 /* ------------------------------- helpers -------------------------------- */
 
@@ -91,11 +93,11 @@ type SortKey =
   | "gain";
 
 const DEFAULT_START = new Date(new Date().getFullYear(), 5, 1); // 1er juin
-const DIAGNOSTIC_START = "2026-06-01";
 
 /* -------------------------------- page ---------------------------------- */
 
 export default function DeliveryProfitability() {
+  const { selectedRestaurants, selectedChainId } = useAnalyticsContext();
   const [range, setRange] = useState<DateRange | undefined>({
     from: DEFAULT_START,
     to: new Date(),
@@ -112,20 +114,48 @@ export default function DeliveryProfitability() {
   const [sortKey, setSortKey] = useState<SortKey>("gain");
   const [sortAsc, setSortAsc] = useState(false);
 
-  const start = DIAGNOSTIC_START;
-  const end = format(new Date(), "yyyy-MM-dd");
+  const start = range?.from ? format(range.from, "yyyy-MM-dd") : format(DEFAULT_START, "yyyy-MM-dd");
+  const end = range?.to ? format(range.to, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd");
+
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants", selectedChainId],
+    queryFn: async () => {
+      let query = supabase
+        .from("restaurants")
+        .select("id, name, city, is_pinned, is_active")
+        .order("name");
+      if (selectedChainId) query = query.eq("chain_id", selectedChainId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const chainRestaurantIds = useMemo(() => restaurants?.map((r) => r.id) ?? [], [restaurants]);
+
+  // undefined = scope pas encore résolu → requête en attente ; null = toutes marques
+  const restaurantFilter = useMemo<string[] | null | undefined>(() => {
+    if (!restaurants) return undefined;
+    const resolved = resolveBrandScopedRestaurantIds({
+      selectedRestaurantIds: selectedRestaurants,
+      selectedChainId,
+      chainRestaurantIds,
+    });
+    return resolved ?? null;
+  }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const { data, isLoading, error: rpcError } = useQuery<PnlRow[], Error>({
-    queryKey: ["delivery-pnl-diagnostic", start, end],
+    queryKey: ["delivery-pnl", start, end, restaurantFilter],
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_delivery_pnl", {
         p_start: start,
         p_end: end,
-        p_restaurant_ids: null,
+        p_restaurant_ids: restaurantFilter ?? null,
       });
       if (error) throw error;
       return (data ?? []) as PnlRow[];
     },
+    enabled: restaurantFilter !== undefined,
   });
 
   /* ---- versions présentes ---- */
@@ -257,18 +287,6 @@ export default function DeliveryProfitability() {
             <strong>Erreur RPC get_delivery_pnl :</strong> {rpcError.message}
           </div>
         )}
-
-        <div className="rounded-md border border-border bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
-          <strong className="text-foreground">Debug RPC</strong>
-          <span className="mx-2">·</span>
-          lignes : <span className="font-mono text-foreground">{data?.length ?? 0}</span>
-          <span className="mx-2">·</span>
-          p_start : <span className="font-mono text-foreground">{start}</span>
-          <span className="mx-2">·</span>
-          p_end : <span className="font-mono text-foreground">{end}</span>
-          <span className="mx-2">·</span>
-          p_restaurant_ids : <span className="font-mono text-foreground">null</span>
-        </div>
 
         {/* ------------------------- Filtres ------------------------- */}
         <Card>
