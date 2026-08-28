@@ -36,6 +36,7 @@ import {
   Plug,
   RotateCcw,
   MessageCircle,
+  Bike,
 
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
