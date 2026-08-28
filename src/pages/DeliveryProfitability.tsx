@@ -69,6 +69,7 @@ interface PnlRow {
   restaurant_id: string;
   restaurant_name: string;
   version: string;
+  naan_tenders_price: number | null;
   nb_livraisons: number;
   markup_total: number;
   frais_livraison: number;
@@ -85,6 +86,7 @@ interface ComputedRow extends PnlRow {
 type SortKey =
   | "restaurant_name"
   | "version"
+  | "naan_tenders_price"
   | "nb_livraisons"
   | "markup_total"
   | "frais_livraison"
@@ -233,6 +235,7 @@ export default function DeliveryProfitability() {
       sortedRows.map((r) => ({
         Restaurant: r.restaurant_name,
         Version: r.version,
+        "Prix Naan (grille)": r.naan_tenders_price === null ? null : Number(r.naan_tenders_price.toFixed(2)),
         Livraisons: r.nb_livraisons,
         Markup: Number(r.markup_total.toFixed(2)),
         "Frais livraison": Number(r.frais_livraison.toFixed(2)),
@@ -642,6 +645,7 @@ export default function DeliveryProfitability() {
                     <TableRow>
                       <SortableHead label="Restaurant" k="restaurant_name" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Version" k="version" {...{ sortKey, sortAsc, toggleSort }} />
+                      <SortableHead label="Prix Naan (grille)" k="naan_tenders_price" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Livraisons" k="nb_livraisons" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Markup" k="markup_total" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Frais livr." k="frais_livraison" align="right" {...{ sortKey, sortAsc, toggleSort }} />
@@ -656,6 +660,9 @@ export default function DeliveryProfitability() {
                         <TableCell className="font-medium">{r.restaurant_name}</TableCell>
                         <TableCell>
                           <Badge variant="outline">{r.version}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">
+                          {r.naan_tenders_price === null ? "—" : fmtEur(r.naan_tenders_price, 2)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
                           {fmtInt(r.nb_livraisons)}
@@ -686,6 +693,7 @@ export default function DeliveryProfitability() {
                   <TableFooter>
                     <TableRow>
                       <TableCell className="font-semibold">Total</TableCell>
+                      <TableCell />
                       <TableCell />
                       <TableCell className="text-right font-semibold tabular-nums">
                         {fmtInt(totals.nb)}
