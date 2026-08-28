@@ -566,6 +566,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Truck className="h-4 w-4" /> Nb livraisons
+                  <InfoTooltip
+                    text="Nombre total de commandes livrées Chataigne sur la période et le périmètre."
+                    label="Nombre de livraisons : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
