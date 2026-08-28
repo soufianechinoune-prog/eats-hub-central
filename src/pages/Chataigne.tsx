@@ -151,6 +151,12 @@ export default function Chataigne() {
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
 
+  // Mois affiché pour la vue quotidienne (dérivé de la fin de période sélectionnée)
+  const dailyYear = endDate.getFullYear();
+  const dailyMonth = endDate.getMonth() + 1;
+  const prevMonthIndex = dailyMonth === 1 ? 11 : dailyMonth - 2;
+  const prevMonthYear = dailyMonth === 1 ? dailyYear - 1 : dailyYear;
+
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
