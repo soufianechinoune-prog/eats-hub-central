@@ -235,6 +235,7 @@ export default function DeliveryProfitability() {
       sortedRows.map((r) => ({
         Restaurant: r.restaurant_name,
         Version: r.version,
+        "Prix Naan (grille)": r.naan_tenders_price === null ? null : Number(r.naan_tenders_price.toFixed(2)),
         Livraisons: r.nb_livraisons,
         Markup: Number(r.markup_total.toFixed(2)),
         "Frais livraison": Number(r.frais_livraison.toFixed(2)),
