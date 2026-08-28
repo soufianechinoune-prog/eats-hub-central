@@ -674,13 +674,55 @@ export default function DeliveryProfitability() {
                     <TableRow>
                       <SortableHead label="Restaurant" k="restaurant_name" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Version" k="version" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Prix Naan (grille)" k="naan_tenders_price" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Livraisons" k="nb_livraisons" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Markup" k="markup_total" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Frais livr." k="frais_livraison" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Coût Uber" k="coutUber" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Coût BOGO" k="coutBogo" align="right" {...{ sortKey, sortAsc, toggleSort }} />
-                      <SortableHead label="Gain net" k="gain" align="right" {...{ sortKey, sortAsc, toggleSort }} />
+                      <SortableHead
+                        label="Prix Naan (grille)"
+                        k="naan_tenders_price"
+                        align="right"
+                        tooltip="Prix du Naan Tenders à l'unité selon la version de prix du restaurant. Référence pour vérifier le coût du BOGO."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Livraisons"
+                        k="nb_livraisons"
+                        align="right"
+                        tooltip="Nombre de commandes livrées (canal Chataigne) sur la période et le périmètre sélectionnés."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Markup"
+                        k="markup_total"
+                        align="right"
+                        tooltip="Surprix produits appliqué en livraison vs le prix sur place. Pour chaque produit livré : (prix livraison − prix sur place) × quantité, cumulé sur la période."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Frais livr."
+                        k="frais_livraison"
+                        align="right"
+                        tooltip="Frais de livraison payés par le client et encaissés par le restaurant."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Coût Uber"
+                        k="coutUber"
+                        align="right"
+                        tooltip="Coût du livreur payé à Uber = prix par course (curseur, 3,60 € par défaut) × nombre de livraisons."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Coût BOGO"
+                        k="coutBogo"
+                        align="right"
+                        tooltip="Coût réel des naans offerts. En € : coût matière fixe × nombre de BOGO. En % : pourcentage × valeur faciale des naans offerts."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
+                      <SortableHead
+                        label="Gain net"
+                        k="gain"
+                        align="right"
+                        tooltip="Ce qui reste en poche = Markup + Frais de livraison − Coût Uber − Coût BOGO."
+                        {...{ sortKey, sortAsc, toggleSort }}
+                      />
                     </TableRow>
                   </TableHeader>
                   <TableBody>
