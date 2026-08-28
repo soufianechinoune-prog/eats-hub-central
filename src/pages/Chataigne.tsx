@@ -436,6 +436,23 @@ export default function Chataigne() {
             <TabsContent value="orders">
               <ChataigneOrdersTable start={start} end={end} restaurantIds={restaurantFilter} />
             </TabsContent>
+
+            <TabsContent value="daily" className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Comparaison jour par jour du mois de {FULL_MONTHS[dailyMonth - 1]} {dailyYear} avec{" "}
+                {FULL_MONTHS[prevMonthIndex]} {prevMonthYear}.
+              </p>
+              <DailyComparisonCharts
+                cacheKey="chataigne"
+                fetcher={fetchDailyChataigne}
+                year={dailyYear}
+                month={dailyMonth}
+                restaurantIds={restaurantFilter}
+                comparisonMode="previous_month"
+                currentLabel={FULL_MONTHS[dailyMonth - 1]}
+                prevLabel={FULL_MONTHS[prevMonthIndex]}
+              />
+            </TabsContent>
           </Tabs>
         )}
       </div>
