@@ -155,11 +155,18 @@ export default function DeliveryProfitability() {
     queryKey: ["delivery-pnl", selectedChainId, start, end, restaurantFilter],
     enabled: Boolean(selectedChainId && start && end) && restaurantFilter !== undefined && !isEmptyScope,
     queryFn: async () => {
+      // "Tous les restaurants" → NULL (évite d'envoyer un tableau vide qui
+      // serait interprété comme "aucun restaurant").
+      const coversAllChain =
+        !restaurantFilter ||
+        (chainRestaurantIds.length > 0 &&
+          restaurantFilter.length === chainRestaurantIds.length &&
+          chainRestaurantIds.every((id) => restaurantFilter.includes(id)));
       const { data, error } = await supabase.rpc("get_delivery_pnl", {
         p_chain_id: selectedChainId,
         p_start: start,
         p_end: end,
-        p_restaurant_ids: restaurantFilter,
+        p_restaurant_ids: coversAllChain ? null : restaurantFilter,
       });
       if (error) throw error;
       return (data ?? []) as PnlRow[];
