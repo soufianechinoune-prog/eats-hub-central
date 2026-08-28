@@ -313,6 +313,7 @@ export default function Chataigne() {
               <TabsTrigger value="overview">Vue d'ensemble</TabsTrigger>
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
               <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
+              <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-6">
