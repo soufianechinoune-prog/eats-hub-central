@@ -69,6 +69,7 @@ interface PnlRow {
   restaurant_id: string;
   restaurant_name: string;
   version: string;
+  naan_tenders_price: number | null;
   nb_livraisons: number;
   markup_total: number;
   frais_livraison: number;
@@ -85,6 +86,7 @@ interface ComputedRow extends PnlRow {
 type SortKey =
   | "restaurant_name"
   | "version"
+  | "naan_tenders_price"
   | "nb_livraisons"
   | "markup_total"
   | "frais_livraison"
