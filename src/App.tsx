@@ -65,6 +65,7 @@ const OnsiteSales = React.lazy(() => import("./pages/OnsiteSales"));
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
 const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarification"));
 const ChataigneGrowth = React.lazy(() => import("./pages/ChataigneGrowth"));
+const DeliveryProfitability = React.lazy(() => import("./pages/DeliveryProfitability"));
 const InstorePrices = React.lazy(() => import("./pages/InstorePrices"));
 const MarketingAnalytics = React.lazy(() => import("./pages/MarketingAnalytics"));
 const SuccessScore = React.lazy(() => import("./pages/SuccessScore"));
@@ -240,6 +241,7 @@ const App = () => {
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
                     <Route path="/chataigne/croissance" element={<P><ChataigneGrowth /></P>} />
+                    <Route path="/chataigne/rentabilite" element={<P><DeliveryProfitability /></P>} />
                     <Route path="/prix-sur-place" element={<P><InstorePrices /></P>} />
                     <Route path="/marketing-analytics" element={<P><MarketingAnalytics /></P>} />
                     <Route path="/success-score" element={<P><AppLayout><SuccessScore /></AppLayout></P>} />

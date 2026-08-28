@@ -5808,6 +5808,24 @@ export type Database = {
           uber_fee_after_promo_incl_vat: number
         }[]
       }
+      get_delivery_pnl: {
+        Args: {
+          p_chain_id: string
+          p_end: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          bogo_full_value: number
+          frais_livraison: number
+          markup_total: number
+          nb_bogo: number
+          nb_livraisons: number
+          restaurant_id: string
+          restaurant_name: string
+          version: string
+        }[]
+      }
       get_downtime_comparison: {
         Args: {
           p_end_date: string
