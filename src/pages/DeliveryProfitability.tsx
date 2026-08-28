@@ -543,6 +543,10 @@ export default function DeliveryProfitability() {
               <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
                   <Euro className="h-4 w-4" /> Gain / livraison
+                  <InfoTooltip
+                    text="Gain net total ÷ nombre de livraisons = marge nette moyenne par commande livrée."
+                    label="Gain par livraison : informations"
+                  />
                 </CardTitle>
               </CardHeader>
               <CardContent>
