@@ -645,6 +645,7 @@ export default function DeliveryProfitability() {
                     <TableRow>
                       <SortableHead label="Restaurant" k="restaurant_name" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Version" k="version" {...{ sortKey, sortAsc, toggleSort }} />
+                      <SortableHead label="Prix Naan (grille)" k="naan_tenders_price" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Livraisons" k="nb_livraisons" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Markup" k="markup_total" align="right" {...{ sortKey, sortAsc, toggleSort }} />
                       <SortableHead label="Frais livr." k="frais_livraison" align="right" {...{ sortKey, sortAsc, toggleSort }} />
