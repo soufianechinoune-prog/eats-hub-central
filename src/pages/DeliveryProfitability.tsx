@@ -51,10 +51,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
-import {
-  EMPTY_BRAND_SCOPE_RESTAURANT_IDS,
-  resolveBrandScopedRestaurantIds,
-} from "@/lib/brandScope";
+import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 
 /* ------------------------------- helpers -------------------------------- */
 
