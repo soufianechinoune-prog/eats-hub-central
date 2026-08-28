@@ -611,7 +611,13 @@ export default function DeliveryProfitability() {
         {/* ------------------------- Décomposition ------------------------- */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Décomposition du gain</CardTitle>
+            <CardTitle className="flex items-center gap-2 text-base">
+              Décomposition du gain
+              <InfoTooltip
+                text="Markup + Frais de livraison − Coût livreur − Coût BOGO = Gain net. Chaque bloc se recalcule quand tu bouges les jauges ou les filtres."
+                label="Décomposition du gain : informations"
+              />
+            </CardTitle>
             <CardDescription>
               Markup + Frais de livraison − Coût livreur − Coût BOGO = Gain net
             </CardDescription>
