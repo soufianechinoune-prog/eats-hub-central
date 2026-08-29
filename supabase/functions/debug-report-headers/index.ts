@@ -81,7 +81,21 @@ Deno.serve(async (req) => {
     const url = (report.sections as any[])[0]?.download_url;
     const resp = await fetch(url);
     const text = await resp.text();
+
+    // Mode "test parseur" : rejoue le CSV dans parse-payment-report en dryRun
+    // (aucune écriture) et renvoie le récap de routage des catégories.
+    if (body.parse_test === true) {
+      const { data, error: invokeErr } = await supabase.functions.invoke('parse-payment-report', {
+        body: { csvContent: text, reportType: 'payment_order_level', dryRun: true },
+      });
+      return new Response(
+        JSON.stringify({ mode: 'parse_test', workflowId, invokeError: invokeErr?.message ?? null, result: data }, null, 2),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const records = splitRecords(text);
+
 
     // The Uber 2026 format has 2 header rows; real keys live on the row with the most non-empty cells among the first 2
     const r0 = parseCsvLine(records[0] ?? '');
