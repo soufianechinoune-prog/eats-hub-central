@@ -1,52 +1,31 @@
-# Correctif parseurs versements Uber (format 2026)
+# Ré-import versements Uber juin→août — débit 5/min + vérification stricte
 
-## Ce que j'ai pu vérifier maintenant
+## Décision retenue
 
-Le dump des valeurs distinctes de « Description des autres paiements » sur le rapport Argenteuil 02-08 juin **n'est pas réalisable en mode plan** : la fonction de diagnostic actuelle ne renvoie que les en-têtes, et les liens de téléchargement Uber sont masqués côté outillage (impossible de télécharger le CSV hors edge function). Il faut donc étendre la fonction de diagnostic (1 déploiement) pour produire le tableau demandé.
+Upsert en place (clé `payout_reference_id` + `description` + `uber_store_id`), pas de suppression préalable. Le risque connu reste le cas où le nouveau parseur retient un `uber_store_id` différent de l'ancien : la ligne serait créée à côté au lieu d'écraser. C'est exactement ce que le contrôle des orphelines ci-dessous doit détecter.
 
-Ce que la base montre déjà (historique importé, toutes marques, catégorie → description → nb lignes → montant) :
+## 1. Accélération du worker
 
-| Catégorie | Description (texte Uber) | Lignes | Montant | Dernière date |
-|---|---|---|---|---|
-| advertising | Dépenses publicitaires | 13 907 | -2 511 291,36 € | 2026-08-27 |
-| advertising | Crédits publicitaires | 371 | +35 380,31 € | 2026-08-17 |
-| eco_contribution | Autres frais | 6 154 | -162 540,60 € | 2026-08-27 |
-| marketing_adjustment | Autres frais | 509 | +89 442,95 € | 2026-07-20 |
-| tax_rounding | Autres frais | 311 | +7 361,32 € | 2026-08-27 |
-| adjustment | Ajustement lié à l'arrondissement de la TVA | 8 167 | -329,55 € | 2026-08-27 |
-| adjustment | Ajustement des frais de service | 55 | -52 069,99 € | 2026-06-08 |
-| other_fee | Remboursements du restaurant / Frais de versement accéléré / Frais d'activation / Bonus parrainage / Frais sac | ~3 760 | — | 2026-08-26 |
+`supabase/functions/uber-backfill-worker/index.ts` : `PARALLEL` de 2 → 5, et délai inter-job `INTER_JOB_DELAY_MS` 1500 → 1000 ms pour lisser le burst. Le requeue 429 (`next_attempt_at` + `rate_limit_retries`) est déjà en place et absorbe un éventuel throttle Uber. Environ 964 tâches en file → fin estimée ~1 h 30 à 2 h.
 
-Point d'attention : « Autres frais » est un libellé fourre-tout qui sert aujourd'hui à la fois pour l'éco-contribution, l'ajustement marketing et l'arrondi de TVA — c'est exactement le point fragile à sécuriser. Les valeurs réelles du rapport juin doivent confirmer si Uber a introduit de nouveaux libellés.
+## 2. Photo AVANT (pré-requis au contrôle des orphelines)
 
-## Étape 1 — Compléter le diagnostic (1 déploiement, aucun ré-import)
+`payout_adjustments` n'a pas de colonne `updated_at` : un upsert ne laisse aucune trace temporelle. Avant de monter le débit, on fige une table de snapshot `payout_adjustments_snapshot_aug29` contenant toutes les lignes juin→août 2026 des deux enseignes, avec leur clé (`payout_reference_id`, `description`, `uber_store_id`), catégorie et montant. C'est la seule façon fiable de distinguer, après le run, les lignes réécrites des lignes jamais touchées.
 
-Étendre `debug-report-headers` pour, sur le rapport Argenteuil 02-08 juin :
-- parser toutes les lignes du CSV,
-- grouper par valeur exacte de « Description des autres paiements »,
-- renvoyer pour chaque valeur : texte brut, nombre de lignes, somme de « Autres paiements (TVA incluse) », et un exemple de ligne (colonnes marketing / frais / commande).
+## 3. Vérifications de fin de run
 
-Je te montre le tableau résultat avant toute écriture dans les parseurs.
+### a. Contrôle « adjustment » de juin
+Somme de la catégorie `adjustment` par enseigne sur juin 2026. Attendu : proche de 0 pour CS et TC, et en particulier les ~52 k€ Tasty redistribués en `advertising` / `eco_contribution`. Si le montant reste, on remonte le détail par description pour identifier l'étiquette Uber non routée.
 
-## Étape 2 — Correctif des 2 parseurs (préparé, non déployé)
+### b. Lignes orphelines
+Comparaison snapshot vs table courante sur la clé d'upsert : toute ligne présente dans le snapshot dont la clé n'apparaît plus dans les lignes réécrites (catégorie ou montant inchangés alors qu'une ligne jumelle existe avec un autre `uber_store_id`) est listée — resto, semaine, description, catégorie, montant. Aucune suppression automatique : la liste t'est présentée pour arbitrage.
 
-Fichiers : `supabase/functions/parse-payment-report/index.ts` et `supabase/functions/parse-payout-summary/index.ts`.
+### c. Récap AVANT / APRÈS
+Tableau par enseigne × mois (juin, juillet, août) × catégorie (`advertising`, `eco_contribution`, `adjustment`, `other_fee`), montants avant et après, plus le delta. Accompagné de la liste des descriptions non reconnues loguées par le parseur pendant le run.
 
-1. **Routeur de catégorie centralisé** — remplacer la cascade de `includes()` actuelle par une table de règles ordonnées (libellé exact d'abord, puis motifs), appliquée au couple (description, montant, colonnes voisines) :
-   - `advertising` : « Dépenses publicitaires », « Crédits publicitaires », + motifs `publicit`/`advertis`/`ads`
-   - `eco_contribution` : libellés éco/contribution/environnement, et « Autres frais » **uniquement** si la colonne marketing est vide et |montant| ≥ 0,1381 €
-   - `tax_rounding` : arrondi TVA, ou « Autres frais » sous le seuil
-   - `marketing_adjustment` : « Autres frais » avec colonne marketing renseignée
-   - `other_fee` / `adjustment` : reste, avec le libellé brut conservé
-   - toute description non reconnue est loguée (et remontée dans le récap d'import) au lieu d'être silencieusement classée « other ».
-2. **Alias de colonnes de frais** — ajouter au `COLUMN_MAPPING` les variantes 2026 vers `uber_fee` : « Frais de service de la Marketplace / frais de mise en relation (TVA incluse / hors TVA) », en **conservant** tous les anciens noms. Idem pour les alias déjà repérés : « Montant de la facturation rétroactive », « Ajustement marketing (TVA incluse) », et l'apostrophe typographique U+2019 dans « Identifiant de l'établissement externe » (normalisation des apostrophes dans `normalizeHeader`).
-3. **Identifiant restaurant** — « Id. du restaurant » reste la clé primaire de résolution ; les UUID/identifiants externes restent en secours uniquement (comportement actuel inchangé).
-4. **Aucun re-parse d'URLs stockées** — les `download_url` sont expirées ; le module de ré-import passera par une nouvelle demande de rapports à Uber.
+## Détails techniques
 
-## Étape 3 — Ré-import (uniquement après ton feu vert)
-
-Re-demander à Uber les PAYMENT_DETAILS_REPORT juin → août 2026 par lots (par semaine / par groupe de restaurants), puis re-parser avec les parseurs corrigés, en vérifiant avant/après les totaux pub et éco-contribution par mois.
-
-## Ce que je ne fais pas dans cette étape
-
-Aucun déploiement des parseurs, aucun ré-import, aucune modification des données existantes tant que tu n'as pas validé le tableau de l'étape 1.
+- Fichier modifié : `supabase/functions/uber-backfill-worker/index.ts` (2 constantes).
+- Snapshot : table dédiée créée par migration, en lecture super-admin uniquement, supprimable après validation.
+- Aucun changement de schéma sur `payout_adjustments`, aucun changement front.
+- Suivi du run par requêtes sur `backfill_jobs` (statuts pending/running/done/failed) pendant l'exécution.
