@@ -36,6 +36,24 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Remboursements (TVA incluse)': 'refund_incl_vat', // Ancien format
   'Ajustements liés à des erreurs de commande (TVA incluse)': 'refund_incl_vat', // Nouveau format
   'Order Error Adjustments (incl. VAT)': 'refund_incl_vat', // Format anglais
+
+  // Format Uber 2026 : "erreurs de commande" renommé en "facturation rétroactive"
+  // Mappé sur des champs distincts pour ne pas écraser les anciennes colonnes
+  // quand les deux jeux d'en-têtes cohabitent dans le même fichier.
+  'Montant de la facturation rétroactive (hors TVA)': 'refund_excl_vat_alt',
+  'TVA sur le montant de la facturation rétroactive': 'vat_refund_alt',
+  'Montant de la facturation rétroactive (TVA incluse)': 'refund_incl_vat_alt',
+  'Montant de la facturation rétroactive (TVA incluses)': 'refund_incl_vat_alt',
+  'Retroactive Billing Amount (excl. VAT)': 'refund_excl_vat_alt',
+  'VAT on retroactive billing amount': 'vat_refund_alt',
+  'Retroactive Billing Amount (incl. VAT)': 'refund_incl_vat_alt',
+
+  // Format Uber 2026 : nouveaux identifiants d'établissement (secours uniquement)
+  "UUID de l'établissement": 'uber_store_uuid',
+  "Identifiant de l'établissement externe": 'external_store_id',
+  'Store UUID': 'uber_store_uuid',
+  'External Store ID': 'external_store_id',
+
   
   // Promotions articles - ancien et nouveau format
   'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat', // Ancien format
