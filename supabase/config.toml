@@ -164,3 +164,6 @@ verify_jwt = true
 
 [functions.debug-report-headers]
 verify_jwt = true
+
+[functions.ingest-uber-funnel]
+verify_jwt = false
