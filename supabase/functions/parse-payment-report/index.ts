@@ -898,31 +898,35 @@ Deno.serve(async (req) => {
           // Lines without order id → store as payout_adjustments
           const payoutRefId = getValue('payout_reference_id');
           const otherDescRaw = getValue('other_payments_description') || '';
-          const otherDesc = otherDescRaw.toLowerCase().trim();
-          const uberStoreIdVal = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
           const restaurantNameVal = getValue('restaurant_name') || '';
+
+          // Rattachement restaurant : « Id. du restaurant » peut contenir un UUID
+          // ou un identifiant externe selon les versions du rapport → on essaie
+          // les 3 candidats et on garde celui qui matche réellement un restaurant.
+          const storeIdCandidates = [
+            getValue('uber_store_id'),
+            getValue('uber_store_uuid'),
+            getValue('external_store_id'),
+          ].filter((v) => v && v.trim() !== '');
+
+          let matchedRestaurant: { id: string; name: string } | undefined;
+          let uberStoreIdVal = storeIdCandidates[0] || '';
+          for (const candidate of storeIdCandidates) {
+            const m = restaurantMap.get(candidate);
+            if (m) { matchedRestaurant = m; uberStoreIdVal = candidate; break; }
+          }
 
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
           const totalAmount = parseNumber(getValue('net_payout'));
           const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
           const marketingFeeAdj = parseNumber(getValue('marketing_fee_adjustment'));
 
-          // Still track eco-contribution for payout updates (backward compat)
-          const isExcluded = 
-            otherDesc.includes('dépenses publicitaires') ||
-            otherDesc.includes('depenses publicitaires') ||
-            otherDesc.includes('advertising') ||
-            otherDesc.includes(' ads');
+          // Catégorisation unique via le routeur centralisé
+          const category = categorizeAdjustment(otherDescRaw, marketingFeeAdj, candidateAmount);
 
-          const isEcoKeyword = 
-            otherDesc.includes('eco') ||
-            otherDesc.includes('éco') ||
-            otherDesc.includes('contribution') ||
-            otherDesc.includes('environnement') ||
-            otherDesc.includes('autres frais');
-
-          // If marketing column has a value, it's NOT eco-contribution
-          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded && marketingFeeAdj === 0 && Math.abs(candidateAmount) >= 0.1381;
+          // Suivi éco-contribution pour la mise à jour des payouts (rétro-compat)
+          const isEcoContribution =
+            !!payoutRefId && candidateAmount !== 0 && category === 'eco_contribution';
 
           if (isEcoContribution) {
             const existing = ecoContributionByPayout.get(payoutRefId);
@@ -944,7 +948,6 @@ Deno.serve(async (req) => {
 
           // Insert into payout_adjustments (ALL non-order rows, including eco)
           if (payoutRefId && (uberStoreIdVal || restaurantNameVal)) {
-            let matchedRestaurant = restaurantMap.get(uberStoreIdVal);
             // Fallback: try name-based matching for adjustments too
             if (!matchedRestaurant && restaurantNameVal) {
               const normalizedName = normalizeRestaurantName(restaurantNameVal);
@@ -960,7 +963,7 @@ Deno.serve(async (req) => {
                 matchedRestaurant = findRestaurantByPartialName(restaurantNameVal, restaurantByName) || undefined;
               }
             }
-            const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj, candidateAmount) : 'other_fee';
+
             
             adjustmentsToUpsert.push({
               restaurant_id: matchedRestaurant?.id || null,
