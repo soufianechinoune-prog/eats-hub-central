@@ -88,7 +88,8 @@ Deno.serve(async (req) => {
     const r1 = parseCsvLine(records[1] ?? '');
     const count0 = r0.filter((c) => c.trim()).length;
     const count1 = r1.filter((c) => c.trim()).length;
-    const headerIdx = count1 > count0 ? 1 : 0;
+    const forced = typeof body.header_row === 'number' ? body.header_row : null;
+    const headerIdx = forced !== null ? forced : (count1 > count0 ? 1 : 0);
     const headers = headerIdx === 1 ? r1 : r0;
 
     const idxOf = (...names: string[]) => {
@@ -163,6 +164,8 @@ Deno.serve(async (req) => {
         column_indices: { desc: iDesc, other_incl_vat: iAmt, other_excl_vat: iAmtHt, marketing: iMarketing, order_id: iOrderId },
         marketing_header: iMarketing >= 0 ? headers[iMarketing] : null,
         other_payments_breakdown: breakdown,
+        header_row_0: r0,
+        header_row_1: r1,
         headers,
       }, null, 2),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
