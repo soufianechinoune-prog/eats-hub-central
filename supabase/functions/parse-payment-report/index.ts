@@ -113,6 +113,14 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
   'TVA sur les frais de service de la Marketplace / frais de mise en relation après offre': 'vat_uber_fee',
   'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  // Format Uber 2026 : variantes des frais Marketplace (coquille Uber "fais", pluriels)
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
+  'Promotion sur les frais de service de la Marketplace / fais de mise en relation (hors TVA)': 'uber_fee_promo_excl_vat',
+  'TVA sur les frais de service de la Marketplace / fais de mise en relation après offre': 'vat_uber_fee',
+
   'Lien vers la facture Uber pour le commerçant': 'uber_invoice_url',
   'Ajustement de la TVA': 'vat_adjustment',
   'Gain sur les frais de livraison': 'delivery_fee_gain',
