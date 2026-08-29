@@ -266,6 +266,109 @@ function normalizeHeader(h: string): string {
     .trim();
 }
 
+// ============================================================================
+// ROUTEUR DE CATÉGORIE CENTRALISÉ (lignes "Description des autres paiements")
+// Format Uber 2026 : pub et éco-contribution n'ont plus de colonne dédiée,
+// elles arrivent via (description, montant TTC, colonne marketing).
+// ============================================================================
+
+const ECO_MIN_ABS = 0.1381; // seuil minimal d'une ligne d'éco-contribution réelle
+
+export type AdjustmentCategory =
+  | 'advertising'
+  | 'eco_contribution'
+  | 'marketing_adjustment'
+  | 'tax_rounding'
+  | 'adjustment'
+  | 'other_fee';
+
+export interface AdjustmentRoute {
+  category: AdjustmentCategory;
+  recognized: boolean;
+  rule: string;
+}
+
+// Normalise une description : minuscules, sans accents, espaces compressés
+function normalizeDescription(desc: string): string {
+  return (desc || '')
+    .replace(/[\u00A0\u2007\u202F\u2060\u200B\u200C\u200D\uFEFF]/g, ' ')
+    .normalize('NFKC')
+    .replace(/[\u2018\u2019]/g, "'")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function routeAdjustment(
+  descriptionRaw: string,
+  marketingAmount: number = 0,
+  amount: number = 0,
+): AdjustmentRoute {
+  const d = normalizeDescription(descriptionRaw);
+
+  if (!d) return { category: 'other_fee', recognized: false, rule: 'empty_description' };
+
+  // --- 1. Libellés exacts connus (format 2026) ---
+  const EXACT: Record<string, AdjustmentCategory> = {
+    'depenses publicitaires': 'advertising',
+    'credits publicitaires': 'advertising',
+    'depenses marketing': 'advertising',
+    'ajustement des frais de service': 'adjustment',
+    "ajustement lie a l'arrondissement de la tva": 'tax_rounding',
+    "ajustement lie a l'arrondi de la tva": 'tax_rounding',
+    'remboursements du restaurant': 'other_fee',
+    'frais de versement accelere': 'other_fee',
+    "frais d'activation": 'other_fee',
+    'bonus parrainage': 'other_fee',
+    'frais sac': 'other_fee',
+    'frais de sac': 'other_fee',
+  };
+  if (EXACT[d]) return { category: EXACT[d], recognized: true, rule: `exact:${d}` };
+
+  // --- 2. Publicité (motifs) ---
+  if (d.includes('publicit') || d.includes('advertis') || /\bads\b/.test(d)) {
+    return { category: 'advertising', recognized: true, rule: 'pattern:advertising' };
+  }
+
+  // --- 3. Éco-contribution explicite ---
+  if (d.includes('eco-contribution') || d.includes('eco contribution') ||
+      d.includes('ecocontribution') || d.includes('environnement') ||
+      (d.includes('contribution') && !d.includes('autres frais'))) {
+    return { category: 'eco_contribution', recognized: true, rule: 'pattern:eco_explicit' };
+  }
+
+  // --- 4. Arrondi de TVA explicite ---
+  if (d.includes('arrondi') || d.includes('rounding')) {
+    return { category: 'tax_rounding', recognized: true, rule: 'pattern:tax_rounding' };
+  }
+
+  // --- 5. « Autres frais » : libellé fourre-tout → désambiguïsation ---
+  if (d === 'autres frais' || d.startsWith('autres frais') || d === 'other fees') {
+    if (marketingAmount !== 0) {
+      return { category: 'marketing_adjustment', recognized: true, rule: 'autres_frais+marketing' };
+    }
+    if (Math.abs(amount) < ECO_MIN_ABS) {
+      return { category: 'tax_rounding', recognized: true, rule: 'autres_frais<seuil' };
+    }
+    return { category: 'eco_contribution', recognized: true, rule: 'autres_frais>=seuil' };
+  }
+
+  // --- 6. Restes reconnus ---
+  if (d.includes('ajustement') || d.includes('adjustment')) {
+    return { category: 'adjustment', recognized: true, rule: 'pattern:adjustment' };
+  }
+  if (d.includes('frais') || d.includes('fee') || d.includes('remboursement') || d.includes('bonus')) {
+    return { category: 'other_fee', recognized: true, rule: 'pattern:other_fee' };
+  }
+
+  // --- 7. Inconnu : filet de sécurité, on logue ---
+  return { category: 'other_fee', recognized: false, rule: 'unknown' };
+}
+
+
+
 function inferColumnMapping(normalizedHeader: string): string | undefined {
   const h = normalizedHeader.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (h.startsWith('code alphanumerique de commande tel')) return 'uber_order_id';
