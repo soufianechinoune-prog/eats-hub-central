@@ -870,7 +870,14 @@ Deno.serve(async (req) => {
 
       const uberFlowId = getValue('uber_flow_id');
       let uberOrderId = getValue('uber_order_id');
-      let uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
+      // Format 2026 : « Id. du restaurant » peut contenir un UUID, l'ID externe est ailleurs.
+      // On retient le premier candidat qui matche réellement un restaurant connu.
+      const storeCandidates = [
+        getValue('uber_store_id'),
+        getValue('uber_store_uuid'),
+        getValue('external_store_id'),
+      ].filter((v) => v && v.trim() !== '');
+      let uberStoreId = storeCandidates.find((c) => restaurantMap.has(c)) || storeCandidates[0] || '';
       let restaurant: { id: string; name: string } | undefined;
       csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
       csvTotals.netPayout += parseNumber(getValue('net_payout'));
