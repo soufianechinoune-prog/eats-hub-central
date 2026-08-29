@@ -249,6 +249,11 @@ const Restaurants = () => {
     restaurants?.filter(r => r.is_pinned).length || 0
   , [restaurants]);
 
+  const connectedApiCount = useMemo(
+    () => restaurants?.filter((r) => (r as any).uber_pos_activated_at).length || 0,
+    [restaurants]
+  );
+
   const togglePin = async (id: string, currentPinned: boolean) => {
     const { error } = await supabase
       .from("restaurants")
@@ -337,6 +342,10 @@ const Restaurants = () => {
             <Badge variant="outline" className="text-muted-foreground">
               {restaurants?.length || 0} restaurant{(restaurants?.length || 0) > 1 ? "s" : ""} au total
             </Badge>
+            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+              <UberEatsLogo size={12} />
+              {connectedApiCount}/{restaurants?.length || 0} connectés API
+            </Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -356,8 +365,8 @@ const Restaurants = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="connected">Validé</SelectItem>
-                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="connected">Connecté API</SelectItem>
+                  <SelectItem value="pending">En attente Uber</SelectItem>
                   <SelectItem value="disconnected">Non connecté</SelectItem>
                 </SelectContent>
               </Select>
