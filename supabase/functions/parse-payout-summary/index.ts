@@ -378,7 +378,14 @@ Deno.serve(async (req) => {
           return idx !== undefined && row[idx] !== undefined ? row[idx] : '';
         };
 
-        const uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
+        // Format 2026 : « Id. du restaurant » peut contenir un UUID, l'identifiant
+        // externe est dans une autre colonne → on garde le candidat qui matche.
+        const storeCandidates = [
+          getValue('uber_store_id'),
+          getValue('uber_store_uuid'),
+          getValue('external_store_id'),
+        ].filter((v: string) => v && v.trim() !== '');
+        const uberStoreId = storeCandidates.find((c: string) => restaurantMap.has(c)) || storeCandidates[0] || '';
         const payoutReferenceId = getValue('payout_reference_id');
         const payoutDateStr = getValue('payout_date');
 
