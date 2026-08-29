@@ -161,3 +161,6 @@ verify_jwt = true
 verify_jwt = true
 
 
+
+[functions.debug-report-headers]
+verify_jwt = true
