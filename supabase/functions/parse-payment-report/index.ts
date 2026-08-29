@@ -785,7 +785,7 @@ Deno.serve(async (req) => {
           const payoutRefId = getValue('payout_reference_id');
           const otherDescRaw = getValue('other_payments_description') || '';
           const otherDesc = otherDescRaw.toLowerCase().trim();
-          const uberStoreIdVal = getValue('uber_store_id');
+          const uberStoreIdVal = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
           const restaurantNameVal = getValue('restaurant_name') || '';
 
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
