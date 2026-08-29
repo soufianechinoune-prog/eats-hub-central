@@ -459,6 +459,15 @@ const Restaurants = () => {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("uber_api")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Uber API
+                    <SortIcon column="uber_api" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
                   onClick={() => handleSort("deliveroo_account_manager")}
                 >
                   <div className="flex items-center gap-1.5">
