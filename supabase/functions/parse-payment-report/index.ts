@@ -258,8 +258,8 @@ function normalizeHeader(h: string): string {
     // Normalize Unicode (curved apostrophes, etc.)
     .normalize('NFKC')
     // Replace curved apostrophes with straight ones
-    .replace(/['']/g, "'")
-    .replace(/[""]/g, '"')
+    .replace(/[\u2018\u2019\u02BC\u00B4\u0060]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
     // Compress multiple spaces into one
     .replace(/\s+/g, ' ')
     // Trim
