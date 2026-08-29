@@ -3284,6 +3284,48 @@ export type Database = {
           },
         ]
       }
+      payout_adjustments_snapshot_aug29: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string
+          description: string | null
+          id: string
+          payout_date: string | null
+          payout_reference_id: string | null
+          restaurant_id: string | null
+          restaurant_name: string | null
+          source_id: string | null
+          uber_store_id: string | null
+        }
+        Insert: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id?: string | null
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          source_id?: string | null
+          uber_store_id?: string | null
+        }
+        Update: {
+          amount?: number | null
+          category?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id?: string | null
+          restaurant_id?: string | null
+          restaurant_name?: string | null
+          source_id?: string | null
+          uber_store_id?: string | null
+        }
+        Relationships: []
+      }
       payouts: {
         Row: {
           bag_fee: number | null
