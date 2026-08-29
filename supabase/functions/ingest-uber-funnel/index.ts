@@ -6,19 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function normalizeName(input: string): string {
-  return (input || "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[’'`]/g, " ")
-    // strip common brand prefixes
-    .replace(/^\s*(tasty\s*crousty|chicken\s*street|crousty\s*one|bangkok\s*factory|cs)\s*[-–—:]\s*/i, "")
-    .replace(/^\s*(tasty\s*crousty|chicken\s*street|crousty\s*one|bangkok\s*factory)\s+/i, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -55,38 +42,30 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // Build restaurant lookup (name -> {id, chain_id})
-    const lookup = new Map<string, { id: string; chain_id: string | null }>();
+    // Build UUID -> {restaurant_id, chain_id, name} lookup from restaurant_uber_ids
+    const lookup = new Map<string, { id: string; chain_id: string | null; name: string }>();
     let from = 0;
     const PAGE = 1000;
     while (true) {
       const { data, error } = await supabase
-        .from("restaurants")
-        .select("id, name, chain_id")
+        .from("restaurant_uber_ids")
+        .select("uber_store_id, restaurant_id, restaurants(id, name, chain_id)")
         .range(from, from + PAGE - 1);
       if (error) throw error;
       if (!data || data.length === 0) break;
       for (const r of data) {
-        const key = normalizeName(r.name ?? "");
-        if (key && !lookup.has(key)) lookup.set(key, { id: r.id, chain_id: r.chain_id ?? null });
+        const uuid = String(r.uber_store_id ?? "").trim().toLowerCase();
+        const restaurant: any = r.restaurants;
+        if (uuid && !lookup.has(uuid)) {
+          lookup.set(uuid, {
+            id: r.restaurant_id,
+            chain_id: restaurant?.chain_id ?? null,
+            name: restaurant?.name ?? "",
+          });
+        }
       }
       if (data.length < PAGE) break;
       from += PAGE;
-    }
-
-    // Aliases
-    const { data: aliases } = await supabase
-      .from("restaurant_name_aliases")
-      .select("restaurant_id, alias");
-    if (aliases) {
-      const chainById = new Map<string, string | null>();
-      for (const [, v] of lookup) chainById.set(v.id, v.chain_id);
-      for (const a of aliases) {
-        const key = normalizeName(a.alias ?? "");
-        if (key && !lookup.has(key)) {
-          lookup.set(key, { id: a.restaurant_id, chain_id: chainById.get(a.restaurant_id) ?? null });
-        }
-      }
     }
 
     const toNum = (v: unknown): number | null => {
@@ -104,23 +83,22 @@ Deno.serve(async (req) => {
     for (const row of rows) {
       if ((row?.status ?? "ok") !== "ok") continue;
       const uuid = String(row?.uuid ?? "").trim();
-      const name = String(row?.name ?? "").trim();
-      if (!uuid || !name) continue;
+      if (!uuid) continue;
 
       const windowLabel = row?.window != null ? String(row.window) : "";
       const dedupKey = `${uuid}||${windowLabel}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
 
-      const hit = lookup.get(normalizeName(name)) ?? null;
+      const hit = lookup.get(uuid.toLowerCase()) ?? null;
       if (hit) matched++;
-      else if (!unmatched.includes(name)) unmatched.push(name);
+      else if (!unmatched.includes(uuid)) unmatched.push(uuid);
 
       payload.push({
         restaurant_id: hit?.id ?? null,
         chain_id: hit?.chain_id ?? null,
         uber_store_uuid: uuid,
-        store_name: name,
+        store_name: hit?.name ?? "",
         window_label: windowLabel,
         visits: toNum(row?.visits),
         menu_views: toNum(row?.menu),
