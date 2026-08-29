@@ -5037,7 +5037,7 @@ export type Database = {
           uber_store_uuid: string
           updated_at: string
           visits: number | null
-          window_label: string | null
+          window_label: string
         }
         Insert: {
           cart_adds?: number | null
@@ -5054,7 +5054,7 @@ export type Database = {
           uber_store_uuid: string
           updated_at?: string
           visits?: number | null
-          window_label?: string | null
+          window_label?: string
         }
         Update: {
           cart_adds?: number | null
@@ -5071,7 +5071,7 @@ export type Database = {
           uber_store_uuid?: string
           updated_at?: string
           visits?: number | null
-          window_label?: string | null
+          window_label?: string
         }
         Relationships: [
           {
