@@ -1518,6 +1518,22 @@ Deno.serve(async (req) => {
         payoutsUpdated: ecoContributionPayoutsUpdated,
         totalAmount: ecoContributionTotalAmount,
       },
+      adjustmentRouting: {
+        byDescription: Array.from(adjustmentBreakdown.entries())
+          .map(([description, v]) => ({
+            description,
+            category: v.category,
+            rule: v.rule,
+            lines: v.count,
+            amount: Math.round(v.amount * 100) / 100,
+          }))
+          .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
+        unknownDescriptions: Array.from(unknownDescriptions.entries()).map(([description, v]) => ({
+          description,
+          lines: v.count,
+          amount: Math.round(v.amount * 100) / 100,
+        })),
+      },
       validation: {
         dateRange: {
           start: minDate,
