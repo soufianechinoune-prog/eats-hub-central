@@ -36,6 +36,24 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Remboursements (TVA incluse)': 'refund_incl_vat', // Ancien format
   'Ajustements liés à des erreurs de commande (TVA incluse)': 'refund_incl_vat', // Nouveau format
   'Order Error Adjustments (incl. VAT)': 'refund_incl_vat', // Format anglais
+
+  // Format Uber 2026 : "erreurs de commande" renommé en "facturation rétroactive"
+  // Mappé sur des champs distincts pour ne pas écraser les anciennes colonnes
+  // quand les deux jeux d'en-têtes cohabitent dans le même fichier.
+  'Montant de la facturation rétroactive (hors TVA)': 'refund_excl_vat_alt',
+  'TVA sur le montant de la facturation rétroactive': 'vat_refund_alt',
+  'Montant de la facturation rétroactive (TVA incluse)': 'refund_incl_vat_alt',
+  'Montant de la facturation rétroactive (TVA incluses)': 'refund_incl_vat_alt',
+  'Retroactive Billing Amount (excl. VAT)': 'refund_excl_vat_alt',
+  'VAT on retroactive billing amount': 'vat_refund_alt',
+  'Retroactive Billing Amount (incl. VAT)': 'refund_incl_vat_alt',
+
+  // Format Uber 2026 : nouveaux identifiants d'établissement (secours uniquement)
+  "UUID de l'établissement": 'uber_store_uuid',
+  "Identifiant de l'établissement externe": 'external_store_id',
+  'Store UUID': 'uber_store_uuid',
+  'External Store ID': 'external_store_id',
+
   
   // Promotions articles - ancien et nouveau format
   'Promotion sur les plats/articles (hors TVA)': 'item_promo_excl_vat', // Ancien format
@@ -738,7 +756,7 @@ Deno.serve(async (req) => {
 
       const uberFlowId = getValue('uber_flow_id');
       let uberOrderId = getValue('uber_order_id');
-      let uberStoreId = getValue('uber_store_id');
+      let uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
       let restaurant: { id: string; name: string } | undefined;
       csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
       csvTotals.netPayout += parseNumber(getValue('net_payout'));
@@ -767,7 +785,7 @@ Deno.serve(async (req) => {
           const payoutRefId = getValue('payout_reference_id');
           const otherDescRaw = getValue('other_payments_description') || '';
           const otherDesc = otherDescRaw.toLowerCase().trim();
-          const uberStoreIdVal = getValue('uber_store_id');
+          const uberStoreIdVal = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
           const restaurantNameVal = getValue('restaurant_name') || '';
 
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
@@ -940,11 +958,14 @@ Deno.serve(async (req) => {
       const isContestedRow = rowStatus === 'refund_contested';
 
       // Raw refund values from this CSV line
-      const rawRefundExcl = parseNumber(getValue('refund_excl_vat'));
-      const rawVat1Refund = parseNumber(getValue('vat_1_refund'));
+      // Fallback sur les colonnes "facturation rétroactive" (format Uber 2026)
+      const rawRefundExcl = parseNumber(getValue('refund_excl_vat')) || parseNumber(getValue('refund_excl_vat_alt'));
+      const rawVatRefundAlt = parseNumber(getValue('vat_refund_alt'));
+      const rawVat1Refund = parseNumber(getValue('vat_1_refund')) || rawVatRefundAlt;
       const rawVat2Refund = parseNumber(getValue('vat_2_refund'));
       const rawVat3Refund = parseNumber(getValue('vat_3_refund'));
-      const rawRefundIncl = parseNumber(getValue('refund_incl_vat'));
+      const rawRefundIncl = parseNumber(getValue('refund_incl_vat')) || parseNumber(getValue('refund_incl_vat_alt'));
+
 
       ordersToUpsert.push({
         uber_order_id: uberOrderId,
