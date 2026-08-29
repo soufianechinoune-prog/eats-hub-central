@@ -821,30 +821,33 @@ Deno.serve(async (req) => {
       return hasExtra ? extra : null;
     };
 
-    // Helper: categorize adjustment description
-    // marketingAmount: if non-zero, this is a marketing_adjustment even if description says "autres frais"
-    const categorizeAdjustment = (description: string, marketingAmount: number = 0, amount: number = 0): string => {
-      const lower = description.toLowerCase();
-      if (lower.includes('publicitaire') || lower.includes('advertising') || lower.includes(' ads') || lower.includes('dépenses publicitaires') || lower.includes('depenses publicitaires')) {
-        return 'advertising';
+    // Routeur de catégorie centralisé (voir routeAdjustment en haut du fichier)
+    // + filet : on tient un récap par description et la liste des libellés inconnus.
+    const adjustmentBreakdown = new Map<string, { category: string; rule: string; count: number; amount: number }>();
+    const unknownDescriptions = new Map<string, { count: number; amount: number }>();
+
+    const categorizeAdjustment = (descriptionRaw: string, marketingAmount = 0, amount = 0): string => {
+      const route = routeAdjustment(descriptionRaw, marketingAmount, amount);
+      const key = (descriptionRaw || '(vide)').trim();
+
+      const agg = adjustmentBreakdown.get(key) ?? { category: route.category, rule: route.rule, count: 0, amount: 0 };
+      agg.count++;
+      agg.amount += amount;
+      agg.category = route.category;
+      agg.rule = route.rule;
+      adjustmentBreakdown.set(key, agg);
+
+      if (!route.recognized) {
+        const u = unknownDescriptions.get(key) ?? { count: 0, amount: 0 };
+        u.count++;
+        u.amount += amount;
+        unknownDescriptions.set(key, u);
+        console.warn(`[adjustment] description NON RECONNUE: "${key}" (montant ${amount})`);
       }
-      // If marketing column has a value, it's a marketing adjustment, not eco
-      if (marketingAmount !== 0) {
-        return 'marketing_adjustment';
-      }
-      if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement') || lower.includes('autres frais')) {
-        // Dissociate tax rounding adjustments from eco-contribution using threshold
-        // Real eco-contribution minimum is 0.1381 EUR per line
-        if (Math.abs(amount) < 0.1381) {
-          return 'tax_rounding';
-        }
-        return 'eco_contribution';
-      }
-      if (lower.includes('ajustement') || lower.includes('adjustment')) {
-        return 'adjustment';
-      }
-      return 'other_fee';
+
+      return route.category;
     };
+
 
     const importTimestamp = new Date().toISOString();
     const csvTotals = {
