@@ -33,8 +33,27 @@ Deno.serve(async (req) => {
     const url = (report.sections as any[])[0]?.download_url;
     const resp = await fetch(url);
     const text = await resp.text();
+    // Proper CSV field parsing (handles quoted fields containing commas)
+    const parseCsvLine = (line: string): string[] => {
+      const out: string[] = [];
+      let cur = '';
+      let inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        const c = line[i];
+        if (inQ) {
+          if (c === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; } else { inQ = false; }
+          } else cur += c;
+        } else if (c === '"') inQ = true;
+        else if (c === ',') { out.push(cur); cur = ''; }
+        else cur += c;
+      }
+      out.push(cur);
+      return out;
+    };
     const lines = text.split('\n');
-    const headers = (lines[0] ?? '').replace(/\r$/, '').split(',').map((h) => h.replace(/^"|"$/g, ''));
+    const headers = parseCsvLine((lines[0] ?? '').replace(/\r$/, ''));
+    const line2 = parseCsvLine((lines[1] ?? '').replace(/\r$/, ''));
 
     return new Response(
       JSON.stringify({
@@ -42,7 +61,8 @@ Deno.serve(async (req) => {
         total_lines: lines.length,
         header_count: headers.length,
         headers,
-        sample_row: (lines[1] ?? '').replace(/\r$/, ''),
+        line2: line2,
+        line3: (lines[2] ?? '').replace(/\r$/, '').slice(0, 1500),
       }, null, 2),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     );
