@@ -125,7 +125,9 @@ function normalizeHeader(header: string): string {
     .replace(/\u00A0/g, ' ')  // Replace non-breaking spaces
     .replace(/\u202F/g, ' ')  // Replace narrow no-break space
     .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width chars
+    .replace(/[\u2018\u2019]/g, "'") // Apostrophes typographiques (format Uber 2026)
     .normalize('NFC')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
