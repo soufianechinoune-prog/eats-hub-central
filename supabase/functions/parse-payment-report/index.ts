@@ -756,7 +756,7 @@ Deno.serve(async (req) => {
 
       const uberFlowId = getValue('uber_flow_id');
       let uberOrderId = getValue('uber_order_id');
-      let uberStoreId = getValue('uber_store_id');
+      let uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
       let restaurant: { id: string; name: string } | undefined;
       csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
       csvTotals.netPayout += parseNumber(getValue('net_payout'));
