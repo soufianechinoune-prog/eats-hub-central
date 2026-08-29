@@ -135,9 +135,9 @@ const Restaurants = () => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Helper to get Uber status based on csv_verified
+  // Helper to get Uber API provisioning status (POS Reporting activated by Uber)
   const getUberStatus = (r: typeof restaurants[0]) => {
-    if (r.csv_verified) return "connected";
+    if ((r as any).uber_pos_activated_at) return "connected";
     if (r.uber_store_id) return "pending";
     return "disconnected";
   };
@@ -206,6 +206,17 @@ const Restaurants = () => {
             aVal = (a as any).uber_opening_date || "";
             bVal = (b as any).uber_opening_date || "";
             break;
+          case "uber_api": {
+            const rank = (x: typeof a) =>
+              (x as any).uber_pos_activated_at
+                ? `0-${(x as any).uber_pos_activated_at}`
+                : x.uber_store_id
+                  ? "1"
+                  : "2";
+            aVal = rank(a);
+            bVal = rank(b);
+            break;
+          }
           case "deliveroo_account_manager":
             aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
             bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
