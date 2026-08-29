@@ -378,7 +378,7 @@ Deno.serve(async (req) => {
           return idx !== undefined && row[idx] !== undefined ? row[idx] : '';
         };
 
-        const uberStoreId = getValue('uber_store_id');
+        const uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
         const payoutReferenceId = getValue('payout_reference_id');
         const payoutDateStr = getValue('payout_date');
 
