@@ -107,6 +107,11 @@ const COLUMN_MAPPING: Record<string, string> = {
   'TVA sur les frais de service de la Marketplace / frais de mise en relation après offre': 'vat_uber_fee',
   'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
   'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
+  'Promotion sur les frais de service de la Marketplace / fais de mise en relation (hors TVA)': 'uber_fee_promo_excl_vat',
+  'TVA sur les frais de service de la Marketplace / fais de mise en relation après offre': 'vat_uber_fee',
   'Ajustement de la TVA': 'vat_adjustment',
   'Gain sur les frais de livraison': 'delivery_fee_gain',
   'Pourboires': 'tips',
@@ -125,7 +130,9 @@ function normalizeHeader(header: string): string {
     .replace(/\u00A0/g, ' ')  // Replace non-breaking spaces
     .replace(/\u202F/g, ' ')  // Replace narrow no-break space
     .replace(/[\u200B-\u200D\uFEFF]/g, '') // Remove zero-width chars
+    .replace(/[\u2018\u2019]/g, "'") // Apostrophes typographiques (format Uber 2026)
     .normalize('NFC')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -378,7 +385,14 @@ Deno.serve(async (req) => {
           return idx !== undefined && row[idx] !== undefined ? row[idx] : '';
         };
 
-        const uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
+        // Format 2026 : « Id. du restaurant » peut contenir un UUID, l'identifiant
+        // externe est dans une autre colonne → on garde le candidat qui matche.
+        const storeCandidates = [
+          getValue('uber_store_id'),
+          getValue('uber_store_uuid'),
+          getValue('external_store_id'),
+        ].filter((v: string) => v && v.trim() !== '');
+        const uberStoreId = storeCandidates.find((c: string) => restaurantMap.has(c)) || storeCandidates[0] || '';
         const payoutReferenceId = getValue('payout_reference_id');
         const payoutDateStr = getValue('payout_date');
 

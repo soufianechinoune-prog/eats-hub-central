@@ -113,6 +113,14 @@ const COLUMN_MAPPING: Record<string, string> = {
   'Frais de service de la Marketplace / frais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
   'TVA sur les frais de service de la Marketplace / frais de mise en relation après offre': 'vat_uber_fee',
   'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  // Format Uber 2026 : variantes des frais Marketplace (coquille Uber "fais", pluriels)
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluse)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / frais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (TVA incluses)': 'uber_fee_after_promo_incl_vat',
+  'Frais de service de la Marketplace / fais de mise en relation après promotion (hors TVA)': 'uber_fee_after_promo_excl_vat',
+  'Promotion sur les frais de service de la Marketplace / fais de mise en relation (hors TVA)': 'uber_fee_promo_excl_vat',
+  'TVA sur les frais de service de la Marketplace / fais de mise en relation après offre': 'vat_uber_fee',
+
   'Lien vers la facture Uber pour le commerçant': 'uber_invoice_url',
   'Ajustement de la TVA': 'vat_adjustment',
   'Gain sur les frais de livraison': 'delivery_fee_gain',
@@ -250,13 +258,116 @@ function normalizeHeader(h: string): string {
     // Normalize Unicode (curved apostrophes, etc.)
     .normalize('NFKC')
     // Replace curved apostrophes with straight ones
-    .replace(/['']/g, "'")
-    .replace(/[""]/g, '"')
+    .replace(/[\u2018\u2019\u02BC\u00B4\u0060]/g, "'")
+    .replace(/[\u201C\u201D]/g, '"')
     // Compress multiple spaces into one
     .replace(/\s+/g, ' ')
     // Trim
     .trim();
 }
+
+// ============================================================================
+// ROUTEUR DE CATÉGORIE CENTRALISÉ (lignes "Description des autres paiements")
+// Format Uber 2026 : pub et éco-contribution n'ont plus de colonne dédiée,
+// elles arrivent via (description, montant TTC, colonne marketing).
+// ============================================================================
+
+const ECO_MIN_ABS = 0.1381; // seuil minimal d'une ligne d'éco-contribution réelle
+
+export type AdjustmentCategory =
+  | 'advertising'
+  | 'eco_contribution'
+  | 'marketing_adjustment'
+  | 'tax_rounding'
+  | 'adjustment'
+  | 'other_fee';
+
+export interface AdjustmentRoute {
+  category: AdjustmentCategory;
+  recognized: boolean;
+  rule: string;
+}
+
+// Normalise une description : minuscules, sans accents, espaces compressés
+function normalizeDescription(desc: string): string {
+  return (desc || '')
+    .replace(/[\u00A0\u2007\u202F\u2060\u200B\u200C\u200D\uFEFF]/g, ' ')
+    .normalize('NFKC')
+    .replace(/[\u2018\u2019]/g, "'")
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function routeAdjustment(
+  descriptionRaw: string,
+  marketingAmount: number = 0,
+  amount: number = 0,
+): AdjustmentRoute {
+  const d = normalizeDescription(descriptionRaw);
+
+  if (!d) return { category: 'other_fee', recognized: false, rule: 'empty_description' };
+
+  // --- 1. Libellés exacts connus (format 2026) ---
+  const EXACT: Record<string, AdjustmentCategory> = {
+    'depenses publicitaires': 'advertising',
+    'credits publicitaires': 'advertising',
+    'depenses marketing': 'advertising',
+    'ajustement des frais de service': 'adjustment',
+    "ajustement lie a l'arrondissement de la tva": 'tax_rounding',
+    "ajustement lie a l'arrondi de la tva": 'tax_rounding',
+    'remboursements du restaurant': 'other_fee',
+    'frais de versement accelere': 'other_fee',
+    "frais d'activation": 'other_fee',
+    'bonus parrainage': 'other_fee',
+    'frais sac': 'other_fee',
+    'frais de sac': 'other_fee',
+  };
+  if (EXACT[d]) return { category: EXACT[d], recognized: true, rule: `exact:${d}` };
+
+  // --- 2. Publicité (motifs) ---
+  if (d.includes('publicit') || d.includes('advertis') || /\bads\b/.test(d)) {
+    return { category: 'advertising', recognized: true, rule: 'pattern:advertising' };
+  }
+
+  // --- 3. Éco-contribution explicite ---
+  if (d.includes('eco-contribution') || d.includes('eco contribution') ||
+      d.includes('ecocontribution') || d.includes('environnement') ||
+      (d.includes('contribution') && !d.includes('autres frais'))) {
+    return { category: 'eco_contribution', recognized: true, rule: 'pattern:eco_explicit' };
+  }
+
+  // --- 4. Arrondi de TVA explicite ---
+  if (d.includes('arrondi') || d.includes('rounding')) {
+    return { category: 'tax_rounding', recognized: true, rule: 'pattern:tax_rounding' };
+  }
+
+  // --- 5. « Autres frais » : libellé fourre-tout → désambiguïsation ---
+  if (d === 'autres frais' || d.startsWith('autres frais') || d === 'other fees') {
+    if (marketingAmount !== 0) {
+      return { category: 'marketing_adjustment', recognized: true, rule: 'autres_frais+marketing' };
+    }
+    if (Math.abs(amount) < ECO_MIN_ABS) {
+      return { category: 'tax_rounding', recognized: true, rule: 'autres_frais<seuil' };
+    }
+    return { category: 'eco_contribution', recognized: true, rule: 'autres_frais>=seuil' };
+  }
+
+  // --- 6. Restes reconnus ---
+  if (d.includes('ajustement') || d.includes('adjustment')) {
+    return { category: 'adjustment', recognized: true, rule: 'pattern:adjustment' };
+  }
+  if (d.includes('frais') || d.includes('fee') || d.includes('remboursement') || d.includes('bonus')) {
+    return { category: 'other_fee', recognized: true, rule: 'pattern:other_fee' };
+  }
+
+  // --- 7. Inconnu : filet de sécurité, on logue ---
+  return { category: 'other_fee', recognized: false, rule: 'unknown' };
+}
+
+
 
 function inferColumnMapping(normalizedHeader: string): string | undefined {
   const h = normalizedHeader.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -710,30 +821,33 @@ Deno.serve(async (req) => {
       return hasExtra ? extra : null;
     };
 
-    // Helper: categorize adjustment description
-    // marketingAmount: if non-zero, this is a marketing_adjustment even if description says "autres frais"
-    const categorizeAdjustment = (description: string, marketingAmount: number = 0, amount: number = 0): string => {
-      const lower = description.toLowerCase();
-      if (lower.includes('publicitaire') || lower.includes('advertising') || lower.includes(' ads') || lower.includes('dépenses publicitaires') || lower.includes('depenses publicitaires')) {
-        return 'advertising';
+    // Routeur de catégorie centralisé (voir routeAdjustment en haut du fichier)
+    // + filet : on tient un récap par description et la liste des libellés inconnus.
+    const adjustmentBreakdown = new Map<string, { category: string; rule: string; count: number; amount: number }>();
+    const unknownDescriptions = new Map<string, { count: number; amount: number }>();
+
+    const categorizeAdjustment = (descriptionRaw: string, marketingAmount = 0, amount = 0): string => {
+      const route = routeAdjustment(descriptionRaw, marketingAmount, amount);
+      const key = (descriptionRaw || '(vide)').trim();
+
+      const agg = adjustmentBreakdown.get(key) ?? { category: route.category, rule: route.rule, count: 0, amount: 0 };
+      agg.count++;
+      agg.amount += amount;
+      agg.category = route.category;
+      agg.rule = route.rule;
+      adjustmentBreakdown.set(key, agg);
+
+      if (!route.recognized) {
+        const u = unknownDescriptions.get(key) ?? { count: 0, amount: 0 };
+        u.count++;
+        u.amount += amount;
+        unknownDescriptions.set(key, u);
+        console.warn(`[adjustment] description NON RECONNUE: "${key}" (montant ${amount})`);
       }
-      // If marketing column has a value, it's a marketing adjustment, not eco
-      if (marketingAmount !== 0) {
-        return 'marketing_adjustment';
-      }
-      if (lower.includes('eco') || lower.includes('éco') || lower.includes('contribution') || lower.includes('environnement') || lower.includes('autres frais')) {
-        // Dissociate tax rounding adjustments from eco-contribution using threshold
-        // Real eco-contribution minimum is 0.1381 EUR per line
-        if (Math.abs(amount) < 0.1381) {
-          return 'tax_rounding';
-        }
-        return 'eco_contribution';
-      }
-      if (lower.includes('ajustement') || lower.includes('adjustment')) {
-        return 'adjustment';
-      }
-      return 'other_fee';
+
+      return route.category;
     };
+
 
     const importTimestamp = new Date().toISOString();
     const csvTotals = {
@@ -756,7 +870,14 @@ Deno.serve(async (req) => {
 
       const uberFlowId = getValue('uber_flow_id');
       let uberOrderId = getValue('uber_order_id');
-      let uberStoreId = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
+      // Format 2026 : « Id. du restaurant » peut contenir un UUID, l'ID externe est ailleurs.
+      // On retient le premier candidat qui matche réellement un restaurant connu.
+      const storeCandidates = [
+        getValue('uber_store_id'),
+        getValue('uber_store_uuid'),
+        getValue('external_store_id'),
+      ].filter((v) => v && v.trim() !== '');
+      let uberStoreId = storeCandidates.find((c) => restaurantMap.has(c)) || storeCandidates[0] || '';
       let restaurant: { id: string; name: string } | undefined;
       csvTotals.salesInclVat += parseNumber(getValue('sales_incl_vat'));
       csvTotals.netPayout += parseNumber(getValue('net_payout'));
@@ -784,31 +905,35 @@ Deno.serve(async (req) => {
           // Lines without order id → store as payout_adjustments
           const payoutRefId = getValue('payout_reference_id');
           const otherDescRaw = getValue('other_payments_description') || '';
-          const otherDesc = otherDescRaw.toLowerCase().trim();
-          const uberStoreIdVal = getValue('uber_store_id') || getValue('uber_store_uuid') || getValue('external_store_id');
           const restaurantNameVal = getValue('restaurant_name') || '';
+
+          // Rattachement restaurant : « Id. du restaurant » peut contenir un UUID
+          // ou un identifiant externe selon les versions du rapport → on essaie
+          // les 3 candidats et on garde celui qui matche réellement un restaurant.
+          const storeIdCandidates = [
+            getValue('uber_store_id'),
+            getValue('uber_store_uuid'),
+            getValue('external_store_id'),
+          ].filter((v) => v && v.trim() !== '');
+
+          let matchedRestaurant: { id: string; name: string } | undefined;
+          let uberStoreIdVal = storeIdCandidates[0] || '';
+          for (const candidate of storeIdCandidates) {
+            const m = restaurantMap.get(candidate);
+            if (m) { matchedRestaurant = m; uberStoreIdVal = candidate; break; }
+          }
 
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
           const totalAmount = parseNumber(getValue('net_payout'));
           const candidateAmount = otherPaymentsInclVat !== 0 ? otherPaymentsInclVat : totalAmount;
           const marketingFeeAdj = parseNumber(getValue('marketing_fee_adjustment'));
 
-          // Still track eco-contribution for payout updates (backward compat)
-          const isExcluded = 
-            otherDesc.includes('dépenses publicitaires') ||
-            otherDesc.includes('depenses publicitaires') ||
-            otherDesc.includes('advertising') ||
-            otherDesc.includes(' ads');
+          // Catégorisation unique via le routeur centralisé
+          const category = categorizeAdjustment(otherDescRaw, marketingFeeAdj, candidateAmount);
 
-          const isEcoKeyword = 
-            otherDesc.includes('eco') ||
-            otherDesc.includes('éco') ||
-            otherDesc.includes('contribution') ||
-            otherDesc.includes('environnement') ||
-            otherDesc.includes('autres frais');
-
-          // If marketing column has a value, it's NOT eco-contribution
-          const isEcoContribution = !!payoutRefId && candidateAmount !== 0 && isEcoKeyword && !isExcluded && marketingFeeAdj === 0 && Math.abs(candidateAmount) >= 0.1381;
+          // Suivi éco-contribution pour la mise à jour des payouts (rétro-compat)
+          const isEcoContribution =
+            !!payoutRefId && candidateAmount !== 0 && category === 'eco_contribution';
 
           if (isEcoContribution) {
             const existing = ecoContributionByPayout.get(payoutRefId);
@@ -830,7 +955,6 @@ Deno.serve(async (req) => {
 
           // Insert into payout_adjustments (ALL non-order rows, including eco)
           if (payoutRefId && (uberStoreIdVal || restaurantNameVal)) {
-            let matchedRestaurant = restaurantMap.get(uberStoreIdVal);
             // Fallback: try name-based matching for adjustments too
             if (!matchedRestaurant && restaurantNameVal) {
               const normalizedName = normalizeRestaurantName(restaurantNameVal);
@@ -846,7 +970,7 @@ Deno.serve(async (req) => {
                 matchedRestaurant = findRestaurantByPartialName(restaurantNameVal, restaurantByName) || undefined;
               }
             }
-            const category = otherDesc ? categorizeAdjustment(otherDesc, marketingFeeAdj, candidateAmount) : 'other_fee';
+
             
             adjustmentsToUpsert.push({
               restaurant_id: matchedRestaurant?.id || null,
@@ -1393,6 +1517,22 @@ Deno.serve(async (req) => {
         rowsDetected: ecoContributionRowCount,
         payoutsUpdated: ecoContributionPayoutsUpdated,
         totalAmount: ecoContributionTotalAmount,
+      },
+      adjustmentRouting: {
+        byDescription: Array.from(adjustmentBreakdown.entries())
+          .map(([description, v]) => ({
+            description,
+            category: v.category,
+            rule: v.rule,
+            lines: v.count,
+            amount: Math.round(v.amount * 100) / 100,
+          }))
+          .sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)),
+        unknownDescriptions: Array.from(unknownDescriptions.entries()).map(([description, v]) => ({
+          description,
+          lines: v.count,
+          amount: Math.round(v.amount * 100) / 100,
+        })),
       },
       validation: {
         dateRange: {
