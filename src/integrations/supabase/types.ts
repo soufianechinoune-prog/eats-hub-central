@@ -5021,6 +5021,68 @@ export type Database = {
           },
         ]
       }
+      uber_conversion_funnel: {
+        Row: {
+          cart_adds: number | null
+          chain_id: string | null
+          collected_at: string
+          conversion_rate: number | null
+          created_at: string
+          id: string
+          menu_views: number | null
+          orders: number | null
+          restaurant_id: string | null
+          status: string | null
+          store_name: string
+          uber_store_uuid: string
+          updated_at: string
+          visits: number | null
+          window_label: string | null
+        }
+        Insert: {
+          cart_adds?: number | null
+          chain_id?: string | null
+          collected_at?: string
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          menu_views?: number | null
+          orders?: number | null
+          restaurant_id?: string | null
+          status?: string | null
+          store_name: string
+          uber_store_uuid: string
+          updated_at?: string
+          visits?: number | null
+          window_label?: string | null
+        }
+        Update: {
+          cart_adds?: number | null
+          chain_id?: string | null
+          collected_at?: string
+          conversion_rate?: number | null
+          created_at?: string
+          id?: string
+          menu_views?: number | null
+          orders?: number | null
+          restaurant_id?: string | null
+          status?: string | null
+          store_name?: string
+          uber_store_uuid?: string
+          updated_at?: string
+          visits?: number | null
+          window_label?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_conversion_funnel_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uber_live_orders: {
         Row: {
           chain_id: string | null
