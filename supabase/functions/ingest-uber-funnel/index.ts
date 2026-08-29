@@ -107,8 +107,8 @@ Deno.serve(async (req) => {
       const name = String(row?.name ?? "").trim();
       if (!uuid || !name) continue;
 
-      const windowLabel = row?.window != null ? String(row.window) : null;
-      const dedupKey = `${uuid}||${windowLabel ?? ""}`;
+      const windowLabel = row?.window != null ? String(row.window) : "";
+      const dedupKey = `${uuid}||${windowLabel}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
 
