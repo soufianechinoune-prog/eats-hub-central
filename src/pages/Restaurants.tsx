@@ -42,6 +42,46 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "restaurants-preferences";
 
+const UberApiBadge = ({ restaurant }: { restaurant: any }) => {
+  if (restaurant.uber_pos_activated_at) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 whitespace-nowrap">
+              <UberEatsLogo size={12} />
+              Connecté API
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Store provisionné par Uber le {new Date(restaurant.uber_pos_activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} (POS Reporting actif)
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  if (restaurant.uber_store_id) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="gap-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 whitespace-nowrap">
+              <UberEatsLogo size={12} />
+              En attente Uber
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>UUID enregistré, provisioning Uber pas encore actif</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
+      Non connecté
+    </Badge>
+  );
+};
+
 const Restaurants = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -135,9 +175,9 @@ const Restaurants = () => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Helper to get Uber status based on csv_verified
+  // Helper to get Uber API provisioning status (POS Reporting activated by Uber)
   const getUberStatus = (r: typeof restaurants[0]) => {
-    if (r.csv_verified) return "connected";
+    if ((r as any).uber_pos_activated_at) return "connected";
     if (r.uber_store_id) return "pending";
     return "disconnected";
   };
@@ -206,6 +246,17 @@ const Restaurants = () => {
             aVal = (a as any).uber_opening_date || "";
             bVal = (b as any).uber_opening_date || "";
             break;
+          case "uber_api": {
+            const rank = (x: typeof a) =>
+              (x as any).uber_pos_activated_at
+                ? `0-${(x as any).uber_pos_activated_at}`
+                : x.uber_store_id
+                  ? "1"
+                  : "2";
+            aVal = rank(a);
+            bVal = rank(b);
+            break;
+          }
           case "deliveroo_account_manager":
             aVal = a.deliveroo_account_manager_name?.toLowerCase() || "";
             bVal = b.deliveroo_account_manager_name?.toLowerCase() || "";
@@ -237,6 +288,11 @@ const Restaurants = () => {
   const pinnedCount = useMemo(() => 
     restaurants?.filter(r => r.is_pinned).length || 0
   , [restaurants]);
+
+  const connectedApiCount = useMemo(
+    () => restaurants?.filter((r) => (r as any).uber_pos_activated_at).length || 0,
+    [restaurants]
+  );
 
   const togglePin = async (id: string, currentPinned: boolean) => {
     const { error } = await supabase
@@ -326,6 +382,10 @@ const Restaurants = () => {
             <Badge variant="outline" className="text-muted-foreground">
               {restaurants?.length || 0} restaurant{(restaurants?.length || 0) > 1 ? "s" : ""} au total
             </Badge>
+            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+              <UberEatsLogo size={12} />
+              {connectedApiCount}/{restaurants?.length || 0} connectés API
+            </Badge>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -345,8 +405,8 @@ const Restaurants = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="connected">Validé</SelectItem>
-                  <SelectItem value="pending">En attente</SelectItem>
+                  <SelectItem value="connected">Connecté API</SelectItem>
+                  <SelectItem value="pending">En attente Uber</SelectItem>
                   <SelectItem value="disconnected">Non connecté</SelectItem>
                 </SelectContent>
               </Select>
@@ -439,6 +499,15 @@ const Restaurants = () => {
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
+                  onClick={() => handleSort("uber_api")}
+                >
+                  <div className="flex items-center gap-1.5">
+                    Uber API
+                    <SortIcon column="uber_api" />
+                  </div>
+                </TableHead>
+                <TableHead 
+                  className="cursor-pointer hover:bg-muted/50 select-none"
                   onClick={() => handleSort("deliveroo_account_manager")}
                 >
                   <div className="flex items-center gap-1.5">
@@ -461,7 +530,7 @@ const Restaurants = () => {
             <TableBody>
               {sortedRestaurants.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -645,6 +714,9 @@ const Restaurants = () => {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                      <UberApiBadge restaurant={restaurant} />
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
