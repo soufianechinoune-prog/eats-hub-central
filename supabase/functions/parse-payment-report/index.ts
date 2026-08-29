@@ -958,11 +958,14 @@ Deno.serve(async (req) => {
       const isContestedRow = rowStatus === 'refund_contested';
 
       // Raw refund values from this CSV line
-      const rawRefundExcl = parseNumber(getValue('refund_excl_vat'));
-      const rawVat1Refund = parseNumber(getValue('vat_1_refund'));
+      // Fallback sur les colonnes "facturation rétroactive" (format Uber 2026)
+      const rawRefundExcl = parseNumber(getValue('refund_excl_vat')) || parseNumber(getValue('refund_excl_vat_alt'));
+      const rawVatRefundAlt = parseNumber(getValue('vat_refund_alt'));
+      const rawVat1Refund = parseNumber(getValue('vat_1_refund')) || rawVatRefundAlt;
       const rawVat2Refund = parseNumber(getValue('vat_2_refund'));
       const rawVat3Refund = parseNumber(getValue('vat_3_refund'));
-      const rawRefundIncl = parseNumber(getValue('refund_incl_vat'));
+      const rawRefundIncl = parseNumber(getValue('refund_incl_vat')) || parseNumber(getValue('refund_incl_vat_alt'));
+
 
       ordersToUpsert.push({
         uber_order_id: uberOrderId,
