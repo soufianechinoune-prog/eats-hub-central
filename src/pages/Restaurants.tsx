@@ -42,6 +42,46 @@ import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "restaurants-preferences";
 
+const UberApiBadge = ({ restaurant }: { restaurant: any }) => {
+  if (restaurant.uber_pos_activated_at) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 whitespace-nowrap">
+              <UberEatsLogo size={12} />
+              Connecté API
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>
+            Store provisionné par Uber le {new Date(restaurant.uber_pos_activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} (POS Reporting actif)
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  if (restaurant.uber_store_id) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Badge className="gap-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 whitespace-nowrap">
+              <UberEatsLogo size={12} />
+              En attente Uber
+            </Badge>
+          </TooltipTrigger>
+          <TooltipContent>UUID enregistré, provisioning Uber pas encore actif</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+  return (
+    <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
+      Non connecté
+    </Badge>
+  );
+};
+
 const Restaurants = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -674,6 +714,9 @@ const Restaurants = () => {
                       ) : (
                         <span className="text-muted-foreground">-</span>
                       )}
+                    </TableCell>
+                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
+                      <UberApiBadge restaurant={restaurant} />
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
