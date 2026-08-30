@@ -1,38 +1,36 @@
-# Collecteur automatique Deliveroo (phase 2) — Authentification & format
+# Onglet Deliveroo complet dans la Vue d'ensemble
 
-## Réponse directe aux 3 questions
+Aujourd'hui Deliveroo existe dans la barre latérale des canaux mais n'ouvre qu'une seule carte "opérations" (note, temps de prépa, disponibilité). Uber Eats, lui, dispose d'un sous-menu complet (Synthèse, Revenus, Finances, Opérations, Avis…). On aligne Deliveroo sur ce modèle, avec les vues réellement alimentées par la donnée Deliveroo.
 
-Aujourd'hui la fonction `ingest-deliveroo-orders` n'a **pas encore** de clé d'ingestion partagée. Elle est déployée sans auth (`verify_jwt = false`) et attend un JSON contenant le CSV en base64/texte brut. Il faut donc ajouter une clé partagée avant de pouvoir l'appeler depuis un collecteur externe.
+## Ce qu'on construit
 
-## Plan
+### 1. Sous-menu Deliveroo (comme Uber Eats)
+Ajout d'un sous-menu dépliable sous "Deliveroo" avec uniquement les vues pertinentes :
+- Synthèse (reste sur /overview, canal Deliveroo)
+- Revenus & Ventes → /analytics/revenue en mode Deliveroo
+- Finances & Frais → /analytics/finances en mode Deliveroo
+- Opérations → /analytics/operations
+- Comparatif disponibilité → /compare/downtime
 
-1. **Sécuriser l'edge function `ingest-deliveroo-orders`**
-   - Ajouter une vérification de clé partagée identique au pattern `ingest-uber-funnel`.
-   - Lire `DELIVEROO_INGEST_KEY` depuis `Deno.env.get`.
-   - Refuser les requêtes sans l'en-tête `x-api-key` correspondant.
-   - Conserver `verify_jwt = false` (déjà le cas dans `config.toml`).
+Volontairement exclus : Ventes Articles, Conversion, Offres, Score de Réussite, Éco-contribution, Avis — Deliveroo ne fournit pas ces données (pas de détail article, pas de tunnel de conversion).
 
-2. **Générer et stocker le secret**
-   - Créer un secret `DELIVEROO_INGEST_KEY` via `generate_secret` (valeur aléatoire 64 caractères).
-   - L'edge function le récupère automatiquement au prochain déploiement.
+### 2. Synthèse Deliveroo enrichie
+La vue "Synthèse" du canal Deliveroo affiche, sur la période sélectionnée :
+- Cartes KPI : CA brut, nombre de commandes, panier moyen, commission Deliveroo (€ et %), versement net
+- Évolution quotidienne du CA et des commandes
+- Classement des restaurants Deliveroo (CA, commandes, panier moyen, commission %)
+- La carte opérationnelle actuelle (note, temps, disponibilité) conservée en dessous
 
-3. **Conserver le format d'entrée actuel**
-   - Méthode : `POST`.
-   - Corps JSON : `{ csvContent: string, fileName: string, dryRun?: boolean }`.
-   - `csvContent` = contenu brut du CSV Deliveroo (séparateur virgule, guillemets doubles, encodage UTF-8).
-   - En-tête obligatoire : `x-api-key: <DELIVEROO_INGEST_KEY>`.
-
-4. **Documenter l'URL publique**
-   - URL : `https://akcicojkrzeirffefdet.supabase.co/functions/v1/ingest-deliveroo-orders`.
-   - Cette URL sera fournie au responsable/dev qui configure le collecteur externe.
-
-5. **Valider le déploiement**
-   - Déployer la fonction.
-   - Tester un appel `POST` avec `dryRun: true` et la clé.
-   - Vérifier qu'un appel sans clé retourne 401.
+### 3. Cohérence visuelle
+Mêmes composants de carte, mêmes couleurs de canal (turquoise Deliveroo) et même sélecteur de période que l'onglet Uber Eats, pour une lecture identique d'un canal à l'autre.
 
 ## Détails techniques
 
-- Colonnes CSV attendues (insensibles à la casse) : `deliveroo_name`, `order_number`, `status`, `sent_at`, `delivered_at`, `subtotal`, `commission`, `commission_vat`, `net`.
-- `sent_at` et `delivered_at` sont interprétés en heure de Paris puis convertis en UTC ISO.
-- La clé sera visible uniquement dans le secret store ; je ne la communiquerai pas en clair dans le chat.
+- `OverviewChannelSidebar.tsx` : généraliser le mécanisme de sous-menu (actuellement codé en dur pour Uber) et ajouter `DELIVEROO_SUB_ITEMS`; la navigation appelle `setSelectedPlatform("deliveroo")` avant `navigate(route)`.
+- Nouveau composant `src/components/overview/DeliverooChannelSummary.tsx` alimenté par une RPC d'agrégation côté serveur sur `deliveroo_sales_orders` (CA, commandes, commission, net) filtrée par `restaurant_id` et par jour en TZ Europe/Paris, plus `restaurant_deliveroo_ids` pour le rattachement.
+- Nouvelle RPC `get_deliveroo_channel_summary(restaurant_ids uuid[], start_date date, end_date date)` en `SECURITY DEFINER`, `SET search_path = public`, isolée par `chain_id` — retour JSONB : totaux + série quotidienne + détail par restaurant. Pas d'agrégation côté navigateur.
+- `Overview.tsx` : brancher la nouvelle synthèse sur `activeChannel === "deliveroo"` en réutilisant `activeIds`, `startDate`, `endDate`.
+- Les restaurants non mappés (ex. Bangkok Factory) restent exclus puisque le rattachement passe par `restaurant_deliveroo_ids`.
+
+## Hors périmètre
+Aucune modification des imports/collecteurs Deliveroo ni des calculs existants Uber/Caisse/Chataigne.
