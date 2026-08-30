@@ -358,6 +358,9 @@ export function routeAdjustment(
   }
 
   // --- 6. Restes reconnus ---
+  if (d.includes('frais de service') || d.includes('service fee')) {
+    return { category: 'service_fee', recognized: true, rule: 'pattern:service_fee' };
+  }
   if (d.includes('ajustement') || d.includes('adjustment')) {
     return { category: 'adjustment', recognized: true, rule: 'pattern:adjustment' };
   }
