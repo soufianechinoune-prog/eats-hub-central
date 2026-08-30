@@ -22,7 +22,7 @@ import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopov
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
 type SortDirection = "asc" | "desc";
 type ChannelTab = "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 
@@ -53,6 +53,8 @@ interface RestaurantComparisonTableProps {
   cashByRestaurant?: Map<string, RestaurantCashStats>;
   /** Stats Chataigne par restaurant — CA, commandes, panier moyen. */
   chataigneByRestaurant?: Map<string, { revenue: number; orders: number; avgBasket: number }>;
+  /** CA Dishop (TTC) par restaurant — affiché en colonne dédiée dans la vue « Tous ». */
+  dishopByRestaurant?: Map<string, number>;
   /** Période effective (fallback sur le contexte analytics). */
   periodStart?: Date;
   periodEnd?: Date;
@@ -131,6 +133,7 @@ export function RestaurantComparisonTable({
   networkAdsPct = null,
   cashByRestaurant,
   chataigneByRestaurant,
+  dishopByRestaurant,
   periodStart,
   periodEnd,
   forcedChannel,
@@ -162,6 +165,11 @@ export function RestaurantComparisonTable({
     for (const v of chataigneByRestaurant.values()) if (v.revenue > 0) return true;
     return false;
   }, [chataigneByRestaurant]);
+  const hasDishop = useMemo(() => {
+    if (!dishopByRestaurant) return false;
+    for (const v of dishopByRestaurant.values()) if (v > 0) return true;
+    return false;
+  }, [dishopByRestaurant]);
 
   // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
   // and rely on the mix-bar + chips under the CA column instead.
@@ -171,11 +179,12 @@ export function RestaurantComparisonTable({
   // Returns null when the restaurant has no data for that channel (filtered out).
   const projectForTab = useCallback((r: RestaurantNetworkStats) => {
     if (channelTab === "all") {
-      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Chataigne
+      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Dishop + Chataigne
       const cashAll = cashByRestaurant?.get(r.id)?.cashRevenue ?? 0;
       const cashOrdersAll = cashByRestaurant?.get(r.id)?.cashOrders ?? 0;
       const chataigneAll = chataigneByRestaurant?.get(r.id);
-      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, chataigneAll?.revenue ?? 0);
+      const dishopAll = dishopByRestaurant?.get(r.id) ?? 0;
+      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, dishopAll) + Math.max(0, chataigneAll?.revenue ?? 0);
       const ordersAll = r.orders + Math.max(0, cashOrdersAll) + Math.max(0, chataigneAll?.orders ?? 0);
       return {
         revenue: revenueAll,
@@ -266,21 +275,25 @@ export function RestaurantComparisonTable({
       cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
-  }, [channelTab, cashByRestaurant, chataigneByRestaurant]);
+  }, [channelTab, cashByRestaurant, chataigneByRestaurant, dishopByRestaurant]);
 
-  // Column visibility per tab
+  // Column visibility per tab.
+  // Vue « Tous » (vue d'ensemble réseau) = pure répartition du CA par canal :
+  // pas de commandes / panier moyen (la marge plateforme gonfle artificiellement
+  // le panier et fausse la comparaison inter-canaux), pas de métriques ops
+  // (note, erreurs, prépa, dispo…) qui ne concernent que la livraison.
   const cols = useMemo(() => {
     if (channelTab === "all") {
-      return { caMix: true, chips: true, expand: true, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+      return { caMix: true, chips: true, expand: true, channelSplit: true, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     if (channelTab === "uber") {
-      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+      return { caMix: false, chips: false, expand: false, channelSplit: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
     }
     if (channelTab === "deliveroo") {
-      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+      return { caMix: false, chips: false, expand: false, channelSplit: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     // cash — orders + basket + share + variation N-1
-    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+    return { caMix: false, chips: false, expand: false, channelSplit: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
   }, [channelTab]);
 
 
@@ -341,6 +354,11 @@ export function RestaurantComparisonTable({
           bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
           break;
         }
+        case "cashRevenue": aVal = cashByRestaurant?.get(A.resto.id)?.cashRevenue ?? 0; bVal = cashByRestaurant?.get(B.resto.id)?.cashRevenue ?? 0; break;
+        case "uberRevenue": aVal = A.resto.platformBreakdown.uber.revenue; bVal = B.resto.platformBreakdown.uber.revenue; break;
+        case "deliverooRevenue": aVal = A.resto.platformBreakdown.deliveroo.revenue; bVal = B.resto.platformBreakdown.deliveroo.revenue; break;
+        case "dishopRevenue": aVal = dishopByRestaurant?.get(A.resto.id) ?? 0; bVal = dishopByRestaurant?.get(B.resto.id) ?? 0; break;
+        case "chataigneRevenue": aVal = chataigneByRestaurant?.get(A.resto.id)?.revenue ?? 0; bVal = chataigneByRestaurant?.get(B.resto.id)?.revenue ?? 0; break;
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
@@ -350,7 +368,7 @@ export function RestaurantComparisonTable({
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
     });
-  }, [projectedRows, sortColumn, sortDirection, adsRatioMap]);
+  }, [projectedRows, sortColumn, sortDirection, adsRatioMap, cashByRestaurant, dishopByRestaurant, chataigneByRestaurant]);
 
   const filteredStats = useMemo(() => {
     if (!searchQuery.trim()) return sortedStats;
@@ -483,7 +501,7 @@ export function RestaurantComparisonTable({
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
                       {channelTab === "all"
-                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Uber Eats + Deliveroo + Caisse (Splash360) + Chataigne."
+                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Caisse (Splash360) + Uber Eats + Deliveroo + Dishop + Chataigne."
                         : "Chiffre d'affaires brut TTC du canal sélectionné sur la période."}
                     </TooltipContent>
                   </Tooltip>
@@ -494,6 +512,29 @@ export function RestaurantComparisonTable({
               )}
               {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
+              )}
+              {cols.channelSplit && (
+                <>
+                  <HeaderCell column="cashRevenue" className="text-right">
+                    <span className="text-cash">Caisse</span>
+                  </HeaderCell>
+                  <HeaderCell column="uberRevenue" className="text-right">
+                    <span className="text-uber">Uber Eats</span>
+                  </HeaderCell>
+                  <HeaderCell column="deliverooRevenue" className="text-right">
+                    <span className="text-deliveroo">Deliveroo</span>
+                  </HeaderCell>
+                  {hasDishop && (
+                    <HeaderCell column="dishopRevenue" className="text-right">
+                      <span className="text-blue-500">Dishop</span>
+                    </HeaderCell>
+                  )}
+                  {hasChataigne && (
+                    <HeaderCell column="chataigneRevenue" className="text-right">
+                      <span className="text-emerald-600 dark:text-emerald-400">Chataigne</span>
+                    </HeaderCell>
+                  )}
+                </>
               )}
               {cols.payout && (
                 <HeaderCell column="netPayout" className="text-right">
@@ -605,6 +646,7 @@ export function RestaurantComparisonTable({
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
                           if (cash > 0) active.push("cash");
+                          if ((dishopByRestaurant?.get(resto.id) ?? 0) > 0) active.push("eshop");
                           if ((chataigneByRestaurant?.get(resto.id)?.revenue ?? 0) > 0) active.push("chataigne");
                           return <ChannelChips channels={active} />;
                         })()}
@@ -617,6 +659,7 @@ export function RestaurantComparisonTable({
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
                           { id: "cash", revenue: cash },
+                          { id: "eshop", revenue: dishopByRestaurant?.get(resto.id) ?? 0 },
                           { id: "chataigne", revenue: chataigneByRestaurant?.get(resto.id)?.revenue ?? 0 },
                         ];
                         return (
@@ -641,6 +684,27 @@ export function RestaurantComparisonTable({
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
+                    {cols.channelSplit && (() => {
+                      const cashVal = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
+                      const dishopVal = dishopByRestaurant?.get(resto.id) ?? 0;
+                      const chataigneVal = chataigneByRestaurant?.get(resto.id)?.revenue ?? 0;
+                      const channelCell = (val: number, cls: string, key: string) => (
+                        <TableCell key={key} className="text-right whitespace-nowrap">
+                          {val > 0
+                            ? <span className={cn("font-medium", cls)}>{formatCurrency(val)}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      );
+                      return (
+                        <>
+                          {channelCell(cashVal, "text-cash", "cash")}
+                          {channelCell(resto.platformBreakdown.uber.revenue, "text-uber", "uber")}
+                          {channelCell(resto.platformBreakdown.deliveroo.revenue, "text-deliveroo", "deliveroo")}
+                          {hasDishop && channelCell(dishopVal, "text-blue-500", "dishop")}
+                          {hasChataigne && channelCell(chataigneVal, "text-emerald-600 dark:text-emerald-400", "chataigne")}
+                        </>
+                      );
+                    })()}
                     {cols.payout && (
                       <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         {formatNetPayout(v.netPayout)}
@@ -766,6 +830,7 @@ export function RestaurantComparisonTable({
                     const visibleCols = 3
                       + (channelTab === "cash" ? 1 : 0)
                       + (showN1Comparison && channelTab === "all" ? 1 : 0)
+                      + (cols.channelSplit ? 3 + (hasDishop ? 1 : 0) + (hasChataigne ? 1 : 0) : 0)
                       + (cols.payout ? 1 : 0)
                       + (cols.mealVoucher ? 1 : 0)
                       + (cols.profitability ? 1 : 0)
@@ -830,6 +895,27 @@ export function RestaurantComparisonTable({
                       {formatVariation(networkTotals.revenueVariation)}
                     </TableCell>
                   )}
+                  {cols.channelSplit && (() => {
+                    const sumCash = filteredStats.reduce((s, r) => s + (cashByRestaurant?.get(r.resto.id)?.cashRevenue ?? 0), 0);
+                    const sumUber = filteredStats.reduce((s, r) => s + r.resto.platformBreakdown.uber.revenue, 0);
+                    const sumDeliveroo = filteredStats.reduce((s, r) => s + r.resto.platformBreakdown.deliveroo.revenue, 0);
+                    const sumDishop = filteredStats.reduce((s, r) => s + (dishopByRestaurant?.get(r.resto.id) ?? 0), 0);
+                    const sumChataigne = filteredStats.reduce((s, r) => s + (chataigneByRestaurant?.get(r.resto.id)?.revenue ?? 0), 0);
+                    const totalCell = (val: number, cls: string, key: string) => (
+                      <TableCell key={key} className={cn("text-right font-bold whitespace-nowrap", cls)}>
+                        {val > 0 ? formatCurrency(val) : "—"}
+                      </TableCell>
+                    );
+                    return (
+                      <>
+                        {totalCell(sumCash, "text-cash", "cash")}
+                        {totalCell(sumUber, "text-uber", "uber")}
+                        {totalCell(sumDeliveroo, "text-deliveroo", "deliveroo")}
+                        {hasDishop && totalCell(sumDishop, "text-blue-500", "dishop")}
+                        {hasChataigne && totalCell(sumChataigne, "text-emerald-600 dark:text-emerald-400", "chataigne")}
+                      </>
+                    );
+                  })()}
                   {cols.payout && (
                     <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(sumPayout)}

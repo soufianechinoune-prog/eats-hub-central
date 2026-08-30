@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { ChannelRevenueTiles } from "@/components/overview/ChannelRevenueTiles";
 import { useChataigneByRestaurant } from "@/hooks/useChataigne";
 import { PayoutsConsolidationBanner } from "@/components/analytics/PayoutsConsolidationBanner";
 import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
@@ -592,10 +593,30 @@ const Overview = () => {
 
   const { data: dishopBreakdown, isLoading: dishopBreakdownLoading } = useDishopRestaurantBreakdown({
     chainId: analyticsCtx.selectedChainId,
-    restaurantIds: activeChannel === "dishop" ? activeIds : [],
+    restaurantIds: activeChannel === "dishop" || activeChannel === "global" ? activeIds : [],
     startDate,
     endDate,
   });
+
+  // CA Dishop par restaurant (vue réseau : colonne dédiée du tableau comparatif)
+  const dishopByRestaurant = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of dishopBreakdown ?? []) {
+      if (r.caTTC > 0) m.set(r.restaurantId, r.caTTC);
+    }
+    return m;
+  }, [dishopBreakdown]);
+
+  // Totaux CA par canal livraison (Uber / Deliveroo) pour les tuiles de la vue réseau
+  const channelTotals = useMemo(() => {
+    let uber = 0;
+    let deliveroo = 0;
+    for (const r of comparisonStats) {
+      uber += r.platformBreakdown.uber.revenue;
+      deliveroo += r.platformBreakdown.deliveroo.revenue;
+    }
+    return { uber, deliveroo };
+  }, [comparisonStats]);
 
   const { data: mealVoucherRows, isLoading: mealVoucherLoading } = useMealVoucherBreakdown({
     restaurantIds: activeChannel === "uber-tr" ? activeIds : [],
@@ -613,7 +634,7 @@ const Overview = () => {
       <div className="flex-1 min-w-0 p-8 space-y-8">
 
       {/* Header with glassmorphism */}
-      <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+      <div className="flex items-center justify-between gap-4 flex-wrap backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Vue d'ensemble
@@ -710,38 +731,9 @@ const Overview = () => {
         </div>
       ) : (
         <div>
-          <div className={cn("grid gap-8", activeChannel === "global" ? "lg:grid-cols-3" : activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
-            {/* Global Card */}
-            {activeChannel === "global" && (
-            <Card className="border-2 border-primary/30 shadow-2xl bg-gradient-to-br from-card via-card to-primary/5 backdrop-blur-xl hover:shadow-primary/20 transition-all duration-500 hover:scale-[1.02]">
-              <CardHeader className="pb-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                      <Award className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-xl">Global</CardTitle>
-                      <p className="text-xs text-muted-foreground mt-0.5">Toutes plateformes</p>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.global.rating != null ? networkData.global.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={navigateToRatingsComparison} />
-                <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.global.prepTime)} color="text-amber-500" onClick={() => navigate('/compare/prep-time')} />
-                <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
-                <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.global.incorrectOrderRate != null ? networkData.global.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
-                <MetricRow icon={Percent} label="Rentabilité" value={networkData?.global.profitability != null ? networkData.global.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("global")} />
-                <MetricRow icon={PauseCircle} label="Disponibilité" value={networkData?.global.availabilityRate != null ? networkData.global.availabilityRate.toFixed(1) : null} unit="%" color={availabilityColor(networkData?.global.availabilityRate)} onClick={navigateToDowntimeComparison} />
-                <MetricRow icon={Clock} label="Horaires d'ouverture" value="Voir analyse" color="text-indigo-500" onClick={() => navigate('/compare/opening-hours')} />
-                <MetricRow icon={Star} label="Avis produits" value={networkData?.global.productApprovalRate != null ? Math.round(networkData.global.productApprovalRate) : null} unit="%" color="text-violet-500" />
-              </CardContent>
-            </Card>
-            )}
-
-            {/* Uber Eats Card */}
-            {(activeChannel === "global" || activeChannel === "uber") && (
+          <div className={cn("grid gap-8", activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+            {/* Uber Eats Card — métriques opérationnelles, réservées à l'onglet Uber Eats */}
+            {activeChannel === "uber" && (
             <Card className={cn(
               "border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]",
               activeChannel === "uber" && "lg:col-span-2"
@@ -805,8 +797,8 @@ const Overview = () => {
             )}
 
 
-            {/* Deliveroo Card */}
-            {(activeChannel === "global" || activeChannel === "deliveroo") && (
+            {/* Deliveroo Card — réservée à l'onglet Deliveroo */}
+            {activeChannel === "deliveroo" && (
             <Card className="border-2 border-deliveroo/30 shadow-2xl bg-gradient-to-br from-card via-card to-deliveroo/5 backdrop-blur-xl hover:shadow-deliveroo/20 transition-all duration-500 hover:scale-[1.02]">
               <CardHeader className="pb-4">
                 <div className="flex items-center justify-between">
@@ -1034,6 +1026,23 @@ const Overview = () => {
 
           </div>
 
+          {/* CA par canal — tuiles réseau (Caisse / Uber Eats / Deliveroo / Dishop / Chataigne) */}
+          {activeChannel === "global" && (
+          <div className="mt-10">
+            <ChannelRevenueTiles
+              periodLabel={getPeriodLabel()}
+              isLoading={statsLoading || cashLoading}
+              cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
+              cashVariation={cashRevenueData?.cashVariation ?? null}
+              cashConnected={cashConnected}
+              uber={channelTotals.uber}
+              deliveroo={channelTotals.deliveroo}
+              dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
+              chataigne={chataigneTotal}
+            />
+          </div>
+          )}
+
           {/* Platform Revenue Split */}
           {activeChannel === "global" && (
           <div className="mt-10">
@@ -1045,19 +1054,6 @@ const Overview = () => {
               cashVariation={cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               chataigneTotal={chataigneTotal}
-            />
-          </div>
-          )}
-
-          {/* Ratio Dépenses Pub / CA — Global only (Uber view shows it inline above) */}
-          {activeChannel === "global" && (
-          <div className="mt-6 grid gap-6 lg:grid-cols-3">
-            <AdsRevenueRatioCard
-              adsSpend={adsRatio.networkAdsSpend}
-              revenue={adsRatio.networkRevenue}
-              pct={adsRatio.networkPct}
-              isLoading={adsRatio.isLoading}
-              periodLabel={getPeriodLabel()}
             />
           </div>
           )}
@@ -1099,6 +1095,7 @@ const Overview = () => {
                 networkCashTotal={cashRevenueData?.totalCash ?? 0}
                 cashByRestaurant={cashByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
+                dishopByRestaurant={dishopByRestaurant}
                 periodStart={startDate}
                 periodEnd={endDate}
                 forcedChannel={activeChannel === "global" ? "all" : activeChannel}
