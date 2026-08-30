@@ -69,11 +69,24 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
   { id: "eco", label: "Éco-Contribution", icon: Leaf, route: "/analytics/eco-contribution" },
 ];
 
+// Sous-onglets Deliveroo — uniquement les vues alimentées par la donnée Deliveroo
+const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
+  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "revenue", label: "Revenus & Ventes", icon: Euro, route: "/analytics/revenue" },
+  { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
+  { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
+  { id: "downtime", label: "Disponibilité", icon: PauseCircle, route: "/compare/downtime" },
+];
+
 export function OverviewChannelSidebar({ active, onChange, available }: OverviewChannelSidebarProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
-  const [expandedUber, setExpandedUber] = useState(active === "uber" || active === "uber-tr");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    uber: active === "uber" || active === "uber-tr",
+    deliveroo: active === "deliveroo",
+  });
   const [activeSubId, setActiveSubId] = useState<string>(active === "uber-tr" ? "titres-restaurant" : "synthese");
+
 
   const globalItem: NavItem = {
     id: "global",
