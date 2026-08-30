@@ -684,6 +684,27 @@ export function RestaurantComparisonTable({
                         {formatVariation(resto.revenueVariation)}
                       </TableCell>
                     )}
+                    {cols.channelSplit && (() => {
+                      const cashVal = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
+                      const dishopVal = dishopByRestaurant?.get(resto.id) ?? 0;
+                      const chataigneVal = chataigneByRestaurant?.get(resto.id)?.revenue ?? 0;
+                      const channelCell = (val: number, cls: string, key: string) => (
+                        <TableCell key={key} className="text-right whitespace-nowrap">
+                          {val > 0
+                            ? <span className={cn("font-medium", cls)}>{formatCurrency(val)}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                      );
+                      return (
+                        <>
+                          {channelCell(cashVal, "text-cash", "cash")}
+                          {channelCell(resto.platformBreakdown.uber.revenue, "text-uber", "uber")}
+                          {channelCell(resto.platformBreakdown.deliveroo.revenue, "text-deliveroo", "deliveroo")}
+                          {hasDishop && channelCell(dishopVal, "text-blue-500", "dishop")}
+                          {hasChataigne && channelCell(chataigneVal, "text-emerald-600 dark:text-emerald-400", "chataigne")}
+                        </>
+                      );
+                    })()}
                     {cols.payout && (
                       <TableCell className="text-right font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         {formatNetPayout(v.netPayout)}
@@ -809,6 +830,7 @@ export function RestaurantComparisonTable({
                     const visibleCols = 3
                       + (channelTab === "cash" ? 1 : 0)
                       + (showN1Comparison && channelTab === "all" ? 1 : 0)
+                      + (cols.channelSplit ? 3 + (hasDishop ? 1 : 0) + (hasChataigne ? 1 : 0) : 0)
                       + (cols.payout ? 1 : 0)
                       + (cols.mealVoucher ? 1 : 0)
                       + (cols.profitability ? 1 : 0)
@@ -873,6 +895,27 @@ export function RestaurantComparisonTable({
                       {formatVariation(networkTotals.revenueVariation)}
                     </TableCell>
                   )}
+                  {cols.channelSplit && (() => {
+                    const sumCash = filteredStats.reduce((s, r) => s + (cashByRestaurant?.get(r.resto.id)?.cashRevenue ?? 0), 0);
+                    const sumUber = filteredStats.reduce((s, r) => s + r.resto.platformBreakdown.uber.revenue, 0);
+                    const sumDeliveroo = filteredStats.reduce((s, r) => s + r.resto.platformBreakdown.deliveroo.revenue, 0);
+                    const sumDishop = filteredStats.reduce((s, r) => s + (dishopByRestaurant?.get(r.resto.id) ?? 0), 0);
+                    const sumChataigne = filteredStats.reduce((s, r) => s + (chataigneByRestaurant?.get(r.resto.id)?.revenue ?? 0), 0);
+                    const totalCell = (val: number, cls: string, key: string) => (
+                      <TableCell key={key} className={cn("text-right font-bold whitespace-nowrap", cls)}>
+                        {val > 0 ? formatCurrency(val) : "—"}
+                      </TableCell>
+                    );
+                    return (
+                      <>
+                        {totalCell(sumCash, "text-cash", "cash")}
+                        {totalCell(sumUber, "text-uber", "uber")}
+                        {totalCell(sumDeliveroo, "text-deliveroo", "deliveroo")}
+                        {hasDishop && totalCell(sumDishop, "text-blue-500", "dishop")}
+                        {hasChataigne && totalCell(sumChataigne, "text-emerald-600 dark:text-emerald-400", "chataigne")}
+                      </>
+                    );
+                  })()}
                   {cols.payout && (
                     <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                       {formatNetPayout(sumPayout)}
