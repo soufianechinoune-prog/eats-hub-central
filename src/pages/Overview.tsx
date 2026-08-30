@@ -562,10 +562,33 @@ const Overview = () => {
     () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.uber.revenue > 0),
     [comparisonStats, statsLoading]
   );
+  // Deliveroo : onglet visible dès que la chaîne a au moins un resto mappé Deliveroo
+  // (indépendant de la période, comme Dishop) — la vue gère l'état "aucune donnée".
+  const { data: deliverooAvailable } = useQuery({
+    queryKey: ["deliveroo-available", analyticsCtx.selectedChainId],
+    enabled: !!analyticsCtx.selectedChainId,
+    queryFn: async () => {
+      const { data: restos, error: rErr } = await supabase
+        .from("restaurants")
+        .select("id")
+        .eq("chain_id", analyticsCtx.selectedChainId as string);
+      if (rErr) throw rErr;
+      const ids = (restos ?? []).map((r) => r.id);
+      if (ids.length === 0) return false;
+      const { count, error } = await supabase
+        .from("restaurant_deliveroo_ids")
+        .select("id", { count: "exact", head: true })
+        .in("restaurant_id", ids);
+      if (error) throw error;
+      return (count ?? 0) > 0;
+    },
+    staleTime: 10 * 60_000,
+  });
   const hasDeliverooData = useMemo(
-    () => statsLoading ? true : comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0),
-    [comparisonStats, statsLoading]
+    () => !!deliverooAvailable || comparisonStats.some(r => r.platformBreakdown.deliveroo.revenue > 0),
+    [deliverooAvailable, comparisonStats]
   );
+
   // Onglet Caisse toujours visible — l'état (connecté / non connecté / sans data) est géré dans la carte.
   const hasCashData = true;
 
