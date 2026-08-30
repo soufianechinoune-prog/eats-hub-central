@@ -1266,6 +1266,84 @@ export type Database = {
           },
         ]
       }
+      deliveroo_sales_orders: {
+        Row: {
+          chain_id: string | null
+          commission: number
+          commission_vat: number
+          created_at: string
+          currency: string
+          delivered_at: string | null
+          deliveroo_name: string
+          id: string
+          imported_at: string
+          net: number
+          normalized_name: string
+          order_number: string
+          restaurant_id: string | null
+          sent_at: string
+          source_file: string | null
+          status: string
+          subtotal: number
+          updated_at: string
+        }
+        Insert: {
+          chain_id?: string | null
+          commission?: number
+          commission_vat?: number
+          created_at?: string
+          currency?: string
+          delivered_at?: string | null
+          deliveroo_name: string
+          id?: string
+          imported_at?: string
+          net?: number
+          normalized_name: string
+          order_number: string
+          restaurant_id?: string | null
+          sent_at: string
+          source_file?: string | null
+          status: string
+          subtotal?: number
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string | null
+          commission?: number
+          commission_vat?: number
+          created_at?: string
+          currency?: string
+          delivered_at?: string | null
+          deliveroo_name?: string
+          id?: string
+          imported_at?: string
+          net?: number
+          normalized_name?: string
+          order_number?: string
+          restaurant_id?: string | null
+          sent_at?: string
+          source_file?: string | null
+          status?: string
+          subtotal?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveroo_sales_orders_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveroo_sales_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       delivery_stats: {
         Row: {
           courier_id: string | null
@@ -5844,6 +5922,21 @@ export type Database = {
           order_count: number
           restaurant_id: string
           revenue_ttc: number
+        }[]
+      }
+      get_daily_deliveroo_sales: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          commission_total: number
+          day: string
+          net: number
+          order_count: number
+          restaurant_id: string
+          revenue: number
         }[]
       }
       get_daily_onsite_from_splash: {

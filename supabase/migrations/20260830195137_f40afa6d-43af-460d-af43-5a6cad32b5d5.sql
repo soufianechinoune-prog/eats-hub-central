@@ -1,0 +1,2 @@
+ALTER TABLE public.deliveroo_sales_orders DROP CONSTRAINT deliveroo_sales_orders_unique;
+ALTER TABLE public.deliveroo_sales_orders ADD CONSTRAINT deliveroo_sales_orders_unique UNIQUE (deliveroo_name, order_number, sent_at);
