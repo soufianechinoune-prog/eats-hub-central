@@ -1,5 +1,11 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-api-key",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 
 const normalize = (s: string) =>
   (s || "")
@@ -46,8 +52,33 @@ const num = (v: string) => {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  const unauthorized = () =>
+    new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+  // Auth: shared ingest key (collecteur externe) OR authenticated user JWT (UI d'import)
+  const expectedKey = Deno.env.get("DELIVEROO_INGEST_KEY");
+  const providedKey = req.headers.get("x-api-key");
+  const authHeader = req.headers.get("Authorization") ?? "";
+
+  if (providedKey) {
+    if (!expectedKey || providedKey !== expectedKey) return unauthorized();
+  } else {
+    const jwt = authHeader.replace(/^Bearer\s+/i, "");
+    if (!jwt) return unauthorized();
+    const authClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: `Bearer ${jwt}` } } },
+    );
+    const { data: userData, error: userErr } = await authClient.auth.getUser();
+    if (userErr || !userData?.user) return unauthorized();
+  }
+
   try {
     const { csvContent, fileName, dryRun } = await req.json();
+
     if (typeof csvContent !== "string" || csvContent.trim().length === 0) {
       return new Response(JSON.stringify({ error: "csvContent requis" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
