@@ -45,19 +45,29 @@ interface TileDef {
   value: number | null;
   notConnectedLabel?: string;
   variation?: number | null;
+  /** Badge de fraîcheur des données (ex: « Données au 15/07 ») */
+  freshnessBadge?: string | null;
 }
+
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
 export function ChannelRevenueTiles({
   periodLabel,
   isLoading,
+  periodEnd,
   cash,
   cashVariation,
   cashConnected,
   uber,
   deliveroo,
   dishop,
+  dishopLastDataDate,
   chataigne,
 }: ChannelRevenueTilesProps) {
+  const dishopStale =
+    !!periodEnd && !!dishopLastDataDate &&
+    dishopLastDataDate.slice(0, 10) < periodEnd.slice(0, 10);
   // Règle uniforme : hauteur fixe, largeur auto, object-fit contain.
   // Le wordmark Uber Eats (large et court) reçoit une hauteur légèrement
   // supérieure pour un alignement optique avec les autres logos.
