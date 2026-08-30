@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import splashLogo from "@/assets/splash360-logo.png.asset.json";
 import dishopLogo from "@/assets/dishop-logo.png.asset.json";
 import chataigneLogo from "@/assets/chataigne-logo.png.asset.json";
-import uberLogo from "@/assets/uber-eats-wordmark-v2.png.asset.json";
+import uberLogo from "@/assets/uber-eats-wordmark-cropped.png.asset.json";
 import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 
 
@@ -54,13 +54,17 @@ export function ChannelRevenueTiles({
   dishop,
   chataigne,
 }: ChannelRevenueTilesProps) {
-  const logoBox = (src: string, alt: string, darkInvert = false, width = 84) => (
-    <div className="h-[28px] flex items-center justify-center" style={{ width }}>
+  // Règle uniforme : hauteur fixe, largeur auto, object-fit contain.
+  // Le wordmark Uber Eats (large et court) reçoit une hauteur légèrement
+  // supérieure pour un alignement optique avec les autres logos.
+  const logoBox = (src: string, alt: string, darkInvert = false, height = 22) => (
+    <div className="h-[28px] flex items-center justify-center">
       <img
         src={src}
         alt={alt}
+        style={{ height, width: "auto" }}
         className={cn(
-          "max-h-full max-w-full object-contain",
+          "object-contain",
           darkInvert && "dark:invert",
         )}
       />
