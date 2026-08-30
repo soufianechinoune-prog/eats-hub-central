@@ -445,6 +445,10 @@ const Overview = () => {
     }
     return m;
   }, [chataigneByRestaurantRaw]);
+  const chataigneTotal = useMemo(
+    () => [...chataigneByRestaurant.values()].reduce((sum, c) => sum + c.revenue, 0),
+    [chataigneByRestaurant],
+  );
 
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
@@ -1040,6 +1044,7 @@ const Overview = () => {
               cashDaysWithData={cashRevenueData?.daysWithData}
               cashVariation={cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
+              chataigneTotal={chataigneTotal}
             />
           </div>
           )}
