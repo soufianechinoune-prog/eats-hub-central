@@ -1,21 +1,38 @@
-# Rattrapage de la data Dishop (sync stoppée depuis le 20/07/2026)
+# Collecteur automatique Deliveroo (phase 2) — Authentification & format
 
-## Réponse à la question
+## Réponse directe aux 3 questions
 
-**Oui, il faut renouveler les credentials auprès de Dishop, même pour la data ancienne.**
+Aujourd'hui la fonction `ingest-deliveroo-orders` n'a **pas encore** de clé d'ingestion partagée. Elle est déployée sans auth (`verify_jwt = false`) et attend un JSON contenant le CSV en base64/texte brut. Il faut donc ajouter une clé partagée avant de pouvoir l'appeler depuis un collecteur externe.
 
-- L'API Dishop exige un token OAuth valide à CHAQUE appel, y compris pour exporter des semaines passées. Sans nouveau `client_id` / `client_secret`, aucune donnée (ancienne ou nouvelle) n'est accessible — c'est exactement l'erreur 403 « Invalid client credentials » vue depuis le 27/07.
-- Bonne nouvelle : l'endpoint utilisé (`export-weekly-data/accounting-report`) permet de demander n'importe quelle semaine passée. La data ancienne n'est PAS perdue chez Dishop — elle est juste inaccessible tant que le compte API est invalide. Dès que les credentials sont régénérés, on peut tout rattraper.
+## Plan
 
-## Plan d'action
+1. **Sécuriser l'edge function `ingest-deliveroo-orders`**
+   - Ajouter une vérification de clé partagée identique au pattern `ingest-uber-funnel`.
+   - Lire `DELIVEROO_INGEST_KEY` depuis `Deno.env.get`.
+   - Refuser les requêtes sans l'en-tête `x-api-key` correspondant.
+   - Conserver `verify_jwt = false` (déjà le cas dans `config.toml`).
 
-1. **Côté utilisateur** : demander à Dishop (support ou console) la régénération du couple `client_id` / `client_secret` pour le compte Chicken Street (`zmedrf_zme2093z_sdfvzer_zevr` actuellement rejeté).
-2. **Stockage sécurisé** : enregistrer les nouvelles valeurs via le formulaire de secrets (jamais en clair dans le code).
-3. **Rattrapage** : relancer la sync hebdomadaire pour chaque semaine manquante (du 20/07/2026 à aujourd'hui, ~6 semaines). L'import est idempotent — pas de risque de doublon.
-4. **Vérification** : contrôler que le CA Dishop sur la vue d'ensemble remonte au niveau attendu (~33 k€/semaine, ~145 k€/mois comme en juin) et que le badge « Données au … » disparaît de la tuile Dishop.
+2. **Générer et stocker le secret**
+   - Créer un secret `DELIVEROO_INGEST_KEY` via `generate_secret` (valeur aléatoire 64 caractères).
+   - L'edge function le récupère automatiquement au prochain déploiement.
+
+3. **Conserver le format d'entrée actuel**
+   - Méthode : `POST`.
+   - Corps JSON : `{ csvContent: string, fileName: string, dryRun?: boolean }`.
+   - `csvContent` = contenu brut du CSV Deliveroo (séparateur virgule, guillemets doubles, encodage UTF-8).
+   - En-tête obligatoire : `x-api-key: <DELIVEROO_INGEST_KEY>`.
+
+4. **Documenter l'URL publique**
+   - URL : `https://akcicojkrzeirffefdet.supabase.co/functions/v1/ingest-deliveroo-orders`.
+   - Cette URL sera fournie au responsable/dev qui configure le collecteur externe.
+
+5. **Valider le déploiement**
+   - Déployer la fonction.
+   - Tester un appel `POST` avec `dryRun: true` et la clé.
+   - Vérifier qu'un appel sans clé retourne 401.
 
 ## Détails techniques
 
-- Secrets concernés : `DISHOP_CLIENT_ID` / `DISHOP_CLIENT_SECRET` (noms exacts confirmés au moment du stockage).
-- La fonction de sync télécharge un ZIP hebdomadaire (commandes, facturation, clients) et l'ingère dans `dishop_orders` / `dishop_order_items` / `dishop_customers`.
-- Le cron du lundi 05:00 UTC reprendra ensuite automatiquement le flux courant.
+- Colonnes CSV attendues (insensibles à la casse) : `deliveroo_name`, `order_number`, `status`, `sent_at`, `delivered_at`, `subtotal`, `commission`, `commission_vat`, `net`.
+- `sent_at` et `delivered_at` sont interprétés en heure de Paris puis convertis en UTC ISO.
+- La clé sera visible uniquement dans le secret store ; je ne la communiquerai pas en clair dans le chat.
