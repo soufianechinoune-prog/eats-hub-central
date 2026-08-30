@@ -1032,12 +1032,14 @@ const Overview = () => {
             <ChannelRevenueTiles
               periodLabel={getPeriodLabel()}
               isLoading={statsLoading || cashLoading}
+              periodEnd={format(endDate, "yyyy-MM-dd")}
               cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
               cashVariation={cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               uber={channelTotals.uber}
               deliveroo={channelTotals.deliveroo}
               dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
+              dishopLastDataDate={dishopData?.lastDataDate ?? null}
               chataigne={chataigneTotal}
             />
           </div>

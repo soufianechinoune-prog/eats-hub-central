@@ -13,6 +13,8 @@ import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 export interface ChannelRevenueTilesProps {
   periodLabel: string;
   isLoading?: boolean;
+  /** Fin de la période affichée (ISO) — sert à détecter une couverture partielle */
+  periodEnd?: string;
   /** CA Caisse TTC (null = caisse non connectée) */
   cash: number | null;
   cashVariation?: number | null;
@@ -23,6 +25,8 @@ export interface ChannelRevenueTilesProps {
   deliveroo: number;
   /** CA Dishop TTC (null = canal non provisionné pour la marque) */
   dishop: number | null;
+  /** Dernière date de donnée Dishop connue (ISO) — badge « données au … » si antérieure à la fin de période */
+  dishopLastDataDate?: string | null;
   /** CA Chataigne TTC */
   chataigne: number;
 }
@@ -41,19 +45,29 @@ interface TileDef {
   value: number | null;
   notConnectedLabel?: string;
   variation?: number | null;
+  /** Badge de fraîcheur des données (ex: « Données au 15/07 ») */
+  freshnessBadge?: string | null;
 }
+
+const fmtDay = (iso: string) =>
+  new Date(iso).toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
 export function ChannelRevenueTiles({
   periodLabel,
   isLoading,
+  periodEnd,
   cash,
   cashVariation,
   cashConnected,
   uber,
   deliveroo,
   dishop,
+  dishopLastDataDate,
   chataigne,
 }: ChannelRevenueTilesProps) {
+  const dishopStale =
+    !!periodEnd && !!dishopLastDataDate &&
+    dishopLastDataDate.slice(0, 10) < periodEnd.slice(0, 10);
   // Règle uniforme : hauteur fixe, largeur auto, object-fit contain.
   // Le wordmark Uber Eats (large et court) reçoit une hauteur légèrement
   // supérieure pour un alignement optique avec les autres logos.
@@ -104,12 +118,15 @@ export function ChannelRevenueTiles({
     {
       key: "dishop",
       label: "Dishop",
-      hint: "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
+      hint: dishopStale && dishopLastDataDate
+        ? `Synchronisation interrompue : la dernière commande remontée date du ${fmtDay(dishopLastDataDate)}. Le CA affiché sous-estime la période.`
+        : "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
       icon: logoBox(dishopLogo.url, "Dishop"),
       iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-blue-500",
       value: dishop,
       notConnectedLabel: "Canal non provisionné",
+      freshnessBadge: dishopStale && dishopLastDataDate ? `Données au ${fmtDay(dishopLastDataDate)}` : null,
     },
     {
       key: "chataigne",
@@ -175,9 +192,13 @@ export function ChannelRevenueTiles({
                           {fmt(Math.max(0, t.value))}
                         </p>
                       )}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{share != null ? `${share.toFixed(1)}% du CA` : "—"}</span>
-                        {t.variation != null && !isLoading && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground gap-1">
+                        <span className="truncate">{share != null ? `${share.toFixed(1)}% du CA` : "—"}</span>
+                        {t.freshnessBadge && !isLoading ? (
+                          <span className="inline-flex items-center gap-0.5 font-medium text-amber-600 dark:text-amber-400 truncate" title="Période couverte partiellement">
+                            ⚠ {t.freshnessBadge}
+                          </span>
+                        ) : t.variation != null && !isLoading ? (
                           <span
                             className={cn(
                               "inline-flex items-center gap-0.5 font-medium",
@@ -187,7 +208,7 @@ export function ChannelRevenueTiles({
                             {t.variation >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                             {t.variation > 0 ? "+" : ""}{t.variation.toFixed(1)}%
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </TooltipTrigger>
