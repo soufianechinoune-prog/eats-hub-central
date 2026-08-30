@@ -13,6 +13,8 @@ import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 export interface ChannelRevenueTilesProps {
   periodLabel: string;
   isLoading?: boolean;
+  /** Fin de la période affichée (ISO) — sert à détecter une couverture partielle */
+  periodEnd?: string;
   /** CA Caisse TTC (null = caisse non connectée) */
   cash: number | null;
   cashVariation?: number | null;
@@ -23,6 +25,8 @@ export interface ChannelRevenueTilesProps {
   deliveroo: number;
   /** CA Dishop TTC (null = canal non provisionné pour la marque) */
   dishop: number | null;
+  /** Dernière date de donnée Dishop connue (ISO) — badge « données au … » si antérieure à la fin de période */
+  dishopLastDataDate?: string | null;
   /** CA Chataigne TTC */
   chataigne: number;
 }

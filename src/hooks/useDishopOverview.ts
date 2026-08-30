@@ -18,6 +18,8 @@ export interface DishopOverviewData {
   profitability: number; // % = (CA - commission) / CA * 100
   promoShare: number; // % orders with marketing_promo_used
   hasData: boolean;
+  /** Dernière date de commande connue (toute période) — détection de sync stoppée */
+  lastDataDate: string | null;
 }
 
 export function useDishopOverview({
