@@ -28,50 +28,25 @@ export function useEcoContribution({
   const hasEmptyScope = restaurantIds !== undefined && restaurantIds.length === 0;
   const isUberEnabled = !hasEmptyScope && (platform === "uber_eats" || platform === "global");
   const isDeliverooEnabled = !hasEmptyScope && (platform === "deliveroo" || platform === "global");
-  // ── Uber Eats: payouts table ──
+  // ── Uber Eats: versements recalculés depuis orders + payout_adjustments (table `payouts` dépréciée) ──
   const { data: payoutsData, isLoading: loadingPayouts } = useQuery({
     queryKey: ["eco_contribution_payouts", restaurantIds, year, month, platform],
     queryFn: async () => {
-      const allData: { restaurant_id: string; payout_date: string; eco_contribution_refund: number | null; eco_contribution_charge: number | null }[] = [];
-      let offset = 0;
-      const batchSize = 1000;
-
-      while (true) {
-        let query = supabase
-          .from("payouts")
-          .select("restaurant_id, payout_date, eco_contribution_refund, eco_contribution_charge");
-
-        if (year) {
-          query = query.gte("payout_date", `${year}-01-01`).lte("payout_date", `${year}-12-31`);
-        }
-
-        if (restaurantIds && restaurantIds.length > 0) {
-          query = query.in("restaurant_id", restaurantIds);
-        }
-
-        if (month && year) {
-          const monthStr = String(month).padStart(2, "0");
-          query = query
-            .gte("payout_date", `${year}-${monthStr}-01`)
-            .lte("payout_date", `${year}-${monthStr}-31`);
-        }
-
-        const { data, error } = await query.range(offset, offset + batchSize - 1);
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allData.push(...data);
-          if (data.length < batchSize) break;
-          offset += batchSize;
-        } else {
-          break;
-        }
-      }
-
-      return allData;
+      if (!year || !restaurantIds || restaurantIds.length === 0) return [];
+      const monthStr = month ? String(month).padStart(2, "0") : null;
+      const start = monthStr ? `${year}-${monthStr}-01` : `${year}-01-01`;
+      const end = monthStr ? `${year}-${monthStr}-31` : `${year}-12-31`;
+      const rows = await fetchPayoutRows(restaurantIds, start, end);
+      return rows.map((r) => ({
+        restaurant_id: r.restaurant_id,
+        payout_date: r.payout_date,
+        eco_contribution_refund: r.eco_contribution_refund,
+        eco_contribution_charge: r.eco_contribution_charge,
+      }));
     },
     enabled: isUberEnabled,
   });
+
 
   // ── Uber Eats: payout_adjustments detail lines ──
   const { data: uberDetailLines, isLoading: loadingUberDetail } = useQuery({
