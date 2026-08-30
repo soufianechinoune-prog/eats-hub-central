@@ -652,7 +652,17 @@ const Overview = () => {
             showReset={isCustomPeriod}
             onReset={handleResetPeriod}
           />
-        </div>
+      </div>
+
+      {/* Consolidation versements : couverture payout_date < 100 % */}
+      {(activeChannel === "global" || activeChannel === "uber") && (
+        <PayoutsConsolidationBanner
+          restaurantIds={activeIds}
+          startDateStr={startDateStr}
+          endDateStr={endDateStr}
+        />
+      )}
+
       </div>
 
       {isLoading ? (
