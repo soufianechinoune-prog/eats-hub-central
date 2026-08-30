@@ -118,12 +118,15 @@ export function ChannelRevenueTiles({
     {
       key: "dishop",
       label: "Dishop",
-      hint: "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
+      hint: dishopStale && dishopLastDataDate
+        ? `Synchronisation interrompue : la dernière commande remontée date du ${fmtDay(dishopLastDataDate)}. Le CA affiché sous-estime la période.`
+        : "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
       icon: logoBox(dishopLogo.url, "Dishop"),
       iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-blue-500",
       value: dishop,
       notConnectedLabel: "Canal non provisionné",
+      freshnessBadge: dishopStale && dishopLastDataDate ? `Données au ${fmtDay(dishopLastDataDate)}` : null,
     },
     {
       key: "chataigne",
@@ -189,9 +192,13 @@ export function ChannelRevenueTiles({
                           {fmt(Math.max(0, t.value))}
                         </p>
                       )}
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <span>{share != null ? `${share.toFixed(1)}% du CA` : "—"}</span>
-                        {t.variation != null && !isLoading && (
+                      <div className="flex items-center justify-between text-xs text-muted-foreground gap-1">
+                        <span className="truncate">{share != null ? `${share.toFixed(1)}% du CA` : "—"}</span>
+                        {t.freshnessBadge && !isLoading ? (
+                          <span className="inline-flex items-center gap-0.5 font-medium text-amber-600 dark:text-amber-400 truncate" title="Période couverte partiellement">
+                            ⚠ {t.freshnessBadge}
+                          </span>
+                        ) : t.variation != null && !isLoading ? (
                           <span
                             className={cn(
                               "inline-flex items-center gap-0.5 font-medium",
@@ -201,7 +208,7 @@ export function ChannelRevenueTiles({
                             {t.variation >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                             {t.variation > 0 ? "+" : ""}{t.variation.toFixed(1)}%
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </TooltipTrigger>
