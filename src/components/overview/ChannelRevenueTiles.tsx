@@ -1,9 +1,14 @@
-import { Store, Globe, MessageCircle, Layers, TrendingUp, TrendingDown } from "lucide-react";
+import { Layers, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
+import splashLogo from "@/assets/splash360-logo.png.asset.json";
+import dishopLogo from "@/assets/dishop-logo.png.asset.json";
+import chataigneLogo from "@/assets/chataigne-logo.png.asset.json";
+import uberLogo from "@/assets/uber-eats-wordmark.png.asset.json";
+import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
+
 
 export interface ChannelRevenueTilesProps {
   periodLabel: string;
@@ -54,7 +59,7 @@ export function ChannelRevenueTiles({
       key: "cash",
       label: "Caisse",
       hint: "Chiffre d'affaires sur place (TTC) remonté par le logiciel de caisse (Splash360…).",
-      icon: <Store className="h-5 w-5 text-cash" />,
+      icon: <img src={splashLogo.url} alt="Splash360" className="h-5 w-auto max-w-[76px] object-contain" />,
       iconWrapClass: "bg-cash/10",
       valueClass: "text-cash",
       value: cashConnected ? cash : null,
@@ -65,7 +70,7 @@ export function ChannelRevenueTiles({
       key: "uber",
       label: "Uber Eats",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (ventes avant commission).",
-      icon: <UberEatsLogo size={20} />,
+      icon: <img src={uberLogo.url} alt="Uber Eats" className="h-4 w-auto max-w-[76px] object-contain dark:invert" />,
       iconWrapClass: "bg-uber/10",
       valueClass: "text-uber",
       value: uber,
@@ -74,7 +79,7 @@ export function ChannelRevenueTiles({
       key: "deliveroo",
       label: "Deliveroo",
       hint: "Chiffre d'affaires brut TTC Deliveroo sur la période.",
-      icon: <DeliverooLogo size={20} />,
+      icon: <img src={deliverooLogo.url} alt="Deliveroo" className="h-4 w-auto max-w-[80px] object-contain" />,
       iconWrapClass: "bg-deliveroo/10",
       valueClass: "text-deliveroo",
       value: deliveroo,
@@ -83,8 +88,8 @@ export function ChannelRevenueTiles({
       key: "dishop",
       label: "Dishop",
       hint: "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
-      icon: <Globe className="h-5 w-5 text-blue-500" />,
-      iconWrapClass: "bg-blue-500/10",
+      icon: <img src={dishopLogo.url} alt="Dishop" className="h-5 w-auto max-w-[76px] object-contain" />,
+      iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-blue-500",
       value: dishop,
       notConnectedLabel: "Canal non provisionné",
@@ -93,7 +98,8 @@ export function ChannelRevenueTiles({
       key: "chataigne",
       label: "Chataigne",
       hint: "Chiffre d'affaires TTC des commandes WhatsApp via Chataigne.",
-      icon: <MessageCircle className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />,
+      icon: <img src={chataigneLogo.url} alt="Chataigne" className="h-4 w-auto max-w-[86px] object-contain dark:invert" />,
+
       iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-emerald-600 dark:text-emerald-400",
       value: chataigne,
@@ -137,11 +143,12 @@ export function ChannelRevenueTiles({
                         "min-w-0 overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/20 p-4 space-y-2 cursor-help transition-shadow hover:shadow-md",
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", t.iconWrapClass)}>
+                      <div className="flex items-center gap-2 h-8">
+                        <div className={cn("h-8 rounded-lg flex items-center justify-center px-2", t.iconWrapClass)}>
                           {t.icon}
                         </div>
-                        <span className="text-sm font-medium">{t.label}</span>
+                        <span className="sr-only">{t.label}</span>
+
                       </div>
                       {isLoading ? (
                         <Skeleton className="h-7 w-24" />
