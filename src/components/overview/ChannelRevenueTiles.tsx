@@ -1,9 +1,14 @@
-import { Store, Globe, MessageCircle, Layers, TrendingUp, TrendingDown } from "lucide-react";
+import { Layers, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
+import splashLogo from "@/assets/splash360-logo.png.asset.json";
+import dishopLogo from "@/assets/dishop-logo.png.asset.json";
+import chataigneLogo from "@/assets/chataigne-logo.png.asset.json";
+import uberLogo from "@/assets/uber-eats-wordmark.png.asset.json";
+import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
+
 
 export interface ChannelRevenueTilesProps {
   periodLabel: string;
