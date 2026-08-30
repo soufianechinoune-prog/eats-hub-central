@@ -78,6 +78,16 @@ export function useDishopOverview({
       );
       const promoCount = rows.filter((r) => r.marketing_promo_used).length;
 
+      // Dernière donnée connue (toute période) pour détecter une sync stoppée
+      const { data: lastRow } = await supabase
+        .from("dishop_orders")
+        .select("order_date")
+        .eq("chain_id", chainId as string)
+        .in("restaurant_id", validRestaurants)
+        .order("order_date", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
       return {
         caTTC,
         orderCount,
@@ -87,6 +97,7 @@ export function useDishopOverview({
         profitability: caTTC > 0 ? ((caTTC - commissionAmount) / caTTC) * 100 : 0,
         promoShare: orderCount > 0 ? (promoCount / orderCount) * 100 : 0,
         hasData: orderCount > 0,
+        lastDataDate: lastRow?.order_date ?? null,
       };
     },
     staleTime: 5 * 60_000,
