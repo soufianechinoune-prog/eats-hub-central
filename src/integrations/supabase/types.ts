@@ -5984,6 +5984,14 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_deliveroo_channel_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: Json
+      }
       get_deliveroo_payouts_detail: {
         Args: {
           p_end_date: string
