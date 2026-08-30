@@ -801,11 +801,12 @@ export function RestaurantComparisonTable({
               // For "all" use networkTotals (network-wide aggregates).
               // For other tabs compute totals from the visible projected rows.
               const isAll = channelTab === "all";
-              const sumRevenue = isAll ? networkTotals.totalRevenue : filteredStats.reduce((s, r) => s + r.v.revenue, 0);
+              // CA / commandes : toujours la somme des lignes projetées (inclut Caisse + Chataigne en vue "Tous").
+              const sumRevenue = filteredStats.reduce((s, r) => s + r.v.revenue, 0);
               const sumRevenueHT = channelTab === "cash"
                 ? filteredStats.reduce((s, r) => s + ((r.v as typeof r.v & { revenueHT?: number }).revenueHT ?? 0), 0)
                 : 0;
-              const sumOrders = isAll ? networkTotals.totalOrders : filteredStats.reduce((s, r) => s + r.v.orders, 0);
+              const sumOrders = filteredStats.reduce((s, r) => s + r.v.orders, 0);
               const sumPayout = isAll ? networkTotals.totalNetPayout : filteredStats.reduce((s, r) => s + r.v.netPayout, 0);
               const sumMeal = isAll ? networkTotals.totalMealVoucher : filteredStats.reduce((s, r) => s + r.v.mealVoucher, 0);
               const avgBasket = sumOrders > 0 ? sumRevenue / sumOrders : 0;
