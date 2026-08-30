@@ -368,7 +368,7 @@ export function RestaurantComparisonTable({
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
     });
-  }, [projectedRows, sortColumn, sortDirection, adsRatioMap]);
+  }, [projectedRows, sortColumn, sortDirection, adsRatioMap, cashByRestaurant, dishopByRestaurant, chataigneByRestaurant]);
 
   const filteredStats = useMemo(() => {
     if (!searchQuery.trim()) return sortedStats;
@@ -501,7 +501,7 @@ export function RestaurantComparisonTable({
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
                       {channelTab === "all"
-                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Uber Eats + Deliveroo + Caisse (Splash360) + Chataigne."
+                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Caisse (Splash360) + Uber Eats + Deliveroo + Dishop + Chataigne."
                         : "Chiffre d'affaires brut TTC du canal sélectionné sur la période."}
                     </TooltipContent>
                   </Tooltip>
@@ -512,6 +512,29 @@ export function RestaurantComparisonTable({
               )}
               {showN1Comparison && channelTab === "all" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
+              )}
+              {cols.channelSplit && (
+                <>
+                  <HeaderCell column="cashRevenue" className="text-right">
+                    <span className="text-cash">Caisse</span>
+                  </HeaderCell>
+                  <HeaderCell column="uberRevenue" className="text-right">
+                    <span className="text-uber">Uber Eats</span>
+                  </HeaderCell>
+                  <HeaderCell column="deliverooRevenue" className="text-right">
+                    <span className="text-deliveroo">Deliveroo</span>
+                  </HeaderCell>
+                  {hasDishop && (
+                    <HeaderCell column="dishopRevenue" className="text-right">
+                      <span className="text-blue-500">Dishop</span>
+                    </HeaderCell>
+                  )}
+                  {hasChataigne && (
+                    <HeaderCell column="chataigneRevenue" className="text-right">
+                      <span className="text-emerald-600 dark:text-emerald-400">Chataigne</span>
+                    </HeaderCell>
+                  )}
+                </>
               )}
               {cols.payout && (
                 <HeaderCell column="netPayout" className="text-right">
