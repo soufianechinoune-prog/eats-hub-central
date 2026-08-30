@@ -1493,6 +1493,7 @@ export default function Analytics() {
                   onFootballMatchesToggle={setShowFootballMatches}
                   isPayoutsLoading={loadingDeliverooPayouts}
                 />
+                </>
               );
             }
           })()}
