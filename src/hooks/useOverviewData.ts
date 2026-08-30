@@ -92,18 +92,45 @@ function useOverviewPayouts(
   return useQuery({
     queryKey: ["overview-payouts", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("restaurant_id, payout_date, sales_incl_vat, net_payout, order_count")
-        .gte("payout_date", startDateStr)
-        .lte("payout_date", endDateStr)
-        .in("restaurant_id", restaurantIds);
-      if (error) throw error;
-      return data || [];
+      if (restaurantIds.length === 0) return [];
+      // Option B : les versements sont recalculés depuis orders + payout_adjustments
+      // (la table `payouts` est dépréciée et vide). La RPC est annuelle, on interroge
+      // chaque année couverte par la période puis on filtre sur les bornes exactes.
+      const startYear = Number(startDateStr.slice(0, 4));
+      const endYear = Number(endDateStr.slice(0, 4));
+      const years: number[] = [];
+      for (let y = startYear; y <= endYear; y++) years.push(y);
+
+      const results = await Promise.all(
+        years.map((year) =>
+          supabase.rpc("get_yearly_payouts_detail", {
+            p_year: year,
+            p_restaurant_ids: restaurantIds,
+          }),
+        ),
+      );
+
+      const rows: any[] = [];
+      for (const { data, error } of results) {
+        if (error) throw error;
+        for (const row of (data as any[]) || []) {
+          if (row.payout_date >= startDateStr && row.payout_date <= endDateStr) {
+            rows.push({
+              restaurant_id: row.restaurant_id,
+              payout_date: row.payout_date,
+              sales_incl_vat: Number(row.sales_incl_vat) || 0,
+              net_payout: Number(row.net_payout) || 0,
+              order_count: Number(row.order_count) || 0,
+            });
+          }
+        }
+      }
+      return rows;
     },
     enabled,
     ...RETRY_CONFIG,
   });
+
 }
 
 function useOverviewReviews(

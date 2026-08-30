@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
+import { fetchPayoutRows } from "@/lib/payoutsFromOrders";
+
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -318,19 +320,12 @@ export function OrdersAnalysisSection({
     queryKey: ["payout-detail-orders", selectedRestaurantId, selectedDate],
     queryFn: async () => {
       if (!selectedDate || !selectedRestaurantId) return null;
-      
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("*")
-        .eq("restaurant_id", selectedRestaurantId)
-        .eq("payout_date", selectedDate)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
+      const rows = await fetchPayoutRows([selectedRestaurantId], selectedDate, selectedDate);
+      return rows[0] ?? null;
     },
     enabled: !!selectedDate && !!selectedRestaurantId && sheetOpen,
   });
+
   
   const handleDayClick = (date: string) => {
     if (selectedRestaurantId) {

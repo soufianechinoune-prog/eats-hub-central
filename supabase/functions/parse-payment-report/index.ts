@@ -1383,37 +1383,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Phase 3: Update payouts with eco-contribution amounts
-    let ecoContributionPayoutsUpdated = 0;
-    let ecoContributionTotalAmount = 0;
-    
-    if (!dryRun && ecoContributionByPayout.size > 0) {
-      console.log('Phase 3: Updating payouts with eco-contribution for', ecoContributionByPayout.size, 'payouts');
-      
-      for (const [payoutRefId, { refund, charge }] of ecoContributionByPayout) {
-        // Update payout by payout_reference_id ONLY (works even without restaurant mapping)
-        const { data: updateData, error: updateError } = await supabase
-          .from('payouts')
-          .update({ 
-            eco_contribution_refund: refund,
-            eco_contribution_charge: charge,
-          })
-          .eq('payout_reference_id', payoutRefId)
-          .select('id, restaurant_id');
-        
-        if (!updateError && updateData && updateData.length > 0) {
-          ecoContributionPayoutsUpdated++;
-          ecoContributionTotalAmount += refund + charge;
-          console.log(`[eco-contrib] Updated payout ${payoutRefId}: refund=${refund}€, charge=${charge}€ (matched ${updateData.length} row(s))`);
-        } else if (updateError) {
-          console.warn('Failed to update payout eco-contribution:', payoutRefId, updateError.message);
-        } else {
-          console.warn(`[eco-contrib] No payout found for reference: ${payoutRefId}`);
-        }
-      }
-      
-      console.log('Eco-contribution update complete:', ecoContributionPayoutsUpdated, 'payouts updated, total:', ecoContributionTotalAmount, '€');
-    }
+    // Phase 3: DÉSACTIVÉE (Option B) — la table `payouts` est dépréciée.
+    // L'éco-contribution est lue directement depuis payout_adjustments
+    // (category = 'eco_contribution'), plus besoin de la répercuter sur `payouts`.
+    const ecoContributionPayoutsUpdated = 0;
+    const ecoContributionTotalAmount = 0;
+
 
     // Phase 3.5: Deduplicate adjustments by (payout_reference_id, description, uber_store_id)
     // Multiple CSV lines can share the same composite key - merge by summing amounts
