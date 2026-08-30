@@ -1094,6 +1094,8 @@ const Overview = () => {
                 networkCashTotal={cashRevenueData?.totalCash ?? 0}
                 cashByRestaurant={cashByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
+                periodStart={startDate}
+                periodEnd={endDate}
                 forcedChannel={activeChannel === "global" ? "all" : activeChannel}
               />
             )}

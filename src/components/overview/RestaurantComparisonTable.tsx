@@ -53,6 +53,9 @@ interface RestaurantComparisonTableProps {
   cashByRestaurant?: Map<string, RestaurantCashStats>;
   /** Stats Chataigne par restaurant — CA, commandes, panier moyen. */
   chataigneByRestaurant?: Map<string, { revenue: number; orders: number; avgBasket: number }>;
+  /** Période effective (fallback sur le contexte analytics). */
+  periodStart?: Date;
+  periodEnd?: Date;
   /** Force le canal affiché (cache les tabs internes). */
   forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
 }
@@ -128,13 +131,17 @@ export function RestaurantComparisonTable({
   networkAdsPct = null,
   cashByRestaurant,
   chataigneByRestaurant,
+  periodStart,
+  periodEnd,
   forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
   const { dateRange } = analyticsCtx;
-  const startDateStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
-  const endDateStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : startDateStr;
+  const rangeFrom = periodStart ?? dateRange?.from;
+  const rangeTo = periodEnd ?? dateRange?.to;
+  const startDateStr = rangeFrom ? format(rangeFrom, "yyyy-MM-dd") : "";
+  const endDateStr = rangeTo ? format(rangeTo, "yyyy-MM-dd") : startDateStr;
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
