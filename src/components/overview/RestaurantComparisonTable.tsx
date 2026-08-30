@@ -266,7 +266,7 @@ export function RestaurantComparisonTable({
       cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
-  }, [channelTab, cashByRestaurant]);
+  }, [channelTab, cashByRestaurant, chataigneByRestaurant]);
 
   // Column visibility per tab
   const cols = useMemo(() => {
