@@ -125,7 +125,7 @@ export function ChannelRevenueTiles({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
           {tiles.map((t) => {
             const share = total > 0 && t.value != null ? (Math.max(0, t.value) / total) * 100 : null;
             return (
@@ -134,7 +134,7 @@ export function ChannelRevenueTiles({
                   <TooltipTrigger asChild>
                     <div
                       className={cn(
-                        "rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/20 p-4 space-y-2 cursor-help transition-shadow hover:shadow-md",
+                        "min-w-0 overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/20 p-4 space-y-2 cursor-help transition-shadow hover:shadow-md",
                       )}
                     >
                       <div className="flex items-center gap-2">
@@ -148,7 +148,7 @@ export function ChannelRevenueTiles({
                       ) : t.value == null ? (
                         <p className="text-sm text-muted-foreground italic">{t.notConnectedLabel ?? "Pas de données"}</p>
                       ) : (
-                        <p className={cn("text-2xl font-bold tracking-tight", t.valueClass)}>
+                        <p className={cn("text-2xl font-bold tracking-tight truncate", t.valueClass)}>
                           {fmt(Math.max(0, t.value))}
                         </p>
                       )}
