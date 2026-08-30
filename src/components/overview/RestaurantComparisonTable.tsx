@@ -24,7 +24,7 @@ import { format } from "date-fns";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
-type ChannelTab = "all" | "uber" | "deliveroo" | "cash";
+type ChannelTab = "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 
 import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
@@ -57,7 +57,7 @@ interface RestaurantComparisonTableProps {
   periodStart?: Date;
   periodEnd?: Date;
   /** Force le canal affiché (cache les tabs internes). */
-  forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
+  forcedChannel?: "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 }
 
 // Format helpers
@@ -157,6 +157,11 @@ export function RestaurantComparisonTable({
     for (const v of cashByRestaurant.values()) if (v.cashRevenue > 0) return true;
     return networkCashTotal > 0;
   }, [cashByRestaurant, networkCashTotal]);
+  const hasChataigne = useMemo(() => {
+    if (!chataigneByRestaurant) return false;
+    for (const v of chataigneByRestaurant.values()) if (v.revenue > 0) return true;
+    return false;
+  }, [chataigneByRestaurant]);
 
   // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
   // and rely on the mix-bar + chips under the CA column instead.
