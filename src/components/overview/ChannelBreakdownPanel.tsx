@@ -2,6 +2,7 @@ import { Star, Store, ShoppingBag, Globe, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RestaurantNetworkStats, PlatformBreakdown } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
+import { ChannelDailyRevenueChart } from "@/components/overview/ChannelDailyRevenueChart";
 
 /* ------------------------------------------------------------------ */
 /* Format helpers                                                      */
@@ -273,6 +274,9 @@ export interface ChannelBreakdownPanelProps {
   cash?: number;
   /** CA / commandes Chataigne pour ce restaurant. */
   chataigne?: { revenue: number; orders: number; avgBasket: number };
+  /** Période pour le graphique quotidien (yyyy-MM-dd). */
+  startDate?: string;
+  endDate?: string;
   /** % pub Uber (déjà calculé). */
   adsPct?: number | null;
   onChannelClick?: (channel: ChannelId) => void;
@@ -282,6 +286,8 @@ export function ChannelBreakdownPanel({
   resto,
   cash = 0,
   chataigne,
+  startDate,
+  endDate,
   adsPct = null,
   onChannelClick,
 }: ChannelBreakdownPanelProps) {
@@ -376,6 +382,16 @@ export function ChannelBreakdownPanel({
           />
         ))}
       </div>
+
+      {/* Évolution quotidienne par canal */}
+      {startDate && endDate && (
+        <ChannelDailyRevenueChart
+          restaurantId={resto.id}
+          startDate={startDate}
+          endDate={endDate}
+          channels={channels.map((c) => c.id)}
+        />
+      )}
     </div>
   );
 }

@@ -51,6 +51,8 @@ interface RestaurantComparisonTableProps {
   networkAdsPct?: number | null;
   /** Stats Caisse par restaurant (Splash360) — CA, commandes, panier, variation N-1. */
   cashByRestaurant?: Map<string, RestaurantCashStats>;
+  /** Stats Chataigne par restaurant — CA, commandes, panier moyen. */
+  chataigneByRestaurant?: Map<string, { revenue: number; orders: number; avgBasket: number }>;
   /** Force le canal affiché (cache les tabs internes). */
   forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
 }
@@ -125,6 +127,7 @@ export function RestaurantComparisonTable({
   networkAdsRevenue = 0,
   networkAdsPct = null,
   cashByRestaurant,
+  chataigneByRestaurant,
   forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
@@ -563,6 +566,7 @@ export function RestaurantComparisonTable({
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
                           if (cash > 0) active.push("cash");
+                          if ((chataigneByRestaurant?.get(resto.id)?.revenue ?? 0) > 0) active.push("chataigne");
                           return <ChannelChips channels={active} />;
                         })()}
                       </div>
@@ -574,6 +578,7 @@ export function RestaurantComparisonTable({
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
                           { id: "cash", revenue: cash },
+                          { id: "chataigne", revenue: chataigneByRestaurant?.get(resto.id)?.revenue ?? 0 },
                         ];
                         return (
                           <div className="flex flex-col items-end gap-1">
@@ -738,6 +743,9 @@ export function RestaurantComparisonTable({
                           <ChannelBreakdownPanel
                             resto={resto}
                             cash={cash}
+                            chataigne={chataigneByRestaurant?.get(resto.id)}
+                            startDate={startDateStr}
+                            endDate={endDateStr}
                             adsPct={adsPct}
                           />
                         </TableCell>
