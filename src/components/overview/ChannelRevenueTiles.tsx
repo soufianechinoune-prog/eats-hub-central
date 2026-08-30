@@ -54,8 +54,8 @@ export function ChannelRevenueTiles({
   dishop,
   chataigne,
 }: ChannelRevenueTilesProps) {
-  const logoBox = (src: string, alt: string, darkInvert = false) => (
-    <div className="w-[84px] h-[28px] flex items-center justify-center">
+  const logoBox = (src: string, alt: string, darkInvert = false, width = 84) => (
+    <div className="h-[28px] flex items-center justify-center" style={{ width }}>
       <img
         src={src}
         alt={alt}
