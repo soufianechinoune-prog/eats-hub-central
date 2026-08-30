@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import splashLogo from "@/assets/splash360-logo.png.asset.json";
 import dishopLogo from "@/assets/dishop-logo.png.asset.json";
 import chataigneLogo from "@/assets/chataigne-logo.png.asset.json";
-import uberIcon from "@/assets/uber-eats-logo.png";
+import uberLogo from "@/assets/uber-eats-wordmark-v2.png.asset.json";
 import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 
 
@@ -54,8 +54,8 @@ export function ChannelRevenueTiles({
   dishop,
   chataigne,
 }: ChannelRevenueTilesProps) {
-  const logoBox = (src: string, alt: string, darkInvert = false) => (
-    <div className="w-[84px] h-[28px] flex items-center justify-center">
+  const logoBox = (src: string, alt: string, darkInvert = false, width = 84) => (
+    <div className="h-[28px] flex items-center justify-center" style={{ width }}>
       <img
         src={src}
         alt={alt}
@@ -83,7 +83,7 @@ export function ChannelRevenueTiles({
       key: "uber",
       label: "Uber Eats",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (ventes avant commission).",
-      icon: logoBox(uberIcon, "Uber Eats", true),
+      icon: logoBox(uberLogo.url, "Uber Eats", true, 120),
       iconWrapClass: "bg-uber/10",
       valueClass: "text-uber",
       value: uber,
