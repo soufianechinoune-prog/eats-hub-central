@@ -652,6 +652,7 @@ const Overview = () => {
             showReset={isCustomPeriod}
             onReset={handleResetPeriod}
           />
+        </div>
       </div>
 
       {/* Consolidation versements : couverture payout_date < 100 % */}
@@ -663,7 +664,6 @@ const Overview = () => {
         />
       )}
 
-      </div>
 
       {isLoading ? (
         <div className="text-center py-12">
