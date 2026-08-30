@@ -51,16 +51,11 @@ export function RestaurantDrilldownRow({
     queryKey: ["payout-detail-drilldown", restaurantId, selectedDate],
     queryFn: async () => {
       if (!selectedDate) return [];
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("*")
-        .eq("restaurant_id", restaurantId)
-        .eq("payout_date", selectedDate);
-      if (error) throw error;
-      return data || [];
+      return await fetchPayoutRows([restaurantId], selectedDate, selectedDate);
     },
     enabled: !!selectedDate && sheetOpen,
   });
+
 
   const handleDayClick = (date: string) => {
     setSelectedDate(date);
