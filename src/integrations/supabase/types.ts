@@ -6457,6 +6457,7 @@ export type Database = {
           month: number
           orders_total: number
           orders_with_payout_date: number
+          stores_pending_auth: number
           year: number
         }[]
       }
