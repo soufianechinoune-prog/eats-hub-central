@@ -287,10 +287,10 @@ export function RestaurantComparisonTable({
       return { caMix: true, chips: true, expand: true, channelSplit: true, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     if (channelTab === "uber") {
-      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+      return { caMix: false, chips: false, expand: false, channelSplit: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
     }
     if (channelTab === "deliveroo") {
-      return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+      return { caMix: false, chips: false, expand: false, channelSplit: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     // cash — orders + basket + share + variation N-1
     return { caMix: false, chips: false, expand: false, channelSplit: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
@@ -354,6 +354,11 @@ export function RestaurantComparisonTable({
           bVal = adsRatioMap?.get(B.resto.id)?.adsPct ?? -1;
           break;
         }
+        case "cashRevenue": aVal = cashByRestaurant?.get(A.resto.id)?.cashRevenue ?? 0; bVal = cashByRestaurant?.get(B.resto.id)?.cashRevenue ?? 0; break;
+        case "uberRevenue": aVal = A.resto.platformBreakdown.uber.revenue; bVal = B.resto.platformBreakdown.uber.revenue; break;
+        case "deliverooRevenue": aVal = A.resto.platformBreakdown.deliveroo.revenue; bVal = B.resto.platformBreakdown.deliveroo.revenue; break;
+        case "dishopRevenue": aVal = dishopByRestaurant?.get(A.resto.id) ?? 0; bVal = dishopByRestaurant?.get(B.resto.id) ?? 0; break;
+        case "chataigneRevenue": aVal = chataigneByRestaurant?.get(A.resto.id)?.revenue ?? 0; bVal = chataigneByRestaurant?.get(B.resto.id)?.revenue ?? 0; break;
       }
 
       if (typeof aVal === "string" && typeof bVal === "string") {
