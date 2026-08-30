@@ -143,11 +143,12 @@ export function ChannelRevenueTiles({
                         "min-w-0 overflow-hidden rounded-xl border border-border/60 bg-gradient-to-br from-card to-muted/20 p-4 space-y-2 cursor-help transition-shadow hover:shadow-md",
                       )}
                     >
-                      <div className="flex items-center gap-2">
-                        <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center", t.iconWrapClass)}>
+                      <div className="flex items-center gap-2 h-8">
+                        <div className={cn("h-8 rounded-lg flex items-center justify-center px-2", t.iconWrapClass)}>
                           {t.icon}
                         </div>
-                        <span className="text-sm font-medium">{t.label}</span>
+                        <span className="sr-only">{t.label}</span>
+
                       </div>
                       {isLoading ? (
                         <Skeleton className="h-7 w-24" />
