@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { PayoutsConsolidationBanner } from "@/components/analytics/PayoutsConsolidationBanner";
 import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
