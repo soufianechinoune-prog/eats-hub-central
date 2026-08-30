@@ -1,51 +1,49 @@
-# Vue d'ensemble : recentrer sur le CA par canal
+# Intégration Deliveroo — CA par commande (rapport « Commandes »)
 
-Principe : la Vue d'ensemble répond à une seule question — **combien le réseau vend, et sur quel canal**. Tout ce qui est spécifique aux plateformes de livraison (note, temps, erreurs, disponibilité, rentabilité, versements, % pub) quitte cette page et reste sur Uber Eats › Synthèse, où c'est déjà en place. Aucune donnée, aucun calcul, aucune requête n'est modifié : uniquement ce qui est affiché et où.
+Oui, je suis d'accord avec l'ordre proposé par ton dev : table → ingestion → mapping → dashboard → front. Deux ajustements par rapport à la spec, justifiés par ce qui existe déjà dans la base.
 
-## 1. Suppression des vignettes plateformes
+## Ce qui existe déjà (vérifié)
 
-Retirées de la Vue d'ensemble (onglet « Vue réseau » uniquement) :
+- Table `deliveroo_orders` : construite pour les **relevés** Deliveroo (`history_type`, `total_payable`, `adjustment_amount`…), alimentée par l'edge function `parse-deliveroo-statement`. Elle est **vide (0 ligne)** aujourd'hui.
+- Table de correspondance `restaurant_deliveroo_ids` (nom Deliveroo → restaurant) : **94 lignes déjà mappées**, avec une page de rapprochement `/deliveroo-matching`.
+- Le CA Deliveroo affiché (tuile « CA par canal », comparatif restaurants) vient du RPC `get_network_deliveroo_summary`, qui lit `deliveroo_orders` — donc **0 € partout** actuellement.
 
-- vignette **Global** — elle duplique Uber (temps prépa+livraison et avis produits sont câblés sur la même source), donc trompeuse au niveau réseau
-- vignette **Uber Eats**
-- vignette **Deliveroo**
-- carte **% dépenses pub / CA**
+Conséquence : pas besoin de créer `deliveroo_restaurant_map` (on réutilise `restaurant_deliveroo_ids`, déjà peuplé à 94/98 noms), et il faut une table distincte pour le rapport « Commandes » car sa sémantique diffère du relevé.
 
-Ces blocs restent affichés à l'identique quand le canal Uber Eats est sélectionné (onglet Synthèse) — c'est leur place légitime. Les vignettes Caisse, Dishop et Chataigne, qui sont des vignettes de CA et non d'exploitation, sont conservées et alignées sur le même format.
+## Étape 1 — Table
 
-## 2. Nouveau haut de page : le CA par canal
+Nouvelle table `deliveroo_sales_orders` :
+`id`, `chain_id`, `restaurant_id` (nullable), `deliveroo_name`, `normalized_name`, `order_number`, `status`, `sent_at`, `delivered_at`, `subtotal`, `commission`, `commission_vat`, `net`, `currency`, `source_file`, `imported_at`.
+Unicité `(deliveroo_name, order_number)` → upsert idempotent. RLS `TO authenticated` via `user_has_chain_access(chain_id)`, GRANT explicites, index `(chain_id, sent_at)` et `(restaurant_id, sent_at)`.
 
-À la place des vignettes supprimées, une rangée de tuiles au format identique, une par canal :
+## Étape 2 — Ingestion
 
-```text
-CA Caisse   ·   CA Uber Eats   ·   CA Deliveroo   ·   CA Dishop   ·   CA Chataigne
-  montant        montant           montant           montant         montant
-  part %         part %            part %            part %          part %
-  Δ vs N-1       Δ vs N-1          Δ vs N-1          Δ vs N-1        Δ vs N-1
-```
+Edge function `ingest-deliveroo-orders` :
+lignes CSV reçues → normalisation du nom (emoji 🌯, accents, casse, espaces — même `normalizeForAlias` que les imports Uber) → lookup mapping → `restaurant_id` + `chain_id` → calcul `net = subtotal − commission − commission_vat` → upsert par lots → retour `{received, upserted, matched, unmatched[]}`.
+Sécurité : appel authentifié (utilisateur connecté) ; clé d'ingestion partagée en plus pour le collecteur automatisé de phase 2.
 
-Au-dessus, une ligne de synthèse réseau : CA total tous canaux, commandes, panier moyen. En dessous, la barre de répartition existante (`PlatformRevenueSplit`) et la courbe d'évolution quotidienne par canal, déjà en place. Un canal sans données sur la période est affiché en état vide explicite, pas masqué.
+## Étape 3 — Mapping
 
-## 3. Tableau « Comparatif des restaurants »
+Seed des 98 noms du fichier fourni dans `restaurant_deliveroo_ids` pour les noms encore absents, avec routage multi-marques :
+- Chicken Street / CS Original → chain Chicken Street
+- Bangkok Factory → sa chain si elle existe, sinon marqué **exclu** (`restaurant_id` nul + flag) pour ne pas polluer le CA CS.
+Les noms non rapprochés remontent dans l'écran d'import et sur `/deliveroo-matching`.
 
-Colonnes de la vue réseau, dans cet ordre :
+## Étape 4 — Branchement dashboard
 
-| Restaurant | CA total | Caisse | Uber Eats | Deliveroo | Dishop | Chataigne | Commandes | Panier |
+- `get_network_deliveroo_summary` réécrit pour lire `deliveroo_sales_orders` : CA = somme des `subtotal` des commandes **`Terminée`** uniquement, agrégé en `AT TIME ZONE 'Europe/Paris'` sur `sent_at`, filtré par restaurants autorisés. Commission et net exposés en plus.
+- Alimente automatiquement : tuile « CA Deliveroo », répartition réseau, mix canaux, comparatif restaurants, vue quotidienne.
+- Vues Finances / Versements : Deliveroo en brut / commission / net, même format de sortie qu'Uber.
+- `deliveroo_orders` (relevés) reste en place et continue d'alimenter éco-contribution / ajustements ; aucune régression.
 
-Colonnes retirées de la vue réseau : Versement, Titre restaurant, Rentabilité, % Pub, Note, Erreurs, Prépa+livraison, Disponibilité. Elles restent intégralement disponibles dans l'onglet Uber Eats (jeu de colonnes actuel inchangé).
+## Étape 5 — Front
 
-Commandes et panier moyen sont conservés : sans eux, impossible d'expliquer une variation de CA (volume vs panier).
+Onglet « Deliveroo — Commandes » dans la page Imports : dépôt du CSV, aperçu (nb lignes, période, total CA/commission/net, noms non reconnus), bouton d'import, résumé post-import, historique. Réutilise les composants d'import existants.
 
-Le panneau déplié par restaurant (mix canaux + graphique quotidien) est conservé tel quel.
+## Point à trancher
 
-## 4. Détails techniques
+La spec signale que le « Sous-total » du rapport Commandes est ~30 % supérieur aux « Ventes brutes » du rapport Performance (probablement les promos). Par défaut je prends **Sous-total = CA brut TTC**, cohérent avec le CA Uber affiché TTC avant promos. À réviser quand l'export Performance sera fourni — le champ étant stocké tel quel, aucun ré-import ne sera nécessaire.
 
-- `src/pages/Overview.tsx` : les cartes Global / Uber Eats / Deliveroo et `AdsRevenueRatioCard` ne sont plus rendues lorsque `activeChannel === "global"` ; elles restent montées pour `activeChannel === "uber"`. Nouvelle rangée de tuiles CA par canal alimentée par les données déjà chargées (`networkTotals`, `networkCashTotal`, `dishopTotals`, `chataigneTotal`, `networkData.uber/deliveroo`), sans nouveau hook ni nouvelle requête.
-- Nouveau composant de présentation `src/components/overview/ChannelRevenueTiles.tsx` (affichage seul, reçoit les montants en props).
-- `src/components/overview/RestaurantComparisonTable.tsx` : jeu de colonnes conditionné par `channelTab`. En vue « Tous », colonnes CA par canal ; pour les onglets canal, colonnes actuelles inchangées. Les valeurs par canal proviennent des mêmes sources qu'aujourd'hui (`platformBreakdown`, `cashByRestaurant`, `chataigneByRestaurant`, données Dishop).
-- Les blocs Uber Live, titres-restaurant et top avis restent rattachés au canal Uber, pas à la vue réseau.
-- Vérification au navigateur : vue réseau (nouvelles tuiles + nouvelles colonnes, aucune métrique ops visible), puis onglet Uber Eats (vignettes, % pub et colonnes complètes toujours présents), et cohérence entre le total du tableau et la barre de répartition.
+## Validation
 
-## Hors périmètre
-
-La sidebar globale de l'application et les autres pages ne sont pas touchées.
+Import du fichier `deliveroo_orders_clean_20260701_16.csv` (22 156 commandes) puis contrôle des totaux attendus côté Chicken Street : CA 527 958 €, commission + TVA 114 276 €, net 413 683 €.
