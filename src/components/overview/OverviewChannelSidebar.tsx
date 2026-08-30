@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
-export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop";
+export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop" | "chataigne";
 
 interface OverviewChannelSidebarProps {
   active: OverviewChannel;
@@ -31,6 +31,7 @@ interface OverviewChannelSidebarProps {
     deliveroo: boolean;
     cash: boolean;
     dishop: boolean;
+    chataigne?: boolean;
   };
 }
 
@@ -99,6 +100,9 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
   }
   if (available.dishop) {
     channelItems.push({ id: "dishop", label: "Dishop", icon: Globe, dotClass: "bg-blue-500" });
+  }
+  if (available.chataigne) {
+    channelItems.push({ id: "chataigne", label: "Chataigne", icon: MessageCircle, dotClass: "bg-emerald-500" });
   }
 
   const handleChannelClick = (item: NavItem) => {
@@ -209,6 +213,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
         )}
 
         {/* Bientôt disponible */}
+        {!available.chataigne && (
         <div>
           <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Bientôt
@@ -220,6 +225,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
             </div>
           </div>
         </div>
+        )}
       </div>
     </aside>
   );

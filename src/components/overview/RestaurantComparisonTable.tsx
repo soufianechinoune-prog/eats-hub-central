@@ -24,7 +24,7 @@ import { format } from "date-fns";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
 type SortDirection = "asc" | "desc";
-type ChannelTab = "all" | "uber" | "deliveroo" | "cash";
+type ChannelTab = "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 
 import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
@@ -57,7 +57,7 @@ interface RestaurantComparisonTableProps {
   periodStart?: Date;
   periodEnd?: Date;
   /** Force le canal affiché (cache les tabs internes). */
-  forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
+  forcedChannel?: "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 }
 
 // Format helpers
@@ -157,6 +157,11 @@ export function RestaurantComparisonTable({
     for (const v of cashByRestaurant.values()) if (v.cashRevenue > 0) return true;
     return networkCashTotal > 0;
   }, [cashByRestaurant, networkCashTotal]);
+  const hasChataigne = useMemo(() => {
+    if (!chataigneByRestaurant) return false;
+    for (const v of chataigneByRestaurant.values()) if (v.revenue > 0) return true;
+    return false;
+  }, [chataigneByRestaurant]);
 
   // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
   // and rely on the mix-bar + chips under the CA column instead.
@@ -166,10 +171,16 @@ export function RestaurantComparisonTable({
   // Returns null when the restaurant has no data for that channel (filtered out).
   const projectForTab = useCallback((r: RestaurantNetworkStats) => {
     if (channelTab === "all") {
+      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Chataigne
+      const cashAll = cashByRestaurant?.get(r.id)?.cashRevenue ?? 0;
+      const cashOrdersAll = cashByRestaurant?.get(r.id)?.cashOrders ?? 0;
+      const chataigneAll = chataigneByRestaurant?.get(r.id);
+      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, chataigneAll?.revenue ?? 0);
+      const ordersAll = r.orders + Math.max(0, cashOrdersAll) + Math.max(0, chataigneAll?.orders ?? 0);
       return {
-        revenue: r.revenue,
-        orders: r.orders,
-        avgBasket: r.avgBasket,
+        revenue: revenueAll,
+        orders: ordersAll,
+        avgBasket: ordersAll > 0 ? revenueAll / ordersAll : 0,
         netPayout: r.netPayout,
         mealVoucher: r.mealVoucher,
         profitability: r.profitability,
@@ -216,6 +227,24 @@ export function RestaurantComparisonTable({
         hide: p.revenue <= 0,
       };
     }
+    if (channelTab === "chataigne") {
+      const c = chataigneByRestaurant?.get(r.id);
+      const rev = Math.max(0, c?.revenue ?? 0);
+      return {
+        revenue: rev,
+        orders: c?.orders ?? 0,
+        avgBasket: c?.avgBasket ?? 0,
+        netPayout: 0,
+        mealVoucher: 0,
+        profitability: null,
+        rating: null,
+        errorRate: null,
+        totalDeliveryTime: null,
+        downtime: null,
+        availabilityRate: null,
+        hide: rev <= 0,
+      };
+    }
     // cash
     const cashStats = cashByRestaurant?.get(r.id);
     const cash = cashStats?.cashRevenue ?? 0;
@@ -237,7 +266,7 @@ export function RestaurantComparisonTable({
       cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
-  }, [channelTab, cashByRestaurant]);
+  }, [channelTab, cashByRestaurant, chataigneByRestaurant]);
 
   // Column visibility per tab
   const cols = useMemo(() => {
@@ -383,6 +412,7 @@ export function RestaurantComparisonTable({
                   {hasUber && <TabsTrigger value="uber" className="text-xs px-3 data-[state=active]:text-uber">Uber Eats</TabsTrigger>}
                   {hasDeliveroo && <TabsTrigger value="deliveroo" className="text-xs px-3 data-[state=active]:text-deliveroo">Deliveroo</TabsTrigger>}
                   {hasCash && <TabsTrigger value="cash" className="text-xs px-3 data-[state=active]:text-cash">Caisse</TabsTrigger>}
+                  {hasChataigne && <TabsTrigger value="chataigne" className="text-xs px-3 data-[state=active]:text-emerald-600">Chataigne</TabsTrigger>}
                 </TabsList>
               </Tabs>
             )}
@@ -452,7 +482,9 @@ export function RestaurantComparisonTable({
                       <span className="inline-flex items-center gap-1">{channelTab === "cash" ? "CA TTC" : "CA"} <Info className="h-3 w-3 opacity-60" /></span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
-                      Chiffre d'affaires brut TTC, toutes commandes confondues (Uber + Deliveroo).
+                      {channelTab === "all"
+                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Uber Eats + Deliveroo + Caisse (Splash360) + Chataigne."
+                        : "Chiffre d'affaires brut TTC du canal sélectionné sur la période."}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
@@ -769,11 +801,12 @@ export function RestaurantComparisonTable({
               // For "all" use networkTotals (network-wide aggregates).
               // For other tabs compute totals from the visible projected rows.
               const isAll = channelTab === "all";
-              const sumRevenue = isAll ? networkTotals.totalRevenue : filteredStats.reduce((s, r) => s + r.v.revenue, 0);
+              // CA / commandes : toujours la somme des lignes projetées (inclut Caisse + Chataigne en vue "Tous").
+              const sumRevenue = filteredStats.reduce((s, r) => s + r.v.revenue, 0);
               const sumRevenueHT = channelTab === "cash"
                 ? filteredStats.reduce((s, r) => s + ((r.v as typeof r.v & { revenueHT?: number }).revenueHT ?? 0), 0)
                 : 0;
-              const sumOrders = isAll ? networkTotals.totalOrders : filteredStats.reduce((s, r) => s + r.v.orders, 0);
+              const sumOrders = filteredStats.reduce((s, r) => s + r.v.orders, 0);
               const sumPayout = isAll ? networkTotals.totalNetPayout : filteredStats.reduce((s, r) => s + r.v.netPayout, 0);
               const sumMeal = isAll ? networkTotals.totalMealVoucher : filteredStats.reduce((s, r) => s + r.v.mealVoucher, 0);
               const avgBasket = sumOrders > 0 ? sumRevenue / sumOrders : 0;
