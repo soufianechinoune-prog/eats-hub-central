@@ -279,6 +279,7 @@ export type AdjustmentCategory =
   | 'eco_contribution'
   | 'marketing_adjustment'
   | 'tax_rounding'
+  | 'service_fee'
   | 'adjustment'
   | 'other_fee';
 
