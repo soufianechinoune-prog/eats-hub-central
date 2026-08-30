@@ -6451,12 +6451,13 @@ export type Database = {
         }[]
       }
       get_payouts_consolidation_status: {
-        Args: { p_restaurant_ids?: string[]; p_year: number }
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
           coverage_pct: number
           month: number
           orders_total: number
           orders_with_payout_date: number
+          year: number
         }[]
       }
       get_prep_time_daily:
