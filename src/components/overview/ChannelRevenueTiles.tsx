@@ -70,7 +70,7 @@ export function ChannelRevenueTiles({
       key: "uber",
       label: "Uber Eats",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (ventes avant commission).",
-      icon: <img src={uberLogo.url} alt="Uber Eats" className="h-4 w-auto max-w-[76px] object-contain dark:invert dark:brightness-0 dark:invert-0" />,
+      icon: <img src={uberLogo.url} alt="Uber Eats" className="h-4 w-auto max-w-[76px] object-contain dark:invert" />,
       iconWrapClass: "bg-uber/10",
       valueClass: "text-uber",
       value: uber,
