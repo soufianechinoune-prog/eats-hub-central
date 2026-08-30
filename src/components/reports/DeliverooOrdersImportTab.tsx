@@ -32,6 +32,8 @@ export default function DeliverooOrdersImportTab() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [imported, setImported] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<{ current: number; total: number } | null>(null);
+
 
   const reset = () => { setFile(null); setCsv(""); setSummary(null); setImported(false); setProgress(null); };
 
