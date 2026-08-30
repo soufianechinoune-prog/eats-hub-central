@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { useChataigneByRestaurant } from "@/hooks/useChataigne";
 import { PayoutsConsolidationBanner } from "@/components/analytics/PayoutsConsolidationBanner";
 import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
@@ -431,6 +432,16 @@ const Overview = () => {
     chainId: analyticsCtx.selectedChainId,
     restaurantIds: activeIds,
   });
+  const { data: chataigneByRestaurantRaw } = useChataigneByRestaurant(startDate, endDate, activeIds ?? null);
+  const chataigneByRestaurant = useMemo(() => {
+    const m = new Map<string, { revenue: number; orders: number; avgBasket: number }>();
+    for (const r of chataigneByRestaurantRaw ?? []) {
+      if (!r.restaurant_id || !(r.ca_brut > 0)) continue;
+      m.set(r.restaurant_id, { revenue: r.ca_brut, orders: r.commandes, avgBasket: r.panier_moyen });
+    }
+    return m;
+  }, [chataigneByRestaurantRaw]);
+
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
   const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
@@ -1078,6 +1089,7 @@ const Overview = () => {
                 networkAdsPct={adsRatio.networkPct}
                 networkCashTotal={cashRevenueData?.totalCash ?? 0}
                 cashByRestaurant={cashByRestaurant}
+                chataigneByRestaurant={chataigneByRestaurant}
                 forcedChannel={activeChannel === "global" ? "all" : activeChannel}
               />
             )}
