@@ -1031,6 +1031,16 @@ const Overview = () => {
           </div>
           )}
 
+          {/* Consolidation versements : couverture payout_date < 100 % */}
+          {(activeChannel === "global" || activeChannel === "uber") && (
+            <PayoutsConsolidationBanner
+              restaurantIds={activeIds}
+              startDateStr={startDateStr}
+              endDateStr={endDateStr}
+              className="mt-6"
+            />
+          )}
+
           {/* Comprehensive Restaurant Comparison Table */}
           <div className="mt-6">
             {activeChannel === "uber-tr" ? (
