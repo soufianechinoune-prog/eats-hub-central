@@ -51,6 +51,11 @@ interface RestaurantComparisonTableProps {
   networkAdsPct?: number | null;
   /** Stats Caisse par restaurant (Splash360) — CA, commandes, panier, variation N-1. */
   cashByRestaurant?: Map<string, RestaurantCashStats>;
+  /** Stats Chataigne par restaurant — CA, commandes, panier moyen. */
+  chataigneByRestaurant?: Map<string, { revenue: number; orders: number; avgBasket: number }>;
+  /** Période effective (fallback sur le contexte analytics). */
+  periodStart?: Date;
+  periodEnd?: Date;
   /** Force le canal affiché (cache les tabs internes). */
   forcedChannel?: "all" | "uber" | "deliveroo" | "cash";
 }
@@ -125,13 +130,18 @@ export function RestaurantComparisonTable({
   networkAdsRevenue = 0,
   networkAdsPct = null,
   cashByRestaurant,
+  chataigneByRestaurant,
+  periodStart,
+  periodEnd,
   forcedChannel,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
   const { dateRange } = analyticsCtx;
-  const startDateStr = dateRange?.from ? format(dateRange.from, "yyyy-MM-dd") : "";
-  const endDateStr = dateRange?.to ? format(dateRange.to, "yyyy-MM-dd") : startDateStr;
+  const rangeFrom = periodStart ?? dateRange?.from;
+  const rangeTo = periodEnd ?? dateRange?.to;
+  const startDateStr = rangeFrom ? format(rangeFrom, "yyyy-MM-dd") : "";
+  const endDateStr = rangeTo ? format(rangeTo, "yyyy-MM-dd") : startDateStr;
   const [sortColumn, setSortColumn] = useState<SortColumn>("revenue");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
@@ -563,6 +573,7 @@ export function RestaurantComparisonTable({
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
                           if (cash > 0) active.push("cash");
+                          if ((chataigneByRestaurant?.get(resto.id)?.revenue ?? 0) > 0) active.push("chataigne");
                           return <ChannelChips channels={active} />;
                         })()}
                       </div>
@@ -574,6 +585,7 @@ export function RestaurantComparisonTable({
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
                           { id: "cash", revenue: cash },
+                          { id: "chataigne", revenue: chataigneByRestaurant?.get(resto.id)?.revenue ?? 0 },
                         ];
                         return (
                           <div className="flex flex-col items-end gap-1">
@@ -738,6 +750,9 @@ export function RestaurantComparisonTable({
                           <ChannelBreakdownPanel
                             resto={resto}
                             cash={cash}
+                            chataigne={chataigneByRestaurant?.get(resto.id)}
+                            startDate={startDateStr}
+                            endDate={endDateStr}
                             adsPct={adsPct}
                           />
                         </TableCell>

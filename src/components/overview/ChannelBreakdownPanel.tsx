@@ -2,6 +2,7 @@ import { Star, Store, ShoppingBag, Globe, MessageCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { RestaurantNetworkStats, PlatformBreakdown } from "@/hooks/useNetworkStats";
 import { getMetricStatus, getStatusTextClass } from "@/lib/performanceThresholds";
+import { ChannelDailyRevenueChart } from "@/components/overview/ChannelDailyRevenueChart";
 
 /* ------------------------------------------------------------------ */
 /* Format helpers                                                      */
@@ -18,7 +19,7 @@ const fmtMin = (v: number | null | undefined) =>
 /* ------------------------------------------------------------------ */
 /* Channel definitions                                                 */
 /* ------------------------------------------------------------------ */
-export type ChannelId = "uber" | "deliveroo" | "cash" | "eshop" | "whatsapp";
+export type ChannelId = "uber" | "deliveroo" | "cash" | "chataigne" | "eshop" | "whatsapp";
 
 interface ChannelMeta {
   id: ChannelId;
@@ -30,10 +31,11 @@ interface ChannelMeta {
   barColor: string;
 }
 
-const CHANNEL_META: Record<ChannelId, ChannelMeta> = {
+export const CHANNEL_META: Record<ChannelId, ChannelMeta> = {
   uber:      { id: "uber",      label: "Uber Eats", icon: ShoppingBag,   textClass: "text-uber",      barColor: "hsl(var(--uber))" },
   deliveroo: { id: "deliveroo", label: "Deliveroo", icon: ShoppingBag,   textClass: "text-deliveroo", barColor: "hsl(var(--deliveroo))" },
   cash:      { id: "cash",      label: "Caisse",    icon: Store,         textClass: "text-cash",      barColor: "hsl(var(--cash))" },
+  chataigne: { id: "chataigne", label: "Chataigne", icon: MessageCircle, textClass: "text-emerald-600 dark:text-emerald-400", barColor: "hsl(142 71% 45%)" },
   eshop:     { id: "eshop",     label: "eShop",     icon: Globe,         textClass: "text-blue-500",  barColor: "hsl(217 91% 60%)" },
   whatsapp:  { id: "whatsapp",  label: "WhatsApp",  icon: MessageCircle, textClass: "text-emerald-500", barColor: "hsl(142 71% 45%)" },
 };
@@ -270,6 +272,11 @@ export interface ChannelBreakdownPanelProps {
   resto: RestaurantNetworkStats;
   /** CA caisse pour ce restaurant (Splash360). */
   cash?: number;
+  /** CA / commandes Chataigne pour ce restaurant. */
+  chataigne?: { revenue: number; orders: number; avgBasket: number };
+  /** Période pour le graphique quotidien (yyyy-MM-dd). */
+  startDate?: string;
+  endDate?: string;
   /** % pub Uber (déjà calculé). */
   adsPct?: number | null;
   onChannelClick?: (channel: ChannelId) => void;
@@ -278,6 +285,9 @@ export interface ChannelBreakdownPanelProps {
 export function ChannelBreakdownPanel({
   resto,
   cash = 0,
+  chataigne,
+  startDate,
+  endDate,
   adsPct = null,
   onChannelClick,
 }: ChannelBreakdownPanelProps) {
@@ -285,7 +295,8 @@ export function ChannelBreakdownPanel({
   const deliveroo = resto.platformBreakdown.deliveroo;
 
   // Total includes caisse (cash) for share computation
-  const total = resto.revenue + Math.max(0, cash);
+  const chataigneRevenue = Math.max(0, chataigne?.revenue ?? 0);
+  const total = resto.revenue + Math.max(0, cash) + chataigneRevenue;
 
   const channels: ChannelCardData[] = [];
   if (uber.revenue > 0 || uber.orders > 0) {
@@ -326,6 +337,16 @@ export function ChannelBreakdownPanel({
     });
   }
 
+  if (chataigneRevenue > 0) {
+    channels.push({
+      id: "chataigne",
+      revenue: chataigneRevenue,
+      share: total > 0 ? (chataigneRevenue / total) * 100 : 0,
+      orders: chataigne?.orders,
+      avgBasket: chataigne?.avgBasket,
+    });
+  }
+
   const segments: ChannelSegment[] = channels.map((c) => ({ id: c.id, revenue: c.revenue }));
 
   if (channels.length === 0) {
@@ -361,6 +382,16 @@ export function ChannelBreakdownPanel({
           />
         ))}
       </div>
+
+      {/* Évolution quotidienne par canal */}
+      {startDate && endDate && (
+        <ChannelDailyRevenueChart
+          restaurantId={resto.id}
+          startDate={startDate}
+          endDate={endDate}
+          channels={channels.map((c) => c.id)}
+        />
+      )}
     </div>
   );
 }
