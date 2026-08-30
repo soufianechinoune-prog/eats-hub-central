@@ -1757,7 +1757,19 @@ export default function ReportImport() {
       </div>
 
       {platform === "deliveroo" ? (
-        <DeliverooImportTab restaurants={restaurants} />
+        <Tabs defaultValue="orders">
+          <TabsList>
+            <TabsTrigger value="orders">Commandes (par commande)</TabsTrigger>
+            <TabsTrigger value="statement">Relevé de paiement</TabsTrigger>
+          </TabsList>
+          <TabsContent value="orders" className="mt-6">
+            <DeliverooOrdersImportTab />
+          </TabsContent>
+          <TabsContent value="statement" className="mt-6">
+            <DeliverooImportTab restaurants={restaurants} />
+          </TabsContent>
+        </Tabs>
+
       ) : (
       <>
 
