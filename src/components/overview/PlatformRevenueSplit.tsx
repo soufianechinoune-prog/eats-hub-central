@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { motion } from "framer-motion";
-import { Store, Info, TrendingUp, TrendingDown } from "lucide-react";
+import { Store, Info, TrendingUp, TrendingDown, MessageCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
@@ -16,6 +16,8 @@ interface Props {
   cashVariation?: number | null;
   /** True si une caisse est connectée pour la marque active (même si 0 donnée sur la période). */
   cashConnected?: boolean;
+  /** CA Chataigne (WhatsApp) sur la période. */
+  chataigneTotal?: number;
 }
 
 export function PlatformRevenueSplit({
@@ -25,8 +27,9 @@ export function PlatformRevenueSplit({
   cashDaysWithData,
   cashVariation = null,
   cashConnected = false,
+  chataigneTotal = 0,
 }: Props) {
-  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct } = useMemo(() => {
+  const { uberTotal, deliverooTotal, total, uberPct, deliverooPct, cashPct, chataignePct } = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
     for (const s of stats) {
@@ -34,7 +37,8 @@ export function PlatformRevenueSplit({
       deliveroo += s.platformBreakdown.deliveroo.revenue;
     }
     const cash = Math.max(0, cashTotal);
-    const t = uber + deliveroo + cash;
+    const chataigne = Math.max(0, chataigneTotal);
+    const t = uber + deliveroo + cash + chataigne;
     return {
       uberTotal: uber,
       deliverooTotal: deliveroo,
@@ -42,8 +46,9 @@ export function PlatformRevenueSplit({
       uberPct: t > 0 ? (uber / t) * 100 : 0,
       deliverooPct: t > 0 ? (deliveroo / t) * 100 : 0,
       cashPct: t > 0 ? (cash / t) * 100 : 0,
+      chataignePct: t > 0 ? (chataigne / t) * 100 : 0,
     };
-  }, [stats, cashTotal]);
+  }, [stats, cashTotal, chataigneTotal]);
 
   if (isLoading) {
     return (
@@ -65,6 +70,7 @@ export function PlatformRevenueSplit({
   if (total === 0) return null;
 
   const hasCash = cashTotal > 0;
+  const hasChataigne = chataigneTotal > 0;
 
   return (
     <Card className="border-border/50 backdrop-blur">
@@ -105,7 +111,7 @@ export function PlatformRevenueSplit({
 
           {/* Deliveroo segment */}
           <motion.div
-            className={`h-full bg-deliveroo flex items-center justify-center ${hasCash ? "" : "rounded-r-full"}`}
+            className={`h-full bg-deliveroo flex items-center justify-center ${hasCash || hasChataigne ? "" : "rounded-r-full"}`}
             initial={{ width: 0 }}
             animate={{ width: `${deliverooPct}%` }}
             transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
@@ -125,7 +131,7 @@ export function PlatformRevenueSplit({
           {/* Cash segment */}
           {hasCash && (
             <motion.div
-              className="h-full bg-cash flex items-center justify-center rounded-r-full"
+              className={`h-full bg-cash flex items-center justify-center ${hasChataigne ? "" : "rounded-r-full"}`}
               initial={{ width: 0 }}
               animate={{ width: `${cashPct}%` }}
               transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.3 }}
@@ -138,6 +144,27 @@ export function PlatformRevenueSplit({
                   transition={{ delay: 0.9 }}
                 >
                   {cashPct.toFixed(1)}%
+                </motion.span>
+              )}
+            </motion.div>
+          )}
+
+          {/* Chataigne segment */}
+          {hasChataigne && (
+            <motion.div
+              className="h-full bg-emerald-500 flex items-center justify-center rounded-r-full"
+              initial={{ width: 0 }}
+              animate={{ width: `${chataignePct}%` }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1], delay: 0.45 }}
+            >
+              {chataignePct > 12 && (
+                <motion.span
+                  className="text-xs font-semibold text-white drop-shadow-sm"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.05 }}
+                >
+                  {chataignePct.toFixed(1)}%
                 </motion.span>
               )}
             </motion.div>
@@ -166,6 +193,18 @@ export function PlatformRevenueSplit({
               <span className="text-sm font-medium">Caisse</span>
               <span className="text-sm font-semibold text-cash">
                 <AnimatedNumber value={Math.round(cashTotal)} duration={800} /> €
+              </span>
+            </div>
+          )}
+          {hasChataigne && (
+            <div className="flex items-center gap-2">
+              <MessageCircle className="h-[18px] w-[18px] text-emerald-600 dark:text-emerald-400" />
+              <span className="text-sm font-medium">Chataigne</span>
+              <span className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                <AnimatedNumber value={Math.round(chataigneTotal)} duration={800} /> €
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {chataignePct.toFixed(1)}%
               </span>
             </div>
           )}
