@@ -412,6 +412,7 @@ export function RestaurantComparisonTable({
                   {hasUber && <TabsTrigger value="uber" className="text-xs px-3 data-[state=active]:text-uber">Uber Eats</TabsTrigger>}
                   {hasDeliveroo && <TabsTrigger value="deliveroo" className="text-xs px-3 data-[state=active]:text-deliveroo">Deliveroo</TabsTrigger>}
                   {hasCash && <TabsTrigger value="cash" className="text-xs px-3 data-[state=active]:text-cash">Caisse</TabsTrigger>}
+                  {hasChataigne && <TabsTrigger value="chataigne" className="text-xs px-3 data-[state=active]:text-emerald-600">Chataigne</TabsTrigger>}
                 </TabsList>
               </Tabs>
             )}
@@ -481,7 +482,9 @@ export function RestaurantComparisonTable({
                       <span className="inline-flex items-center gap-1">{channelTab === "cash" ? "CA TTC" : "CA"} <Info className="h-3 w-3 opacity-60" /></span>
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs text-xs">
-                      Chiffre d'affaires brut TTC, toutes commandes confondues (Uber + Deliveroo).
+                      {channelTab === "all"
+                        ? "Chiffre d'affaires brut TTC tous canaux sur la période : Uber Eats + Deliveroo + Caisse (Splash360) + Chataigne."
+                        : "Chiffre d'affaires brut TTC du canal sélectionné sur la période."}
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
