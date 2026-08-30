@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import splashLogo from "@/assets/splash360-logo.png.asset.json";
 import dishopLogo from "@/assets/dishop-logo.png.asset.json";
 import chataigneLogo from "@/assets/chataigne-logo.png.asset.json";
-import uberLogo from "@/assets/uber-eats-wordmark-cropped.png.asset.json";
+import uberLogo from "@/assets/uber-eats-wordmark-tight.png.asset.json";
 import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 
 
