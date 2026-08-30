@@ -17,6 +17,7 @@ import {
   Leaf,
   Sparkles,
   Ticket,
+  PauseCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -69,11 +70,24 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
   { id: "eco", label: "Éco-Contribution", icon: Leaf, route: "/analytics/eco-contribution" },
 ];
 
+// Sous-onglets Deliveroo — uniquement les vues alimentées par la donnée Deliveroo
+const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
+  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "revenue", label: "Revenus & Ventes", icon: Euro, route: "/analytics/revenue" },
+  { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
+  { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
+  { id: "downtime", label: "Disponibilité", icon: PauseCircle, route: "/compare/downtime" },
+];
+
 export function OverviewChannelSidebar({ active, onChange, available }: OverviewChannelSidebarProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
-  const [expandedUber, setExpandedUber] = useState(active === "uber" || active === "uber-tr");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    uber: active === "uber" || active === "uber-tr",
+    deliveroo: active === "deliveroo",
+  });
   const [activeSubId, setActiveSubId] = useState<string>(active === "uber-tr" ? "titres-restaurant" : "synthese");
+
 
   const globalItem: NavItem = {
     id: "global",
@@ -93,7 +107,13 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
     });
   }
   if (available.deliveroo) {
-    channelItems.push({ id: "deliveroo", label: "Deliveroo", icon: ShoppingBag, dotClass: "bg-deliveroo" });
+    channelItems.push({
+      id: "deliveroo",
+      label: "Deliveroo",
+      icon: ShoppingBag,
+      dotClass: "bg-deliveroo",
+      subItems: DELIVEROO_SUB_ITEMS,
+    });
   }
   if (available.cash) {
     channelItems.push({ id: "cash", label: "Caisse", icon: Store, dotClass: "bg-cash" });
@@ -107,25 +127,26 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
 
   const handleChannelClick = (item: NavItem) => {
     onChange(item.id);
-    if (item.id === "uber") {
-      setExpandedUber(true);
+    if (item.subItems?.length) {
+      setExpanded((prev) => ({ ...prev, [item.id]: true }));
       setActiveSubId("synthese");
     }
   };
 
-  const handleSubItemClick = (sub: SubNavItem) => {
+  const handleSubItemClick = (sub: SubNavItem, channel: OverviewChannel) => {
     setActiveSubId(sub.id);
     if (sub.channel) {
       onChange(sub.channel);
       return;
     }
     if (!sub.route) {
-      onChange("uber");
+      onChange(channel);
       return;
     }
-    analyticsCtx.setSelectedPlatform("uber_eats");
+    analyticsCtx.setSelectedPlatform(channel === "deliveroo" ? "deliveroo" : "uber_eats");
     navigate(sub.route);
   };
+
 
   return (
     <aside className="w-60 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
@@ -152,7 +173,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
               {channelItems.map((item) => {
                 const isActive = active === item.id || (item.id === "uber" && active === "uber-tr");
                 const hasSubs = (item.subItems?.length ?? 0) > 0;
-                const isExpanded = item.id === "uber" ? expandedUber : false;
+                const isExpanded = !!expanded[item.id];
                 return (
                   <div key={item.id}>
                     <NavButton
@@ -166,7 +187,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
                             aria-label={isExpanded ? "Replier" : "Déplier"}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (item.id === "uber") setExpandedUber((v) => !v);
+                              setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
                             }}
                             className="p-0.5 rounded hover:bg-muted/60"
                           >
@@ -189,7 +210,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
                             <button
                               key={sub.id}
                               type="button"
-                              onClick={() => handleSubItemClick(sub)}
+                              onClick={() => handleSubItemClick(sub, item.id)}
                               className={cn(
                                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] transition-colors",
                                 "hover:bg-muted/60",

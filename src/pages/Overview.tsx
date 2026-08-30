@@ -37,6 +37,7 @@ import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRes
 import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
 import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
 import { UberLiveTodayCard } from "@/components/overview/UberLiveTodayCard";
+import { DeliverooChannelSummary } from "@/components/overview/DeliverooChannelSummary";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -731,7 +732,18 @@ const Overview = () => {
         </div>
       ) : (
         <div>
+          {activeChannel === "deliveroo" && (
+            <div className="mb-8">
+              <DeliverooChannelSummary
+                restaurantIds={activeIds}
+                startDate={startDateStr}
+                endDate={endDateStr}
+                periodLabel={getPeriodLabel()}
+              />
+            </div>
+          )}
           <div className={cn("grid gap-8", activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+
             {/* Uber Eats Card — métriques opérationnelles, réservées à l'onglet Uber Eats */}
             {activeChannel === "uber" && (
             <Card className={cn(
