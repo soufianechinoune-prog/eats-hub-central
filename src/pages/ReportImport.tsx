@@ -15,6 +15,8 @@ import ImportHistory from "@/components/reports/ImportHistory";
 import BulkImportTab from "@/components/reports/BulkImportTab";
 import UnknownStoreMapping from "@/components/reports/UnknownStoreMapping";
 import DeliverooImportTab from "@/components/reports/DeliverooImportTab";
+import DeliverooOrdersImportTab from "@/components/reports/DeliverooOrdersImportTab";
+
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
 import { SuccessScorePreviewEditor } from "@/components/success-score/SuccessScorePreviewEditor";
