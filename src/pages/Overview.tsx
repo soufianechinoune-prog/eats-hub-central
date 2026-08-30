@@ -634,7 +634,7 @@ const Overview = () => {
       <div className="flex-1 min-w-0 p-8 space-y-8">
 
       {/* Header with glassmorphism */}
-      <div className="flex items-center justify-between backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+      <div className="flex items-center justify-between gap-4 flex-wrap backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
         <div>
           <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
             Vue d'ensemble
