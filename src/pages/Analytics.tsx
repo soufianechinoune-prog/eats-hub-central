@@ -1431,6 +1431,15 @@ export default function Analytics() {
               );
             } else {
               return (
+                <>
+                {viewMode === "finances" && (
+                  <PayoutsConsolidationBanner
+                    restaurantIds={restaurantFilter}
+                    startDateStr={format(startDate, "yyyy-MM-dd")}
+                    endDateStr={format(endDate, "yyyy-MM-dd")}
+                    className="mb-4"
+                  />
+                )}
                 <AnalyticsCharts
                   revenueData={currentRevenueData}
                   conversionData={currentConversionData}
