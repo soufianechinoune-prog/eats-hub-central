@@ -279,6 +279,7 @@ export type AdjustmentCategory =
   | 'eco_contribution'
   | 'marketing_adjustment'
   | 'tax_rounding'
+  | 'service_fee'
   | 'adjustment'
   | 'other_fee';
 
@@ -315,7 +316,8 @@ export function routeAdjustment(
     'depenses publicitaires': 'advertising',
     'credits publicitaires': 'advertising',
     'depenses marketing': 'advertising',
-    'ajustement des frais de service': 'adjustment',
+    'ajustement des frais de service': 'service_fee',
+    'ajustement de frais de service': 'service_fee',
     "ajustement lie a l'arrondissement de la tva": 'tax_rounding',
     "ajustement lie a l'arrondi de la tva": 'tax_rounding',
     'remboursements du restaurant': 'other_fee',
@@ -356,6 +358,9 @@ export function routeAdjustment(
   }
 
   // --- 6. Restes reconnus ---
+  if (d.includes('frais de service') || d.includes('service fee')) {
+    return { category: 'service_fee', recognized: true, rule: 'pattern:service_fee' };
+  }
   if (d.includes('ajustement') || d.includes('adjustment')) {
     return { category: 'adjustment', recognized: true, rule: 'pattern:adjustment' };
   }
