@@ -186,7 +186,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
                             aria-label={isExpanded ? "Replier" : "Déplier"}
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (item.id === "uber") setExpandedUber((v) => !v);
+                              setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
                             }}
                             className="p-0.5 rounded hover:bg-muted/60"
                           >
