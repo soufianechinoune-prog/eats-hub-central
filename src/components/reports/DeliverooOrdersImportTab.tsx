@@ -33,7 +33,60 @@ export default function DeliverooOrdersImportTab() {
   const [imported, setImported] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const reset = () => { setFile(null); setCsv(""); setSummary(null); setImported(false); };
+  const reset = () => { setFile(null); setCsv(""); setSummary(null); setImported(false); setProgress(null); };
+
+  const CHUNK_ROWS = 3000;
+
+  const runChunks = async (content: string, fileName: string, dryRun: boolean): Promise<Summary> => {
+    const lines = content.split(/\r?\n/).filter((l) => l.trim());
+    const header = lines[0];
+    const body = lines.slice(1);
+    const chunks: string[] = [];
+    for (let i = 0; i < body.length; i += CHUNK_ROWS) {
+      chunks.push([header, ...body.slice(i, i + CHUNK_ROWS)].join("\n"));
+    }
+
+    const agg: Summary = {
+      totalRows: 0, skipped: 0, matched: 0, unmatchedRows: 0,
+      dateRange: { start: null, end: null },
+      restaurants: [], unmatchedNames: [], revenue: 0, netOfCommission: 0, inserted: 0, errors: [],
+    };
+    const restMap = new Map<string, { id: string; name: string; count: number; subtotal: number }>();
+    const unmatchedMap = new Map<string, { name: string; count: number; subtotal: number }>();
+
+    for (let i = 0; i < chunks.length; i++) {
+      setProgress({ current: i + 1, total: chunks.length });
+      const { data, error } = await supabase.functions.invoke("ingest-deliveroo-orders", {
+        body: { csvContent: chunks[i], fileName, dryRun },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const d = data as Summary;
+      agg.totalRows += d.totalRows;
+      agg.skipped += d.skipped;
+      agg.matched += d.matched;
+      agg.unmatchedRows += d.unmatchedRows;
+      agg.revenue += d.revenue;
+      agg.netOfCommission += d.netOfCommission;
+      agg.inserted = (agg.inserted || 0) + (d.inserted || 0);
+      if (d.errors?.length) agg.errors = [...(agg.errors || []), ...d.errors];
+      if (d.dateRange.start && (!agg.dateRange.start || d.dateRange.start < agg.dateRange.start)) agg.dateRange.start = d.dateRange.start;
+      if (d.dateRange.end && (!agg.dateRange.end || d.dateRange.end > agg.dateRange.end)) agg.dateRange.end = d.dateRange.end;
+      for (const r of d.restaurants) {
+        const e = restMap.get(r.id);
+        if (e) { e.count += r.count; e.subtotal += r.subtotal; } else restMap.set(r.id, { ...r });
+      }
+      for (const u of d.unmatchedNames) {
+        const e = unmatchedMap.get(u.name);
+        if (e) { e.count += u.count; e.subtotal += u.subtotal; } else unmatchedMap.set(u.name, { ...u });
+      }
+    }
+
+    agg.restaurants = Array.from(restMap.values()).sort((a, b) => b.subtotal - a.subtotal);
+    agg.unmatchedNames = Array.from(unmatchedMap.values()).sort((a, b) => b.subtotal - a.subtotal);
+    setProgress(null);
+    return agg;
+  };
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
@@ -42,12 +95,8 @@ export default function DeliverooOrdersImportTab() {
     setImported(false);
     try {
       const content = new TextDecoder("utf-8").decode(await f.arrayBuffer());
-      const { data, error } = await supabase.functions.invoke("ingest-deliveroo-orders", {
-        body: { csvContent: content, fileName: f.name, dryRun: true },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setFile(f); setCsv(content); setSummary(data as Summary);
+      const agg = await runChunks(content, f.name, true);
+      setFile(f); setCsv(content); setSummary(agg);
     } catch (err: any) {
       toast({ title: "Erreur de lecture", description: err.message, variant: "destructive" });
     } finally {
@@ -59,20 +108,17 @@ export default function DeliverooOrdersImportTab() {
     if (!csv) return;
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("ingest-deliveroo-orders", {
-        body: { csvContent: csv, fileName: file?.name, dryRun: false },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setSummary(data as Summary);
+      const agg = await runChunks(csv, file?.name || "", false);
+      setSummary(agg);
       setImported(true);
-      toast({ title: "Import terminé", description: `${data.inserted} commandes enregistrées` });
+      toast({ title: "Import terminé", description: `${agg.inserted} commandes enregistrées` });
     } catch (err: any) {
       toast({ title: "Erreur d'import", description: err.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
+
 
   return (
     <div className="space-y-6">
