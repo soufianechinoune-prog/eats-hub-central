@@ -101,6 +101,9 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
   if (available.dishop) {
     channelItems.push({ id: "dishop", label: "Dishop", icon: Globe, dotClass: "bg-blue-500" });
   }
+  if (available.chataigne) {
+    channelItems.push({ id: "chataigne", label: "Chataigne", icon: MessageCircle, dotClass: "bg-emerald-500" });
+  }
 
   const handleChannelClick = (item: NavItem) => {
     onChange(item.id);
