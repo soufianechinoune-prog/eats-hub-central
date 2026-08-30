@@ -164,39 +164,19 @@ export function useRestaurantConsolidatedExport({
     enabled: restaurantIds.length > 0,
   });
 
-  // Fetch payouts for current period
+  // Versements recalculés depuis orders + payout_adjustments (table `payouts` dépréciée)
   const { data: currentPayouts } = useQuery({
     queryKey: ["payouts-export-current", restaurantIds, currentStartStr, currentEndStr],
-    queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("*")
-        .in("restaurant_id", restaurantIds)
-        .gte("payout_date", currentStartStr)
-        .lte("payout_date", currentEndStr);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: async () => fetchPayoutRows(restaurantIds, currentStartStr, currentEndStr),
     enabled: restaurantIds.length > 0,
   });
 
-  // Fetch payouts for previous period
   const { data: prevPayouts } = useQuery({
     queryKey: ["payouts-export-prev", restaurantIds, prevStartStr, prevEndStr],
-    queryFn: async () => {
-      if (restaurantIds.length === 0) return [];
-      const { data, error } = await supabase
-        .from("payouts")
-        .select("*")
-        .in("restaurant_id", restaurantIds)
-        .gte("payout_date", prevStartStr)
-        .lte("payout_date", prevEndStr);
-      if (error) throw error;
-      return data || [];
-    },
+    queryFn: async () => fetchPayoutRows(restaurantIds, prevStartStr, prevEndStr),
     enabled: restaurantIds.length > 0,
   });
+
 
   // Fetch orders for current period (for revenue if payouts don't have it)
   const { data: currentOrders } = useQuery({
