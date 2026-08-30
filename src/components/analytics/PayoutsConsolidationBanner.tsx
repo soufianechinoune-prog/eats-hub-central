@@ -82,6 +82,13 @@ export function PayoutsConsolidationBanner({
             </div>
           ))}
         </div>
+        {pendingAuth > 0 && (
+          <p className="text-[11px] text-amber-700/80 dark:text-amber-300/70">
+            {pendingAuth} boutique{pendingAuth > 1 ? "s" : ""} en attente
+            d'autorisation Uber — exclue{pendingAuth > 1 ? "s" : ""} du calcul.
+          </p>
+        )}
+
       </AlertDescription>
     </Alert>
   );
