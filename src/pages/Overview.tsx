@@ -432,7 +432,11 @@ const Overview = () => {
     chainId: analyticsCtx.selectedChainId,
     restaurantIds: activeIds,
   });
-  const { data: chataigneByRestaurantRaw } = useChataigneByRestaurant(startDate, endDate, activeIds ?? null);
+  const { data: chataigneByRestaurantRaw } = useChataigneByRestaurant(
+    format(startDate, "yyyy-MM-dd"),
+    format(endDate, "yyyy-MM-dd"),
+    activeIds ?? null,
+  );
   const chataigneByRestaurant = useMemo(() => {
     const m = new Map<string, { revenue: number; orders: number; avgBasket: number }>();
     for (const r of chataigneByRestaurantRaw ?? []) {
