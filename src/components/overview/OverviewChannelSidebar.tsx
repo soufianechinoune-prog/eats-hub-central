@@ -209,7 +209,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
                             <button
                               key={sub.id}
                               type="button"
-                              onClick={() => handleSubItemClick(sub)}
+                              onClick={() => handleSubItemClick(sub, item.id)}
                               className={cn(
                                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] transition-colors",
                                 "hover:bg-muted/60",
