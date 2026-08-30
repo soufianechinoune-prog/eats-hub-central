@@ -106,7 +106,13 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
     });
   }
   if (available.deliveroo) {
-    channelItems.push({ id: "deliveroo", label: "Deliveroo", icon: ShoppingBag, dotClass: "bg-deliveroo" });
+    channelItems.push({
+      id: "deliveroo",
+      label: "Deliveroo",
+      icon: ShoppingBag,
+      dotClass: "bg-deliveroo",
+      subItems: DELIVEROO_SUB_ITEMS,
+    });
   }
   if (available.cash) {
     channelItems.push({ id: "cash", label: "Caisse", icon: Store, dotClass: "bg-cash" });
@@ -120,25 +126,26 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
 
   const handleChannelClick = (item: NavItem) => {
     onChange(item.id);
-    if (item.id === "uber") {
-      setExpandedUber(true);
+    if (item.subItems?.length) {
+      setExpanded((prev) => ({ ...prev, [item.id]: true }));
       setActiveSubId("synthese");
     }
   };
 
-  const handleSubItemClick = (sub: SubNavItem) => {
+  const handleSubItemClick = (sub: SubNavItem, channel: OverviewChannel) => {
     setActiveSubId(sub.id);
     if (sub.channel) {
       onChange(sub.channel);
       return;
     }
     if (!sub.route) {
-      onChange("uber");
+      onChange(channel);
       return;
     }
-    analyticsCtx.setSelectedPlatform("uber_eats");
+    analyticsCtx.setSelectedPlatform(channel === "deliveroo" ? "deliveroo" : "uber_eats");
     navigate(sub.route);
   };
+
 
   return (
     <aside className="w-60 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
