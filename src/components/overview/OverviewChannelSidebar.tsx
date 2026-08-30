@@ -172,7 +172,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
               {channelItems.map((item) => {
                 const isActive = active === item.id || (item.id === "uber" && active === "uber-tr");
                 const hasSubs = (item.subItems?.length ?? 0) > 0;
-                const isExpanded = item.id === "uber" ? expandedUber : false;
+                const isExpanded = !!expanded[item.id];
                 return (
                   <div key={item.id}>
                     <NavButton
