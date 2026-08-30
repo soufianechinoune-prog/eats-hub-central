@@ -171,10 +171,16 @@ export function RestaurantComparisonTable({
   // Returns null when the restaurant has no data for that channel (filtered out).
   const projectForTab = useCallback((r: RestaurantNetworkStats) => {
     if (channelTab === "all") {
+      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Chataigne
+      const cashAll = cashByRestaurant?.get(r.id)?.cashRevenue ?? 0;
+      const cashOrdersAll = cashByRestaurant?.get(r.id)?.cashOrders ?? 0;
+      const chataigneAll = chataigneByRestaurant?.get(r.id);
+      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, chataigneAll?.revenue ?? 0);
+      const ordersAll = r.orders + Math.max(0, cashOrdersAll) + Math.max(0, chataigneAll?.orders ?? 0);
       return {
-        revenue: r.revenue,
-        orders: r.orders,
-        avgBasket: r.avgBasket,
+        revenue: revenueAll,
+        orders: ordersAll,
+        avgBasket: ordersAll > 0 ? revenueAll / ordersAll : 0,
         netPayout: r.netPayout,
         mealVoucher: r.mealVoucher,
         profitability: r.profitability,
@@ -219,6 +225,24 @@ export function RestaurantComparisonTable({
         downtime: null,
         availabilityRate: null,
         hide: p.revenue <= 0,
+      };
+    }
+    if (channelTab === "chataigne") {
+      const c = chataigneByRestaurant?.get(r.id);
+      const rev = Math.max(0, c?.revenue ?? 0);
+      return {
+        revenue: rev,
+        orders: c?.orders ?? 0,
+        avgBasket: c?.avgBasket ?? 0,
+        netPayout: 0,
+        mealVoucher: 0,
+        profitability: null,
+        rating: null,
+        errorRate: null,
+        totalDeliveryTime: null,
+        downtime: null,
+        availabilityRate: null,
+        hide: rev <= 0,
       };
     }
     // cash
