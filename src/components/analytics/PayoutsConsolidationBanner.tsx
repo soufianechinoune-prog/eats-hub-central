@@ -38,6 +38,11 @@ export function PayoutsConsolidationBanner({
 
   if (!incompleteMonths || incompleteMonths.length === 0) return null;
 
+  const pendingAuth = Math.max(
+    0,
+    ...incompleteMonths.map((m) => m.storesPendingAuth || 0),
+  );
+
   return (
     <Alert
       className={
@@ -53,8 +58,10 @@ export function PayoutsConsolidationBanner({
         <p className="text-sm">
           L'import Uber rattache encore des commandes à leur cycle de versement.
           Les montants des mois ci-dessous sont partiels et augmenteront
-          automatiquement à la fin de la synchronisation.
+          automatiquement à la fin de la synchronisation. Périmètre : uniquement
+          les restaurants dont l'accès API Uber est actif.
         </p>
+
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {incompleteMonths.map((m) => (
             <div
