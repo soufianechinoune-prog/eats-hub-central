@@ -646,6 +646,7 @@ export function RestaurantComparisonTable({
                           if (resto.platformBreakdown.uber.revenue > 0) active.push("uber");
                           if (resto.platformBreakdown.deliveroo.revenue > 0) active.push("deliveroo");
                           if (cash > 0) active.push("cash");
+                          if ((dishopByRestaurant?.get(resto.id) ?? 0) > 0) active.push("eshop");
                           if ((chataigneByRestaurant?.get(resto.id)?.revenue ?? 0) > 0) active.push("chataigne");
                           return <ChannelChips channels={active} />;
                         })()}
@@ -658,6 +659,7 @@ export function RestaurantComparisonTable({
                           { id: "uber", revenue: resto.platformBreakdown.uber.revenue },
                           { id: "deliveroo", revenue: resto.platformBreakdown.deliveroo.revenue },
                           { id: "cash", revenue: cash },
+                          { id: "eshop", revenue: dishopByRestaurant?.get(resto.id) ?? 0 },
                           { id: "chataigne", revenue: chataigneByRestaurant?.get(resto.id)?.revenue ?? 0 },
                         ];
                         return (
