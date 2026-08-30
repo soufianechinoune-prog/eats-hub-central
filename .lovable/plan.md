@@ -1,36 +1,39 @@
 # CA Dishop : pourquoi le chiffre paraît faux
 
-## Ce que montrent les données
+## Réponse à la question
 
-La tuile « Dishop » affiche 62 831 € pour juillet 2026. En base, deux problèmes expliquent ce chiffre :
+Oui, l'intégration API Dishop existe : une tâche automatique tourne chaque lundi à 05h00, appelle l'API Dishop (export hebdomadaire « accounting-report »), télécharge un ZIP (commandes, facturations, clients) et l'insère en base.
 
-**1. Les données Dishop s'arrêtent au 15 juillet 2026**
+## Cause identifiée : identifiants Dishop expirés depuis le 20 juillet
 
-Dernière semaine importée : 13 → 15 juillet (3 jours seulement). Historique par semaine :
+Historique des synchronisations :
 
 ```text
-sem. 01-07 juin : 37 977 €    sem. 29 juin-05 juil : 32 799 €
-sem. 08-14 juin : 37 847 €    sem. 06-12 juil     : 34 013 €
-sem. 15-21 juin : 29 854 €    sem. 13-15 juil     :  7 477 €  <- s'arrête ici
-sem. 22-28 juin : 33 003 €
+13/07 : succès — 1 418 commandes importées
+20/07 : succès — 1 400 commandes (dernière donnée : 15/07)
+27/07 : ECHEC — 403 « Invalid client credentials » sur /v1/api/oauth/token
+03/08 : ECHEC — idem
+10/08 : ECHEC — idem
+17/08 : ECHEC — idem
 ```
 
-Juin complet = 145 927 € ; juillet ne couvre que la moitié du mois. La tuile compare donc un mois complet (Splash, Uber, Deliveroo) à une demi-période Dishop, ce qui fait paraître le canal minuscule (0,6 % du CA).
+Conséquences visibles :
 
-**2. Environ 600 commandes ne sont rattachées à aucun restaurant**
+- La tuile « Dishop » affiche 62 831 € pour juillet 2026 alors que juin valait 145 927 € : seule la moitié de juillet existe en base.
+- Rien n'arrive depuis le 15 juillet : tout août manque.
+- De plus, 8 653 € de CA Dishop (≈ 600 commandes) ne remontent pas dans l'app car rattachés à aucun restaurant : boutiques `chickenstreet` (identifiant générique), `cs-belfort`, `cs-bordeaux-merignac`, `cs-lyon6`, `cs-dijon`, etc. Certains de ces restaurants ont un mapping créé après coup, sans reprise des anciennes lignes.
 
-8 653 € de CA Dishop sont invisibles dans l'app car `restaurant_id` est vide. Boutiques concernées : `chickenstreet` (2 655 €), `cs-belfort`, `cs-bordeaux-merignac`, `cs-lyon6`, `cs-dijon`, `cs-champs-sur-marne`, `cs-lyon1`, `cs-marseille-15`, `cs-marseille-belsunce`, `cs-dijon-gare`, `cs-bordeaux`, `cs-drancy`, `cs-reunion-sd`, `cs-lens`, `cs-oberkampf`. Plusieurs de ces boutiques ont pourtant des commandes correctement rattachées à d'autres dates : le mapping a été créé après coup et les anciennes lignes n'ont pas été reprises.
-
-Le calcul lui-même est correct : somme de `price_total` (TTC) des commandes Dishop, filtrées par marque, restaurants sélectionnés et période.
+Le calcul de la tuile lui-même est correct : somme des montants TTC des commandes Dishop sur la période, par marque et restaurants sélectionnés.
 
 ## Correctifs proposés
 
-1. **Relancer la synchronisation Dishop** depuis le 13 juillet jusqu'à aujourd'hui (semaine par semaine, via la fonction d'import hebdomadaire existante) et vérifier pourquoi elle s'est arrêtée (log de la dernière exécution).
-2. **Rattacher rétroactivement les commandes orphelines** : pour chaque boutique Dishop déjà mappée, réappliquer le mapping aux anciennes lignes ; lister ensuite les boutiques réellement sans mapping pour les créer (notamment `chickenstreet`, qui est un identifiant générique à qualifier).
-3. **Signaler la couverture partielle dans l'UI** : afficher sur la tuile Dishop la date de dernière donnée disponible (ex. « données jusqu'au 15/07 ») quand elle est antérieure à la fin de la période sélectionnée, pour éviter de lire un chiffre incomplet comme une baisse d'activité.
+1. **Action côté vous** : régénérer les identifiants client Dishop (client_id/client_secret) auprès de Dishop, puis nous les transmettre — nous les mettrons à jour dans la configuration de la connexion.
+2. **Rattrapage** : dès les identifiants réparés, relancer l'import semaine par semaine du 20 juillet à aujourd'hui.
+3. **Rattachement rétroactif** : réappliquer les mappings existants aux commandes orphelines, puis lister les boutiques réellement sans mapping (notamment `chickenstreet`, à qualifier avec vous) pour les créer.
+4. **Affichage** : indiquer sur la tuile Dishop la date de dernière donnée disponible (ex. « données jusqu'au 15/07 ») quand elle ne couvre pas toute la période, pour éviter de lire un chiffre incomplet comme une baisse d'activité.
 
 ## Détails techniques
 
-- Point 1 : appel de la fonction `dishop-sync-week` pour les semaines manquantes + lecture de `dishop_sync_runs` pour la cause de l'arrêt.
-- Point 2 : mise à jour ciblée de `dishop_orders.restaurant_id`/`chain_id` par jointure sur `dishop_shop_mapping`, puis inventaire des `dishop_shop_id` restants sans mapping.
-- Point 3 : requête max(order_date) par marque, affichée en légende de la tuile dans `ChannelRevenueTiles.tsx` (aucun changement de calcul).
+- Mise à jour du secret/config de la connexion Dishop, puis appels de `dishop-sync-week` pour chaque semaine manquante (les imports sont idempotents).
+- Mise à jour ciblée de `dishop_orders` par jointure sur `dishop_shop_mapping` pour les orphelins.
+- Requête max(order_date) par marque affichée en légende de la tuile dans `ChannelRevenueTiles.tsx` (aucun changement de calcul).
