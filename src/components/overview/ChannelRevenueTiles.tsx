@@ -54,12 +54,25 @@ export function ChannelRevenueTiles({
   dishop,
   chataigne,
 }: ChannelRevenueTilesProps) {
+  const logoBox = (src: string, alt: string, darkInvert = false) => (
+    <div className="w-[84px] h-[28px] flex items-center justify-center">
+      <img
+        src={src}
+        alt={alt}
+        className={cn(
+          "max-h-full max-w-full object-contain",
+          darkInvert && "dark:invert",
+        )}
+      />
+    </div>
+  );
+
   const tiles: TileDef[] = [
     {
       key: "cash",
       label: "Caisse",
       hint: "Chiffre d'affaires sur place (TTC) remonté par le logiciel de caisse (Splash360…).",
-      icon: <img src={splashLogo.url} alt="Splash360" className="h-5 w-auto max-w-[80px] object-contain" />,
+      icon: logoBox(splashLogo.url, "Splash360"),
       iconWrapClass: "bg-cash/10",
       valueClass: "text-cash",
       value: cashConnected ? cash : null,
@@ -70,7 +83,7 @@ export function ChannelRevenueTiles({
       key: "uber",
       label: "Uber Eats",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (ventes avant commission).",
-      icon: <img src={uberLogo.url} alt="Uber Eats" className="h-5 w-auto max-w-[80px] object-contain dark:invert" />,
+      icon: logoBox(uberLogo.url, "Uber Eats", true),
       iconWrapClass: "bg-uber/10",
       valueClass: "text-uber",
       value: uber,
@@ -79,7 +92,7 @@ export function ChannelRevenueTiles({
       key: "deliveroo",
       label: "Deliveroo",
       hint: "Chiffre d'affaires brut TTC Deliveroo sur la période.",
-      icon: <img src={deliverooLogo.url} alt="Deliveroo" className="h-5 w-auto max-w-[80px] object-contain" />,
+      icon: logoBox(deliverooLogo.url, "Deliveroo"),
       iconWrapClass: "bg-deliveroo/10",
       valueClass: "text-deliveroo",
       value: deliveroo,
@@ -88,7 +101,7 @@ export function ChannelRevenueTiles({
       key: "dishop",
       label: "Dishop",
       hint: "Chiffre d'affaires TTC de la boutique en ligne Dishop (click & collect / livraison propre).",
-      icon: <img src={dishopLogo.url} alt="Dishop" className="h-5 w-auto max-w-[80px] object-contain" />,
+      icon: logoBox(dishopLogo.url, "Dishop"),
       iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-blue-500",
       value: dishop,
@@ -98,8 +111,7 @@ export function ChannelRevenueTiles({
       key: "chataigne",
       label: "Chataigne",
       hint: "Chiffre d'affaires TTC des commandes WhatsApp via Chataigne.",
-      icon: <img src={chataigneLogo.url} alt="Chataigne" className="h-5 w-auto max-w-[80px] object-contain dark:invert" />,
-
+      icon: logoBox(chataigneLogo.url, "Chataigne", true),
       iconWrapClass: "bg-emerald-500/10",
       valueClass: "text-emerald-600 dark:text-emerald-400",
       value: chataigne,
