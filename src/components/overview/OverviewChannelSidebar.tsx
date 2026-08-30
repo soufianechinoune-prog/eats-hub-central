@@ -213,6 +213,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
         )}
 
         {/* Bientôt disponible */}
+        {!available.chataigne && (
         <div>
           <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Bientôt
@@ -224,6 +225,7 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
             </div>
           </div>
         </div>
+        )}
       </div>
     </aside>
   );
