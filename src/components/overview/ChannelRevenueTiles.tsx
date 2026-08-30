@@ -87,7 +87,7 @@ export function ChannelRevenueTiles({
       key: "uber",
       label: "Uber Eats",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (ventes avant commission).",
-      icon: logoBox(uberLogo.url, "Uber Eats", true, 120),
+      icon: logoBox(uberLogo.url, "Uber Eats", true, 24),
       iconWrapClass: "bg-uber/10",
       valueClass: "text-uber",
       value: uber,
