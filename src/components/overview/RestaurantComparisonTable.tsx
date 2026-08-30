@@ -22,7 +22,7 @@ import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopov
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
 type SortDirection = "asc" | "desc";
 type ChannelTab = "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 
@@ -53,6 +53,8 @@ interface RestaurantComparisonTableProps {
   cashByRestaurant?: Map<string, RestaurantCashStats>;
   /** Stats Chataigne par restaurant — CA, commandes, panier moyen. */
   chataigneByRestaurant?: Map<string, { revenue: number; orders: number; avgBasket: number }>;
+  /** CA Dishop (TTC) par restaurant — affiché en colonne dédiée dans la vue « Tous ». */
+  dishopByRestaurant?: Map<string, number>;
   /** Période effective (fallback sur le contexte analytics). */
   periodStart?: Date;
   periodEnd?: Date;
@@ -131,6 +133,7 @@ export function RestaurantComparisonTable({
   networkAdsPct = null,
   cashByRestaurant,
   chataigneByRestaurant,
+  dishopByRestaurant,
   periodStart,
   periodEnd,
   forcedChannel,
@@ -162,6 +165,11 @@ export function RestaurantComparisonTable({
     for (const v of chataigneByRestaurant.values()) if (v.revenue > 0) return true;
     return false;
   }, [chataigneByRestaurant]);
+  const hasDishop = useMemo(() => {
+    if (!dishopByRestaurant) return false;
+    for (const v of dishopByRestaurant.values()) if (v > 0) return true;
+    return false;
+  }, [dishopByRestaurant]);
 
   // In the "Tous" tab we remove the standalone Caisse column (Caisse has its own tab now)
   // and rely on the mix-bar + chips under the CA column instead.
@@ -171,11 +179,12 @@ export function RestaurantComparisonTable({
   // Returns null when the restaurant has no data for that channel (filtered out).
   const projectForTab = useCallback((r: RestaurantNetworkStats) => {
     if (channelTab === "all") {
-      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Chataigne
+      // CA "tous canaux" = livraison (Uber + Deliveroo) + Caisse + Dishop + Chataigne
       const cashAll = cashByRestaurant?.get(r.id)?.cashRevenue ?? 0;
       const cashOrdersAll = cashByRestaurant?.get(r.id)?.cashOrders ?? 0;
       const chataigneAll = chataigneByRestaurant?.get(r.id);
-      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, chataigneAll?.revenue ?? 0);
+      const dishopAll = dishopByRestaurant?.get(r.id) ?? 0;
+      const revenueAll = r.revenue + Math.max(0, cashAll) + Math.max(0, dishopAll) + Math.max(0, chataigneAll?.revenue ?? 0);
       const ordersAll = r.orders + Math.max(0, cashOrdersAll) + Math.max(0, chataigneAll?.orders ?? 0);
       return {
         revenue: revenueAll,
@@ -266,12 +275,16 @@ export function RestaurantComparisonTable({
       cashOrdersVariation: cashStats?.ordersVariation ?? null,
       hide: cash <= 0,
     };
-  }, [channelTab, cashByRestaurant, chataigneByRestaurant]);
+  }, [channelTab, cashByRestaurant, chataigneByRestaurant, dishopByRestaurant]);
 
-  // Column visibility per tab
+  // Column visibility per tab.
+  // Vue « Tous » (vue d'ensemble réseau) = pure répartition du CA par canal :
+  // pas de commandes / panier moyen (la marge plateforme gonfle artificiellement
+  // le panier et fausse la comparaison inter-canaux), pas de métriques ops
+  // (note, erreurs, prépa, dispo…) qui ne concernent que la livraison.
   const cols = useMemo(() => {
     if (channelTab === "all") {
-      return { caMix: true, chips: true, expand: true, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
+      return { caMix: true, chips: true, expand: true, channelSplit: true, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: false, basket: false, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     if (channelTab === "uber") {
       return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: true, profitability: true, adsRatio: true, orders: true, basket: true, rating: true, errorRate: true, delivery: true, downtime: true };
@@ -280,7 +293,7 @@ export function RestaurantComparisonTable({
       return { caMix: false, chips: false, expand: false, payout: true, mealVoucher: false, profitability: true, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
     }
     // cash — orders + basket + share + variation N-1
-    return { caMix: false, chips: false, expand: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
+    return { caMix: false, chips: false, expand: false, channelSplit: false, payout: false, mealVoucher: false, profitability: false, adsRatio: false, orders: true, basket: true, rating: false, errorRate: false, delivery: false, downtime: false };
   }, [channelTab]);
 
 
