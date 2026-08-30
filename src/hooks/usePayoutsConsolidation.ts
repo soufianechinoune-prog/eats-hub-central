@@ -7,16 +7,28 @@ export interface MonthConsolidation {
   ordersTotal: number;
   ordersWithPayoutDate: number;
   coveragePct: number; // 0-100
+  storesPendingAuth: number;
+}
+
+/** Nombre de mois glissants toujours surveillés, même hors période affichée. */
+const ROLLING_MONTHS = 3;
+
+function rollingStart(startDateStr: string): string {
+  const d = new Date();
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - (ROLLING_MONTHS - 1));
+  const rolling = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`;
+  return startDateStr < rolling ? startDateStr : rolling;
 }
 
 /**
  * Option B — les versements sont recalculés depuis `orders.payout_date`.
  * Tant que la file de backfill Uber n'a pas rattaché 100 % des commandes d'un
- * mois à un cycle de versement, ce mois est « en consolidation » et les totaux
- * de versements sont sous-estimés.
+ * mois à un cycle de versement, ce mois est « en consolidation ».
  *
- * La RPC ne balaye que les mois couverts par la période sélectionnée et ne
- * renvoie que les mois dont la couverture `payout_date` est < 100 %.
+ * Périmètre : uniquement les restaurants dont l'accès API Uber est actif — les
+ * boutiques non provisionnées ne peuvent jamais atteindre 100 % et fausseraient
+ * l'indicateur (elles sont comptées à part via `storesPendingAuth`).
  */
 export function usePayoutsConsolidation(
   restaurantIds: string[] | undefined,
@@ -25,15 +37,17 @@ export function usePayoutsConsolidation(
   enabled: boolean = true,
 ) {
   const idsKey = (restaurantIds || []).join(",");
+  const effectiveStart = rollingStart(startDateStr);
+
   return useQuery({
-    queryKey: ["payouts-consolidation", idsKey, startDateStr, endDateStr],
+    queryKey: ["payouts-consolidation", idsKey, effectiveStart, endDateStr],
     queryFn: async (): Promise<MonthConsolidation[]> => {
       if (!restaurantIds || restaurantIds.length === 0) return [];
 
       const { data, error } = await supabase.rpc(
         "get_payouts_consolidation_status",
         {
-          p_start: startDateStr,
+          p_start: effectiveStart,
           p_end: endDateStr,
           p_restaurant_ids: restaurantIds,
         },
@@ -51,6 +65,7 @@ export function usePayoutsConsolidation(
           ordersTotal: Number(row.orders_total) || 0,
           ordersWithPayoutDate: Number(row.orders_with_payout_date) || 0,
           coveragePct: Number(row.coverage_pct) || 0,
+          storesPendingAuth: Number(row.stores_pending_auth) || 0,
         }))
         .filter((m) => m.ordersTotal > 0 && m.coveragePct < 100)
         .sort((a, b) => a.year * 100 + a.month - (b.year * 100 + b.month));
