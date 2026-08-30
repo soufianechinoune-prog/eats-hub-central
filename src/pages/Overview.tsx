@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
+import { PayoutsConsolidationBanner } from "@/components/analytics/PayoutsConsolidationBanner";
 import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
@@ -1029,6 +1030,16 @@ const Overview = () => {
               periodLabel={getPeriodLabel()}
             />
           </div>
+          )}
+
+          {/* Consolidation versements : couverture payout_date < 100 % */}
+          {(activeChannel === "global" || activeChannel === "uber") && (
+            <PayoutsConsolidationBanner
+              restaurantIds={activeIds}
+              startDateStr={startDateStr}
+              endDateStr={endDateStr}
+              className="mt-6"
+            />
           )}
 
           {/* Comprehensive Restaurant Comparison Table */}
