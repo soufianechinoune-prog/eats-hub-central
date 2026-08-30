@@ -608,7 +608,7 @@ const Overview = () => {
       <OverviewChannelSidebar
         active={activeChannel}
         onChange={setActiveChannel}
-        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData }}
+        available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: chataigneTotal > 0 }}
       />
       <div className="flex-1 min-w-0 p-8 space-y-8">
 

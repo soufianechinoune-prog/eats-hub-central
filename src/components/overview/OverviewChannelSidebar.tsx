@@ -21,7 +21,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 
-export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop";
+export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop" | "chataigne";
 
 interface OverviewChannelSidebarProps {
   active: OverviewChannel;
@@ -31,6 +31,7 @@ interface OverviewChannelSidebarProps {
     deliveroo: boolean;
     cash: boolean;
     dishop: boolean;
+    chataigne?: boolean;
   };
 }
 
