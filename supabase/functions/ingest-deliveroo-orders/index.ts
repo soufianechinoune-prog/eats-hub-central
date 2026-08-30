@@ -97,7 +97,7 @@ Deno.serve(async (req) => {
       const sent = parisToUtcISO(f[iSent]);
       if (!name || !orderNumber || !sent) { skipped++; continue; }
 
-      const key = `${name}|${orderNumber}`;
+      const key = `${name}|${orderNumber}|${sent}`;
       if (seen.has(key)) { skipped++; continue; }
       seen.add(key);
 
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
       const chunk = rows.slice(i, i + CHUNK);
       const { error } = await supabase
         .from("deliveroo_sales_orders")
-        .upsert(chunk, { onConflict: "deliveroo_name,order_number" });
+        .upsert(chunk, { onConflict: "deliveroo_name,order_number,sent_at" });
       if (error) errors.push(`${i}-${i + chunk.length}: ${error.message}`);
       else inserted += chunk.length;
     }
