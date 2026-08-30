@@ -1,59 +1,51 @@
-# Refonte visuelle de la Vue réseau (/overview)
+# Vue d'ensemble : recentrer sur le CA par canal
 
-Objectif : transformer une page fouillis en cockpit multi-canal lisible. Aucune donnée, aucun calcul, aucune requête ne change — uniquement la composition, la hiérarchie et la navigation interne de la page.
+Principe : la Vue d'ensemble répond à une seule question — **combien le réseau vend, et sur quel canal**. Tout ce qui est spécifique aux plateformes de livraison (note, temps, erreurs, disponibilité, rentabilité, versements, % pub) quitte cette page et reste sur Uber Eats › Synthèse, où c'est déjà en place. Aucune donnée, aucun calcul, aucune requête n'est modifié : uniquement ce qui est affiché et où.
 
-## Problèmes traités
+## 1. Suppression des vignettes plateformes
 
-- Deux navigations concurrentes : le rail « par canal » à gauche + les onglets canal du tableau comparatif.
-- La page répond à trois questions mélangées (combien on vend / est-ce que ça tourne / quel resto décroche).
-- Le CA multi-canal, raison d'être de la plateforme, arrive après un long scroll ; Chataigne n'a pas de tuile en haut.
-- Les 5 cartes canal sont redondantes (Global duplique Uber) et asymétriques (lignes différentes selon le canal).
+Retirées de la Vue d'ensemble (onglet « Vue réseau » uniquement) :
 
-## Nouvelle structure de la page
+- vignette **Global** — elle duplique Uber (temps prépa+livraison et avis produits sont câblés sur la même source), donc trompeuse au niveau réseau
+- vignette **Uber Eats**
+- vignette **Deliveroo**
+- carte **% dépenses pub / CA**
+
+Ces blocs restent affichés à l'identique quand le canal Uber Eats est sélectionné (onglet Synthèse) — c'est leur place légitime. Les vignettes Caisse, Dishop et Chataigne, qui sont des vignettes de CA et non d'exploitation, sont conservées et alignées sur le même format.
+
+## 2. Nouveau haut de page : le CA par canal
+
+À la place des vignettes supprimées, une rangée de tuiles au format identique, une par canal :
 
 ```text
-En-tête : Vue réseau · période · périmètre · export
-  └ bandeau « Filtré : <canal> ✕ » quand un canal est sélectionné
-
-Étage 1 — Le réseau en un coup d'œil
-  4 KPI consolidés tous canaux : CA · Commandes · Panier moyen · Δ vs N-1
-
-Étage 2 — D'où vient le CA
-  Barre de répartition + courbe d'évolution quotidienne par canal
-  Tuiles canal au format identique : Uber · Deliveroo · Chataigne · Caisse · Dishop
-  (CA, part %, Δ N-1, lien « ouvrir le canal ») — cliquer une tuile filtre la page
-
-Étage 3 — Santé opérationnelle
-  Une grille unique : note, temps prépa, prépa+livraison, commandes incorrectes,
-  disponibilité — colonne par canal, cases grisées quand la donnée n'existe pas
-  (Deliveroo), au lieu de 5 cartes hétérogènes
-
-Étage 4 — Comparatif restaurants
-  Tableau inchangé, piloté par le sélecteur de canal de l'étage 2 (plus d'onglets doublons)
+CA Caisse   ·   CA Uber Eats   ·   CA Deliveroo   ·   CA Dishop   ·   CA Chataigne
+  montant        montant           montant           montant         montant
+  part %         part %            part %            part %          part %
+  Δ vs N-1       Δ vs N-1          Δ vs N-1          Δ vs N-1        Δ vs N-1
 ```
 
-Blocs conservés mais repositionnés : bandeau de consolidation des versements (replié sous l'en-tête, discret), Uber Live du jour et ratio Ads (dans le contexte du canal Uber, à l'étage 2 quand Uber est sélectionné), analyse titres-restaurant, tableau Dishop et top avis (bas de page, sous le comparatif).
+Au-dessus, une ligne de synthèse réseau : CA total tous canaux, commandes, panier moyen. En dessous, la barre de répartition existante (`PlatformRevenueSplit`) et la courbe d'évolution quotidienne par canal, déjà en place. Un canal sans données sur la période est affiché en état vide explicite, pas masqué.
 
-## Navigation
+## 3. Tableau « Comparatif des restaurants »
 
-- Suppression du rail latéral `OverviewChannelSidebar` : le filtre canal passe dans les tuiles de l'étage 2 (+ bandeau de retrait). Un seul état de canal pour toute la page, la largeur récupérée profite au contenu.
-- Les liens « ouvrir le canal » pointent vers les pages détaillées existantes (Chataigne, Ventes sur place, Finances Uber, etc.), sans changer d'URL.
+Colonnes de la vue réseau, dans cet ordre :
 
-## Cohérence visuelle
+| Restaurant | CA total | Caisse | Uber Eats | Deliveroo | Dishop | Chataigne | Commandes | Panier |
 
-- Une couleur par canal, appliquée partout de la même façon (tuile, barre, courbe, badge du tableau) via les tokens existants — Uber, Deliveroo, Caisse, Chataigne, Dishop.
-- Cartes allégées : suppression des `border-2`, dégradés, `shadow-2xl` et `hover:scale` sur les grosses cartes, remplacés par un style de surface unique et sobre.
-- Une seule échelle typographique pour les KPI, un seul format de nombre et de delta.
+Colonnes retirées de la vue réseau : Versement, Titre restaurant, Rentabilité, % Pub, Note, Erreurs, Prépa+livraison, Disponibilité. Elles restent intégralement disponibles dans l'onglet Uber Eats (jeu de colonnes actuel inchangé).
 
-## Détails techniques
+Commandes et panier moyen sont conservés : sans eux, impossible d'expliquer une variation de CA (volume vs panier).
 
-- `src/pages/Overview.tsx` : réorganisation du rendu en 4 sections, état `activeChannel` conservé mais piloté par les tuiles ; retrait du rendu de `OverviewChannelSidebar`.
-- Nouveaux composants de présentation dans `src/components/overview/` : `NetworkKpiRow.tsx` (étage 1), `ChannelTiles.tsx` (étage 2), `OperationalHealthGrid.tsx` (étage 3) — ils consomment exactement les mêmes données déjà chargées (`networkData`, `networkTotals`, `cashByRestaurant`, `chataigneByRestaurant`, etc.), sans nouvelle requête ni nouveau hook.
-- `RestaurantComparisonTable.tsx` : les onglets canal deviennent masquables via la prop `forcedChannel` déjà existante, alimentée par l'état de la page.
-- `PlatformRevenueSplit.tsx` et `ChannelDailyRevenueChart.tsx` réutilisés tels quels à l'étage 2.
-- `OverviewChannelSidebar.tsx` n'est plus monté (fichier conservé pour éviter toute régression ailleurs).
-- Vérification finale au navigateur : rendu des 4 étages, filtre canal actif/inactif, cohérence du total réseau avec la barre de répartition.
+Le panneau déplié par restaurant (mix canaux + graphique quotidien) est conservé tel quel.
+
+## 4. Détails techniques
+
+- `src/pages/Overview.tsx` : les cartes Global / Uber Eats / Deliveroo et `AdsRevenueRatioCard` ne sont plus rendues lorsque `activeChannel === "global"` ; elles restent montées pour `activeChannel === "uber"`. Nouvelle rangée de tuiles CA par canal alimentée par les données déjà chargées (`networkTotals`, `networkCashTotal`, `dishopTotals`, `chataigneTotal`, `networkData.uber/deliveroo`), sans nouveau hook ni nouvelle requête.
+- Nouveau composant de présentation `src/components/overview/ChannelRevenueTiles.tsx` (affichage seul, reçoit les montants en props).
+- `src/components/overview/RestaurantComparisonTable.tsx` : jeu de colonnes conditionné par `channelTab`. En vue « Tous », colonnes CA par canal ; pour les onglets canal, colonnes actuelles inchangées. Les valeurs par canal proviennent des mêmes sources qu'aujourd'hui (`platformBreakdown`, `cashByRestaurant`, `chataigneByRestaurant`, données Dishop).
+- Les blocs Uber Live, titres-restaurant et top avis restent rattachés au canal Uber, pas à la vue réseau.
+- Vérification au navigateur : vue réseau (nouvelles tuiles + nouvelles colonnes, aucune métrique ops visible), puis onglet Uber Eats (vignettes, % pub et colonnes complètes toujours présents), et cohérence entre le total du tableau et la barre de répartition.
 
 ## Hors périmètre
 
-La sidebar globale de l'application et les autres pages ne sont pas touchées à cette étape.
+La sidebar globale de l'application et les autres pages ne sont pas touchées.
