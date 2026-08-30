@@ -732,7 +732,18 @@ const Overview = () => {
         </div>
       ) : (
         <div>
+          {activeChannel === "deliveroo" && (
+            <div className="mb-8">
+              <DeliverooChannelSummary
+                restaurantIds={activeIds}
+                startDate={startDateStr}
+                endDate={endDateStr}
+                periodLabel={getPeriodLabel()}
+              />
+            </div>
+          )}
           <div className={cn("grid gap-8", activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
+
             {/* Uber Eats Card — métriques opérationnelles, réservées à l'onglet Uber Eats */}
             {activeChannel === "uber" && (
             <Card className={cn(
