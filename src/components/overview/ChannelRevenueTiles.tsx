@@ -108,7 +108,7 @@ export function ChannelRevenueTiles({
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Layers className="h-4.5 w-4.5 text-primary" />
+              <Layers className="h-4 w-4 text-primary" />
             </div>
             <div>
               <h2 className="text-lg font-semibold">CA par canal</h2>
