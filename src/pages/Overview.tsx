@@ -37,6 +37,7 @@ import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRes
 import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
 import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
 import { UberLiveTodayCard } from "@/components/overview/UberLiveTodayCard";
+import { DeliverooChannelSummary } from "@/components/overview/DeliverooChannelSummary";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
