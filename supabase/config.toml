@@ -167,3 +167,6 @@ verify_jwt = true
 
 [functions.ingest-uber-funnel]
 verify_jwt = false
+
+[functions.ingest-deliveroo-ads]
+verify_jwt = false

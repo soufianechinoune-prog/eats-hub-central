@@ -1195,6 +1195,87 @@ export type Database = {
           },
         ]
       }
+      deliveroo_ads: {
+        Row: {
+          ad_orders_clicks: number
+          ad_sales_clicks: number
+          ad_spend: number
+          avg_cpc: number | null
+          campaign_id: string
+          campaign_name: string | null
+          campaign_status: string | null
+          chain_id: string | null
+          clicks: number
+          created_at: string
+          date: string
+          deliveroo_name: string
+          id: string
+          imported_at: string
+          normalized_name: string | null
+          restaurant_id: string | null
+          source_file: string | null
+          updated_at: string
+          views: number
+        }
+        Insert: {
+          ad_orders_clicks?: number
+          ad_sales_clicks?: number
+          ad_spend?: number
+          avg_cpc?: number | null
+          campaign_id?: string
+          campaign_name?: string | null
+          campaign_status?: string | null
+          chain_id?: string | null
+          clicks?: number
+          created_at?: string
+          date: string
+          deliveroo_name: string
+          id?: string
+          imported_at?: string
+          normalized_name?: string | null
+          restaurant_id?: string | null
+          source_file?: string | null
+          updated_at?: string
+          views?: number
+        }
+        Update: {
+          ad_orders_clicks?: number
+          ad_sales_clicks?: number
+          ad_spend?: number
+          avg_cpc?: number | null
+          campaign_id?: string
+          campaign_name?: string | null
+          campaign_status?: string | null
+          chain_id?: string | null
+          clicks?: number
+          created_at?: string
+          date?: string
+          deliveroo_name?: string
+          id?: string
+          imported_at?: string
+          normalized_name?: string | null
+          restaurant_id?: string | null
+          source_file?: string | null
+          updated_at?: string
+          views?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deliveroo_ads_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deliveroo_ads_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deliveroo_orders: {
         Row: {
           adjustment_amount: number | null
@@ -6011,6 +6092,22 @@ export type Database = {
           sales_incl_vat: number
           uber_fee_after_promo_excl_vat: number
           uber_fee_after_promo_incl_vat: number
+        }[]
+      }
+      get_deliveroo_profitability: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ad_orders: number
+          ad_sales: number
+          ca: number
+          commission: number
+          food_cost: number
+          marge: number
+          marge_pct: number
+          orders_count: number
+          pub: number
+          restaurant_id: string
+          restaurant_name: string
         }[]
       }
       get_delivery_pnl: {
