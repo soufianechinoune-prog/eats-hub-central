@@ -16,6 +16,7 @@ import BulkImportTab from "@/components/reports/BulkImportTab";
 import UnknownStoreMapping from "@/components/reports/UnknownStoreMapping";
 import DeliverooImportTab from "@/components/reports/DeliverooImportTab";
 import DeliverooOrdersImportTab from "@/components/reports/DeliverooOrdersImportTab";
+import DeliverooAdsImportTab from "@/components/reports/DeliverooAdsImportTab";
 
 import uberEatsLogo from "@/assets/uber-eats-logo.png";
 import deliverooLogo from "@/assets/deliveroo-logo.png";
@@ -1762,10 +1763,14 @@ export default function ReportImport() {
         <Tabs defaultValue="orders">
           <TabsList>
             <TabsTrigger value="orders">Commandes (par commande)</TabsTrigger>
+            <TabsTrigger value="ads">Publicités</TabsTrigger>
             <TabsTrigger value="statement">Relevé de paiement</TabsTrigger>
           </TabsList>
           <TabsContent value="orders" className="mt-6">
             <DeliverooOrdersImportTab />
+          </TabsContent>
+          <TabsContent value="ads" className="mt-6">
+            <DeliverooAdsImportTab />
           </TabsContent>
           <TabsContent value="statement" className="mt-6">
             <DeliverooImportTab restaurants={restaurants} />

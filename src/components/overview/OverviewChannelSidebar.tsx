@@ -77,6 +77,7 @@ const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
   { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
   { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
   { id: "downtime", label: "Disponibilité", icon: PauseCircle, route: "/compare/downtime" },
+  { id: "deliveroo-rentabilite", label: "Rentabilité", icon: Euro, route: "/deliveroo/rentabilite" },
 ];
 
 export function OverviewChannelSidebar({ active, onChange, available }: OverviewChannelSidebarProps) {
