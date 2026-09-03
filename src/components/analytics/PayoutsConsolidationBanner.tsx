@@ -1,7 +1,10 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { usePayoutsConsolidation } from "@/hooks/usePayoutsConsolidation";
+import {
+  usePayoutsConsolidation,
+  usePayoutBackfillQueue,
+} from "@/hooks/usePayoutsConsolidation";
 
 const MONTH_LABELS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
@@ -35,8 +38,12 @@ export function PayoutsConsolidationBanner({
     endDateStr,
     enabled,
   );
+  const { data: queue } = usePayoutBackfillQueue(enabled);
 
   if (!incompleteMonths || incompleteMonths.length === 0) return null;
+
+  const inProgress = (queue?.pendingJobs || 0) + (queue?.runningJobs || 0);
+
 
   const pendingAuth = Math.max(
     0,
@@ -61,6 +68,16 @@ export function PayoutsConsolidationBanner({
           automatiquement à la fin de la synchronisation. Périmètre : uniquement
           les restaurants dont l'accès API Uber est actif.
         </p>
+
+        {inProgress > 0 && (
+          <p className="flex items-center gap-1.5 text-xs font-medium text-amber-800 dark:text-amber-300">
+            <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+            Rattrapage en cours — {inProgress.toLocaleString("fr-FR")} rapport
+            {inProgress > 1 ? "s" : ""} de versement en file
+            {queue?.retroJobs ? ` (dont ${queue.retroJobs.toLocaleString("fr-FR")} en rattrapage rétroactif)` : ""}
+          </p>
+        )}
+
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {incompleteMonths.map((m) => (
