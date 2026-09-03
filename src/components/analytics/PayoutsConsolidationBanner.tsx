@@ -1,7 +1,10 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
-import { usePayoutsConsolidation } from "@/hooks/usePayoutsConsolidation";
+import {
+  usePayoutsConsolidation,
+  usePayoutBackfillQueue,
+} from "@/hooks/usePayoutsConsolidation";
 
 const MONTH_LABELS = [
   "janvier", "février", "mars", "avril", "mai", "juin",
