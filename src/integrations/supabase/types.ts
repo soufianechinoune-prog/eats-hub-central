@@ -6648,6 +6648,16 @@ export type Database = {
           vat_uber_fee: number
         }[]
       }
+      get_payout_backfill_queue_status: {
+        Args: never
+        Returns: {
+          newest_window: string
+          oldest_window: string
+          pending_jobs: number
+          retro_jobs: number
+          running_jobs: number
+        }[]
+      }
       get_payouts_consolidation_status: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
