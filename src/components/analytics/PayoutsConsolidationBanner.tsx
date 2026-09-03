@@ -38,8 +38,12 @@ export function PayoutsConsolidationBanner({
     endDateStr,
     enabled,
   );
+  const { data: queue } = usePayoutBackfillQueue(enabled);
 
   if (!incompleteMonths || incompleteMonths.length === 0) return null;
+
+  const inProgress = (queue?.pendingJobs || 0) + (queue?.runningJobs || 0);
+
 
   const pendingAuth = Math.max(
     0,
