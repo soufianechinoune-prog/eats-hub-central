@@ -75,3 +75,35 @@ export function usePayoutsConsolidation(
     retry: 1,
   });
 }
+
+export interface PayoutBackfillQueue {
+  pendingJobs: number;
+  runningJobs: number;
+  retroJobs: number;
+}
+
+/**
+ * État de la file de rattrapage des rapports de versement Uber.
+ * Sert à afficher « rattrapage en cours » plutôt qu'une jauge figée.
+ */
+export function usePayoutBackfillQueue(enabled: boolean = true) {
+  return useQuery({
+    queryKey: ["payout-backfill-queue"],
+    queryFn: async (): Promise<PayoutBackfillQueue> => {
+      const { data, error } = await (supabase.rpc as any)(
+        "get_payout_backfill_queue_status",
+      );
+      if (error) throw error;
+      const row = (data as any[])?.[0];
+      return {
+        pendingJobs: Number(row?.pending_jobs) || 0,
+        runningJobs: Number(row?.running_jobs) || 0,
+        retroJobs: Number(row?.retro_jobs) || 0,
+      };
+    },
+    enabled,
+    staleTime: 60 * 1000,
+    refetchInterval: 2 * 60 * 1000,
+    retry: 1,
+  });
+}
