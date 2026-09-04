@@ -18,6 +18,14 @@ const PARALLEL = 5;
 // Délai entre chaque job dans un même tick du worker (anti-burst 429).
 const INTER_JOB_DELAY_MS = 1200;
 
+// Rattrapage de versements (priorité basse) : vague >= 1000.
+// On limite fortement le débit pour ne pas déclencher les 429 Uber.
+const RETRO_VAGUE_THRESHOLD = 1000;
+const RETRO_PARALLEL = 2;
+const RETRO_INTER_JOB_DELAY_MS = 3000;
+// Frein automatique : si un requeue 429 a eu lieu récemment, on ne prend qu'1 job.
+const THROTTLE_COOLDOWN_MINUTES = 10;
+
 // Limite stricte de l'API Uber pour PAYMENT_DETAILS_REPORT et autres rapports.
 const MAX_DAYS_PER_REPORT = 30;
 
@@ -297,8 +305,34 @@ Deno.serve(async (req) => {
       console.log(`Reset ${resetCount} stale running job(s)`);
     }
 
-    // 2. Pick jusqu'à PARALLEL jobs atomiquement
-    const { data: jobs, error: pickErr } = await supabase.rpc('pick_next_backfill_job', { p_limit: PARALLEL });
+    // 2. Débit adaptatif :
+    //    - s'il ne reste que du rattrapage (vague >= 1000) → 2 jobs/tick, 3s d'écart ;
+    //    - si un requeue 429 a eu lieu dans les 10 dernières minutes → 1 seul job.
+    const { count: prioPending } = await supabase
+      .from('backfill_jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .lt('vague', RETRO_VAGUE_THRESHOLD);
+
+    const retroOnly = (prioPending ?? 0) === 0;
+    let limit = retroOnly ? RETRO_PARALLEL : PARALLEL;
+    let interJobDelay = retroOnly ? RETRO_INTER_JOB_DELAY_MS : INTER_JOB_DELAY_MS;
+
+    const cooldownSince = new Date(Date.now() - THROTTLE_COOLDOWN_MINUTES * 60_000).toISOString();
+    const { count: recentThrottles } = await supabase
+      .from('backfill_jobs')
+      .select('id', { count: 'exact', head: true })
+      .gt('rate_limit_retries', 0)
+      .gte('updated_at', cooldownSince)
+      .like('last_error', '429%');
+
+    if ((recentThrottles ?? 0) > 0) {
+      limit = 1;
+      interJobDelay = RETRO_INTER_JOB_DELAY_MS;
+      console.log(`Throttle cooldown actif (${recentThrottles} requeue(s) 429 < ${THROTTLE_COOLDOWN_MINUTES}min) → 1 job ce tick`);
+    }
+
+    const { data: jobs, error: pickErr } = await supabase.rpc('pick_next_backfill_job', { p_limit: limit });
 
     if (pickErr) {
       console.error('Failed to pick jobs:', pickErr);
@@ -316,12 +350,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log(`Picked ${jobs.length} job(s) for sequential processing (delay ${INTER_JOB_DELAY_MS}ms)`);
+    console.log(`Picked ${jobs.length} job(s) for sequential processing (limit ${limit}, delay ${interJobDelay}ms, retroOnly=${retroOnly})`);
 
     // 3. Traiter les jobs en série, espacés, pour éviter les 429 Uber
     const summary: any[] = [];
     for (let i = 0; i < (jobs as JobRow[]).length; i++) {
-      if (i > 0) await new Promise((r) => setTimeout(r, INTER_JOB_DELAY_MS));
+      if (i > 0) await new Promise((r) => setTimeout(r, interJobDelay));
       try {
         const res = await processJob((jobs as JobRow[])[i], supabase, supabaseUrl, supabaseServiceKey);
         summary.push(res);

@@ -18,8 +18,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Vague dédiée au rattrapage (priorité basse vs 999 = daily).
-const RETRO_VAGUE = 900;
+// Vague dédiée au rattrapage : priorité BASSE (le tri est croissant, donc
+// 1200 > 999 = daily → le rattrapage passe après l'import du jour).
+const RETRO_VAGUE = 1200;
 
 function isoDay(d: Date): string {
   return d.toISOString().slice(0, 10);

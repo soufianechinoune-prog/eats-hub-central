@@ -78,6 +78,18 @@ export function PayoutsConsolidationBanner({
           </p>
         )}
 
+        {(queue?.throttledJobs || queue?.throttleFailedJobs) ? (
+          <p className="text-xs text-amber-700/90 dark:text-amber-300/80">
+            Cadence limitée par Uber :{" "}
+            {(queue?.throttledJobs || 0).toLocaleString("fr-FR")} rapport
+            {(queue?.throttledJobs || 0) > 1 ? "s" : ""} en attente de nouvelle tentative
+            {queue?.throttleFailedJobs
+              ? ` · ${queue.throttleFailedJobs.toLocaleString("fr-FR")} abandonné${queue.throttleFailedJobs > 1 ? "s" : ""} après throttle persistant`
+              : ""}
+          </p>
+        ) : null}
+
+
 
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {incompleteMonths.map((m) => (
