@@ -4508,6 +4508,8 @@ export type Database = {
           street: string | null
           tablet_email: string | null
           tablet_password: string | null
+          uber_auth_checked_at: string | null
+          uber_auth_error: string | null
           uber_closing_date: string | null
           uber_commission_rate: number | null
           uber_opening_date: string | null
@@ -4554,6 +4556,8 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_auth_checked_at?: string | null
+          uber_auth_error?: string | null
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
           uber_opening_date?: string | null
@@ -4600,6 +4604,8 @@ export type Database = {
           street?: string | null
           tablet_email?: string | null
           tablet_password?: string | null
+          uber_auth_checked_at?: string | null
+          uber_auth_error?: string | null
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
           uber_opening_date?: string | null
