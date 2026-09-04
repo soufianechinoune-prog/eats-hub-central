@@ -80,6 +80,10 @@ export interface PayoutBackfillQueue {
   pendingJobs: number;
   runningJobs: number;
   retroJobs: number;
+  /** Jobs en attente à cause d'un throttle Uber (429). */
+  throttledJobs: number;
+  /** Jobs abandonnés après throttle Uber persistant. */
+  throttleFailedJobs: number;
 }
 
 /**
