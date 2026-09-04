@@ -6662,6 +6662,8 @@ export type Database = {
           pending_jobs: number
           retro_jobs: number
           running_jobs: number
+          throttle_failed_jobs: number
+          throttled_jobs: number
         }[]
       }
       get_payouts_consolidation_status: {
