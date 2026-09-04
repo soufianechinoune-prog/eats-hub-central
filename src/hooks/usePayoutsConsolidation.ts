@@ -103,6 +103,8 @@ export function usePayoutBackfillQueue(enabled: boolean = true) {
         pendingJobs: Number(row?.pending_jobs) || 0,
         runningJobs: Number(row?.running_jobs) || 0,
         retroJobs: Number(row?.retro_jobs) || 0,
+        throttledJobs: Number(row?.throttled_jobs) || 0,
+        throttleFailedJobs: Number(row?.throttle_failed_jobs) || 0,
       };
     },
     enabled,
