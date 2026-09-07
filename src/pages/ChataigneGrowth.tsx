@@ -296,19 +296,54 @@ export default function ChataigneGrowth() {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-32 rounded-xl" />
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <KPICard title="Nouveaux clients" value={fmtInt(kpis.nouveaux)} icon={UserPlus} />
             <KPICard title="Clients récurrents (pic)" value={fmtInt(kpis.recurrents)} icon={Users} />
             <KPICard title="Total actifs (cumul périodes)" value={fmtInt(kpis.actifs)} icon={TrendingUp} />
             <KPICard title="Part du CA récurrents" value={fmtPct(kpis.partRec)} icon={Percent} />
+            <Card className="transition-all duration-300 hover:shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  % clients récurrents
+                </CardTitle>
+                <Repeat className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{fmtPct(recurrenceAvg)}</div>
+                <div className="h-10 mt-1">
+                  {recurrenceWeekly.length > 1 && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={recurrenceWeekly} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                        <defs>
+                          <linearGradient id="gradSparkTaux" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Area
+                          type="monotone"
+                          dataKey="taux"
+                          stroke="hsl(142 71% 45%)"
+                          strokeWidth={1.5}
+                          fill="url(#gradSparkTaux)"
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
+
 
         {isEmpty ? (
           <Card>
