@@ -21,7 +21,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Gift, HandCoins, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Gift, HandCoins, Percent, Repeat, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
