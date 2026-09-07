@@ -162,31 +162,30 @@ export default function ChataigneGrowth() {
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
-  // Toujours en semaine, indépendamment de la granularité choisie pour les volumes
-  const weeklyQ = useChataigneCustomerEvolution(start, end, "week", restaurantFilter);
-  const recurrenceWeekly = useMemo(
+  // Récurrence calculée sur la même granularité que les autres graphiques
+  const recurrenceData = useMemo(
     () =>
-      (weeklyQ.data ?? []).map((r) => {
-        // Dénominateur = total actifs de la semaine (= nouveaux + récurrents, ensembles disjoints)
+      (evolutionQ.data ?? []).map((r) => {
+        // Dénominateur = total actifs de la période (= nouveaux + récurrents, ensembles disjoints)
         const total = r.actifs || r.nouveaux + r.recurrents;
         return {
-          label: periodLabel(r.periode, "week"),
+          label: periodLabel(r.periode, granularity),
           taux: total > 0 ? (r.recurrents / total) * 100 : 0,
           recurrents: r.recurrents,
           actifs: total,
         };
       }),
-    [weeklyQ.data]
+    [evolutionQ.data, granularity]
   );
   const recurrenceMax = useMemo(
-    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceWeekly.map((d) => d.taux)) / 5) * 5),
-    [recurrenceWeekly]
+    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceData.map((d) => d.taux)) / 5) * 5),
+    [recurrenceData]
   );
   const recurrenceAvg = useMemo(() => {
-    const totActifs = recurrenceWeekly.reduce((s, d) => s + d.actifs, 0);
-    const totRec = recurrenceWeekly.reduce((s, d) => s + d.recurrents, 0);
+    const totActifs = recurrenceData.reduce((s, d) => s + d.actifs, 0);
+    const totRec = recurrenceData.reduce((s, d) => s + d.recurrents, 0);
     return totActifs > 0 ? (totRec / totActifs) * 100 : 0;
-  }, [recurrenceWeekly]);
+  }, [recurrenceData]);
 
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
