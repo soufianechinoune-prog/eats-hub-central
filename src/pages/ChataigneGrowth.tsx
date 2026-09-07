@@ -319,9 +319,9 @@ export default function ChataigneGrowth() {
               <CardContent>
                 <div className="text-2xl font-bold">{fmtPct(recurrenceAvg)}</div>
                 <div className="h-10 mt-1">
-                  {recurrenceWeekly.length > 1 && (
+                  {recurrenceData.length > 1 && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={recurrenceWeekly} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                      <AreaChart data={recurrenceData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="gradSparkTaux" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.4} />
