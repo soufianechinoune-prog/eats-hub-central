@@ -422,6 +422,56 @@ export default function ChataigneGrowth() {
 
             <Card>
               <CardHeader>
+                <CardTitle>% de clients récurrents par semaine</CardTitle>
+                <CardDescription>
+                  Clients récurrents ÷ total actifs de la semaine (nouveaux + récurrents)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {weeklyQ.isLoading ? (
+                  <Skeleton className="h-[220px] w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={recurrenceWeekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        domain={[0, recurrenceMax]}
+                        tickFormatter={(v) => `${v} %`}
+                        width={52}
+                      />
+                      <RTooltip
+                        formatter={(v: number, _n, item) => [
+                          `${Number(v).toFixed(1)} % · ${fmtInt(item?.payload?.recurrents)} / ${fmtInt(item?.payload?.actifs)}`,
+                          "Clients récurrents",
+                        ]}
+                        contentStyle={{
+                          background: "hsl(var(--popover))",
+                          borderColor: "hsl(var(--border))",
+                          color: "hsl(var(--popover-foreground))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="taux"
+                        name="% clients récurrents"
+                        stroke="hsl(142 71% 45%)"
+                        strokeWidth={2}
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+
+
+            <Card>
+              <CardHeader>
                 <CardTitle>CA nouveaux vs récurrents</CardTitle>
                 <CardDescription>Répartition du chiffre d'affaires par type de client</CardDescription>
               </CardHeader>
