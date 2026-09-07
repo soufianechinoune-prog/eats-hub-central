@@ -16,12 +16,15 @@ import {
   Cell,
   LabelList,
   Legend,
+  Line,
+  LineChart,
+
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Euro, Gift, HandCoins, Percent, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
+import { Euro, Gift, HandCoins, Percent, Repeat, ShoppingBasket, TrendingUp, UserPlus, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -159,6 +162,32 @@ export default function ChataigneGrowth() {
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
+  // Toujours en semaine, indépendamment de la granularité choisie pour les volumes
+  const weeklyQ = useChataigneCustomerEvolution(start, end, "week", restaurantFilter);
+  const recurrenceWeekly = useMemo(
+    () =>
+      (weeklyQ.data ?? []).map((r) => {
+        // Dénominateur = total actifs de la semaine (= nouveaux + récurrents, ensembles disjoints)
+        const total = r.actifs || r.nouveaux + r.recurrents;
+        return {
+          label: periodLabel(r.periode, "week"),
+          taux: total > 0 ? (r.recurrents / total) * 100 : 0,
+          recurrents: r.recurrents,
+          actifs: total,
+        };
+      }),
+    [weeklyQ.data]
+  );
+  const recurrenceMax = useMemo(
+    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceWeekly.map((d) => d.taux)) / 5) * 5),
+    [recurrenceWeekly]
+  );
+  const recurrenceAvg = useMemo(() => {
+    const totActifs = recurrenceWeekly.reduce((s, d) => s + d.actifs, 0);
+    const totRec = recurrenceWeekly.reduce((s, d) => s + d.recurrents, 0);
+    return totActifs > 0 ? (totRec / totActifs) * 100 : 0;
+  }, [recurrenceWeekly]);
+
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
   const basketSegments = basketQ.data ?? [];
@@ -270,19 +299,54 @@ export default function ChataigneGrowth() {
         </div>
 
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            {[0, 1, 2, 3, 4].map((i) => (
               <Skeleton key={i} className="h-32 rounded-xl" />
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             <KPICard title="Nouveaux clients" value={fmtInt(kpis.nouveaux)} icon={UserPlus} />
             <KPICard title="Clients récurrents (pic)" value={fmtInt(kpis.recurrents)} icon={Users} />
             <KPICard title="Total actifs (cumul périodes)" value={fmtInt(kpis.actifs)} icon={TrendingUp} />
             <KPICard title="Part du CA récurrents" value={fmtPct(kpis.partRec)} icon={Percent} />
+            <Card className="transition-all duration-300 hover:shadow-lg">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-sm font-medium text-muted-foreground">
+                  % clients récurrents
+                </CardTitle>
+                <Repeat className="h-4 w-4 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{fmtPct(recurrenceAvg)}</div>
+                <div className="h-10 mt-1">
+                  {recurrenceWeekly.length > 1 && (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={recurrenceWeekly} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                        <defs>
+                          <linearGradient id="gradSparkTaux" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.4} />
+                            <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <Area
+                          type="monotone"
+                          dataKey="taux"
+                          stroke="hsl(142 71% 45%)"
+                          strokeWidth={1.5}
+                          fill="url(#gradSparkTaux)"
+                          dot={false}
+                          isAnimationActive={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
         )}
+
 
         {isEmpty ? (
           <Card>
@@ -358,6 +422,56 @@ export default function ChataigneGrowth() {
                 )}
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>% de clients récurrents par semaine</CardTitle>
+                <CardDescription>
+                  Clients récurrents ÷ total actifs de la semaine (nouveaux + récurrents)
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {weeklyQ.isLoading ? (
+                  <Skeleton className="h-[220px] w-full" />
+                ) : (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={recurrenceWeekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        domain={[0, recurrenceMax]}
+                        tickFormatter={(v) => `${v} %`}
+                        width={52}
+                      />
+                      <RTooltip
+                        formatter={(v: number, _n, item) => [
+                          `${Number(v).toFixed(1)} % · ${fmtInt(item?.payload?.recurrents)} / ${fmtInt(item?.payload?.actifs)}`,
+                          "Clients récurrents",
+                        ]}
+                        contentStyle={{
+                          background: "hsl(var(--popover))",
+                          borderColor: "hsl(var(--border))",
+                          color: "hsl(var(--popover-foreground))",
+                          borderRadius: 8,
+                        }}
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="taux"
+                        name="% clients récurrents"
+                        stroke="hsl(142 71% 45%)"
+                        strokeWidth={2}
+                        dot={{ r: 2 }}
+                        activeDot={{ r: 4 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </CardContent>
+            </Card>
+
+
 
             <Card>
               <CardHeader>
