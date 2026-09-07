@@ -424,17 +424,17 @@ export default function ChataigneGrowth() {
 
             <Card>
               <CardHeader>
-                <CardTitle>% de clients récurrents par semaine</CardTitle>
+                <CardTitle>Récurrence des clients</CardTitle>
                 <CardDescription>
-                  Clients récurrents ÷ total actifs de la semaine (nouveaux + récurrents)
+                  Clients récurrents ÷ total actifs ({granularity === "day" ? "par jour" : granularity === "week" ? "par semaine" : "par mois"}) · nouveaux + récurrents
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {weeklyQ.isLoading ? (
+                {evolutionQ.isLoading ? (
                   <Skeleton className="h-[220px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={recurrenceWeekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                    <LineChart data={recurrenceData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
                       <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis
