@@ -162,31 +162,30 @@ export default function ChataigneGrowth() {
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
-  // Toujours en semaine, indépendamment de la granularité choisie pour les volumes
-  const weeklyQ = useChataigneCustomerEvolution(start, end, "week", restaurantFilter);
-  const recurrenceWeekly = useMemo(
+  // Récurrence calculée sur la même granularité que les autres graphiques
+  const recurrenceData = useMemo(
     () =>
-      (weeklyQ.data ?? []).map((r) => {
-        // Dénominateur = total actifs de la semaine (= nouveaux + récurrents, ensembles disjoints)
+      (evolutionQ.data ?? []).map((r) => {
+        // Dénominateur = total actifs de la période (= nouveaux + récurrents, ensembles disjoints)
         const total = r.actifs || r.nouveaux + r.recurrents;
         return {
-          label: periodLabel(r.periode, "week"),
+          label: periodLabel(r.periode, granularity),
           taux: total > 0 ? (r.recurrents / total) * 100 : 0,
           recurrents: r.recurrents,
           actifs: total,
         };
       }),
-    [weeklyQ.data]
+    [evolutionQ.data, granularity]
   );
   const recurrenceMax = useMemo(
-    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceWeekly.map((d) => d.taux)) / 5) * 5),
-    [recurrenceWeekly]
+    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceData.map((d) => d.taux)) / 5) * 5),
+    [recurrenceData]
   );
   const recurrenceAvg = useMemo(() => {
-    const totActifs = recurrenceWeekly.reduce((s, d) => s + d.actifs, 0);
-    const totRec = recurrenceWeekly.reduce((s, d) => s + d.recurrents, 0);
+    const totActifs = recurrenceData.reduce((s, d) => s + d.actifs, 0);
+    const totRec = recurrenceData.reduce((s, d) => s + d.recurrents, 0);
     return totActifs > 0 ? (totRec / totActifs) * 100 : 0;
-  }, [recurrenceWeekly]);
+  }, [recurrenceData]);
 
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
@@ -320,9 +319,9 @@ export default function ChataigneGrowth() {
               <CardContent>
                 <div className="text-2xl font-bold">{fmtPct(recurrenceAvg)}</div>
                 <div className="h-10 mt-1">
-                  {recurrenceWeekly.length > 1 && (
+                  {recurrenceData.length > 1 && (
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={recurrenceWeekly} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                      <AreaChart data={recurrenceData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="gradSparkTaux" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.4} />
@@ -425,17 +424,17 @@ export default function ChataigneGrowth() {
 
             <Card>
               <CardHeader>
-                <CardTitle>% de clients récurrents par semaine</CardTitle>
+                <CardTitle>Récurrence des clients</CardTitle>
                 <CardDescription>
-                  Clients récurrents ÷ total actifs de la semaine (nouveaux + récurrents)
+                  Clients récurrents ÷ total actifs ({granularity === "day" ? "par jour" : granularity === "week" ? "par semaine" : "par mois"}) · nouveaux + récurrents
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {weeklyQ.isLoading ? (
+                {evolutionQ.isLoading ? (
                   <Skeleton className="h-[220px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={recurrenceWeekly} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                    <LineChart data={recurrenceData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
                       <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis
