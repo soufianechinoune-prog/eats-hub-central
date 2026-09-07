@@ -159,6 +159,32 @@ export default function ChataigneGrowth() {
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
+  // Toujours en semaine, indépendamment de la granularité choisie pour les volumes
+  const weeklyQ = useChataigneCustomerEvolution(start, end, "week", restaurantFilter);
+  const recurrenceWeekly = useMemo(
+    () =>
+      (weeklyQ.data ?? []).map((r) => {
+        // Dénominateur = total actifs de la semaine (= nouveaux + récurrents, ensembles disjoints)
+        const total = r.actifs || r.nouveaux + r.recurrents;
+        return {
+          label: periodLabel(r.periode, "week"),
+          taux: total > 0 ? (r.recurrents / total) * 100 : 0,
+          recurrents: r.recurrents,
+          actifs: total,
+        };
+      }),
+    [weeklyQ.data]
+  );
+  const recurrenceMax = useMemo(
+    () => Math.max(5, Math.ceil(Math.max(0, ...recurrenceWeekly.map((d) => d.taux)) / 5) * 5),
+    [recurrenceWeekly]
+  );
+  const recurrenceAvg = useMemo(() => {
+    const totActifs = recurrenceWeekly.reduce((s, d) => s + d.actifs, 0);
+    const totRec = recurrenceWeekly.reduce((s, d) => s + d.recurrents, 0);
+    return totActifs > 0 ? (totRec / totActifs) * 100 : 0;
+  }, [recurrenceWeekly]);
+
   const cohortQ = useChataigneCohortRetention(restaurantFilter);
   const basketQ = useChataigneBasketSegments(start, end, restaurantFilter);
   const basketSegments = basketQ.data ?? [];
