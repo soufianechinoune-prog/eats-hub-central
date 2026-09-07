@@ -16,6 +16,9 @@ import {
   Cell,
   LabelList,
   Legend,
+  Line,
+  LineChart,
+
   ResponsiveContainer,
   Tooltip as RTooltip,
   XAxis,
