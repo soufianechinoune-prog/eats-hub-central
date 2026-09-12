@@ -5997,6 +5997,20 @@ export type Database = {
           type_acquisition: string
         }[]
       }
+      get_chataigne_service_comparison: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          avg_basket: number
+          collection_rate: number
+          has_promo: boolean
+          instore_ref: number
+          net_collected: number
+          orders: number
+          orders_with_ref: number
+          revenue: number
+          service_type: string
+        }[]
+      }
       get_daily_chataigne: {
         Args: {
           p_end_date: string
