@@ -48,6 +48,7 @@ import {
 import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersAnalysis";
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
+import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServiceComparison";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 
@@ -125,7 +126,12 @@ export default function Chataigne() {
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
   const tab =
-    tabParam === "details" || tabParam === "orders" || tabParam === "daily" ? tabParam : "overview";
+    tabParam === "details" ||
+    tabParam === "orders" ||
+    tabParam === "daily" ||
+    tabParam === "service"
+      ? tabParam
+      : "overview";
   const setTab = (v: string) => {
     const next = new URLSearchParams(searchParams);
     next.set("tab", v);
