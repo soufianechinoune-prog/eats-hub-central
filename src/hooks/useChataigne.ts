@@ -418,6 +418,48 @@ export function useChataigneHourly(start: string, end: string, restaurantIds: Re
   });
 }
 
+export interface ChataigneServiceRow {
+  service_type: "collection" | "delivery" | string;
+  has_promo: boolean;
+  orders: number;
+  revenue: number;
+  avg_basket: number;
+  net_collected: number;
+  instore_ref: number;
+  collection_rate: number | null;
+  orders_with_ref: number;
+}
+
+export function useChataigneServiceComparison(
+  start: string,
+  end: string,
+  restaurantIds: RestaurantScope = null
+) {
+  return useQuery({
+    queryKey: ["chataigne-service-comparison", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ChataigneServiceRow[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_service_comparison" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ChataigneServiceRow[] | null) ?? []).map((r) => ({
+        service_type: r.service_type,
+        has_promo: !!r.has_promo,
+        orders: num(r.orders),
+        revenue: num(r.revenue),
+        avg_basket: num(r.avg_basket),
+        net_collected: num(r.net_collected),
+        instore_ref: num(r.instore_ref),
+        collection_rate: r.collection_rate === null ? null : num(r.collection_rate),
+        orders_with_ref: num(r.orders_with_ref),
+      }));
+    },
+    enabled: restaurantIds !== undefined,
+  });
+}
+
 export interface ChataigneHeatmapCell {
   jour: number;
   heure: number;
