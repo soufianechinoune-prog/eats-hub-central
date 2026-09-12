@@ -320,7 +320,17 @@ export default function Chataigne() {
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
               <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
               <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
+              <TabsTrigger value="service">Emport vs Livraison</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="service" className="space-y-6">
+              <ChataigneServiceComparison
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter}
+              />
+            </TabsContent>
+
 
             <TabsContent value="overview" className="space-y-6">
               {/* Évolution mensuelle */}
