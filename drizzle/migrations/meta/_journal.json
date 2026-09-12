@@ -1,0 +1,20 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1789207940496,
+      "tag": "0000_chataigne_service_comparison",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1789208101211,
+      "tag": "0001_chataigne_service_comparison_perf",
+      "breakpoints": true
+    }
+  ]
+}
