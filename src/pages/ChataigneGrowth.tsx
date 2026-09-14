@@ -395,7 +395,7 @@ export default function ChataigneGrowth() {
                 <CardTitle>Évolution des clients</CardTitle>
                 <CardDescription>
                   Nouveaux clients vs clients récurrents par {granularity === "day" ? "jour" : granularity === "week" ? "semaine" : "mois"}
-                  {" · "}💬 clique sur un point pour ajouter une note
+                  {" · "}clique sur le graphique pour ajouter une note
                 </CardDescription>
               </CardHeader>
               <CardContent>
