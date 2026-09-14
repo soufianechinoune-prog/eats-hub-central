@@ -30,6 +30,7 @@ interface ChartNoteMarkersProps {
  * exposent `periode` (yyyy-MM-dd du début de bucket) et `label` (clé X).
  */
 export function ChartNoteMarkers({ notes, rows, granularity, onMarkerClick }: ChartNoteMarkersProps) {
+  console.log("[ChartNoteMarkers]", { notes: notes.length, rows: rows.length, firstRow: rows[0], firstNote: notes[0]?.note_date, granularity });
   if (notes.length === 0 || rows.length === 0) return null;
 
   const labelByBucket = new Map<string, string>();
