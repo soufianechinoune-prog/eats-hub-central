@@ -26,11 +26,11 @@ interface ChartNoteMarkersProps {
 
 /**
  * Lignes verticales + pastille cliquable pour chaque bucket contenant des notes.
- * À insérer dans un AreaChart / LineChart / BarChart Recharts dont les lignes
- * exposent `periode` (yyyy-MM-dd du début de bucket) et `label` (clé X).
+ * IMPORTANT : fonction (pas composant) — Recharts ignore les composants enfants
+ * inconnus, il faut donc inliner les <ReferenceLine> : {renderChartNoteMarkers({...})}.
+ * Les lignes doivent exposer `periode` (yyyy-MM-dd du début de bucket) et `label` (clé X).
  */
-export function ChartNoteMarkers({ notes, rows, granularity, onMarkerClick }: ChartNoteMarkersProps) {
-  console.log("[ChartNoteMarkers]", { notes: notes.length, rows: rows.length, firstRow: rows[0], firstNote: notes[0]?.note_date, granularity });
+export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick }: ChartNoteMarkersProps) {
   if (notes.length === 0 || rows.length === 0) return null;
 
   const labelByBucket = new Map<string, string>();
