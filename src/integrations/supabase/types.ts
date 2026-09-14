@@ -362,6 +362,53 @@ export type Database = {
         }
         Relationships: []
       }
+      chart_notes: {
+        Row: {
+          chain_id: string
+          color: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          note_date: string
+          restaurant_ids: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          note_date: string
+          restaurant_ids?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          note_date?: string
+          restaurant_ids?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_notes_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chataigne_daily_analytics: {
         Row: {
           average_order_value: number | null

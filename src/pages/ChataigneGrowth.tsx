@@ -44,6 +44,9 @@ import {
 } from "@/hooks/useChataigneGrowth";
 
 import { cn } from "@/lib/utils";
+import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
+import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
 
 
 const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
@@ -161,6 +164,32 @@ export default function ChataigneGrowth() {
     return resolved;
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
+  // Notes posées sur les graphiques (clic direct)
+  const notesQ = useChartNotes(start, end);
+  const chartNotes = useMemo(
+    () => filterNotesByScope(notesQ.data, restaurantFilter),
+    [notesQ.data, restaurantFilter]
+  );
+  const [noteDialog, setNoteDialog] = useState<{
+    open: boolean;
+    date: Date | null;
+    existing: ChartNote | null;
+  }>({ open: false, date: null, existing: null });
+
+  const openNoteForLabel = (label: string | undefined) => {
+    if (!label) return;
+    const row = chartData.find((r) => r.label === label);
+    setNoteDialog({
+      open: true,
+      date: row?.periode ? parseISO(row.periode) : null,
+      existing: null,
+    });
+  };
+  const openExistingNote = (notes: ChartNote[]) => {
+    const first = notes[0];
+    setNoteDialog({ open: true, date: first ? parseISO(first.note_date) : null, existing: first ?? null });
+  };
+
   const evolutionQ = useChataigneCustomerEvolution(start, end, granularity, restaurantFilter);
   // Récurrence calculée sur la même granularité que les autres graphiques
   const recurrenceData = useMemo(
@@ -169,6 +198,7 @@ export default function ChataigneGrowth() {
         // Dénominateur = total actifs de la période (= nouveaux + récurrents, ensembles disjoints)
         const total = r.actifs || r.nouveaux + r.recurrents;
         return {
+          periode: r.periode,
           label: periodLabel(r.periode, granularity),
           taux: total > 0 ? (r.recurrents / total) * 100 : 0,
           recurrents: r.recurrents,
@@ -222,6 +252,7 @@ export default function ChataigneGrowth() {
   const chartData = useMemo(
     () =>
       rows.map((r) => ({
+        periode: r.periode,
         label: periodLabel(r.periode, granularity),
         nouveaux: r.nouveaux,
         recurrents: r.recurrents,
@@ -364,6 +395,7 @@ export default function ChataigneGrowth() {
                 <CardTitle>Évolution des clients</CardTitle>
                 <CardDescription>
                   Nouveaux clients vs clients récurrents par {granularity === "day" ? "jour" : granularity === "week" ? "semaine" : "mois"}
+                  {" · "}clique sur le graphique pour ajouter une note
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -371,7 +403,12 @@ export default function ChataigneGrowth() {
                   <Skeleton className="h-[320px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={320}>
-                    <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                    <AreaChart
+                      data={chartData}
+                      margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
+                      onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                      style={{ cursor: "pointer" }}
+                    >
                       <defs>
                         <linearGradient id="gradNouveaux" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
@@ -415,6 +452,12 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
+                      {renderChartNoteMarkers({
+                        notes: chartNotes,
+                        rows: chartData,
+                        granularity,
+                        onMarkerClick: openExistingNote,
+                      })}
                     </AreaChart>
                   </ResponsiveContainer>
 
@@ -434,7 +477,12 @@ export default function ChataigneGrowth() {
                   <Skeleton className="h-[220px] w-full" />
                 ) : (
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={recurrenceData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                    <LineChart
+                      data={recurrenceData}
+                      margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
+                      onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                      style={{ cursor: "pointer" }}
+                    >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
                       <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
                       <YAxis
@@ -464,6 +512,12 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
+                      {renderChartNoteMarkers({
+                        notes: chartNotes,
+                        rows: recurrenceData,
+                        granularity,
+                        onMarkerClick: openExistingNote,
+                      })}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
@@ -898,6 +952,14 @@ export default function ChataigneGrowth() {
             </p>
           </>
         )}
+
+        <ChartNoteDialog
+          open={noteDialog.open}
+          onOpenChange={(open) => setNoteDialog((s) => ({ ...s, open }))}
+          date={noteDialog.date}
+          existingNote={noteDialog.existing}
+          scopedRestaurantIds={restaurantFilter ?? []}
+        />
       </div>
     </AppLayout>
   );
