@@ -45,7 +45,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
-import { ChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
 
 
@@ -452,12 +452,12 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
-                      <ChartNoteMarkers
-                        notes={chartNotes}
-                        rows={chartData}
-                        granularity={granularity}
-                        onMarkerClick={openExistingNote}
-                      />
+                      {renderChartNoteMarkers({
+                        notes: chartNotes,
+                        rows: chartData,
+                        granularity,
+                        onMarkerClick: openExistingNote,
+                      })}
                     </AreaChart>
                   </ResponsiveContainer>
 
@@ -512,12 +512,12 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
-                      <ChartNoteMarkers
-                        notes={chartNotes}
-                        rows={recurrenceData}
-                        granularity={granularity}
-                        onMarkerClick={openExistingNote}
-                      />
+                      {renderChartNoteMarkers({
+                        notes: chartNotes,
+                        rows: recurrenceData,
+                        granularity,
+                        onMarkerClick: openExistingNote,
+                      })}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
