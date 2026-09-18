@@ -608,6 +608,8 @@ export default function OnsiteSales() {
 
         )}
       </div>
+      </ChannelNavShell>
     </AppLayout>
+
   );
 }
