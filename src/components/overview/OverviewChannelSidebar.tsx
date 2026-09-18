@@ -98,6 +98,7 @@ const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
 const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "synthese", label: "Synthèse", icon: Sparkles },
   { id: "onsite-sales", label: "Ventes sur place", icon: Store, route: "/analytics/onsite-sales" },
+  { id: "payments", label: "Moyens de paiement", icon: CreditCard, route: "/caisse/paiements" },
   { id: "product-sales", label: "Ventes par produit", icon: Package, soon: true },
   { id: "instore-prices", label: "Prix sur place", icon: Tag, route: "/prix-sur-place", section: "Réglages" },
 ];
