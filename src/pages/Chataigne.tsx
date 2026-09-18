@@ -39,6 +39,7 @@ import {
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import {
@@ -265,6 +266,7 @@ export default function Chataigne() {
 
   return (
     <AppLayout>
+      <ChannelNavShell>
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -487,6 +489,7 @@ export default function Chataigne() {
           </Tabs>
         )}
       </div>
+      </ChannelNavShell>
     </AppLayout>
   );
 }

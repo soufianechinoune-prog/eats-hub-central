@@ -20,6 +20,7 @@ import {
 
 
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -298,6 +299,7 @@ export default function DeliveryProfitability() {
 
   return (
     <AppLayout>
+      <ChannelNavShell>
       <div className="space-y-6 p-4 md:p-6">
         <AnalyticsHeader />
 
@@ -806,6 +808,7 @@ export default function DeliveryProfitability() {
           </CardContent>
         </Card>
       </div>
+      </ChannelNavShell>
     </AppLayout>
   );
 }

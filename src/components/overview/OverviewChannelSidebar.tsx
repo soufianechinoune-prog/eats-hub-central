@@ -19,6 +19,11 @@ import {
   Ticket,
   PauseCircle,
   Package,
+  BarChart3,
+  ClipboardList,
+  CalendarDays,
+  Bike,
+  Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -97,10 +102,32 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "instore-prices", label: "Prix sur place", icon: Tag, route: "/prix-sur-place", section: "Réglages" },
 ];
 
+// Sous-onglets Chataigne — vues internes et écrans dédiés du canal
+const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
+  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "details", label: "Analyse détaillée", icon: BarChart3, route: "/chataigne?tab=details" },
+  { id: "orders", label: "Commandes", icon: ClipboardList, route: "/chataigne?tab=orders" },
+  { id: "daily", label: "Vue quotidienne", icon: CalendarDays, route: "/chataigne?tab=daily" },
+  { id: "service", label: "Emport vs Livraison", icon: Bike, route: "/chataigne?tab=service" },
+  { id: "growth", label: "Croissance & Clients", icon: Users, route: "/chataigne/croissance" },
+  { id: "pricing", label: "Écarts & Markup", icon: Tag, route: "/chataigne/tarification" },
+  { id: "profitability", label: "Rentabilité", icon: Euro, route: "/chataigne/rentabilite" },
+];
+
 /** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
-function channelFromPath(pathname: string): { channel: OverviewChannel; subId: string } | null {
+function channelFromPath(pathname: string, search: string): { channel: OverviewChannel; subId: string } | null {
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
   if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
+  if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
+  if (pathname.startsWith("/chataigne/tarification")) return { channel: "chataigne", subId: "pricing" };
+  if (pathname.startsWith("/chataigne/rentabilite")) return { channel: "chataigne", subId: "profitability" };
+  if (pathname === "/chataigne") {
+    const tab = new URLSearchParams(search).get("tab");
+    return {
+      channel: "chataigne",
+      subId: tab === "details" || tab === "orders" || tab === "daily" || tab === "service" ? tab : "synthese",
+    };
+  }
   return null;
 }
 
@@ -111,10 +138,10 @@ export function OverviewChannelSidebar({
   onNavigate,
 }: OverviewChannelSidebarProps) {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   const analyticsCtx = useAnalyticsContext();
 
-  const routeMatch = channelFromPath(pathname);
+  const routeMatch = channelFromPath(pathname, search);
   // Mode "route" : la page n'est pas la Vue d'ensemble, l'état actif vient de l'URL.
   const routeMode = !onChange;
   const activeChannel: OverviewChannel = routeMode
@@ -126,6 +153,7 @@ export function OverviewChannelSidebar({
     uber: activeChannel === "uber" || activeChannel === "uber-tr",
     deliveroo: activeChannel === "deliveroo",
     cash: activeChannel === "cash",
+    chataigne: activeChannel === "chataigne",
   });
   const [activeSubId, setActiveSubId] = useState<string>(
     activeChannel === "uber-tr" ? "titres-restaurant" : "synthese",
@@ -172,7 +200,13 @@ export function OverviewChannelSidebar({
     channelItems.push({ id: "dishop", label: "Dishop", icon: Globe, dotClass: "bg-blue-500" });
   }
   if (available.chataigne) {
-    channelItems.push({ id: "chataigne", label: "Chataigne", icon: MessageCircle, dotClass: "bg-emerald-500" });
+    channelItems.push({
+      id: "chataigne",
+      label: "Chataigne",
+      icon: MessageCircle,
+      dotClass: "bg-emerald-500",
+      subItems: CHATAIGNE_SUB_ITEMS,
+    });
   }
 
   /** Revient sur la Vue d'ensemble en ouvrant directement le canal demandé. */

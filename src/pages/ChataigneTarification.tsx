@@ -1,6 +1,7 @@
 import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -318,6 +319,7 @@ export default function ChataigneTarification() {
 
   return (
     <AppLayout>
+      <ChannelNavShell>
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -342,6 +344,7 @@ export default function ChataigneTarification() {
         <AlertsSection restaurantIds={restaurantFilter} />
         <MarkupSection restaurantIds={restaurantFilter} />
       </div>
+      </ChannelNavShell>
     </AppLayout>
   );
 }
