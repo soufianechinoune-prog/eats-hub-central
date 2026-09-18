@@ -17,7 +17,9 @@ Trois tables d'agrégat, grain **restaurant × jour** (déjà le grain de tous l
 
 - tickets/jour : nb tickets, CA TTC/HT/TVA, split sur place / emporter / livraison, centre de revenu, panier moyen.
 - règlements/jour : montants par catégorie (Carte, Espèces, Titres-resto, Plateforme, Autre) et par marque de titre-resto.
-- produits/jour : par produit et catégorie — quantité, CA, nb tickets contenant le produit (pour le taux d'attachement).
+- produits/jour : par produit et catégorie — quantité et CA.
+- attachement/jour : nombre de **tickets distincts** contenant chaque catégorie (boisson, side, sauce…), plus le nombre total de tickets du jour. Indispensable : un ticket avec 2 boissons ne doit compter qu'une fois, sinon l'attachement est surévalué. Ce compteur ne peut pas être déduit du rollup produit, il est calculé séparément au moment du rafraîchissement.
+
 
 Alimentation **incrémentale**, pas de rafraîchissement global : à la fin de chaque import (connecteur et worker de rattrapage), on recalcule uniquement les couples (restaurant, jour) touchés. Idempotent, donc un ré-import ne double jamais rien.
 
