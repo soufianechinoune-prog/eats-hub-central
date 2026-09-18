@@ -344,20 +344,23 @@ Deno.serve(async (req) => {
             });
           }
 
-          for (let i = 0; i < lineRows.length; i += 500) {
+          const uLines = dedupe(lineRows, (r) => `${r.ticket_uuid}|${r.line_key}`);
+          for (let i = 0; i < uLines.length; i += 500) {
             const { error } = await admin
               .from("splash_ticket_lines")
-              .upsert(lineRows.slice(i, i + 500), { onConflict: "ticket_uuid,line_key" });
+              .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key" });
             if (error) throw error;
           }
-          lines += lineRows.length;
+          lines += uLines.length;
 
-          for (let i = 0; i < payRows.length; i += 500) {
+          const uPays = dedupe(payRows, (r) => `${r.ticket_uuid}|${r.payment_key}`);
+          for (let i = 0; i < uPays.length; i += 500) {
             const { error } = await admin
               .from("splash_ticket_payments")
-              .upsert(payRows.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key" });
+              .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key" });
             if (error) throw error;
           }
+
           payments += payRows.length;
         }
 
