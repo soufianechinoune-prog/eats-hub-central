@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -337,17 +339,20 @@ function VersionsSection() {
 export default function InstorePrices() {
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Prix sur place</h1>
-          <p className="text-muted-foreground">
-            Grilles tarifaires de référence du réseau, communes à tous les canaux de vente.
-          </p>
-        </div>
+      <ChannelNavShell>
+        <div className="space-y-6">
+          <div>
+            <h1 className="text-2xl font-bold">Prix sur place</h1>
+            <p className="text-muted-foreground">
+              Grilles tarifaires de référence du réseau, communes à tous les canaux de vente.
+            </p>
+          </div>
 
-        <GridSection />
-        <VersionsSection />
-      </div>
+          <GridSection />
+          <VersionsSection />
+        </div>
+      </ChannelNavShell>
     </AppLayout>
   );
 }
+
