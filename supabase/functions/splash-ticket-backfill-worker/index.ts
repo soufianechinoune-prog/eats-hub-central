@@ -74,6 +74,7 @@ Deno.serve(async (req) => {
           status: "running",
           started_at: job.started_at ?? new Date().toISOString(),
           attempts: job.attempts + 1,
+          locked_until: lockUntil,
           updated_at: new Date().toISOString(),
         })
         .eq("id", job.id);
@@ -124,7 +125,8 @@ Deno.serve(async (req) => {
             last_error: null,
             completed_at: res.done ? new Date().toISOString() : null,
             // Pacing : on laisse respirer l'API entre deux reprises.
-            next_attempt_at: new Date(Date.now() + 60000).toISOString(),
+            next_attempt_at: new Date(Date.now() + 20000).toISOString(),
+            locked_until: null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", job.id);
@@ -147,6 +149,7 @@ Deno.serve(async (req) => {
             status: attempts >= MAX_ATTEMPTS && !throttled ? "failed" : "pending",
             last_error: msg.slice(0, 500),
             next_attempt_at: new Date(Date.now() + delayMin * 60000).toISOString(),
+            locked_until: null,
             updated_at: new Date().toISOString(),
           })
           .eq("id", job.id);
