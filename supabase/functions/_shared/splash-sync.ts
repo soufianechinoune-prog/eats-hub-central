@@ -232,6 +232,8 @@ export async function syncRange(
         .select("id, splash_ticket_id, ticket_date")
         .eq("restaurant_id", cred.restaurant_id)
         .eq("station", cred.station)
+        .gte("ticket_date", from)
+        .lte("ticket_date", to)
         .in("splash_ticket_id", [...byTicketId.keys()]);
       if (sErr) throw sErr;
 
