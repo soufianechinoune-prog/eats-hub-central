@@ -57,7 +57,8 @@ Deno.serve(async (req) => {
       .from("splash_ticket_backfill_jobs")
       .select("*")
       .in("status", ["pending", "running"])
-      .lte("next_attempt_at", new Date().toISOString())
+      .lte("next_attempt_at", nowIso)
+      .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
       .order("priority", { ascending: true })
       .order("next_attempt_at", { ascending: true })
       .limit(batch);
