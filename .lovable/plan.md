@@ -1,62 +1,26 @@
-# Caisse — tenir la charge à ~80 M de lignes
+# Lisibilité du classement produits en vue « Semaine »
 
-## Où on en est réellement (vérifié)
+## Le problème observé
 
-- Les vues Caisse actuelles (`get_caisse_payment_breakdown`, `get_caisse_payment_weekly`, `get_caisse_payment_brands`) lisent **les tickets et règlements bruts en direct**. Aucun rollup, aucune vue matérialisée aujourd'hui.
-- Aucune table ticket n'est partitionnée (tables simples).
-- Volumes actuels : 10 019 tickets, 82 934 lignes, 9 425 règlements. Tickets 46 Mo, lignes 34 Mo, règlements 3 Mo.
-- Champ brut : 1 262 octets en moyenne par ticket, 12 Mo au total (déjà compressé par le stockage).
+En vue Semaine, toutes les courbes sont écrasées en haut du graphique. Cause : l'échelle verticale va du 1er au dernier rang rencontré dans la période — y compris un produit qui tombe très bas une semaine (#132). Les dix produits suivis, qui évoluent tous entre la 1re et la ~20e place, se retrouvent donc tassés sur quelques pixels, et la courbe du produit absent traverse tout le graphique.
 
-Projection à 80 M de lignes (≈ 9,5 M tickets, soit les 182 caisses × ~2 ans) :
-lignes ≈ 33 Go, tickets ≈ 44 Go dont ≈ 12 Go de brut, règlements ≈ 3 Go.
-À cette taille, lire les tickets en direct pour une vue réseau sur 12 mois n'est plus tenable. Donc oui : on passe aux rollups, et on partitionne maintenant, pendant que les tables sont petites.
+## Ce qui change
 
-## 1. Rollups pré-agrégés (les vues ne lisent plus le brut)
+1. **Classement relatif entre les produits suivis.** Chaque semaine (ou mois), les produits affichés sont classés entre eux : 1er à 10e (ou 15e / 20e). L'échelle devient donc stable et les écarts redeviennent visibles. Le vrai rang dans le catalogue complet et le chiffre d'affaires restent affichés au survol et dans les listes « En hausse / En baisse » — aucune valeur n'est perdue.
 
-Trois tables d'agrégat, grain **restaurant × jour** (déjà le grain de tous les filtres de l'app) :
+2. **Trous assumés.** Une semaine sans vente pour un produit laisse une interruption dans sa courbe au lieu d'une chute artificielle vers le bas du graphique.
 
-- tickets/jour : nb tickets, CA TTC/HT/TVA, split sur place / emporter / livraison, centre de revenu, panier moyen.
-- règlements/jour : montants par catégorie (Carte, Espèces, Titres-resto, Plateforme, Autre) et par marque de titre-resto.
-- produits/jour : par produit et catégorie — quantité et CA.
-- attachement/jour : nombre de **tickets distincts** contenant chaque catégorie (boisson, side, sauce…), plus le nombre total de tickets du jour. Indispensable : un ticket avec 2 boissons ne doit compter qu'une fois, sinon l'attachement est surévalué. Ce compteur ne peut pas être déduit du rollup produit, il est calculé séparément au moment du rafraîchissement.
+3. **Lisibilité de la vue Semaine.** Graphique plus haut, courbes plus épaisses pour les produits mis en avant, points plus petits, libellés de semaines allégés (une étiquette sur deux quand il y en a beaucoup) et nom du produit posé en bout de courbe pour les lignes en couleur.
 
+4. **Repère visuel.** Ligne de séparation tous les 5 rangs pour situer un produit d'un coup d'œil.
 
-Alimentation **incrémentale**, pas de rafraîchissement global : à la fin de chaque import (connecteur et worker de rattrapage), on recalcule uniquement les couples (restaurant, jour) touchés. Idempotent, donc un ré-import ne double jamais rien.
-
-Les RPC Caisse existantes sont réécrites pour lire ces rollups. Même signature, mêmes résultats, mêmes garde-fous d'accès — le front n'est pas touché.
-
-Le détail ticket reste consultable, mais uniquement en descente ciblée (un restaurant, une journée), jamais pour une agrégation réseau.
-
-## 2. Partitionnement par mois
-
-`splash_ticket_lines`, `splash_tickets` et `splash_ticket_payments` deviennent partitionnées par mois sur la date métier du ticket. Effet : une période de 3 mois ne lit que 3 partitions au lieu de la table entière, et purger ou archiver un vieux mois devient instantané.
-
-Fait maintenant, pendant que les données tiennent en 80 Mo : recréation des tables partitionnées, recopie, bascule, contrôle des compteurs avant/après. Le rattrapage en cours est mis en pause le temps de la bascule puis reprend là où il s'était arrêté.
-
-## 3. Index ciblés
-
-Sur chaque partition : (restaurant, date), (chaîne, date), clé naturelle unique, et pour les lignes (catégorie, date) pour le taux d'attachement. On retire l'index de recherche dans le brut (GIN sur le champ brut), coûteux à l'écriture et inutile pour les vues — il sera recréé à la demande si une analyse le justifie.
-
-## 4. Surveillance du brut
-
-- Le brut reste stocké compressé et sorti du chemin de lecture des vues : il est déplacé dans une table dédiée, en relation 1:1 avec le ticket. Conséquence directe : les tables lues par les rollups et les descentes deviennent ~3× plus légères.
-- Un indicateur d'occupation par mois et par enseigne, visible côté admin, pour voir la croissance réelle au lieu de l'estimer.
-- Règle de purge prévue mais **non activée** : au-delà de 24 mois, le brut peut être supprimé sans toucher aux colonnes structurées ni aux rollups. À décider plus tard, quand le volume le justifie.
+Aucune donnée, aucun calcul de chiffre d'affaires et aucun filtre ne sont modifiés : il s'agit uniquement de la façon de dessiner le classement.
 
 ## Détails techniques
 
-- Rollups : `caisse_daily_tickets`, `caisse_daily_payments`, `caisse_daily_products` (`restaurant_id`, `chain_id`, `ticket_date`, + mesures), PK naturelle par jour/dimension, `GRANT select` à `authenticated` + `all` à `service_role`, RLS `is_super_admin() OR user_has_chain_access(chain_id)`, `anon` révoqué, trigger de cohérence de marque comme sur les tables Splash.
-- Rollup d'attachement : `caisse_daily_attachment (restaurant_id, chain_id, ticket_date, category, tickets_with_category bigint, tickets_total bigint)`, PK `(restaurant_id, ticket_date, category)`. Alimenté par `count(distinct ticket_uuid)` sur une CTE de flags par ticket — jamais par une somme du rollup produit (un ticket à 2 boissons serait compté deux fois). Taux d'attachement = `sum(tickets_with_category) / sum(tickets_total)` sur la période, additif et exact.
-- Fonction `refresh_caisse_rollups(p_restaurant_id uuid, p_from date, p_to date)` en `SECURITY DEFINER`, `SET search_path = public` : `delete` + `insert ... select` anti-fan-out (CTE tickets agrégée d'un côté, CTE lignes/règlements pré-agrégées par ticket de l'autre, composition après agrégation). Appelée par `splash-orders-sync` et `splash-ticket-backfill-worker` en fin de job sur la plage traitée.
-- RPC réécrites sur les rollups : `get_caisse_payment_breakdown`, `get_caisse_payment_weekly`, `get_caisse_payment_brands` (+ futures `get_caisse_product_sales`, `get_caisse_overview`, `get_caisse_hourly`). `statement_timeout` conservé.
-
-- Partitionnement : `PARTITION BY RANGE (ticket_date)`, partitions mensuelles créées d'avance par une fonction `ensure_caisse_partitions(p_months int)` appelée par le cron existant. Clés uniques étendues à `ticket_date` (contrainte Postgres sur table partitionnée). Les FK ligne→ticket sont remplacées par un contrôle applicatif + `ticket_date` portée sur les enfants (déjà le cas).
-- Brut déporté : `splash_ticket_raw (ticket_uuid pk, restaurant_id, chain_id, ticket_date, payload jsonb)`, `GRANT service_role` seulement, aucune lecture côté client ; colonnes `raw`/`raw_payload` de `splash_tickets` supprimées après recopie et contrôle de complétude.
-- Bascule : migration en une transaction par table (création partitionnée, copie, `count(*)` avant/après, renommage), worker de rattrapage suspendu puis relancé.
-
-## Ordre de livraison
-
-1. Rollups + réécriture des RPC (gain immédiat, sans risque sur les données).
-2. Déport du brut dans sa table dédiée.
-3. Partitionnement mensuel + index par partition, avec contrôle des compteurs.
-4. Indicateur d'occupation ; purge du brut laissée désactivée.
+- `src/pages/CaisseProductSales.tsx` uniquement ; aucune modification des RPC ni du schéma.
+- Nouveau calcul dans le `useMemo` du graphique : pour chaque bucket, trier les `products` suivis par `revenue` décroissant et attribuer un rang dense local (1..N). Stocker en parallèle `${ref}__globalRank` et `${ref}__ca` pour le tooltip.
+- `YAxis reversed domain={[1, products.length]}`, `allowDecimals={false}`, `ticks` tous les 1 (ou tous les 2 au-delà de 15 produits).
+- `connectNulls` retiré sur les `Line` pour matérialiser les trous.
+- `height` du conteneur porté à ~520 px ; `strokeWidth` 2.5 pour les refs en emphase, 1.25 pour les grises ; `dot` réduit ; `XAxis interval` calculé selon le nombre de buckets ; `LabelList`/`Label` en bout de courbe pour les refs en couleur.
+- Tooltip inchangé dans sa logique, mais affiche « rang local (rang réel) · CA ».
