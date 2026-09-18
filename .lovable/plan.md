@@ -17,7 +17,9 @@ Trois tables d'agrégat, grain **restaurant × jour** (déjà le grain de tous l
 
 - tickets/jour : nb tickets, CA TTC/HT/TVA, split sur place / emporter / livraison, centre de revenu, panier moyen.
 - règlements/jour : montants par catégorie (Carte, Espèces, Titres-resto, Plateforme, Autre) et par marque de titre-resto.
-- produits/jour : par produit et catégorie — quantité, CA, nb tickets contenant le produit (pour le taux d'attachement).
+- produits/jour : par produit et catégorie — quantité et CA.
+- attachement/jour : nombre de **tickets distincts** contenant chaque catégorie (boisson, side, sauce…), plus le nombre total de tickets du jour. Indispensable : un ticket avec 2 boissons ne doit compter qu'une fois, sinon l'attachement est surévalué. Ce compteur ne peut pas être déduit du rollup produit, il est calculé séparément au moment du rafraîchissement.
+
 
 Alimentation **incrémentale**, pas de rafraîchissement global : à la fin de chaque import (connecteur et worker de rattrapage), on recalcule uniquement les couples (restaurant, jour) touchés. Idempotent, donc un ré-import ne double jamais rien.
 
@@ -44,8 +46,10 @@ Sur chaque partition : (restaurant, date), (chaîne, date), clé naturelle uniqu
 ## Détails techniques
 
 - Rollups : `caisse_daily_tickets`, `caisse_daily_payments`, `caisse_daily_products` (`restaurant_id`, `chain_id`, `ticket_date`, + mesures), PK naturelle par jour/dimension, `GRANT select` à `authenticated` + `all` à `service_role`, RLS `is_super_admin() OR user_has_chain_access(chain_id)`, `anon` révoqué, trigger de cohérence de marque comme sur les tables Splash.
-- Fonction `refresh_caisse_rollups(p_restaurant_id uuid, p_from date, p_to date)` en `SECURITY DEFINER`, `SET search_path = public` : `delete` + `insert ... select` anti-fan-out (CTE tickets agrégée d'un côté, CTE lignes/règlements pré-agrégées par ticket de l'autre, composition après agrégation ; attachement sur `count(distinct ticket_uuid)`). Appelée par `splash-orders-sync` et `splash-ticket-backfill-worker` en fin de job sur la plage traitée.
+- Rollup d'attachement : `caisse_daily_attachment (restaurant_id, chain_id, ticket_date, category, tickets_with_category bigint, tickets_total bigint)`, PK `(restaurant_id, ticket_date, category)`. Alimenté par `count(distinct ticket_uuid)` sur une CTE de flags par ticket — jamais par une somme du rollup produit (un ticket à 2 boissons serait compté deux fois). Taux d'attachement = `sum(tickets_with_category) / sum(tickets_total)` sur la période, additif et exact.
+- Fonction `refresh_caisse_rollups(p_restaurant_id uuid, p_from date, p_to date)` en `SECURITY DEFINER`, `SET search_path = public` : `delete` + `insert ... select` anti-fan-out (CTE tickets agrégée d'un côté, CTE lignes/règlements pré-agrégées par ticket de l'autre, composition après agrégation). Appelée par `splash-orders-sync` et `splash-ticket-backfill-worker` en fin de job sur la plage traitée.
 - RPC réécrites sur les rollups : `get_caisse_payment_breakdown`, `get_caisse_payment_weekly`, `get_caisse_payment_brands` (+ futures `get_caisse_product_sales`, `get_caisse_overview`, `get_caisse_hourly`). `statement_timeout` conservé.
+
 - Partitionnement : `PARTITION BY RANGE (ticket_date)`, partitions mensuelles créées d'avance par une fonction `ensure_caisse_partitions(p_months int)` appelée par le cron existant. Clés uniques étendues à `ticket_date` (contrainte Postgres sur table partitionnée). Les FK ligne→ticket sont remplacées par un contrôle applicatif + `ticket_date` portée sur les enfants (déjà le cas).
 - Brut déporté : `splash_ticket_raw (ticket_uuid pk, restaurant_id, chain_id, ticket_date, payload jsonb)`, `GRANT service_role` seulement, aucune lecture côté client ; colonnes `raw`/`raw_payload` de `splash_tickets` supprimées après recopie et contrôle de complétude.
 - Bascule : migration en une transaction par table (création partitionnée, copie, `count(*)` avant/après, renommage), worker de rattrapage suspendu puis relancé.
