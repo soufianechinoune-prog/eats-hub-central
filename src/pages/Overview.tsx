@@ -657,7 +657,7 @@ const Overview = () => {
 
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
-      <aside className="w-60 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
+      <aside className="w-64 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
         <div className="sticky top-0">
           <OverviewChannelSidebar
             active={activeChannel}

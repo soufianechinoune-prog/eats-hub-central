@@ -16,7 +16,7 @@ export function ChannelNavShell({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex gap-0 -m-6">
-      <aside className="hidden lg:block w-60 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
+      <aside className="hidden lg:block w-64 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
         <div className="sticky top-16">
           <OverviewChannelSidebar available={available} />
         </div>
