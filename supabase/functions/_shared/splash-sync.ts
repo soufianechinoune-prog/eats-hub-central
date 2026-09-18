@@ -220,15 +220,15 @@ export async function syncRange(
 
     if (ticketRows.length) {
       const { error: tErr } = await admin
-        .from("splash_tickets")
+        .from("caisse_tickets")
         .upsert(dedupe(ticketRows, (r) => String(r.splash_ticket_id)), {
-          onConflict: "restaurant_id,station,splash_ticket_id",
+          onConflict: "restaurant_id,station,splash_ticket_id,ticket_date",
         });
       if (tErr) throw tErr;
       tickets += ticketRows.length;
 
       const { data: stored, error: sErr } = await admin
-        .from("splash_tickets")
+        .from("caisse_tickets")
         .select("id, splash_ticket_id, ticket_date")
         .eq("restaurant_id", cred.restaurant_id)
         .eq("station", cred.station)
@@ -291,8 +291,8 @@ export async function syncRange(
       const uLines = dedupe(lineRows, (r) => `${r.ticket_uuid}|${r.line_key}`);
       for (let i = 0; i < uLines.length; i += 500) {
         const { error } = await admin
-          .from("splash_ticket_lines")
-          .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key" });
+          .from("caisse_ticket_lines")
+          .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key,ticket_date" });
         if (error) throw error;
       }
       lines += uLines.length;
@@ -300,8 +300,8 @@ export async function syncRange(
       const uPays = dedupe(payRows, (r) => `${r.ticket_uuid}|${r.payment_key}`);
       for (let i = 0; i < uPays.length; i += 500) {
         const { error } = await admin
-          .from("splash_ticket_payments")
-          .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key" });
+          .from("caisse_ticket_payments")
+          .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key,ticket_date" });
         if (error) throw error;
       }
       payments += uPays.length;
