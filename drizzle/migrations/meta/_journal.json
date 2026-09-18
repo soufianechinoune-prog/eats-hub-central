@@ -71,6 +71,13 @@
       "when": 1789760802794,
       "tag": "0009_caisse_partitioned_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789762402316,
+      "tag": "0010_caisse_product_trends_rpcs",
+      "breakpoints": true
     }
   ]
 }

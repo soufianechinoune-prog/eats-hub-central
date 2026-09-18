@@ -12820,6 +12820,55 @@ export type Database = {
           week_start: string
         }[]
       }
+      get_caisse_product_movers: {
+        Args: {
+          p_bucket?: string
+          p_end: string
+          p_restaurant_ids?: string[]
+          p_start: string
+          p_top_n?: number
+        }
+        Returns: {
+          first_rank: number
+          first_revenue: number
+          first_share: number
+          last_rank: number
+          last_revenue: number
+          last_share: number
+          product_name: string
+          product_ref: string
+          rank_delta: number
+          share_delta: number
+        }[]
+      }
+      get_caisse_product_seasonality: {
+        Args: { p_product_ref: string; p_restaurant_ids?: string[] }
+        Returns: {
+          avg_revenue: number
+          month_of_year: number
+          total_quantity: number
+          total_revenue: number
+          years_covered: number
+        }[]
+      }
+      get_caisse_product_trends: {
+        Args: {
+          p_bucket?: string
+          p_end: string
+          p_restaurant_ids?: string[]
+          p_start: string
+          p_top_n?: number
+        }
+        Returns: {
+          bucket: string
+          product_name: string
+          product_ref: string
+          quantity: number
+          rank: number
+          revenue: number
+          share: number
+        }[]
+      }
       get_chataigne_basket_segments: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
