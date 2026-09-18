@@ -248,6 +248,8 @@ export default function CaisseProductSales() {
     return refs.slice(0, 5);
   }, [products]);
 
+  // Rang LOCAL (parmi les produits suivis) pour garder une échelle stable et lisible.
+  // Le rang catalogue réel reste disponible au survol.
   const chartData = useMemo(
     () =>
       buckets.map((b) => {
@@ -257,18 +259,42 @@ export default function CaisseProductSales() {
               ? `sem. ${format(new Date(b), "dd MMM", { locale: fr })}`
               : format(new Date(b), "MMM yyyy", { locale: fr }),
         };
+        const present = products
+          .map((p) => ({ ref: p.ref, row: rows.find((r) => r.bucket === b && r.product_ref === p.ref) }))
+          .filter((x) => x.row)
+          .sort((a, b2) => (b2.row!.revenue - a.row!.revenue));
+        present.forEach((x, i) => {
+          point[x.ref] = i + 1;
+          point[`${x.ref}__ca`] = x.row!.revenue;
+          point[`${x.ref}__globalRank`] = x.row!.rank;
+        });
         for (const p of products) {
-          const row = rows.find((r) => r.bucket === b && r.product_ref === p.ref);
-          point[p.ref] = row ? row.rank : null;
-          point[`${p.ref}__ca`] = row ? row.revenue : null;
+          if (!(p.ref in point)) {
+            point[p.ref] = null;
+            point[`${p.ref}__ca`] = null;
+            point[`${p.ref}__globalRank`] = null;
+          }
         }
         return point;
       }),
     [buckets, products, rows, bucket],
   );
 
-  const maxRank = useMemo(() => Math.max(1, ...rows.map((r) => r.rank)), [rows]);
+  const maxRank = useMemo(() => Math.max(1, products.length), [products]);
+  const rankTicks = useMemo(
+    () =>
+      Array.from({ length: maxRank }, (_, i) => i + 1).filter((v) =>
+        maxRank > 15 ? v % 2 === 1 || v === maxRank : true,
+      ),
+    [maxRank],
+  );
+  const separators = useMemo(
+    () => Array.from({ length: Math.floor(maxRank / 5) }, (_, i) => (i + 1) * 5).filter((v) => v < maxRank),
+    [maxRank],
+  );
+  const xInterval = chartData.length > 12 ? 1 : 0;
   const nameOf = (ref: string) => products.find((p) => p.ref === ref)?.name ?? ref;
+
 
   const up = useMemo(
     () =>
