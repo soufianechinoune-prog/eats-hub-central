@@ -5145,6 +5145,7 @@ export type Database = {
           payment_category: string | null
           payment_label_raw: string | null
           raw: Json | null
+          raw_payload: Json | null
           restaurant_id: string
           revenue_center: string | null
           service_type: string | null
@@ -5167,6 +5168,7 @@ export type Database = {
           payment_category?: string | null
           payment_label_raw?: string | null
           raw?: Json | null
+          raw_payload?: Json | null
           restaurant_id: string
           revenue_center?: string | null
           service_type?: string | null
@@ -5189,6 +5191,7 @@ export type Database = {
           payment_category?: string | null
           payment_label_raw?: string | null
           raw?: Json | null
+          raw_payload?: Json | null
           restaurant_id?: string
           revenue_center?: string | null
           service_type?: string | null

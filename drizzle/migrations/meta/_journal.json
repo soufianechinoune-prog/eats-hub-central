@@ -36,6 +36,13 @@
       "when": 1789727299666,
       "tag": "0004_splash_ticket_payments_and_totals",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789757855697,
+      "tag": "0005_splash_tickets_raw_payload",
+      "breakpoints": true
     }
   ]
 }
