@@ -163,6 +163,12 @@ Deno.serve(async (req) => {
 
     const report: Json[] = [];
 
+    if (mode === "sync") {
+      // Détail découpé par mois : partitions créées d'avance pour la plage traitée.
+      const { error: partError } = await admin.rpc("ensure_caisse_partitions", { p_months: 3, p_from: from });
+      if (partError) console.error("ensure_caisse_partitions", partError.message);
+    }
+
     for (const cred of creds) {
       let token: string;
       try {
@@ -268,8 +274,7 @@ Deno.serve(async (req) => {
             total_ht: fromCents(order.prix_ht),
             total_vat: fromCents(order.montant_tva),
             discount_amount: null,
-            raw: rawSafe,
-            raw_payload: rawSafe,
+            // Brut stocké à part (splash_ticket_raw), service-role uniquement.
             updated_at: new Date().toISOString(),
           });
           byTicketId.set(splashTicketId, order);
@@ -277,17 +282,19 @@ Deno.serve(async (req) => {
 
         if (ticketRows.length) {
           const { error: tErr } = await admin
-            .from("splash_tickets")
-            .upsert(dedupe(ticketRows, (r) => String(r.splash_ticket_id)), { onConflict: "restaurant_id,station,splash_ticket_id" });
+            .from("caisse_tickets")
+            .upsert(dedupe(ticketRows, (r) => String(r.splash_ticket_id)), { onConflict: "restaurant_id,station,splash_ticket_id,ticket_date" });
 
           if (tErr) throw tErr;
           tickets += ticketRows.length;
 
           const { data: stored, error: sErr } = await admin
-            .from("splash_tickets")
+            .from("caisse_tickets")
             .select("id, splash_ticket_id, ticket_date")
             .eq("restaurant_id", cred.restaurant_id)
             .eq("station", cred.station)
+            .gte("ticket_date", from)
+            .lte("ticket_date", to)
             .in("splash_ticket_id", [...byTicketId.keys()]);
           if (sErr) throw sErr;
 
@@ -349,8 +356,8 @@ Deno.serve(async (req) => {
           const uLines = dedupe(lineRows, (r) => `${r.ticket_uuid}|${r.line_key}`);
           for (let i = 0; i < uLines.length; i += 500) {
             const { error } = await admin
-              .from("splash_ticket_lines")
-              .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key" });
+              .from("caisse_ticket_lines")
+              .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key,ticket_date" });
             if (error) throw error;
           }
           lines += uLines.length;
@@ -358,12 +365,27 @@ Deno.serve(async (req) => {
           const uPays = dedupe(payRows, (r) => `${r.ticket_uuid}|${r.payment_key}`);
           for (let i = 0; i < uPays.length; i += 500) {
             const { error } = await admin
-              .from("splash_ticket_payments")
-              .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key" });
+              .from("caisse_ticket_payments")
+              .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key,ticket_date" });
             if (error) throw error;
           }
 
           payments += uPays.length;
+
+          const rawRows = (stored ?? []).map((t) => ({
+            ticket_uuid: t.id,
+            restaurant_id: cred.restaurant_id,
+            chain_id: cred.chain_id,
+            ticket_date: t.ticket_date,
+            payload: stripPii(byTicketId.get(t.splash_ticket_id)!) as Json,
+            updated_at: new Date().toISOString(),
+          }));
+          for (let i = 0; i < rawRows.length; i += 200) {
+            const { error } = await admin
+              .from("splash_ticket_raw")
+              .upsert(rawRows.slice(i, i + 200), { onConflict: "ticket_uuid" });
+            if (error) throw error;
+          }
         }
 
 
@@ -378,6 +400,16 @@ Deno.serve(async (req) => {
         .eq("id", cred.id);
 
       report.push({ station: cred.station, fetched, tickets_upserted: tickets, lines_upserted: lines, payments_upserted: payments, last_page: page });
+    }
+
+    if (mode === "sync") {
+      // Rollups pré-agrégés sur la plage traitée (idempotent).
+      const { error: rollupError } = await admin.rpc("refresh_caisse_rollups", {
+        p_restaurant_id: restaurantId,
+        p_from: from,
+        p_to: to,
+      });
+      if (rollupError) console.error("refresh_caisse_rollups", rollupError.message);
     }
 
     return json({ mode, restaurant_id: restaurantId, from, to, report });

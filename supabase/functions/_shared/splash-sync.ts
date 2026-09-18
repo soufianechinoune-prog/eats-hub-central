@@ -163,6 +163,12 @@ export async function syncRange(
   maxPages = 50,
   deadlineMs = Number.POSITIVE_INFINITY,
 ): Promise<SyncResult> {
+  // Les tables de détail sont découpées par mois : on s'assure que les partitions
+  // couvrant la plage traitée existent avant d'insérer.
+  {
+    const { error } = await admin.rpc("ensure_caisse_partitions", { p_months: 3, p_from: from });
+    if (error) console.error("ensure_caisse_partitions", error.message);
+  }
   const token = await getToken(cred.client_id, cred.client_secret);
   let page = startPage;
   let fetched = 0;
@@ -212,8 +218,7 @@ export async function syncRange(
         total_amount: fromCents(order.prix_ttc) ?? asEuros(order.total),
         total_ht: fromCents(order.prix_ht),
         total_vat: fromCents(order.montant_tva),
-        raw: rawSafe,
-        raw_payload: rawSafe,
+        // Le brut est stocké à part (splash_ticket_raw), service-role uniquement.
         updated_at: new Date().toISOString(),
       });
       byTicketId.set(splashTicketId, order);
@@ -221,18 +226,20 @@ export async function syncRange(
 
     if (ticketRows.length) {
       const { error: tErr } = await admin
-        .from("splash_tickets")
+        .from("caisse_tickets")
         .upsert(dedupe(ticketRows, (r) => String(r.splash_ticket_id)), {
-          onConflict: "restaurant_id,station,splash_ticket_id",
+          onConflict: "restaurant_id,station,splash_ticket_id,ticket_date",
         });
       if (tErr) throw tErr;
       tickets += ticketRows.length;
 
       const { data: stored, error: sErr } = await admin
-        .from("splash_tickets")
+        .from("caisse_tickets")
         .select("id, splash_ticket_id, ticket_date")
         .eq("restaurant_id", cred.restaurant_id)
         .eq("station", cred.station)
+        .gte("ticket_date", from)
+        .lte("ticket_date", to)
         .in("splash_ticket_id", [...byTicketId.keys()]);
       if (sErr) throw sErr;
 
@@ -292,8 +299,8 @@ export async function syncRange(
       const uLines = dedupe(lineRows, (r) => `${r.ticket_uuid}|${r.line_key}`);
       for (let i = 0; i < uLines.length; i += 500) {
         const { error } = await admin
-          .from("splash_ticket_lines")
-          .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key" });
+          .from("caisse_ticket_lines")
+          .upsert(uLines.slice(i, i + 500), { onConflict: "ticket_uuid,line_key,ticket_date" });
         if (error) throw error;
       }
       lines += uLines.length;
@@ -301,11 +308,27 @@ export async function syncRange(
       const uPays = dedupe(payRows, (r) => `${r.ticket_uuid}|${r.payment_key}`);
       for (let i = 0; i < uPays.length; i += 500) {
         const { error } = await admin
-          .from("splash_ticket_payments")
-          .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key" });
+          .from("caisse_ticket_payments")
+          .upsert(uPays.slice(i, i + 500), { onConflict: "ticket_uuid,payment_key,ticket_date" });
         if (error) throw error;
       }
       payments += uPays.length;
+
+      // Brut déporté (service-role only), sans données personnelles.
+      const rawRows = (stored ?? []).map((t) => ({
+        ticket_uuid: t.id,
+        restaurant_id: cred.restaurant_id,
+        chain_id: cred.chain_id,
+        ticket_date: t.ticket_date,
+        payload: stripPii(byTicketId.get(t.splash_ticket_id)!) as Json,
+        updated_at: new Date().toISOString(),
+      }));
+      for (let i = 0; i < rawRows.length; i += 200) {
+        const { error } = await admin
+          .from("splash_ticket_raw")
+          .upsert(rawRows.slice(i, i + 200), { onConflict: "ticket_uuid" });
+        if (error) throw error;
+      }
     }
 
     if (orders.length < PAGE_SIZE) {
@@ -315,6 +338,16 @@ export async function syncRange(
     }
     page++;
     await new Promise((r) => setTimeout(r, 400)); // pacing entre pages
+  }
+
+  // Rollups pré-agrégés : recalcul idempotent de la plage traitée (restaurant x jours).
+  if (tickets > 0 || lines > 0 || payments > 0 || done) {
+    const { error: rollupError } = await admin.rpc("refresh_caisse_rollups", {
+      p_restaurant_id: cred.restaurant_id,
+      p_from: from,
+      p_to: to,
+    });
+    if (rollupError) console.error("refresh_caisse_rollups", rollupError.message);
   }
 
   return { fetched, tickets, lines, payments, next_page: page, done };
