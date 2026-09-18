@@ -163,6 +163,12 @@ export async function syncRange(
   maxPages = 50,
   deadlineMs = Number.POSITIVE_INFINITY,
 ): Promise<SyncResult> {
+  // Les tables de détail sont découpées par mois : on s'assure que les partitions
+  // couvrant la plage traitée existent avant d'insérer.
+  {
+    const { error } = await admin.rpc("ensure_caisse_partitions", { p_months: 3, p_from: from });
+    if (error) console.error("ensure_caisse_partitions", error.message);
+  }
   const token = await getToken(cred.client_id, cred.client_secret);
   let page = startPage;
   let fetched = 0;
