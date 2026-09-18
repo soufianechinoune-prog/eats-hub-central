@@ -212,8 +212,7 @@ export async function syncRange(
         total_amount: fromCents(order.prix_ttc) ?? asEuros(order.total),
         total_ht: fromCents(order.prix_ht),
         total_vat: fromCents(order.montant_tva),
-        raw: rawSafe,
-        raw_payload: rawSafe,
+        // Le brut est stocké à part (splash_ticket_raw), service-role uniquement.
         updated_at: new Date().toISOString(),
       });
       byTicketId.set(splashTicketId, order);
