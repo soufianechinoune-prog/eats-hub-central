@@ -17,7 +17,10 @@ const MAX_ATTEMPTS = 6;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-  const workerKey = Deno.env.get("SPLASH_WORKER_KEY");
+  const workerKeys = [
+    Deno.env.get("SPLASH_WORKER_KEY"),
+    Deno.env.get("SPLASH_WORKER_CRON_KEY"),
+  ].filter(Boolean) as string[];
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
