@@ -4777,6 +4777,30 @@ export type Database = {
         }
         Relationships: []
       }
+      splash_payment_label_map: {
+        Row: {
+          brand: string | null
+          category: string
+          created_at: string
+          id: string
+          raw_label: string
+        }
+        Insert: {
+          brand?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          raw_label: string
+        }
+        Update: {
+          brand?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          raw_label?: string
+        }
+        Relationships: []
+      }
       splash_product_monthly: {
         Row: {
           chain_id: string
@@ -4823,6 +4847,371 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "splash_product_monthly_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_restaurant_credentials: {
+        Row: {
+          chain_id: string
+          client_id: string
+          client_secret: string
+          created_at: string
+          id: string
+          is_active: boolean
+          last_error: string | null
+          last_ok_at: string | null
+          restaurant_id: string
+          splash_name: string | null
+          splash_restaurant_id: number | null
+          station: string
+          station_type: string | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          client_id: string
+          client_secret: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_ok_at?: string | null
+          restaurant_id: string
+          splash_name?: string | null
+          splash_restaurant_id?: number | null
+          station?: string
+          station_type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_error?: string | null
+          last_ok_at?: string | null
+          restaurant_id?: string
+          splash_name?: string | null
+          splash_restaurant_id?: number | null
+          station?: string
+          station_type?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_restaurant_credentials_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_restaurant_credentials_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_ticket_backfill_jobs: {
+        Row: {
+          attempts: number
+          chain_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          lines_upserted: number
+          month: number
+          next_attempt_at: string
+          page_cursor: number
+          priority: number
+          restaurant_id: string
+          started_at: string | null
+          station: string
+          status: string
+          tickets_upserted: number
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          attempts?: number
+          chain_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lines_upserted?: number
+          month: number
+          next_attempt_at?: string
+          page_cursor?: number
+          priority?: number
+          restaurant_id: string
+          started_at?: string | null
+          station?: string
+          status?: string
+          tickets_upserted?: number
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          attempts?: number
+          chain_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          lines_upserted?: number
+          month?: number
+          next_attempt_at?: string
+          page_cursor?: number
+          priority?: number
+          restaurant_id?: string
+          started_at?: string | null
+          station?: string
+          status?: string
+          tickets_upserted?: number
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_ticket_backfill_jobs_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_ticket_backfill_jobs_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_ticket_lines: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_ticket_lines_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_ticket_lines_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_ticket_lines_ticket_uuid_fkey"
+            columns: ["ticket_uuid"]
+            isOneToOne: false
+            referencedRelation: "splash_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_ticket_payments: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_ticket_payments_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_ticket_payments_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_ticket_payments_ticket_uuid_fkey"
+            columns: ["ticket_uuid"]
+            isOneToOne: false
+            referencedRelation: "splash_tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_tickets: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          raw: Json | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          raw?: Json | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          raw?: Json | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_tickets_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_tickets_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -5620,6 +6009,31 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "daily_sales_uber_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      splash_ticket_coverage: {
+        Row: {
+          chain_id: string | null
+          month: string | null
+          restaurant_id: string | null
+          ticket_count: number | null
+          ticket_revenue: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_tickets_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_tickets_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
