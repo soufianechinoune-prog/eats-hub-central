@@ -361,7 +361,7 @@ Deno.serve(async (req) => {
             if (error) throw error;
           }
 
-          payments += payRows.length;
+          payments += uPays.length;
         }
 
 
