@@ -350,11 +350,18 @@ function NavButton({
 }) {
   const Icon = item.icon;
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full flex items-start gap-2.5 px-2 py-2 rounded-md text-left transition-colors",
+        "w-full flex cursor-pointer items-start gap-2.5 px-2 py-2 rounded-md text-left transition-colors",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary",
       )}
@@ -380,6 +387,6 @@ function NavButton({
       </div>
       {trailing}
       {isActive && !trailing && <span className="h-5 w-0.5 rounded-full bg-primary" aria-hidden />}
-    </button>
+    </div>
   );
 }
