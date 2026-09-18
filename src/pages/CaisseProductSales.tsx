@@ -2,7 +2,18 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowDownRight, ArrowUpRight, Info, Package, TrendingUp } from "lucide-react";
+import {
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarDays,
+  Cuboid,
+  Package,
+  Search,
+  ShoppingCart,
+  TrendingUp,
+  Trophy,
+} from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -22,9 +33,10 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -89,6 +101,8 @@ export default function CaisseProductSales() {
   const [topN, setTopN] = useState(10);
   const [bucket, setBucket] = useState<"month" | "week">("month");
   const [selectedRef, setSelectedRef] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [colorCount, setColorCount] = useState(5);
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -245,8 +259,8 @@ export default function CaisseProductSales() {
     for (const p of [sorted[0], sorted[1], sorted[sorted.length - 1], sorted[sorted.length - 2]]) {
       if (p && !refs.includes(p.ref)) refs.push(p.ref);
     }
-    return refs.slice(0, 5);
-  }, [products]);
+    return refs.slice(0, colorCount);
+  }, [products, colorCount]);
 
   // Rang LOCAL (parmi les produits suivis) pour garder une échelle stable et lisible.
   // Le rang catalogue réel reste disponible au survol.
@@ -326,64 +340,135 @@ export default function CaisseProductSales() {
   const detailTrend =
     detailData.length >= 2 ? detailData[0].rang - detailData[detailData.length - 1].rang : null;
 
+  const latestBucket = buckets[buckets.length - 1];
+  const firstBucket = buckets[0];
+  const moverByRef = useMemo(
+    () => new Map((movers.data ?? []).map((row) => [row.product_ref, row])),
+    [movers.data],
+  );
+  const currentRanking = useMemo(
+    () =>
+      rows
+        .filter((row) => row.bucket === latestBucket)
+        .sort((a, b) => a.rank - b.rank)
+        .slice(0, topN),
+    [rows, latestBucket, topN],
+  );
+  const totalRevenue = useMemo(() => rows.reduce((sum, row) => sum + row.revenue, 0), [rows]);
+  const totalQuantity = useMemo(() => rows.reduce((sum, row) => sum + row.quantity, 0), [rows]);
+  const leader = currentRanking[0];
+  const topThreeStability = useMemo(() => {
+    const first = new Set(
+      rows.filter((row) => row.bucket === firstBucket && row.rank <= 3).map((row) => row.product_ref),
+    );
+    const last = rows.filter((row) => row.bucket === latestBucket && row.rank <= 3);
+    if (!last.length) return 0;
+    return Math.round((last.filter((row) => first.has(row.product_ref)).length / last.length) * 100);
+  }, [rows, firstBucket, latestBucket]);
+  const normalizedSearch = search.trim().toLocaleLowerCase("fr");
+  const matchesSearch = (name: string | null, ref: string) =>
+    !normalizedSearch || `${name ?? ""} ${ref}`.toLocaleLowerCase("fr").includes(normalizedSearch);
+  const visibleRanking = currentRanking.filter((row) => matchesSearch(row.product_name, row.product_ref));
+
+  const getSparkData = (ref: string) =>
+    buckets.map((period) => ({
+      value: rows.find((row) => row.bucket === period && row.product_ref === ref)?.rank ?? null,
+    }));
+
+  const Sparkline = ({ productRef, color = "hsl(var(--muted-foreground))" }: { productRef: string; color?: string }) => (
+    <div className="h-7 w-20">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={getSparkData(productRef)}>
+          <Line
+            dataKey="value"
+            type="monotone"
+            stroke={color}
+            strokeWidth={1.8}
+            dot={false}
+            connectNulls={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+
   const MoverList = ({ items, positive }: { items: MoverRow[]; positive: boolean }) => (
-    <div className="space-y-2">
+    <div className="divide-y divide-border/70">
       {items.length === 0 ? (
         <p className="py-6 text-center text-sm text-muted-foreground">
           Aucun mouvement notable sur la période.
         </p>
       ) : (
-        items.map((m) => (
-          <button
+        items.filter((m) => matchesSearch(m.product_name, m.product_ref)).slice(0, 4).map((m, index) => (
+          <Button
             key={m.product_ref}
+            variant="ghost"
             onClick={() => setSelectedRef(m.product_ref)}
-            className="flex w-full items-center justify-between rounded-md border p-3 text-left transition-colors hover:bg-muted/50"
+            className="h-auto w-full justify-start rounded-none px-0 py-3 text-left hover:bg-transparent"
           >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium">{m.product_name ?? m.product_ref}</p>
-              <p className="text-xs text-muted-foreground">
-                {ordinal(m.first_rank)} → {ordinal(m.last_rank)} · {m.last_share.toFixed(1)} % du CA
-              </p>
-            </div>
-            <Badge variant={positive ? "default" : "destructive"} className="shrink-0 gap-1">
-              {positive ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-              {m.rank_delta == null
-                ? positive
-                  ? "nouveau"
-                  : "sorti"
-                : `${m.rank_delta > 0 ? "+" : ""}${m.rank_delta} place${Math.abs(m.rank_delta) > 1 ? "s" : ""}`}
-            </Badge>
-          </button>
+            <span className="w-6 shrink-0 text-xs text-muted-foreground">{index + 1}</span>
+            <span className={`mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${positive ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+              <Package className="h-4 w-4" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-medium">{m.product_name ?? m.product_ref}</span>
+              <span className="block text-xs font-normal text-muted-foreground">
+                {ordinal(m.first_rank)} → {ordinal(m.last_rank)}
+              </span>
+            </span>
+            <span className={`mx-4 text-sm font-semibold ${positive ? "text-success" : "text-destructive"}`}>
+              {m.rank_delta == null ? (positive ? "Nouveau" : "Sorti") : `${m.rank_delta > 0 ? "+" : ""}${m.rank_delta}`}
+            </span>
+            <span className="hidden w-24 justify-end sm:flex"><Sparkline productRef={m.product_ref} color={positive ? "hsl(var(--success))" : "hsl(var(--destructive))"} /></span>
+          </Button>
         ))
       )}
     </div>
   );
 
+  const MetricCard = ({
+    icon: Icon,
+    label,
+    value,
+    caption,
+    tone,
+  }: {
+    icon: typeof Cuboid;
+    label: string;
+    value: string;
+    caption: string;
+    tone: "primary" | "success" | "warning";
+  }) => (
+    <Card className="border-border/70 shadow-sm">
+      <CardContent className="flex min-h-28 items-center gap-4 p-5">
+        <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md ${tone === "success" ? "bg-success/10 text-success" : tone === "warning" ? "bg-warning/10 text-warning" : "bg-primary/10 text-primary"}`}>
+          <Icon className="h-5 w-5" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xs font-medium text-muted-foreground">{label}</p>
+          <p className="truncate text-xl font-bold text-foreground">{value}</p>
+          <p className="truncate text-xs text-muted-foreground">{caption}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <AppLayout>
       <ChannelNavShell>
-        <div className="space-y-6">
+        <div className="space-y-5">
           <div>
             <h1 className="text-2xl font-bold">Ventes par produit</h1>
             <p className="text-muted-foreground">
-              Tendances produits : qui monte, qui descend dans le classement du chiffre d'affaires caisse.
+              Suivez les produits qui gagnent du terrain et ceux qui décrochent.
             </p>
           </div>
 
           <AnalyticsHeader />
 
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertTitle>Suivi par référence produit</AlertTitle>
-            <AlertDescription className="text-sm">
-              Chaque produit est suivi par sa référence de caisse : un renommage ne casse pas sa courbe. La
-              saisonnalité devient pleinement lisible dès que l'historique dépasse une année.
-            </AlertDescription>
-          </Alert>
-
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Produits suivis</span>
+          <div className="flex flex-col gap-4 rounded-md border border-border/70 bg-card p-3 shadow-sm xl:flex-row xl:items-center">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-xs font-medium text-muted-foreground">Produits suivis</span>
               <ToggleGroup
                 type="single"
                 value={String(topN)}
@@ -395,9 +480,8 @@ export default function CaisseProductSales() {
                 <ToggleGroupItem value="15">15</ToggleGroupItem>
                 <ToggleGroupItem value="20">20</ToggleGroupItem>
               </ToggleGroup>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground">Pas de temps</span>
+              <div className="mx-1 hidden h-7 w-px bg-border sm:block" />
+              <span className="text-xs font-medium text-muted-foreground">Période</span>
               <ToggleGroup
                 type="single"
                 value={bucket}
@@ -405,9 +489,13 @@ export default function CaisseProductSales() {
                 variant="outline"
                 size="sm"
               >
-                <ToggleGroupItem value="month">Mois</ToggleGroupItem>
                 <ToggleGroupItem value="week">Semaine</ToggleGroupItem>
+                <ToggleGroupItem value="month">Mois</ToggleGroupItem>
               </ToggleGroup>
+            </div>
+            <div className="relative ml-auto w-full xl:w-72">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Rechercher un produit…" className="pl-9" />
             </div>
           </div>
 
@@ -421,20 +509,31 @@ export default function CaisseProductSales() {
             </Card>
           ) : (
             <>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <TrendingUp className="h-4 w-4" /> Classement dans le temps
-                  </CardTitle>
-                  <CardDescription>
-                    Rang parmi les {products.length} produits suivis (1 en haut). Le rang réel dans le
-                    catalogue et le chiffre d'affaires apparaissent au survol. Une interruption de courbe =
-                    aucune vente sur la période.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="h-[520px]">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <MetricCard icon={Cuboid} label="Produits suivis" value={String(products.length)} caption={`Top ${topN} par chiffre d'affaires`} tone="primary" />
+                <MetricCard icon={ShoppingCart} label="CA produits (période)" value={eur(totalRevenue)} caption={`${Math.round(totalQuantity).toLocaleString("fr-FR")} unités vendues`} tone="success" />
+                <MetricCard icon={TrendingUp} label="Produit n°1" value={leader?.product_name ?? "—"} caption={leader ? `${eur(leader.revenue)} sur la dernière période` : "Aucune donnée"} tone="primary" />
+                <MetricCard icon={CalendarDays} label="Stabilité du top 3" value={`${topThreeStability} %`} caption="inchangé entre début et fin" tone="primary" />
+              </div>
+
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(390px,1fr)]">
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 pb-2">
+                    <div>
+                      <CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-4 w-4" /> Classement dans le temps</CardTitle>
+                      <CardDescription>Rang parmi les {products.length} produits suivis (1 en haut). Rang catalogue et CA au survol.</CardDescription>
+                    </div>
+                    <Select value={String(colorCount)} onValueChange={(value) => setColorCount(Number(value))}>
+                      <SelectTrigger className="w-40 shrink-0"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">Top 3 en couleur</SelectItem>
+                        <SelectItem value="5">Top 5 en couleur</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </CardHeader>
+                  <CardContent className="h-[520px] pt-4">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ left: 16, right: 140, top: 8, bottom: 8 }}>
+                    <LineChart data={chartData} margin={{ left: 12, right: 112, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis
                         dataKey="label"
@@ -533,23 +632,51 @@ export default function CaisseProductSales() {
 
                     </LineChart>
                   </ResponsiveContainer>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                    <CardTitle className="flex items-center gap-2 text-base"><Trophy className="h-4 w-4 text-warning" /> Classement actuel</CardTitle>
+                    <Badge variant="secondary" className="font-normal">{latestBucket ? (bucket === "week" ? `Semaine du ${format(new Date(latestBucket), "dd MMM yyyy", { locale: fr })}` : format(new Date(latestBucket), "MMMM yyyy", { locale: fr })) : "—"}</Badge>
+                  </CardHeader>
+                  <CardContent className="px-4">
+                    <div className="grid grid-cols-[28px_minmax(0,1fr)_46px_54px_74px] gap-2 border-b pb-2 text-[10px] font-medium uppercase text-muted-foreground">
+                      <span>#</span><span>Produit</span><span>Rang</span><span>Var.</span><span className="text-right">Tendance</span>
+                    </div>
+                    <div className="divide-y divide-border/70">
+                      {visibleRanking.map((row, index) => {
+                        const movement = moverByRef.get(row.product_ref)?.rank_delta ?? 0;
+                        const colorIndex = emphasised.indexOf(row.product_ref);
+                        return (
+                          <Button key={row.product_ref} variant="ghost" onClick={() => setSelectedRef(row.product_ref)} className="grid h-11 w-full grid-cols-[28px_minmax(0,1fr)_46px_54px_74px] gap-2 rounded-none px-0 font-normal hover:bg-muted/40">
+                            <span className="text-xs text-muted-foreground">{index + 1}</span>
+                            <span className="flex min-w-0 items-center gap-2 text-left"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted"><Package className="h-3.5 w-3.5" /></span><span className="truncate text-xs font-medium">{row.product_name ?? row.product_ref}</span></span>
+                            <Badge variant="secondary" className="w-7 justify-center px-0">{row.rank}</Badge>
+                            <span className={`text-xs font-semibold ${movement > 0 ? "text-success" : movement < 0 ? "text-destructive" : "text-muted-foreground"}`}>{movement > 0 ? `▲ +${movement}` : movement < 0 ? `▼ ${movement}` : "—"}</span>
+                            <span className="flex justify-end"><Sparkline productRef={row.product_ref} color={colorIndex >= 0 ? EMPHASIS[colorIndex] : MUTED} /></span>
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
               <div className="grid gap-4 lg:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">En hausse</CardTitle>
-                    <CardDescription>Plus fortes progressions de rang sur la période</CardDescription>
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
+                    <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-success/10 text-success"><ArrowUpRight className="h-5 w-5" /></span><div><CardTitle className="text-base">Plus fortes progressions de rang</CardTitle><CardDescription>Produits ayant gagné le plus de places</CardDescription></div></div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     {movers.isLoading ? <Skeleton className="h-40" /> : <MoverList items={up} positive />}
                   </CardContent>
                 </Card>
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-base">En baisse</CardTitle>
-                    <CardDescription>Plus forts reculs de rang sur la période</CardDescription>
+                <Card className="border-border/70 shadow-sm">
+                  <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
+                    <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-destructive/10 text-destructive"><ArrowDownRight className="h-5 w-5" /></span><div><CardTitle className="text-base">Plus fortes baisses de rang</CardTitle><CardDescription>Produits ayant perdu le plus de places</CardDescription></div></div>
+                    <ArrowRight className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     {movers.isLoading ? (
@@ -561,28 +688,6 @@ export default function CaisseProductSales() {
                 </Card>
               </div>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Package className="h-4 w-4" /> Produits suivis
-                  </CardTitle>
-                  <CardDescription>Cliquez un produit pour ouvrir sa fiche détaillée</CardDescription>
-                </CardHeader>
-                <CardContent className="flex flex-wrap gap-2">
-                  {products.map((p) => (
-                    <Button
-                      key={p.ref}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedRef(p.ref)}
-                      className="gap-2"
-                    >
-                      {p.name}
-                      <span className="text-xs text-muted-foreground">{eur(p.totalRevenue)}</span>
-                    </Button>
-                  ))}
-                </CardContent>
-              </Card>
             </>
           )}
 
