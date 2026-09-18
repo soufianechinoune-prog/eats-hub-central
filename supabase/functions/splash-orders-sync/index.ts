@@ -394,6 +394,16 @@ Deno.serve(async (req) => {
       report.push({ station: cred.station, fetched, tickets_upserted: tickets, lines_upserted: lines, payments_upserted: payments, last_page: page });
     }
 
+    if (mode === "sync") {
+      // Rollups pré-agrégés sur la plage traitée (idempotent).
+      const { error: rollupError } = await admin.rpc("refresh_caisse_rollups", {
+        p_restaurant_id: restaurantId,
+        p_from: from,
+        p_to: to,
+      });
+      if (rollupError) console.error("refresh_caisse_rollups", rollupError.message);
+    }
+
     return json({ mode, restaurant_id: restaurantId, from, to, report });
   } catch (e) {
     return json({ error: String((e as Error).message ?? e) }, 500);
