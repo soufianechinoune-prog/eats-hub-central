@@ -263,7 +263,8 @@ Deno.serve(async (req) => {
         if (ticketRows.length) {
           const { error: tErr } = await admin
             .from("splash_tickets")
-            .upsert(ticketRows, { onConflict: "restaurant_id,station,splash_ticket_id" });
+            .upsert(dedupe(ticketRows, (r) => String(r.splash_ticket_id)), { onConflict: "restaurant_id,station,splash_ticket_id" });
+
           if (tErr) throw tErr;
           tickets += ticketRows.length;
 
