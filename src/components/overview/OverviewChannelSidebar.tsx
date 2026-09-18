@@ -86,7 +86,7 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
 
 // Sous-onglets Deliveroo — uniquement les vues alimentées par la donnée Deliveroo
 const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
-  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "synthese", label: "Synthèse", icon: Sparkles, route: "/chataigne" },
   { id: "revenue", label: "Revenus & Ventes", icon: Euro, route: "/analytics/revenue" },
   { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
   { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
