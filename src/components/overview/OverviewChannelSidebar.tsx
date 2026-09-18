@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutGrid,
   ShoppingBag,
@@ -18,6 +18,7 @@ import {
   Sparkles,
   Ticket,
   PauseCircle,
+  Package,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -25,8 +26,10 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 export type OverviewChannel = "global" | "uber" | "uber-tr" | "deliveroo" | "cash" | "dishop" | "chataigne";
 
 interface OverviewChannelSidebarProps {
-  active: OverviewChannel;
-  onChange: (channel: OverviewChannel) => void;
+  /** Canal actif (mode Vue d'ensemble). Absent = déduit de l'URL. */
+  active?: OverviewChannel;
+  /** Change le canal sans navigation (mode Vue d'ensemble). Absent = navigation par URL. */
+  onChange?: (channel: OverviewChannel) => void;
   available: {
     uber: boolean;
     deliveroo: boolean;
@@ -34,6 +37,8 @@ interface OverviewChannelSidebarProps {
     dishop: boolean;
     chataigne?: boolean;
   };
+  /** Appelé après un clic, pour fermer le panneau mobile. */
+  onNavigate?: () => void;
 }
 
 interface SubNavItem {
@@ -44,6 +49,10 @@ interface SubNavItem {
   route?: string;
   /** Si défini, change le channel actif sur /overview au lieu de naviguer. */
   channel?: OverviewChannel;
+  /** Petit libellé de section affiché au-dessus de l'entrée. */
+  section?: string;
+  /** Entrée à venir : visible mais non cliquable. */
+  soon?: boolean;
 }
 
 interface NavItem {
@@ -80,15 +89,49 @@ const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
   { id: "deliveroo-rentabilite", label: "Rentabilité", icon: Euro, route: "/deliveroo/rentabilite" },
 ];
 
-export function OverviewChannelSidebar({ active, onChange, available }: OverviewChannelSidebarProps) {
-  const navigate = useNavigate();
-  const analyticsCtx = useAnalyticsContext();
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    uber: active === "uber" || active === "uber-tr",
-    deliveroo: active === "deliveroo",
-  });
-  const [activeSubId, setActiveSubId] = useState<string>(active === "uber-tr" ? "titres-restaurant" : "synthese");
+// Sous-onglets Caisse — regroupe les vues alimentées par la caisse (Splash360)
+const CASH_SUB_ITEMS: SubNavItem[] = [
+  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "onsite-sales", label: "Ventes sur place", icon: Store, route: "/analytics/onsite-sales" },
+  { id: "product-sales", label: "Ventes par produit", icon: Package, soon: true },
+  { id: "instore-prices", label: "Prix sur place", icon: Tag, route: "/prix-sur-place", section: "Réglages" },
+];
 
+/** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
+function channelFromPath(pathname: string): { channel: OverviewChannel; subId: string } | null {
+  if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
+  if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
+  return null;
+}
+
+export function OverviewChannelSidebar({
+  active,
+  onChange,
+  available,
+  onNavigate,
+}: OverviewChannelSidebarProps) {
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const analyticsCtx = useAnalyticsContext();
+
+  const routeMatch = channelFromPath(pathname);
+  // Mode "route" : la page n'est pas la Vue d'ensemble, l'état actif vient de l'URL.
+  const routeMode = !onChange;
+  const activeChannel: OverviewChannel = routeMode
+    ? routeMatch?.channel ?? "global"
+    : active ?? "global";
+  const routeSubId = routeMode ? routeMatch?.subId ?? "synthese" : null;
+
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    uber: activeChannel === "uber" || activeChannel === "uber-tr",
+    deliveroo: activeChannel === "deliveroo",
+    cash: activeChannel === "cash",
+  });
+  const [activeSubId, setActiveSubId] = useState<string>(
+    activeChannel === "uber-tr" ? "titres-restaurant" : "synthese",
+  );
+
+  const currentSubId = routeSubId ?? activeSubId;
 
   const globalItem: NavItem = {
     id: "global",
@@ -117,7 +160,13 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
     });
   }
   if (available.cash) {
-    channelItems.push({ id: "cash", label: "Caisse", icon: Store, dotClass: "bg-cash" });
+    channelItems.push({
+      id: "cash",
+      label: "Caisse",
+      icon: Store,
+      dotClass: "bg-cash",
+      subItems: CASH_SUB_ITEMS,
+    });
   }
   if (available.dishop) {
     channelItems.push({ id: "dishop", label: "Dishop", icon: Globe, dotClass: "bg-blue-500" });
@@ -126,8 +175,18 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
     channelItems.push({ id: "chataigne", label: "Chataigne", icon: MessageCircle, dotClass: "bg-emerald-500" });
   }
 
+  /** Revient sur la Vue d'ensemble en ouvrant directement le canal demandé. */
+  const goToOverviewChannel = (channel: OverviewChannel) => {
+    navigate(channel === "global" ? "/overview" : `/overview?channel=${channel}`);
+    onNavigate?.();
+  };
+
   const handleChannelClick = (item: NavItem) => {
-    onChange(item.id);
+    if (routeMode) {
+      goToOverviewChannel(item.id);
+      return;
+    }
+    onChange?.(item.id);
     if (item.subItems?.length) {
       setExpanded((prev) => ({ ...prev, [item.id]: true }));
       setActiveSubId("synthese");
@@ -135,86 +194,106 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
   };
 
   const handleSubItemClick = (sub: SubNavItem, channel: OverviewChannel) => {
+    if (sub.soon) return;
     setActiveSubId(sub.id);
+
     if (sub.channel) {
-      onChange(sub.channel);
+      if (routeMode) {
+        goToOverviewChannel(sub.channel);
+        return;
+      }
+      onChange?.(sub.channel);
       return;
     }
+
     if (!sub.route) {
-      onChange(channel);
+      if (routeMode) {
+        goToOverviewChannel(channel);
+        return;
+      }
+      onChange?.(channel);
       return;
     }
-    analyticsCtx.setSelectedPlatform(channel === "deliveroo" ? "deliveroo" : "uber_eats");
+
+    if (channel === "uber" || channel === "deliveroo") {
+      analyticsCtx.setSelectedPlatform(channel === "deliveroo" ? "deliveroo" : "uber_eats");
+    }
     navigate(sub.route);
+    onNavigate?.();
   };
 
-
   return (
-    <aside className="w-60 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
-      <div className="sticky top-0 p-4 space-y-6">
-        {/* Vue globale */}
+    <div className="p-4 space-y-6">
+      {/* Vue globale */}
+      <div>
+        <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Vue globale
+        </p>
+        <NavButton
+          item={globalItem}
+          isActive={activeChannel === globalItem.id}
+          onClick={() => handleChannelClick(globalItem)}
+        />
+      </div>
+
+      {/* Par canal */}
+      {channelItems.length > 0 && (
         <div>
           <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Vue globale
+            Par canal
           </p>
-          <NavButton
-            item={globalItem}
-            isActive={active === globalItem.id}
-            onClick={() => onChange(globalItem.id)}
-          />
-        </div>
-
-        {/* Par canal */}
-        {channelItems.length > 0 && (
-          <div>
-            <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Par canal
-            </p>
-            <div className="space-y-0.5">
-              {channelItems.map((item) => {
-                const isActive = active === item.id || (item.id === "uber" && active === "uber-tr");
-                const hasSubs = (item.subItems?.length ?? 0) > 0;
-                const isExpanded = !!expanded[item.id];
-                return (
-                  <div key={item.id}>
-                    <NavButton
-                      item={item}
-                      isActive={isActive}
-                      onClick={() => handleChannelClick(item)}
-                      trailing={
-                        hasSubs ? (
-                          <button
-                            type="button"
-                            aria-label={isExpanded ? "Replier" : "Déplier"}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setExpanded((prev) => ({ ...prev, [item.id]: !prev[item.id] }));
-                            }}
-                            className="p-0.5 rounded hover:bg-muted/60"
-                          >
-                            <ChevronRight
-                              className={cn(
-                                "h-3.5 w-3.5 text-muted-foreground transition-transform",
-                                isExpanded && "rotate-90",
-                              )}
-                            />
-                          </button>
-                        ) : null
-                      }
-                    />
-                    {hasSubs && isExpanded && (
-                      <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-border/60 space-y-0.5">
-                        {item.subItems!.map((sub) => {
-                          const SubIcon = sub.icon;
-                          const subActive = isActive && activeSubId === sub.id;
-                          return (
+          <div className="space-y-0.5">
+            {channelItems.map((item) => {
+              const isActive =
+                activeChannel === item.id || (item.id === "uber" && activeChannel === "uber-tr");
+              const hasSubs = (item.subItems?.length ?? 0) > 0;
+              const isExpanded = !!expanded[item.id] || (isActive && hasSubs);
+              return (
+                <div key={item.id}>
+                  <NavButton
+                    item={item}
+                    isActive={isActive}
+                    onClick={() => handleChannelClick(item)}
+                    trailing={
+                      hasSubs ? (
+                        <button
+                          type="button"
+                          aria-label={isExpanded ? "Replier" : "Déplier"}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExpanded((prev) => ({ ...prev, [item.id]: !isExpanded }));
+                          }}
+                          className="p-0.5 rounded hover:bg-muted/60"
+                        >
+                          <ChevronRight
+                            className={cn(
+                              "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                              isExpanded && "rotate-90",
+                            )}
+                          />
+                        </button>
+                      ) : null
+                    }
+                  />
+                  {hasSubs && isExpanded && (
+                    <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-border/60 space-y-0.5">
+                      {item.subItems!.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const subActive = isActive && currentSubId === sub.id;
+                        return (
+                          <div key={sub.id}>
+                            {sub.section && (
+                              <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                {sub.section}
+                              </p>
+                            )}
                             <button
-                              key={sub.id}
                               type="button"
+                              disabled={sub.soon}
                               onClick={() => handleSubItemClick(sub, item.id)}
                               className={cn(
                                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] transition-colors",
-                                "hover:bg-muted/60",
+                                sub.soon ? "cursor-default opacity-50" : "hover:bg-muted/60",
                                 subActive
                                   ? "bg-primary/10 text-primary font-medium"
                                   : "text-muted-foreground",
@@ -222,20 +301,26 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
                             >
                               <SubIcon className="h-3.5 w-3.5 shrink-0" />
                               <span className="truncate">{sub.label}</span>
+                              {sub.soon && (
+                                <span className="ml-auto shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                                  bientôt
+                                </span>
+                              )}
                             </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Bientôt disponible */}
-        {!available.chataigne && (
+      {/* Bientôt disponible */}
+      {!available.chataigne && (
         <div>
           <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
             Bientôt
@@ -247,9 +332,8 @@ export function OverviewChannelSidebar({ active, onChange, available }: Overview
             </div>
           </div>
         </div>
-        )}
-      </div>
-    </aside>
+      )}
+    </div>
   );
 }
 
@@ -266,11 +350,18 @@ function NavButton({
 }) {
   const Icon = item.icon;
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
       className={cn(
-        "w-full flex items-start gap-2.5 px-2 py-2 rounded-md text-left transition-colors",
+        "w-full flex cursor-pointer items-start gap-2.5 px-2 py-2 rounded-md text-left transition-colors",
         "hover:bg-muted/60",
         isActive && "bg-primary/10 text-primary",
       )}
@@ -296,6 +387,6 @@ function NavButton({
       </div>
       {trailing}
       {isActive && !trailing && <span className="h-5 w-0.5 rounded-full bg-primary" aria-hidden />}
-    </button>
+    </div>
   );
 }

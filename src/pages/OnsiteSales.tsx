@@ -1,5 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -189,7 +191,9 @@ export default function OnsiteSales() {
 
   return (
     <AppLayout>
+      <ChannelNavShell>
       <div className="space-y-6">
+
         {/* Header façon "Revenus & Ventes" */}
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-start gap-2">
@@ -604,6 +608,8 @@ export default function OnsiteSales() {
 
         )}
       </div>
+      </ChannelNavShell>
     </AppLayout>
+
   );
 }
