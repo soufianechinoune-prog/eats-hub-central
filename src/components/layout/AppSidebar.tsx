@@ -91,7 +91,6 @@ const analyticsSubItems = [
   { title: "Dashboard", url: "/overview", icon: LayoutDashboard },
   { title: "Revenus & Ventes", url: "/analytics/revenue", icon: Euro },
   { title: "Ventes Articles", url: "/item-sales", icon: ShoppingBag },
-  { title: "Ventes sur place", url: "/analytics/onsite-sales", icon: Store },
   { title: "Chataigne", url: "/chataigne", icon: MessageCircle },
   { title: "Chataigne — Croissance & Clients", url: "/chataigne/croissance", icon: Users },
   { title: "Chataigne — Écarts & Markup", url: "/chataigne/tarification", icon: Tag },
@@ -128,11 +127,7 @@ const mainItems = [
 // Gestion des données
 const dataItems = [
   {
-    title: "Prix sur place",
-    url: "/prix-sur-place",
-    icon: Tag,
-  },
-  {
+
     title: "Saisie de données",
     url: "/data-entry",
     icon: PenLine,
