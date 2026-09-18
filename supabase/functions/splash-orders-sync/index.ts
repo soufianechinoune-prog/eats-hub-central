@@ -163,6 +163,12 @@ Deno.serve(async (req) => {
 
     const report: Json[] = [];
 
+    if (mode === "sync") {
+      // Détail découpé par mois : partitions créées d'avance pour la plage traitée.
+      const { error: partError } = await admin.rpc("ensure_caisse_partitions", { p_months: 3, p_from: from });
+      if (partError) console.error("ensure_caisse_partitions", partError.message);
+    }
+
     for (const cred of creds) {
       let token: string;
       try {
