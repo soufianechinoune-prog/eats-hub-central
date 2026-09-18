@@ -1128,7 +1128,7 @@ const Overview = () => {
                 restaurantNames={new Map(comparisonStats.map((r) => [r.id, r.name]))}
                 isLoading={mealVoucherLoading}
                 periodLabel={getPeriodLabel()}
-                onRestaurantClick={navigateToChannelRestaurant}
+                onRestaurantClick={navigateToFinances}
               />
             ) : activeChannel === "dishop" ? (
               <DishopRestaurantComparisonTable
@@ -1144,7 +1144,7 @@ const Overview = () => {
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
                 isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
-                onRestaurantClick={navigateToFinances}
+                onRestaurantClick={navigateToChannelRestaurant}
                 showDataSource={showDataSource}
                 onToggleDataSource={setShowDataSource}
                 dataSourceMap={dataSourceMap}
