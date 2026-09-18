@@ -7,13 +7,16 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Label,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip as ReTooltip,
   XAxis,
   YAxis,
 } from "recharts";
+
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -245,6 +248,8 @@ export default function CaisseProductSales() {
     return refs.slice(0, 5);
   }, [products]);
 
+  // Rang LOCAL (parmi les produits suivis) pour garder une échelle stable et lisible.
+  // Le rang catalogue réel reste disponible au survol.
   const chartData = useMemo(
     () =>
       buckets.map((b) => {
@@ -254,18 +259,42 @@ export default function CaisseProductSales() {
               ? `sem. ${format(new Date(b), "dd MMM", { locale: fr })}`
               : format(new Date(b), "MMM yyyy", { locale: fr }),
         };
+        const present = products
+          .map((p) => ({ ref: p.ref, row: rows.find((r) => r.bucket === b && r.product_ref === p.ref) }))
+          .filter((x) => x.row)
+          .sort((a, b2) => (b2.row!.revenue - a.row!.revenue));
+        present.forEach((x, i) => {
+          point[x.ref] = i + 1;
+          point[`${x.ref}__ca`] = x.row!.revenue;
+          point[`${x.ref}__globalRank`] = x.row!.rank;
+        });
         for (const p of products) {
-          const row = rows.find((r) => r.bucket === b && r.product_ref === p.ref);
-          point[p.ref] = row ? row.rank : null;
-          point[`${p.ref}__ca`] = row ? row.revenue : null;
+          if (!(p.ref in point)) {
+            point[p.ref] = null;
+            point[`${p.ref}__ca`] = null;
+            point[`${p.ref}__globalRank`] = null;
+          }
         }
         return point;
       }),
     [buckets, products, rows, bucket],
   );
 
-  const maxRank = useMemo(() => Math.max(1, ...rows.map((r) => r.rank)), [rows]);
+  const maxRank = useMemo(() => Math.max(1, products.length), [products]);
+  const rankTicks = useMemo(
+    () =>
+      Array.from({ length: maxRank }, (_, i) => i + 1).filter((v) =>
+        maxRank > 15 ? v % 2 === 1 || v === maxRank : true,
+      ),
+    [maxRank],
+  );
+  const separators = useMemo(
+    () => Array.from({ length: Math.floor(maxRank / 5) }, (_, i) => (i + 1) * 5).filter((v) => v < maxRank),
+    [maxRank],
+  );
+  const xInterval = chartData.length > 12 ? 1 : 0;
   const nameOf = (ref: string) => products.find((p) => p.ref === ref)?.name ?? ref;
+
 
   const up = useMemo(
     () =>
@@ -398,21 +427,45 @@ export default function CaisseProductSales() {
                     <TrendingUp className="h-4 w-4" /> Classement dans le temps
                   </CardTitle>
                   <CardDescription>
-                    Rang par chiffre d'affaires (1 en haut). Les mouvements marquants sont mis en couleur.
+                    Rang parmi les {products.length} produits suivis (1 en haut). Le rang réel dans le
+                    catalogue et le chiffre d'affaires apparaissent au survol. Une interruption de courbe =
+                    aucune vente sur la période.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="h-[440px]">
+                <CardContent className="h-[520px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData} margin={{ left: 8, right: 24, top: 8 }}>
+                    <LineChart data={chartData} margin={{ left: 16, right: 140, top: 8, bottom: 8 }}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <XAxis
+                        dataKey="label"
+                        tick={{ fontSize: 11 }}
+                        interval={xInterval}
+                        tickMargin={8}
+                      />
                       <YAxis
                         reversed
                         domain={[1, maxRank]}
+                        ticks={rankTicks}
                         allowDecimals={false}
                         tick={{ fontSize: 11 }}
                         tickFormatter={(v) => `#${v}`}
-                      />
+                        width={78}
+                      >
+                        <Label
+                          value={`rang parmi le top ${products.length} suivi`}
+                          angle={-90}
+                          position="insideLeft"
+                          style={{ fontSize: 11, textAnchor: "middle", fill: "hsl(var(--muted-foreground))" }}
+                        />
+                      </YAxis>
+                      {separators.map((s) => (
+                        <ReferenceLine
+                          key={s}
+                          y={s}
+                          stroke="hsl(var(--border))"
+                          strokeDasharray="2 6"
+                        />
+                      ))}
                       <ReTooltip
                         content={({ active, payload, label }) => {
                           if (!active || !payload?.length) return null;
@@ -423,12 +476,17 @@ export default function CaisseProductSales() {
                               {payload
                                 .filter((p) => p.value != null)
                                 .sort((a, b) => Number(a.value) - Number(b.value))
-                                .map((p) => (
-                                  <p key={String(p.dataKey)} style={{ color: p.color as string }}>
-                                    #{p.value} · {nameOf(String(p.dataKey))} ·{" "}
-                                    {eur(num(point[`${String(p.dataKey)}__ca`]))}
-                                  </p>
-                                ))}
+                                .map((p) => {
+                                  const ref = String(p.dataKey);
+                                  const global = point[`${ref}__globalRank`];
+                                  return (
+                                    <p key={ref} style={{ color: p.color as string }}>
+                                      #{p.value}
+                                      {global ? ` (catalogue #${global})` : ""} · {nameOf(ref)} ·{" "}
+                                      {eur(num(point[`${ref}__ca`]))}
+                                    </p>
+                                  );
+                                })}
                             </div>
                           );
                         }}
@@ -436,24 +494,43 @@ export default function CaisseProductSales() {
                       {products.map((p) => {
                         const idx = emphasised.indexOf(p.ref);
                         const isEmph = idx >= 0;
+                        const color = isEmph ? EMPHASIS[idx % EMPHASIS.length] : MUTED;
                         return (
                           <Line
                             key={p.ref}
                             type="monotone"
                             dataKey={p.ref}
                             name={p.name}
-                            stroke={isEmph ? EMPHASIS[idx % EMPHASIS.length] : MUTED}
+                            stroke={color}
                             strokeWidth={isEmph ? 2.5 : 1.25}
-                            dot={{ r: isEmph ? 3 : 2 }}
+                            dot={{ r: isEmph ? 2.5 : 1.5 }}
                             activeDot={{
                               r: 5,
                               onClick: () => setSelectedRef(p.ref),
                               style: { cursor: "pointer" },
                             }}
-                            connectNulls
+                            label={
+                              isEmph
+                                ? (props: any) => {
+                                    if (props.index !== chartData.length - 1) return null;
+                                    if (chartData[props.index]?.[p.ref] == null) return null;
+                                    return (
+                                      <text
+                                        x={props.x + 8}
+                                        y={props.y + 4}
+                                        fill={color}
+                                        fontSize={11}
+                                      >
+                                        {p.name.length > 22 ? `${p.name.slice(0, 21)}…` : p.name}
+                                      </text>
+                                    );
+                                  }
+                                : false
+                            }
                           />
                         );
                       })}
+
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent>
