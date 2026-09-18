@@ -62,6 +62,7 @@ const UberStoreMapping = React.lazy(() => import("./pages/UberStoreMapping"));
 const DeliverooMatching = React.lazy(() => import("./pages/DeliverooMatching"));
 const ItemSales = React.lazy(() => import("./pages/ItemSales"));
 const OnsiteSales = React.lazy(() => import("./pages/OnsiteSales"));
+const CaissePayments = React.lazy(() => import("./pages/CaissePayments"));
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
 const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarification"));
 const ChataigneGrowth = React.lazy(() => import("./pages/ChataigneGrowth"));
