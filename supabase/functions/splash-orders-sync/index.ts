@@ -86,7 +86,20 @@ function normalizeService(raw: string | null): string | null {
   return s.toLowerCase();
 }
 
+function dedupe(rows: Json[], key: (r: Json) => string): Json[] {
+  const seen = new Set<string>();
+  const out: Json[] = [];
+  for (const r of rows) {
+    const k = key(r);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    out.push(r);
+  }
+  return out;
+}
+
 function extractLines(order: Json): Json[] {
+
   const v = order.items;
   return Array.isArray(v) ? v : [];
 }
