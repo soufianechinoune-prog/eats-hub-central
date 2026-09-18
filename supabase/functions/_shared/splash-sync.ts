@@ -317,5 +317,15 @@ export async function syncRange(
     await new Promise((r) => setTimeout(r, 400)); // pacing entre pages
   }
 
+  // Rollups pré-agrégés : recalcul idempotent de la plage traitée (restaurant x jours).
+  if (tickets > 0 || lines > 0 || payments > 0 || done) {
+    const { error: rollupError } = await admin.rpc("refresh_caisse_rollups", {
+      p_restaurant_id: cred.restaurant_id,
+      p_from: from,
+      p_to: to,
+    });
+    if (rollupError) console.error("refresh_caisse_rollups", rollupError.message);
+  }
+
   return { fetched, tickets, lines, payments, next_page: page, done };
 }
