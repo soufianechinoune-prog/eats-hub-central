@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { stripPii } from "../_shared/splash-sync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
