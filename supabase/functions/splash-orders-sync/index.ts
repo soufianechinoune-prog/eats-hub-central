@@ -363,6 +363,21 @@ Deno.serve(async (req) => {
           }
 
           payments += uPays.length;
+
+          const rawRows = (stored ?? []).map((t) => ({
+            ticket_uuid: t.id,
+            restaurant_id: cred.restaurant_id,
+            chain_id: cred.chain_id,
+            ticket_date: t.ticket_date,
+            payload: stripPii(byTicketId.get(t.splash_ticket_id)!) as Json,
+            updated_at: new Date().toISOString(),
+          }));
+          for (let i = 0; i < rawRows.length; i += 200) {
+            const { error } = await admin
+              .from("splash_ticket_raw")
+              .upsert(rawRows.slice(i, i + 200), { onConflict: "ticket_uuid" });
+            if (error) throw error;
+          }
         }
 
 
