@@ -6217,6 +6217,45 @@ export type Database = {
           total_sales: number
         }[]
       }
+      get_caisse_payment_brands: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          amount: number
+          brand: string
+          category: string
+          payments: number
+        }[]
+      }
+      get_caisse_payment_breakdown: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          card_amount: number
+          cash_amount: number
+          days_covered: number
+          other_amount: number
+          paid_total: number
+          platform_amount: number
+          restaurant_id: string
+          restaurant_name: string
+          revenue: number
+          tickets: number
+          tr_amount: number
+          tr_share: number
+        }[]
+      }
+      get_caisse_payment_weekly: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          card_amount: number
+          cash_amount: number
+          other_amount: number
+          platform_amount: number
+          total_amount: number
+          tr_amount: number
+          tr_share: number
+          week_start: string
+        }[]
+      }
       get_chataigne_basket_segments: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
