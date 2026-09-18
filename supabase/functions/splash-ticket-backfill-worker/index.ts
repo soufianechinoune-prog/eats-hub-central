@@ -44,9 +44,11 @@ Deno.serve(async (req) => {
   if (!allowed) return json({ error: "Unauthorized" }, 401);
 
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  const batch = Math.min(Number(body.batch ?? 2), 4); // priorité basse : ~2 jobs par tick
+  const batch = Math.min(Number(body.batch ?? 4), 4);
   // Marge de sécurité pour terminer proprement avant la fin de l'exécution.
-  const deadlineMs = Date.now() + Number(body.budget_ms ?? 45000);
+  const deadlineMs = Date.now() + Number(body.budget_ms ?? 55000);
+  const lockUntil = new Date(Date.now() + 3 * 60000).toISOString();
+  const nowIso = new Date().toISOString();
 
   const results: Record<string, unknown>[] = [];
 
