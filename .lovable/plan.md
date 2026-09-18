@@ -23,7 +23,9 @@ Aucune donnée, aucun calcul de chiffre d'affaires et aucun filtre ne sont modif
 
 - `src/pages/CaisseProductSales.tsx` uniquement ; aucune modification des RPC ni du schéma.
 - Nouveau calcul dans le `useMemo` du graphique : pour chaque bucket, trier les `products` suivis par `revenue` décroissant et attribuer un rang dense local (1..N). Stocker en parallèle `${ref}__globalRank` et `${ref}__ca` pour le tooltip.
-- `YAxis reversed domain={[1, products.length]}`, `allowDecimals={false}`, `ticks` tous les 1 (ou tous les 2 au-delà de 15 produits).
+- `YAxis reversed domain={[1, products.length]}`, `allowDecimals={false}`, `label` = « rang parmi le top N suivi », `ticks` tous les 1 (ou tous les 2 au-delà de 15 produits).
+- `get_caisse_product_movers` et les listes hausse/baisse restent inchangées : elles s'appuient sur `first_rank`/`last_rank` (rang catalogue), jamais sur le rang local d'affichage.
 - `connectNulls` retiré sur les `Line` pour matérialiser les trous.
+
 - `height` du conteneur porté à ~520 px ; `strokeWidth` 2.5 pour les refs en emphase, 1.25 pour les grises ; `dot` réduit ; `XAxis interval` calculé selon le nombre de buckets ; `LabelList`/`Label` en bout de courbe pour les refs en couleur.
 - Tooltip inchangé dans sa logique, mais affiche « rang local (rang réel) · CA ».
