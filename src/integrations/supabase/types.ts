@@ -5288,6 +5288,33 @@ export type Database = {
           },
         ]
       }
+      splash_ticket_raw: {
+        Row: {
+          chain_id: string
+          payload: Json | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          payload?: Json | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          payload?: Json | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       splash_tickets: {
         Row: {
           chain_id: string

@@ -57,6 +57,13 @@
       "when": 1789760412331,
       "tag": "0007_caisse_rollups",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789760488232,
+      "tag": "0008_splash_ticket_raw",
+      "breakpoints": true
     }
   ]
 }
