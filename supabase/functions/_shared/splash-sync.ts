@@ -213,6 +213,7 @@ export async function syncRange(
         total_ht: fromCents(order.prix_ht),
         total_vat: fromCents(order.montant_tva),
         raw: rawSafe,
+        raw_payload: rawSafe,
         updated_at: new Date().toISOString(),
       });
       byTicketId.set(splashTicketId, order);
