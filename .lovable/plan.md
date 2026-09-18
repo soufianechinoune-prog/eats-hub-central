@@ -14,12 +14,15 @@ Conséquence : on ne peut pas construire « Moyens de paiement » ni le taux d'a
 ## Étapes
 
 ### 1. Conserver le détail ticket (pré-requis)
+- **Codes d'accès par restaurant** : les accès actuels sont enregistrés au niveau enseigne (2 lignes) alors qu'on dispose de 182 couples au niveau restaurant / caisse. Création d'une table dédiée aux accès par restaurant (identifiant + secret chiffré), lisible uniquement par le service (jamais par un utilisateur connecté ni par un visiteur), alimentée par un import contrôlé des deux fichiers Excel reçus de Splash. L'import ne journalise jamais les secrets. L'automate parcourt cette table.
 - Relevé du format réel renvoyé par Splash sur un restaurant témoin, pour figer les noms de champs (paiement, marque titres-resto, catégorie, service, horodatage, montants).
 - Deux nouvelles tables : un ticket (restaurant, marque, date-heure, type de service, moyen de paiement + marque, total en euros) et ses lignes (produit, référence, catégorie, quantité, prix, niveau article / sous-produit de menu / option).
 - Nouvel import dédié, par restaurant et par période, relançable sans créer de doublons, avec suivi des exécutions comme les autres connecteurs.
+- **Rattrapage progressif** : 182 accès × ~2 ans, donc jamais tout d'un coup. File de travaux en priorité basse, découpée par restaurant et par mois, avec délai entre appels, respect des limites de Splash, arrêt et reprise automatiques en cas de blocage. Démarrage : un seul restaurant témoin sur un mois, contrôle des chiffres, puis élargissement progressif restaurant par restaurant.
 - Normalisation des libellés de paiement à l'entrée : Carte, Espèces, Titres-resto (+ marque), Autre. Table de correspondance modifiable, tout libellé inconnu tombe en « Autre » et reste visible pour être qualifié.
 - Montants convertis en euros, horodatage conservé tel quel (heure locale du restaurant).
 - Règle anti-double-comptage : le CA sur place continue de venir de l'agrégat journalier tant que l'historique ticket n'est pas complet ; un indicateur de couverture par restaurant / mois dit quand basculer. Jamais les deux sources additionnées.
+
 
 ### 2. Ventes par produit
 Best-sellers : produit, catégorie, quantité, CA, part du CA. Triable, regroupable par catégorie.
