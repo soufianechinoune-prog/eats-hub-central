@@ -86,7 +86,7 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
 
 // Sous-onglets Deliveroo — uniquement les vues alimentées par la donnée Deliveroo
 const DELIVEROO_SUB_ITEMS: SubNavItem[] = [
-  { id: "synthese", label: "Synthèse", icon: Sparkles, route: "/chataigne" },
+  { id: "synthese", label: "Synthèse", icon: Sparkles },
   { id: "revenue", label: "Revenus & Ventes", icon: Euro, route: "/analytics/revenue" },
   { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
   { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
@@ -104,7 +104,7 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
 
 // Sous-onglets Chataigne — vues internes et écrans dédiés du canal
 const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
-  { id: "synthese", label: "Synthèse", icon: Sparkles },
+  { id: "synthese", label: "Synthèse", icon: Sparkles, route: "/chataigne" },
   { id: "details", label: "Analyse détaillée", icon: BarChart3, route: "/chataigne?tab=details" },
   { id: "orders", label: "Commandes", icon: ClipboardList, route: "/chataigne?tab=orders" },
   { id: "daily", label: "Vue quotidienne", icon: CalendarDays, route: "/chataigne?tab=daily" },
