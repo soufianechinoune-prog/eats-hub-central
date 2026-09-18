@@ -24,6 +24,7 @@ import {
   CalendarDays,
   Bike,
   Users,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
