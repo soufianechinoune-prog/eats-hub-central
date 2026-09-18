@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
             total_vat: fromCents(order.montant_tva),
             discount_amount: null,
             raw: rawSafe,
+            raw_payload: rawSafe,
             updated_at: new Date().toISOString(),
           });
           byTicketId.set(splashTicketId, order);
