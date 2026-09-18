@@ -509,14 +509,14 @@ export default function CaisseProductSales() {
             </Card>
           ) : (
             <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
                 <MetricCard icon={Cuboid} label="Produits suivis" value={String(products.length)} caption={`Top ${topN} par chiffre d'affaires`} tone="primary" />
                 <MetricCard icon={ShoppingCart} label="CA produits (période)" value={eur(totalRevenue)} caption={`${Math.round(totalQuantity).toLocaleString("fr-FR")} unités vendues`} tone="success" />
                 <MetricCard icon={TrendingUp} label="Produit n°1" value={leader?.product_name ?? "—"} caption={leader ? `${eur(leader.revenue)} sur la dernière période` : "Aucune donnée"} tone="primary" />
                 <MetricCard icon={CalendarDays} label="Stabilité du top 3" value={`${topThreeStability} %`} caption="inchangé entre début et fin" tone="primary" />
               </div>
 
-              <div className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(390px,1fr)]">
+              <div className="grid gap-4 2xl:grid-cols-[minmax(0,1.65fr)_minmax(390px,1fr)]">
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="flex-row items-start justify-between gap-4 space-y-0 pb-2">
                     <div>
@@ -663,7 +663,7 @@ export default function CaisseProductSales() {
                 </Card>
               </div>
 
-              <div className="grid gap-4 lg:grid-cols-2">
+              <div className="grid gap-4 2xl:grid-cols-2">
                 <Card className="border-border/70 shadow-sm">
                   <CardHeader className="flex-row items-center justify-between space-y-0 pb-1">
                     <div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-md bg-success/10 text-success"><ArrowUpRight className="h-5 w-5" /></span><div><CardTitle className="text-base">Plus fortes progressions de rang</CardTitle><CardDescription>Produits ayant gagné le plus de places</CardDescription></div></div>
