@@ -193,8 +193,8 @@ export async function syncRange(
       const mainLabel = main ? String(main.moyen ?? "") : null;
       const mainPayment = normalizePayment(mainLabel);
 
-      // On ne conserve jamais les coordonnées client dans le brut.
-      const { client: _client, ...rawSafe } = order as Json;
+      // On ne conserve jamais les coordonnées client dans le brut (récursif).
+      const rawSafe = stripPii(order) as Json;
 
       ticketRows.push({
         restaurant_id: cred.restaurant_id,
