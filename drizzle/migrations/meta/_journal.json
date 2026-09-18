@@ -50,6 +50,13 @@
       "when": 1789757978127,
       "tag": "0006_caisse_payment_rpcs",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789760412331,
+      "tag": "0007_caisse_rollups",
+      "breakpoints": true
     }
   ]
 }

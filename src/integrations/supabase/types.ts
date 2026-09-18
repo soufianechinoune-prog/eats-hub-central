@@ -281,6 +281,159 @@ export type Database = {
           },
         ]
       }
+      caisse_daily_attachment: {
+        Row: {
+          category: string
+          chain_id: string
+          restaurant_id: string
+          ticket_date: string
+          tickets_total: number
+          tickets_with_category: number
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          chain_id: string
+          restaurant_id: string
+          ticket_date: string
+          tickets_total?: number
+          tickets_with_category?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          chain_id?: string
+          restaurant_id?: string
+          ticket_date?: string
+          tickets_total?: number
+          tickets_with_category?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_daily_payments: {
+        Row: {
+          amount: number
+          brand: string
+          category: string
+          chain_id: string
+          payments: number
+          restaurant_id: string
+          ticket_date: string
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          brand?: string
+          category: string
+          chain_id: string
+          payments?: number
+          restaurant_id: string
+          ticket_date: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          brand?: string
+          category?: string
+          chain_id?: string
+          payments?: number
+          restaurant_id?: string
+          ticket_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_daily_products: {
+        Row: {
+          category: string | null
+          chain_id: string
+          product_key: string
+          product_name: string
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          revenue: number
+          ticket_date: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          product_key: string
+          product_name?: string
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          revenue?: number
+          ticket_date: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          product_key?: string
+          product_name?: string
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          revenue?: number
+          ticket_date?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_daily_tickets: {
+        Row: {
+          chain_id: string
+          restaurant_id: string
+          revenue_delivery: number
+          revenue_ht: number
+          revenue_onsite: number
+          revenue_takeaway: number
+          revenue_ttc: number
+          ticket_date: string
+          tickets: number
+          tickets_delivery: number
+          tickets_onsite: number
+          tickets_takeaway: number
+          updated_at: string
+          vat_amount: number
+        }
+        Insert: {
+          chain_id: string
+          restaurant_id: string
+          revenue_delivery?: number
+          revenue_ht?: number
+          revenue_onsite?: number
+          revenue_takeaway?: number
+          revenue_ttc?: number
+          ticket_date: string
+          tickets?: number
+          tickets_delivery?: number
+          tickets_onsite?: number
+          tickets_takeaway?: number
+          updated_at?: string
+          vat_amount?: number
+        }
+        Update: {
+          chain_id?: string
+          restaurant_id?: string
+          revenue_delivery?: number
+          revenue_ht?: number
+          revenue_onsite?: number
+          revenue_takeaway?: number
+          revenue_ttc?: number
+          ticket_date?: string
+          tickets?: number
+          tickets_delivery?: number
+          tickets_onsite?: number
+          tickets_takeaway?: number
+          updated_at?: string
+          vat_amount?: number
+        }
+        Relationships: []
+      }
       chain_pos_connections: {
         Row: {
           account_label: string | null
@@ -6217,6 +6370,15 @@ export type Database = {
           total_sales: number
         }[]
       }
+      get_caisse_attachment: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          attach_rate: number
+          category: string
+          tickets_total: number
+          tickets_with_category: number
+        }[]
+      }
       get_caisse_payment_brands: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
@@ -7607,6 +7769,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      refresh_caisse_rollups: {
+        Args: { p_from: string; p_restaurant_id: string; p_to: string }
+        Returns: undefined
       }
       refresh_refund_daily_cache: {
         Args: {
