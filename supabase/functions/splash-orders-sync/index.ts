@@ -268,8 +268,7 @@ Deno.serve(async (req) => {
             total_ht: fromCents(order.prix_ht),
             total_vat: fromCents(order.montant_tva),
             discount_amount: null,
-            raw: rawSafe,
-            raw_payload: rawSafe,
+            // Brut stocké à part (splash_ticket_raw), service-role uniquement.
             updated_at: new Date().toISOString(),
           });
           byTicketId.set(splashTicketId, order);
