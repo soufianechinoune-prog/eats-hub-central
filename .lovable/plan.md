@@ -6,7 +6,10 @@ En vue Semaine, toutes les courbes sont écrasées en haut du graphique. Cause :
 
 ## Ce qui change
 
-1. **Classement relatif entre les produits suivis.** Chaque semaine (ou mois), les produits affichés sont classés entre eux : 1er à 10e (ou 15e / 20e). L'échelle devient donc stable et les écarts redeviennent visibles. Le vrai rang dans le catalogue complet et le chiffre d'affaires restent affichés au survol et dans les listes « En hausse / En baisse » — aucune valeur n'est perdue.
+1. **Classement relatif entre les produits suivis.** Chaque semaine (ou mois), les produits affichés sont classés entre eux : 1er à 10e (ou 15e / 20e). L'échelle devient donc stable et les écarts redeviennent visibles. L'axe vertical est explicitement intitulé « rang parmi le top N suivi » pour éviter toute confusion avec le rang catalogue, qui reste affiché au survol.
+
+1bis. **Les listes « En hausse » / « En baisse » restent basées sur le vrai rang catalogue** (« 6e → 1er » garde son sens). Elles ne changent pas du tout : elles viennent déjà du calcul serveur sur le classement complet.
+
 
 2. **Trous assumés.** Une semaine sans vente pour un produit laisse une interruption dans sa courbe au lieu d'une chute artificielle vers le bas du graphique.
 
