@@ -119,6 +119,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
 /** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
 function channelFromPath(pathname: string, search: string): { channel: OverviewChannel; subId: string } | null {
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
+  if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
   if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
   if (pathname.startsWith("/chataigne/tarification")) return { channel: "chataigne", subId: "pricing" };
