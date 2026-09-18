@@ -434,6 +434,6366 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_ticket_lines: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202401: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202402: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202403: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202404: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202405: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202406: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202407: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202408: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202409: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202410: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202411: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202412: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202501: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202502: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202503: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202504: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202505: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202506: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202507: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202508: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202509: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202510: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202511: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202512: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202601: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202602: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202603: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202604: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202605: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202606: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202607: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202608: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202609: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202610: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202611: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202612: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202701: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202702: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_lines_202703: {
+        Row: {
+          category: string | null
+          chain_id: string
+          created_at: string
+          depth: number
+          id: string
+          line_key: string
+          product_name: string | null
+          product_ref: string | null
+          quantity: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price: number | null
+          unit_price: number | null
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          created_at?: string
+          depth?: number
+          id?: string
+          line_key?: string
+          product_name?: string | null
+          product_ref?: string | null
+          quantity?: number
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+          total_price?: number | null
+          unit_price?: number | null
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202401: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202402: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202403: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202404: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202405: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202406: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202407: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202408: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202409: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202410: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202411: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202412: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202501: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202502: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202503: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202504: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202505: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202506: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202507: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202508: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202509: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202510: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202511: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202512: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202601: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202602: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202603: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202604: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202605: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202606: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202607: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202608: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202609: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202610: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202611: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202612: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202701: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202702: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_ticket_payments_202703: {
+        Row: {
+          amount: number | null
+          brand: string | null
+          category: string
+          chain_id: string
+          created_at: string
+          id: string
+          payment_key: string
+          raw_label: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Insert: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id: string
+          created_at?: string
+          id?: string
+          payment_key: string
+          raw_label?: string | null
+          restaurant_id: string
+          ticket_date: string
+          ticket_uuid: string
+        }
+        Update: {
+          amount?: number | null
+          brand?: string | null
+          category?: string
+          chain_id?: string
+          created_at?: string
+          id?: string
+          payment_key?: string
+          raw_label?: string | null
+          restaurant_id?: string
+          ticket_date?: string
+          ticket_uuid?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202401: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202402: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202403: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202404: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202405: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202406: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202407: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202408: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202409: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202410: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202411: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202412: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202501: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202502: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202503: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202504: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202505: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202506: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202507: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202508: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202509: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202510: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202511: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202512: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202601: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202602: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202603: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202604: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202605: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202606: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202607: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202608: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202609: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202610: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202611: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202612: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202701: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202702: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      caisse_tickets_202703: {
+        Row: {
+          chain_id: string
+          created_at: string
+          discount_amount: number | null
+          id: string
+          payment_brand: string | null
+          payment_category: string | null
+          payment_label_raw: string | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          discount_amount?: number | null
+          id?: string
+          payment_brand?: string | null
+          payment_category?: string | null
+          payment_label_raw?: string | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chain_pos_connections: {
         Row: {
           account_label: string | null
@@ -6176,6 +12536,17 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_storage_by_month: {
+        Row: {
+          chain_id: string | null
+          lines_count: number | null
+          month: string | null
+          payments_count: number | null
+          restaurants: number | null
+          tickets: number | null
+        }
+        Relationships: []
+      }
       daily_sales_uber_deduped: {
         Row: {
           average_basket: number | null
@@ -6278,6 +12649,10 @@ export type Database = {
           p_start_month: number
           p_start_year: number
         }
+        Returns: number
+      }
+      ensure_caisse_partitions: {
+        Args: { p_from?: string; p_months?: number }
         Returns: number
       }
       get_active_hours_summary:
