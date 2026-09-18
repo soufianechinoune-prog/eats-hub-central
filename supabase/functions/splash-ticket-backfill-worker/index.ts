@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
 
   // Accès : clé worker (cron) ou super-admin connecté.
   const provided = req.headers.get("x-worker-key");
-  let allowed = Boolean(workerKey && provided && provided === workerKey);
+  let allowed = Boolean(provided && workerKeys.includes(provided));
   if (!allowed) {
     const authHeader = req.headers.get("Authorization");
     if (authHeader?.startsWith("Bearer ")) {
