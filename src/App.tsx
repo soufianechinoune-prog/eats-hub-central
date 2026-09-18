@@ -240,6 +240,7 @@ const App = () => {
                     <Route path="/compare/profitability" element={<Navigate to="/analytics/finances" replace />} />
                     <Route path="/item-sales" element={<P><ItemSales /></P>} />
                     <Route path="/analytics/onsite-sales" element={<P><OnsiteSales /></P>} />
+                    <Route path="/caisse/paiements" element={<P><CaissePayments /></P>} />
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
                     <Route path="/chataigne/croissance" element={<P><ChataigneGrowth /></P>} />
