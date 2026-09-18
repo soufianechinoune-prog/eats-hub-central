@@ -263,6 +263,17 @@ const Overview = () => {
     navigate("/analytics/finances");
   };
 
+  const navigateToChannelRestaurant = (restaurantId: string) => {
+    if (activeChannel !== "chataigne") {
+      navigateToFinances(restaurantId);
+      return;
+    }
+
+    setSelectedRestaurants([restaurantId]);
+    setVisibleRestaurants([restaurantId]);
+    navigate("/chataigne?tab=overview");
+  };
+
   // Navigate to Finances & Frais globally (all restaurants) with period and platform pre-selected
   const navigateToFinancesGlobal = (platform: "uber_eats" | "deliveroo" | "global" = "global") => {
     // Map Overview periodMode to Analytics periodMode
@@ -1133,7 +1144,7 @@ const Overview = () => {
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
                 isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
-                onRestaurantClick={navigateToFinances}
+                onRestaurantClick={navigateToChannelRestaurant}
                 showDataSource={showDataSource}
                 onToggleDataSource={setShowDataSource}
                 dataSourceMap={dataSourceMap}
