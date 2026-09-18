@@ -92,6 +92,7 @@ Deno.serve(async (req) => {
           .from("splash_ticket_backfill_jobs")
           .update({
             status: "failed",
+            locked_until: null,
             last_error: "Aucun accès Splash actif pour cette caisse",
             updated_at: new Date().toISOString(),
           })
