@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -304,6 +305,7 @@ export default function ChataigneGrowth() {
 
   return (
     <AppLayout>
+      <ChannelNavShell>
       <div className="space-y-6">
         <div className="flex flex-col gap-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -961,6 +963,7 @@ export default function ChataigneGrowth() {
           scopedRestaurantIds={restaurantFilter ?? []}
         />
       </div>
+      </ChannelNavShell>
     </AppLayout>
   );
 }
