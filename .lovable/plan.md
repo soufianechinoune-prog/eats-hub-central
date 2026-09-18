@@ -14,7 +14,9 @@ Rapports hebdo             Caisse
 Données / administration    ├─ Synthèse caisse
                             ├─ Ventes sur place
                             ├─ Ventes par produit (à venir)
-                            └─ Prix sur place
+                            └─ Réglages
+                               └─ Prix sur place
+
                           Dishop
                           Chataigne
 ```
@@ -29,7 +31,10 @@ La barre principale reste celle de toute l’application. La seconde barre, déj
   - **Ventes sur place** : l’écran actuel N/N-1, périmètre constant, détail restaurant et vues quotidiennes.
   - **Ventes par produit** : emplacement préparé pour la future donnée détaillée Splash, sans encore intégrer les fichiers.
   - **Prix sur place** : déplacer son accès dans Caisse tout en conservant l’écran existant.
+  - Un petit libellé **Réglages** sépare les vues de ventes de **Prix sur place**.
+- Important : placer « Prix sur place » sous Caisse est un choix de navigation uniquement. La grille de prix reste partagée et continue d’alimenter les écarts et marges des autres canaux (Chataigne notamment) : rien n’est rendu exclusif à la caisse.
 - Retirer de la longue liste Analytics les doublons « Ventes sur place » et « Prix sur place » une fois leurs nouveaux accès disponibles.
+
 - Garder les adresses actuelles fonctionnelles afin de ne casser aucun favori ou lien existant.
 
 ## Comportement attendu
