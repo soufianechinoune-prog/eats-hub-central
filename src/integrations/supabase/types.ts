@@ -11442,6 +11442,7 @@ export type Database = {
           id: string
           last_error: string | null
           lines_upserted: number
+          locked_until: string | null
           month: number
           next_attempt_at: string
           page_cursor: number
@@ -11462,6 +11463,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           lines_upserted?: number
+          locked_until?: string | null
           month: number
           next_attempt_at?: string
           page_cursor?: number
@@ -11482,6 +11484,7 @@ export type Database = {
           id?: string
           last_error?: string | null
           lines_upserted?: number
+          locked_until?: string | null
           month?: number
           next_attempt_at?: string
           page_cursor?: number

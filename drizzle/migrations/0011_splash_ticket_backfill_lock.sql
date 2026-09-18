@@ -1,0 +1,2 @@
+ALTER TABLE public.splash_ticket_backfill_jobs ADD COLUMN IF NOT EXISTS locked_until timestamptz;
+CREATE INDEX IF NOT EXISTS idx_splash_ticket_backfill_pickable ON public.splash_ticket_backfill_jobs (status, next_attempt_at) WHERE status IN ('pending','running');
