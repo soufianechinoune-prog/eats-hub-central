@@ -64,6 +64,27 @@ export function normalizeService(raw: string | null): string | null {
   return s.toLowerCase();
 }
 
+// RGPD : on ne stocke jamais de donnée identifiante client dans le brut.
+const PII_KEYS = new Set([
+  "client", "clients", "customer", "nom_client", "prenom", "prenom_client",
+  "telephone", "tel", "phone", "mobile", "email", "mail", "adresse", "address",
+  "adresse_livraison", "code_postal", "ville_client", "customer_name",
+  "customer_phone", "customer_email", "loyalty_card", "carte_fidelite",
+]);
+
+export function stripPii(value: any): any {
+  if (Array.isArray(value)) return value.map(stripPii);
+  if (value && typeof value === "object") {
+    const out: Json = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (PII_KEYS.has(k.toLowerCase())) continue;
+      out[k] = stripPii(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 export function extractLines(order: Json): Json[] {
   return Array.isArray(order.items) ? order.items : [];
 }
@@ -172,8 +193,8 @@ export async function syncRange(
       const mainLabel = main ? String(main.moyen ?? "") : null;
       const mainPayment = normalizePayment(mainLabel);
 
-      // On ne conserve jamais les coordonnées client dans le brut.
-      const { client: _client, ...rawSafe } = order as Json;
+      // On ne conserve jamais les coordonnées client dans le brut (récursif).
+      const rawSafe = stripPii(order) as Json;
 
       ticketRows.push({
         restaurant_id: cred.restaurant_id,
@@ -192,6 +213,7 @@ export async function syncRange(
         total_ht: fromCents(order.prix_ht),
         total_vat: fromCents(order.montant_tva),
         raw: rawSafe,
+        raw_payload: rawSafe,
         updated_at: new Date().toISOString(),
       });
       byTicketId.set(splashTicketId, order);

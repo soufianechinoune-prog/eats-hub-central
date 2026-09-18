@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { stripPii } from "../_shared/splash-sync.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -247,8 +248,8 @@ Deno.serve(async (req) => {
           const mainLabel = main ? String(main.moyen ?? "") : null;
           const mainPayment = normalizePayment(mainLabel);
 
-          // On ne conserve jamais les coordonnées client dans le brut.
-          const { client: _client, ...rawSafe } = order as Json;
+          // On ne conserve jamais les coordonnées client dans le brut (récursif).
+          const rawSafe = stripPii(order) as Json;
 
           ticketRows.push({
             restaurant_id: cred.restaurant_id,
@@ -268,6 +269,7 @@ Deno.serve(async (req) => {
             total_vat: fromCents(order.montant_tva),
             discount_amount: null,
             raw: rawSafe,
+            raw_payload: rawSafe,
             updated_at: new Date().toISOString(),
           });
           byTicketId.set(splashTicketId, order);
