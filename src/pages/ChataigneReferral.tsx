@@ -72,6 +72,21 @@ const fmtEur = (v: number, digits = 2) =>
   }).format(v || 0);
 const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
 
+// Paramètre « coût du produit offert » : remplace la valeur de vente dans le CAC
+// (marge sacrifiée = remise en € ; produit offert = ce coût saisi). Défaut ≈ 28 % du prix de vente.
+const OFFERT_COST_KEY = "chataigne-referral-offert-cost";
+const OFFERT_COST_RATIO = 0.28;
+
+type AcquisitionRow = {
+  filleuls: number;
+  cout_filleul: number;
+  cout_parrain: number;
+  offert_count: number;
+  offert_vente: number;
+};
+const effectiveCoutFilleul = (r: AcquisitionRow, offertCost: number) =>
+  r.cout_filleul - r.offert_vente + r.offert_count * offertCost;
+
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
   try {
     const d = parseISO(periode);
