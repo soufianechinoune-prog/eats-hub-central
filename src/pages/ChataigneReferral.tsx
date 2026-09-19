@@ -334,6 +334,23 @@ export default function ChataigneReferral() {
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
+
+  // Coût du produit offert : valeur saisie, sinon défaut ≈ 28 % du prix de vente moyen constaté
+  const offertTotals = useMemo(() => {
+    const count = rows.reduce((s, r) => s + r.offert_count, 0);
+    const vente = rows.reduce((s, r) => s + r.offert_vente, 0);
+    return { count, vente, avgVente: count > 0 ? vente / count : 0 };
+  }, [rows]);
+  const defaultOffertCost = useMemo(
+    () => Math.round(offertTotals.avgVente * OFFERT_COST_RATIO * 100) / 100,
+    [offertTotals]
+  );
+  const parsedOverride = Number(offertCostOverride.replace(",", "."));
+  const offertCost =
+    offertCostOverride.trim() !== "" && Number.isFinite(parsedOverride) && parsedOverride >= 0
+      ? parsedOverride
+      : defaultOffertCost;
+
   const chartData = useMemo(() => {
     const base = rows.map((r) => ({
       periode: r.periode,
@@ -342,7 +359,10 @@ export default function ChataigneReferral() {
       parrains: r.parrains,
       part: r.part_parrainage,
       viralite: r.viralite,
-      cac: r.cac as number | null,
+      cac:
+        r.filleuls > 0
+          ? Math.round(((effectiveCoutFilleul(r, offertCost) + r.cout_parrain) / r.filleuls) * 100) / 100
+          : null,
     }));
     // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
     return base.map((r, i) => {
