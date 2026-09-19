@@ -792,6 +792,39 @@ export default function ChataigneReferral() {
                       ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
                       : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
                   }
+                  action={
+                    <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                      <label
+                        htmlFor="offert-cost"
+                        className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                        title="Coût matière du produit offert, utilisé dans le coût d'acquisition à la place de sa valeur de vente"
+                      >
+                        Coût produit offert
+                      </label>
+                      <Input
+                        id="offert-cost"
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={offertCostOverride}
+                        placeholder={
+                          defaultOffertCost > 0 ? `${defaultOffertCost.toFixed(2)} € (auto)` : "0.00"
+                        }
+                        onChange={(e) => updateOffertCost(e.target.value)}
+                        className="h-8 w-28 rounded-lg text-right tabular-nums"
+                      />
+                      {offertCostOverride !== "" && (
+                        <button
+                          type="button"
+                          onClick={() => updateOffertCost("")}
+                          title="Revenir au défaut (28 % du prix de vente)"
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  }
                 >
                   {acquisitionQ.isLoading ? (
                     <Skeleton className="h-[420px] w-full rounded-xl" />
