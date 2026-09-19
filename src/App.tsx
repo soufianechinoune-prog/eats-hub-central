@@ -67,6 +67,7 @@ const CaisseProductSales = React.lazy(() => import("./pages/CaisseProductSales")
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
 const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarification"));
 const ChataigneGrowth = React.lazy(() => import("./pages/ChataigneGrowth"));
+const ChataigneReferral = React.lazy(() => import("./pages/ChataigneReferral"));
 const DeliveryProfitability = React.lazy(() => import("./pages/DeliveryProfitability"));
 const DeliverooProfitability = React.lazy(() => import("./pages/DeliverooProfitability"));
 const InstorePrices = React.lazy(() => import("./pages/InstorePrices"));
