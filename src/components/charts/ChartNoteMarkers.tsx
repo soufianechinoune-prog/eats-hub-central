@@ -22,6 +22,8 @@ interface ChartNoteMarkersProps {
   rows: RowWithPeriode[];
   granularity: NoteGranularity;
   onMarkerClick: (notes: ChartNote[]) => void;
+  /** Requis quand le graphique déclare des axes Y nommés (ex. "left"/"right"). */
+  yAxisId?: string | number;
 }
 
 /**
@@ -30,8 +32,9 @@ interface ChartNoteMarkersProps {
  * inconnus, il faut donc inliner les <ReferenceLine> : {renderChartNoteMarkers({...})}.
  * Les lignes doivent exposer `periode` (yyyy-MM-dd du début de bucket) et `label` (clé X).
  */
-export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick }: ChartNoteMarkersProps) {
+export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick, yAxisId }: ChartNoteMarkersProps) {
   if (notes.length === 0 || rows.length === 0) return null;
+
 
   const labelByBucket = new Map<string, string>();
   for (const r of rows) {
