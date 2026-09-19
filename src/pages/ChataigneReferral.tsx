@@ -749,7 +749,7 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip
                           contentStyle={tooltipStyle}
-                          formatter={(value: any) => [formatEuro(Number(value)), "Coût d'acquisition"]}
+                          formatter={(value: any) => [fmtEur(Number(value)), "Coût d'acquisition"]}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
                         <Area
