@@ -112,6 +112,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
   { id: "daily", label: "Vue quotidienne", icon: CalendarDays, route: "/chataigne?tab=daily" },
   { id: "service", label: "Emport vs Livraison", icon: Bike, route: "/chataigne?tab=service" },
   { id: "growth", label: "Croissance & Clients", icon: Users, route: "/chataigne/croissance" },
+  { id: "referral", label: "Parrainage", icon: Gift, route: "/chataigne/parrainage" },
   { id: "pricing", label: "Écarts & Markup", icon: Tag, route: "/chataigne/tarification" },
   { id: "profitability", label: "Rentabilité", icon: Euro, route: "/chataigne/rentabilite" },
 ];
