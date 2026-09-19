@@ -787,6 +787,7 @@ export default function ChataigneReferral() {
                           rows: chartData,
                           granularity,
                           onMarkerClick: openExistingNote,
+                          yAxisId: "left",
                         })}
                       </ComposedChart>
                     </ResponsiveContainer>
