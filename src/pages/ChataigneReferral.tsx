@@ -104,7 +104,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   organique: "Organique",
 };
 
+const MIN_FILLEULS_CAC = 5;
 const MONTH_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+
 const cohortLabel = (cohorte: string) => {
   const [y, m] = cohorte.split("-");
   return `${MONTH_LABELS[Number(m) - 1] ?? cohorte} ${y}`;
@@ -352,28 +354,34 @@ export default function ChataigneReferral() {
       : defaultOffertCost;
 
   const chartData = useMemo(() => {
-    const base = rows.map((r) => ({
-      periode: r.periode,
-      label: periodLabel(r.periode, granularity),
-      filleuls: r.filleuls,
-      parrains: r.parrains,
-      part: r.part_parrainage,
-      viralite: r.viralite,
-      cac:
+    const base = rows.map((r) => {
+      const cac =
         r.filleuls > 0
           ? Math.round(((effectiveCoutFilleul(r, offertCost) + r.cout_parrain) / r.filleuls) * 100) / 100
-          : null,
-    }));
+          : null;
+      return {
+        periode: r.periode,
+        label: periodLabel(r.periode, granularity),
+        filleuls: r.filleuls,
+        parrains: r.parrains,
+        part: r.part_parrainage,
+        viralite: r.viralite,
+        cac,
+        // Garde de fiabilité : on n'affiche pas un coût calculé sur trop peu de filleuls
+        cacFiable: r.filleuls >= MIN_FILLEULS_CAC ? cac : null,
+      };
+    });
     // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
     return base.map((r, i) => {
-      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cac != null);
+      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cacFiable != null);
       const cacMA =
         granularity === "month" || win.length === 0
           ? null
-          : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
+          : Math.round((win.reduce((s, w) => s + (w.cacFiable ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
   }, [rows, granularity, offertCost]);
+
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
@@ -789,8 +797,8 @@ export default function ChataigneReferral() {
                   title="Coût d'acquisition par filleul"
                   subtitle={
                     granularity === "month"
-                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
-                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
+                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées (non fiables) · cliquez pour poser un repère"
+                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · les périodes de moins de 5 filleuls sont exclues de la moyenne · cliquez pour poser un repère"
                   }
                   action={
                     <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
@@ -859,13 +867,20 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip
                           contentStyle={tooltipStyle}
-                          formatter={(value: any, name: any) => [fmtEur(Number(value)), name]}
+                          formatter={(value: any, name: any, item: any) => {
+                            const n = item?.payload?.filleuls ?? 0;
+                            const suffix = ` · ${n} filleul${n > 1 ? "s" : ""}${
+                              n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""
+                            }`;
+                            return [`${fmtEur(Number(value))}${suffix}`, name];
+                          }}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
                         {granularity === "month" ? (
                           <Area
                             type="monotone"
-                            dataKey="cac"
+                            dataKey="cacFiable"
+
                             name="Coût d'acquisition par filleul"
                             stroke="hsl(var(--primary))"
                             strokeWidth={2.5}
