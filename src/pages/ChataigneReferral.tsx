@@ -301,19 +301,26 @@ export default function ChataigneReferral() {
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
-  const chartData = useMemo(
-    () =>
-      rows.map((r) => ({
-        periode: r.periode,
-        label: periodLabel(r.periode, granularity),
-        filleuls: r.filleuls,
-        parrains: r.parrains,
-        part: r.part_parrainage,
-        viralite: r.viralite,
-        cac: r.cac,
-      })),
-    [rows, granularity]
-  );
+  const chartData = useMemo(() => {
+    const base = rows.map((r) => ({
+      periode: r.periode,
+      label: periodLabel(r.periode, granularity),
+      filleuls: r.filleuls,
+      parrains: r.parrains,
+      part: r.part_parrainage,
+      viralite: r.viralite,
+      cac: r.cac as number | null,
+    }));
+    // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
+    return base.map((r, i) => {
+      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cac != null);
+      const cacMA =
+        granularity === "month" || win.length === 0
+          ? null
+          : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
+      return { ...r, cacMA };
+    });
+  }, [rows, granularity]);
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
