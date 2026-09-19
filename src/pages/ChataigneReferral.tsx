@@ -373,7 +373,7 @@ export default function ChataigneReferral() {
           : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
-  }, [rows, granularity]);
+  }, [rows, granularity, offertCost]);
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
@@ -414,7 +414,7 @@ export default function ChataigneReferral() {
   ) => {
     const list = acq ?? [];
     const filleuls = list.reduce((s, r) => s + r.filleuls, 0);
-    const cost = list.reduce((s, r) => s + r.cout_filleul + r.cout_parrain, 0);
+    const cost = list.reduce((s, r) => s + effectiveCoutFilleul(r, offertCost) + r.cout_parrain, 0);
     const weeks = Math.max(1, windowDays / 7);
     const fill = (seg ?? []).find((s) => s.segment === "filleul");
     return {
@@ -434,7 +434,7 @@ export default function ChataigneReferral() {
     const filleuls = rows.reduce((s, r) => s + r.filleuls, 0);
     const parrains = rows.reduce((s, r) => s + r.parrains, 0);
     const nouveaux = rows.reduce((s, r) => s + r.nouveaux_clients, 0);
-    const cost = rows.reduce((s, r) => s + r.cout_filleul + r.cout_parrain, 0);
+    const cost = rows.reduce((s, r) => s + effectiveCoutFilleul(r, offertCost) + r.cout_parrain, 0);
     return {
       filleuls,
       parrains,
