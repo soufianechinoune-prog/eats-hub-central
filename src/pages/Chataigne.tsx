@@ -197,15 +197,48 @@ export default function Chataigne() {
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
   const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
 
-  const chartData = useMemo(
-    () =>
-      (monthlyQ.data ?? []).map((m) => ({
+  // Granularité du graphique d'évolution : auto selon la période, surchargeable
+  const autoBucket: Bucket = periodDays <= 31 ? "day" : periodDays <= 93 ? "week" : "month";
+  const [bucketOverride, setBucketOverride] = useState<Bucket | null>(null);
+  const bucket = bucketOverride ?? autoBucket;
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
+
+  const dailyQ = useQuery({
+    queryKey: ["chataigne-daily-evolution", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    queryFn: () => fetchDailyChataigne(start, end, restaurantFilter ?? null),
+    enabled: restaurantFilter !== undefined && bucket !== "month",
+  });
+
+  const chartData = useMemo(() => {
+    if (bucket === "month") {
+      return (monthlyQ.data ?? []).map((m) => ({
         label: monthLabel(m.mois),
         ca: m.ca_brut,
         commandes: m.commandes,
-      })),
-    [monthlyQ.data]
-  );
+      }));
+    }
+    const rows = dailyQ.data ?? [];
+    const agg = new Map<string, { label: string; ca: number; commandes: number }>();
+    for (const r of rows) {
+      if (!r.date) continue;
+      const d = parseISO(r.date);
+      const key =
+        bucket === "day" ? r.date.slice(0, 10) : format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const label =
+        bucket === "day"
+          ? format(d, "d MMM", { locale: fr })
+          : `S${format(startOfWeek(d, { weekStartsOn: 1 }), "w")} · ${format(startOfWeek(d, { weekStartsOn: 1 }), "d MMM", { locale: fr })}`;
+      const cur = agg.get(key) ?? { label, ca: 0, commandes: 0 };
+      cur.ca += Number(r.revenue_ttc) || 0;
+      cur.commandes += Number(r.order_count) || 0;
+      agg.set(key, cur);
+    }
+    return [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+  }, [bucket, monthlyQ.data, dailyQ.data]);
+
+  const chartLoading = bucket === "month" ? monthlyQ.isLoading : dailyQ.isLoading;
+  const chartTitle =
+    bucket === "day" ? "Évolution quotidienne" : bucket === "week" ? "Évolution hebdomadaire" : "Évolution mensuelle";
 
   const sorted = useMemo(() => {
     const rows: ChataigneRestaurant[] = [...(restaurantsQ.data ?? [])];
