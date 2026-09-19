@@ -444,11 +444,12 @@ export default function ChataigneReferral() {
       cac: filleuls > 0 ? cost / filleuls : 0,
       cost,
     };
-  }, [rows]);
+  }, [rows, offertCost]);
 
   // ---- Payback ----
   const paybackRows = paybackQ.data ?? [];
-  const cac = paybackRows[0]?.cac ?? kpis.cac;
+  // CAC ajusté (produit offert au coût saisi) ; repli sur la valeur brute si la période est vide
+  const cac = kpis.cac > 0 ? kpis.cac : (paybackRows[0]?.cac ?? 0);
   const paybackData = useMemo(
     () =>
       paybackRows
