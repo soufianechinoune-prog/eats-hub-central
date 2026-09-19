@@ -4,7 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { format, parseISO, startOfWeek } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Area, AreaChart } from "recharts";
+import { Area } from "recharts";
 
 type Bucket = "day" | "week" | "month";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
