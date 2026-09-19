@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parseISO, startOfWeek } from "date-fns";
+import { fr } from "date-fns/locale";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Area, AreaChart } from "recharts";
+
+type Bucket = "day" | "week" | "month";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
