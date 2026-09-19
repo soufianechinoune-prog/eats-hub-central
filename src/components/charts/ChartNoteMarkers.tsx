@@ -58,7 +58,9 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
           <ReferenceLine
             key={`note-${label}`}
             x={label}
+            {...(yAxisId !== undefined ? { yAxisId } : {})}
             stroke={color}
+
             strokeDasharray="4 3"
             strokeOpacity={0.8}
             label={(props: any) => {
