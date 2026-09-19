@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { format } from "date-fns";
+import { format, parseISO, startOfWeek } from "date-fns";
+import { fr } from "date-fns/locale";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Area } from "recharts";
+
+type Bucket = "day" | "week" | "month";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -148,7 +153,7 @@ export default function Chataigne() {
     dateRange,
   } = useAnalyticsContext();
 
-  const { startDate, endDate } = useDataGranularity({
+  const { startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
     selectedYear,
     selectedMonth,
@@ -197,15 +202,48 @@ export default function Chataigne() {
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
   const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
 
-  const chartData = useMemo(
-    () =>
-      (monthlyQ.data ?? []).map((m) => ({
+  // Granularité du graphique d'évolution : auto selon la période, surchargeable
+  const autoBucket: Bucket = periodDays <= 31 ? "day" : periodDays <= 93 ? "week" : "month";
+  const [bucketOverride, setBucketOverride] = useState<Bucket | null>(null);
+  const bucket = bucketOverride ?? autoBucket;
+  const [chartType, setChartType] = useState<"line" | "bar">("line");
+
+  const dailyQ = useQuery({
+    queryKey: ["chataigne-daily-evolution", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    queryFn: () => fetchDailyChataigne(start, end, restaurantFilter ?? null),
+    enabled: restaurantFilter !== undefined && bucket !== "month",
+  });
+
+  const chartData = useMemo(() => {
+    if (bucket === "month") {
+      return (monthlyQ.data ?? []).map((m) => ({
         label: monthLabel(m.mois),
         ca: m.ca_brut,
         commandes: m.commandes,
-      })),
-    [monthlyQ.data]
-  );
+      }));
+    }
+    const rows = dailyQ.data ?? [];
+    const agg = new Map<string, { label: string; ca: number; commandes: number }>();
+    for (const r of rows) {
+      if (!r.date) continue;
+      const d = parseISO(r.date);
+      const key =
+        bucket === "day" ? r.date.slice(0, 10) : format(startOfWeek(d, { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const label =
+        bucket === "day"
+          ? format(d, "d MMM", { locale: fr })
+          : `S${format(startOfWeek(d, { weekStartsOn: 1 }), "w")} · ${format(startOfWeek(d, { weekStartsOn: 1 }), "d MMM", { locale: fr })}`;
+      const cur = agg.get(key) ?? { label, ca: 0, commandes: 0 };
+      cur.ca += Number(r.revenue_ttc) || 0;
+      cur.commandes += Number(r.order_count) || 0;
+      agg.set(key, cur);
+    }
+    return [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+  }, [bucket, monthlyQ.data, dailyQ.data]);
+
+  const chartLoading = bucket === "month" ? monthlyQ.isLoading : dailyQ.isLoading;
+  const chartTitle =
+    bucket === "day" ? "Évolution quotidienne" : bucket === "week" ? "Évolution hebdomadaire" : "Évolution mensuelle";
 
   const sorted = useMemo(() => {
     const rows: ChataigneRestaurant[] = [...(restaurantsQ.data ?? [])];
@@ -335,23 +373,64 @@ export default function Chataigne() {
 
 
             <TabsContent value="overview" className="space-y-6">
-              {/* Évolution mensuelle */}
+              {/* Évolution */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Évolution mensuelle</CardTitle>
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+                  <CardTitle>{chartTitle}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ToggleGroup
+                      type="single"
+                      value={bucket}
+                      onValueChange={(v) => v && setBucketOverride(v as Bucket)}
+                      size="sm"
+                    >
+                      <ToggleGroupItem value="day">Jour</ToggleGroupItem>
+                      <ToggleGroupItem value="week">Semaine</ToggleGroupItem>
+                      <ToggleGroupItem value="month">Mois</ToggleGroupItem>
+                    </ToggleGroup>
+                    <ToggleGroup
+                      type="single"
+                      value={chartType}
+                      onValueChange={(v) => v && setChartType(v as "line" | "bar")}
+                      size="sm"
+                    >
+                      <ToggleGroupItem value="line">Courbes</ToggleGroupItem>
+                      <ToggleGroupItem value="bar">Barres</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {monthlyQ.isLoading ? (
-                    <Skeleton className="h-[340px] w-full" />
-                  ) : (
-                    <ResponsiveContainer width="100%" height={340}>
+                  {chartLoading ? (
+                    <Skeleton className="h-[380px] w-full" />
+                  ) : chartData.length === 0 ? (
+                    <p className="py-16 text-center text-sm text-muted-foreground">
+                      Aucune donnée sur cette période.
+                    </p>
+                  ) : chartType === "line" ? (
+                    <ResponsiveContainer width="100%" height={380}>
                       <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                        <defs>
+                          <linearGradient id="chataigneCaGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={16}
+                        />
                         <YAxis
                           yAxisId="left"
                           stroke="hsl(var(--muted-foreground))"
                           fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
                           tickFormatter={(v) => fmtEur(Number(v))}
                         />
                         <YAxis
@@ -359,6 +438,74 @@ export default function Chataigne() {
                           orientation="right"
                           stroke="hsl(var(--muted-foreground))"
                           fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => fmtInt(Number(v))}
+                        />
+                        <RTooltip
+                          contentStyle={{
+                            background: "hsl(var(--popover))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            color: "hsl(var(--popover-foreground))",
+                            boxShadow: "0 10px 30px -12px rgba(0,0,0,0.35)",
+                          }}
+                          formatter={(value: number, name: string) =>
+                            name === "CA brut" ? fmtEur(Number(value)) : fmtInt(Number(value))
+                          }
+                        />
+                        <Legend />
+                        <Area
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="ca"
+                          name="CA brut"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#chataigneCaGradient)"
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="commandes"
+                          name="Commandes"
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeWidth={1.75}
+                          strokeDasharray="4 4"
+                          dot={false}
+                        />
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={16}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => fmtEur(Number(v))}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
                           tickFormatter={(v) => fmtInt(Number(v))}
                         />
                         <RTooltip
