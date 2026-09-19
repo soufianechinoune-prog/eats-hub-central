@@ -92,6 +92,13 @@
       "when": 1789798514777,
       "tag": "0012_chataigne_referral_rpcs",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789801379451,
+      "tag": "0013_chataigne_referral_acquisition_offert",
+      "breakpoints": true
     }
   ]
 }

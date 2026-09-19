@@ -20,6 +20,8 @@ export interface ReferralAcquisitionRow {
   cout_parrain: number;
   cac: number;
   panier_moyen_filleul: number;
+  offert_count: number;
+  offert_vente: number;
 }
 
 export function useChataigneReferralAcquisition(
@@ -50,6 +52,8 @@ export function useChataigneReferralAcquisition(
         cout_parrain: num(r.cout_parrain),
         cac: num(r.cac),
         panier_moyen_filleul: num(r.panier_moyen_filleul),
+        offert_count: num(r.offert_count),
+        offert_vente: num(r.offert_vente),
       }));
     },
     enabled: enabled && restaurantIds !== undefined && !!start && !!end,
