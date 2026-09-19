@@ -25,6 +25,7 @@ import {
   Bike,
   Users,
   CreditCard,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
