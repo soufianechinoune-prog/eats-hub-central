@@ -262,6 +262,22 @@ export default function ChataigneReferral() {
   const [markerId, setMarkerId] = useState<string>("");
   const [windowDays, setWindowDays] = useState<number>(28);
   const [acqChartType, setAcqChartType] = useState<"area" | "bars">("area");
+  const [offertCostOverride, setOffertCostOverride] = useState<string>(() => {
+    try {
+      return localStorage.getItem(OFFERT_COST_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const updateOffertCost = (v: string) => {
+    setOffertCostOverride(v);
+    try {
+      if (v.trim() === "") localStorage.removeItem(OFFERT_COST_KEY);
+      else localStorage.setItem(OFFERT_COST_KEY, v);
+    } catch {
+      /* stockage indisponible : le réglage reste en mémoire pour la session */
+    }
+  };
 
   const {
     selectedRestaurants,
