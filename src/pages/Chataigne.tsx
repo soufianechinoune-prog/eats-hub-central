@@ -408,7 +408,7 @@ export default function Chataigne() {
                     </p>
                   ) : chartType === "line" ? (
                     <ResponsiveContainer width="100%" height={380}>
-                      <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
                         <defs>
                           <linearGradient id="chataigneCaGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -476,7 +476,7 @@ export default function Chataigne() {
                           strokeDasharray="4 4"
                           dot={false}
                         />
-                      </AreaChart>
+                      </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
                     <ResponsiveContainer width="100%" height={380}>
