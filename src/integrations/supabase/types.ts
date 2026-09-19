@@ -13080,6 +13080,26 @@ export type Database = {
           utilisations: number
         }[]
       }
+      get_chataigne_referral_acquisition: {
+        Args: {
+          p_end: string
+          p_granularity?: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          cac: number
+          cout_filleul: number
+          cout_parrain: number
+          filleuls: number
+          nouveaux_clients: number
+          panier_moyen_filleul: number
+          parrains: number
+          part_parrainage: number
+          periode: string
+          viralite: number
+        }[]
+      }
       get_chataigne_referral_evolution: {
         Args: {
           p_end: string
@@ -13093,6 +13113,41 @@ export type Database = {
           panier_moyen_filleuls: number
           parrains_convertis: number
           periode: string
+        }[]
+      }
+      get_chataigne_referral_payback: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          basis: string
+          cac: number
+          clients: number
+          contribution_cumul: number
+          contribution_moy: number
+          filleuls_total: number
+          x: number
+        }[]
+      }
+      get_chataigne_referral_retention: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          clients_actifs: number
+          cohorte: string
+          mois_offset: number
+          segment: string
+          taille_cohorte: number
+          taux_pct: number
+        }[]
+      }
+      get_chataigne_referral_segments: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          clients: number
+          commandes_moy: number
+          contribution_moy: number
+          ordre: number
+          panier_moyen: number
+          segment: string
+          taux_reachat: number
         }[]
       }
       get_chataigne_referral_summary: {

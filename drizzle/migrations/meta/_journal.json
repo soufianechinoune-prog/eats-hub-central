@@ -85,6 +85,13 @@
       "when": 1789765970128,
       "tag": "0011_splash_ticket_backfill_lock",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789798514777,
+      "tag": "0012_chataigne_referral_rpcs",
+      "breakpoints": true
     }
   ]
 }
