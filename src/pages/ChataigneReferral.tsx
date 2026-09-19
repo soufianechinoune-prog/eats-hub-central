@@ -797,8 +797,8 @@ export default function ChataigneReferral() {
                   title="Coût d'acquisition par filleul"
                   subtitle={
                     granularity === "month"
-                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
-                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
+                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées (non fiables) · cliquez pour poser un repère"
+                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · les périodes de moins de 5 filleuls sont exclues de la moyenne · cliquez pour poser un repère"
                   }
                   action={
                     <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
