@@ -125,6 +125,7 @@ function channelFromPath(pathname: string, search: string): { channel: OverviewC
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
   if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
+  if (pathname.startsWith("/chataigne/parrainage")) return { channel: "chataigne", subId: "referral" };
   if (pathname.startsWith("/chataigne/tarification")) return { channel: "chataigne", subId: "pricing" };
   if (pathname.startsWith("/chataigne/rentabilite")) return { channel: "chataigne", subId: "profitability" };
   if (pathname === "/chataigne") {
