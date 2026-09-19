@@ -27,6 +27,7 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
+  BarChart3,
   Flag,
   Gift,
   HandCoins,
@@ -243,6 +244,7 @@ export default function ChataigneReferral() {
   const [paybackBasis, setPaybackBasis] = useState<"rank" | "days">("rank");
   const [markerId, setMarkerId] = useState<string>("");
   const [windowDays, setWindowDays] = useState<number>(28);
+  const [acqChartType, setAcqChartType] = useState<"area" | "bars">("area");
 
   const {
     selectedRestaurants,
