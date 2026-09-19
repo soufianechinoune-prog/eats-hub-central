@@ -27,6 +27,7 @@ import {
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
+  BarChart3,
   Flag,
   Gift,
   HandCoins,
@@ -243,6 +244,7 @@ export default function ChataigneReferral() {
   const [paybackBasis, setPaybackBasis] = useState<"rank" | "days">("rank");
   const [markerId, setMarkerId] = useState<string>("");
   const [windowDays, setWindowDays] = useState<number>(28);
+  const [acqChartType, setAcqChartType] = useState<"area" | "bars">("area");
 
   const {
     selectedRestaurants,
@@ -530,15 +532,34 @@ export default function ChataigneReferral() {
           ) : (
             <>
               {/* 1. Acquisition dans le temps */}
-              <div className="grid gap-6 xl:grid-cols-2">
+              <div className="grid gap-6">
                 <Panel
                   title="Filleuls & parrains dans le temps"
                   subtitle="Cliquez sur le graphique pour poser un repère (changement de barème, campagne…)"
+                  action={
+                    <ToggleGroup
+                      type="single"
+                      value={acqChartType}
+                      onValueChange={(v) => v && setAcqChartType(v as "area" | "bars")}
+                      variant="outline"
+                      size="sm"
+                      className="rounded-xl"
+                    >
+                      <ToggleGroupItem value="area" className="gap-1.5 px-4">
+                        <TrendingUp className="h-4 w-4" />
+                        Courbes
+                      </ToggleGroupItem>
+                      <ToggleGroupItem value="bars" className="gap-1.5 px-4">
+                        <BarChart3 className="h-4 w-4" />
+                        Barres
+                      </ToggleGroupItem>
+                    </ToggleGroup>
+                  }
                 >
                   {acquisitionQ.isLoading ? (
-                    <Skeleton className="h-[380px] w-full rounded-xl" />
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={380}>
+                    <ResponsiveContainer width="100%" height={420}>
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 8, bottom: 0, left: -8 }}
@@ -546,6 +567,16 @@ export default function ChataigneReferral() {
                         style={{ cursor: "pointer" }}
                         barCategoryGap="28%"
                       >
+                        <defs>
+                          <linearGradient id="acqFilleulsFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                          <linearGradient id="acqParrainsFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(142 71% 45%)" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="hsl(142 71% 45%)" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
                         <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
                         <XAxis
                           dataKey="label"
@@ -563,8 +594,35 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip contentStyle={tooltipStyle} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
-                        <Bar dataKey="filleuls" name="Filleuls" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={26} />
-                        <Bar dataKey="parrains" name="Parrains" fill="hsl(142 71% 45%)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                        {acqChartType === "area" ? (
+                          <>
+                            <Area
+                              type="monotone"
+                              dataKey="filleuls"
+                              name="Filleuls"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth={2.5}
+                              fill="url(#acqFilleulsFill)"
+                              dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 5 }}
+                            />
+                            <Area
+                              type="monotone"
+                              dataKey="parrains"
+                              name="Parrains"
+                              stroke="hsl(142 71% 45%)"
+                              strokeWidth={2.5}
+                              fill="url(#acqParrainsFill)"
+                              dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 5 }}
+                            />
+                          </>
+                        ) : (
+                          <>
+                            <Bar dataKey="filleuls" name="Filleuls" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                            <Bar dataKey="parrains" name="Parrains" fill="hsl(142 71% 45%)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                          </>
+                        )}
                         {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
@@ -581,9 +639,9 @@ export default function ChataigneReferral() {
                   subtitle="Filleuls par parrain · part du parrainage dans les nouveaux clients"
                 >
                   {acquisitionQ.isLoading ? (
-                    <Skeleton className="h-[380px] w-full rounded-xl" />
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={380}>
+                    <ResponsiveContainer width="100%" height={420}>
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 4, bottom: 0, left: -4 }}
@@ -780,9 +838,9 @@ export default function ChataigneReferral() {
                     />
                   </div>
                   {paybackQ.isLoading ? (
-                    <Skeleton className="h-[360px] w-full rounded-xl" />
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={360}>
+                    <ResponsiveContainer width="100%" height={420}>
                       <ComposedChart data={paybackData} margin={{ top: 20, right: 8, bottom: 0, left: -4 }}>
                         <defs>
                           <linearGradient id="paybackFill" x1="0" y1="0" x2="0" y2="1">
@@ -838,7 +896,7 @@ export default function ChataigneReferral() {
               </Panel>
 
               {/* 4. Réachat */}
-              <div className="grid gap-6 xl:grid-cols-2">
+              <div className="grid gap-6">
                 <Panel
                   title="Filleul vs bienvenue vs organique"
                   subtitle="Taux de réachat, commandes par client et panier moyen selon la porte d'entrée"
@@ -847,7 +905,7 @@ export default function ChataigneReferral() {
                     <Skeleton className="h-[320px] w-full rounded-xl" />
                   ) : (
                     <div className="space-y-6">
-                      <ResponsiveContainer width="100%" height={280}>
+                      <ResponsiveContainer width="100%" height={320}>
                         <BarChart data={segmentChart} margin={{ top: 16, right: 8, bottom: 0, left: -8 }} barCategoryGap="32%">
                           <defs>
                             <linearGradient id="segBarFill" x1="0" y1="0" x2="0" y2="1">
