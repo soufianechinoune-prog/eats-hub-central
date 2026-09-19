@@ -13093,6 +13093,8 @@ export type Database = {
           cout_parrain: number
           filleuls: number
           nouveaux_clients: number
+          offert_count: number
+          offert_vente: number
           panier_moyen_filleul: number
           parrains: number
           part_parrainage: number

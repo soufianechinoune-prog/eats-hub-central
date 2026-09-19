@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import {
   Area,
   Bar,
@@ -33,6 +34,7 @@ import {
   HandCoins,
   Percent,
   Repeat,
+  RotateCcw,
   ShieldCheck,
   Sparkles,
   TrendingUp,
@@ -69,6 +71,21 @@ const fmtEur = (v: number, digits = 2) =>
     minimumFractionDigits: digits,
   }).format(v || 0);
 const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
+
+// Paramètre « coût du produit offert » : remplace la valeur de vente dans le CAC
+// (marge sacrifiée = remise en € ; produit offert = ce coût saisi). Défaut ≈ 28 % du prix de vente.
+const OFFERT_COST_KEY = "chataigne-referral-offert-cost";
+const OFFERT_COST_RATIO = 0.28;
+
+type AcquisitionRow = {
+  filleuls: number;
+  cout_filleul: number;
+  cout_parrain: number;
+  offert_count: number;
+  offert_vente: number;
+};
+const effectiveCoutFilleul = (r: AcquisitionRow, offertCost: number) =>
+  r.cout_filleul - r.offert_vente + r.offert_count * offertCost;
 
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
   try {
@@ -245,6 +262,22 @@ export default function ChataigneReferral() {
   const [markerId, setMarkerId] = useState<string>("");
   const [windowDays, setWindowDays] = useState<number>(28);
   const [acqChartType, setAcqChartType] = useState<"area" | "bars">("area");
+  const [offertCostOverride, setOffertCostOverride] = useState<string>(() => {
+    try {
+      return localStorage.getItem(OFFERT_COST_KEY) ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const updateOffertCost = (v: string) => {
+    setOffertCostOverride(v);
+    try {
+      if (v.trim() === "") localStorage.removeItem(OFFERT_COST_KEY);
+      else localStorage.setItem(OFFERT_COST_KEY, v);
+    } catch {
+      /* stockage indisponible : le réglage reste en mémoire pour la session */
+    }
+  };
 
   const {
     selectedRestaurants,
@@ -301,6 +334,23 @@ export default function ChataigneReferral() {
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
+
+  // Coût du produit offert : valeur saisie, sinon défaut ≈ 28 % du prix de vente moyen constaté
+  const offertTotals = useMemo(() => {
+    const count = rows.reduce((s, r) => s + r.offert_count, 0);
+    const vente = rows.reduce((s, r) => s + r.offert_vente, 0);
+    return { count, vente, avgVente: count > 0 ? vente / count : 0 };
+  }, [rows]);
+  const defaultOffertCost = useMemo(
+    () => Math.round(offertTotals.avgVente * OFFERT_COST_RATIO * 100) / 100,
+    [offertTotals]
+  );
+  const parsedOverride = Number(offertCostOverride.replace(",", "."));
+  const offertCost =
+    offertCostOverride.trim() !== "" && Number.isFinite(parsedOverride) && parsedOverride >= 0
+      ? parsedOverride
+      : defaultOffertCost;
+
   const chartData = useMemo(() => {
     const base = rows.map((r) => ({
       periode: r.periode,
@@ -309,7 +359,10 @@ export default function ChataigneReferral() {
       parrains: r.parrains,
       part: r.part_parrainage,
       viralite: r.viralite,
-      cac: r.cac as number | null,
+      cac:
+        r.filleuls > 0
+          ? Math.round(((effectiveCoutFilleul(r, offertCost) + r.cout_parrain) / r.filleuls) * 100) / 100
+          : null,
     }));
     // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
     return base.map((r, i) => {
@@ -320,7 +373,7 @@ export default function ChataigneReferral() {
           : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
-  }, [rows, granularity]);
+  }, [rows, granularity, offertCost]);
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
@@ -361,7 +414,7 @@ export default function ChataigneReferral() {
   ) => {
     const list = acq ?? [];
     const filleuls = list.reduce((s, r) => s + r.filleuls, 0);
-    const cost = list.reduce((s, r) => s + r.cout_filleul + r.cout_parrain, 0);
+    const cost = list.reduce((s, r) => s + effectiveCoutFilleul(r, offertCost) + r.cout_parrain, 0);
     const weeks = Math.max(1, windowDays / 7);
     const fill = (seg ?? []).find((s) => s.segment === "filleul");
     return {
@@ -381,7 +434,7 @@ export default function ChataigneReferral() {
     const filleuls = rows.reduce((s, r) => s + r.filleuls, 0);
     const parrains = rows.reduce((s, r) => s + r.parrains, 0);
     const nouveaux = rows.reduce((s, r) => s + r.nouveaux_clients, 0);
-    const cost = rows.reduce((s, r) => s + r.cout_filleul + r.cout_parrain, 0);
+    const cost = rows.reduce((s, r) => s + effectiveCoutFilleul(r, offertCost) + r.cout_parrain, 0);
     return {
       filleuls,
       parrains,
@@ -391,11 +444,12 @@ export default function ChataigneReferral() {
       cac: filleuls > 0 ? cost / filleuls : 0,
       cost,
     };
-  }, [rows]);
+  }, [rows, offertCost]);
 
   // ---- Payback ----
   const paybackRows = paybackQ.data ?? [];
-  const cac = paybackRows[0]?.cac ?? kpis.cac;
+  // CAC ajusté (produit offert au coût saisi) ; repli sur la valeur brute si la période est vide
+  const cac = kpis.cac > 0 ? kpis.cac : (paybackRows[0]?.cac ?? 0);
   const paybackData = useMemo(
     () =>
       paybackRows
@@ -502,7 +556,10 @@ export default function ChataigneReferral() {
                 « Referral Reward » (−15 %). <strong className="text-foreground">Contribution</strong> = montant
                 encaissé (net des remises) − 1 € Chataigne − frais Stripe (0,25 € + 1,5 %) ; coût matière non inclus.
                 <strong className="text-foreground"> Coût d'acquisition</strong> = remise filleul + remise parrain,
-                celle-ci répartie en moyenne car non reliée à son filleul. Valeur vie client volontairement exclue
+                celle-ci répartie en moyenne car non reliée à son filleul.{" "}
+                <strong className="text-foreground">Produit offert</strong> : valorisé à son coût matière estimé
+                (paramètre modifiable sur la courbe du coût d'acquisition, défaut ≈ 28 % du prix de vente) et non à sa
+                valeur de vente — la remise en € reste de la marge sacrifiée. Valeur vie client volontairement exclue
                 pour l'instant.
               </p>
             </div>
@@ -525,7 +582,16 @@ export default function ChataigneReferral() {
                 hint="Coefficient de viralité"
                 icon={Sparkles}
               />
-              <KpiTile label="Coût d'acquisition" value={fmtEur(kpis.cac)} hint="par filleul" icon={HandCoins} />
+              <KpiTile
+                label="Coût d'acquisition"
+                value={fmtEur(kpis.cac)}
+                hint={
+                  offertTotals.count > 0
+                    ? `par filleul · produit offert valorisé à ${fmtEur(offertCost)}`
+                    : "par filleul"
+                }
+                icon={HandCoins}
+              />
               <KpiTile label="Part des nouveaux clients" value={fmtPct(kpis.part)} icon={Percent} />
             </div>
           )}
@@ -725,6 +791,39 @@ export default function ChataigneReferral() {
                     granularity === "month"
                       ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
                       : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
+                  }
+                  action={
+                    <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                      <label
+                        htmlFor="offert-cost"
+                        className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                        title="Coût matière du produit offert, utilisé dans le coût d'acquisition à la place de sa valeur de vente"
+                      >
+                        Coût produit offert
+                      </label>
+                      <Input
+                        id="offert-cost"
+                        type="number"
+                        min={0}
+                        step="0.1"
+                        value={offertCostOverride}
+                        placeholder={
+                          defaultOffertCost > 0 ? `${defaultOffertCost.toFixed(2)} € (auto)` : "0.00"
+                        }
+                        onChange={(e) => updateOffertCost(e.target.value)}
+                        className="h-8 w-28 rounded-lg text-right tabular-nums"
+                      />
+                      {offertCostOverride !== "" && (
+                        <button
+                          type="button"
+                          onClick={() => updateOffertCost("")}
+                          title="Revenir au défaut (28 % du prix de vente)"
+                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
                   }
                 >
                   {acquisitionQ.isLoading ? (
