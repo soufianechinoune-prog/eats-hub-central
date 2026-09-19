@@ -301,19 +301,26 @@ export default function ChataigneReferral() {
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
-  const chartData = useMemo(
-    () =>
-      rows.map((r) => ({
-        periode: r.periode,
-        label: periodLabel(r.periode, granularity),
-        filleuls: r.filleuls,
-        parrains: r.parrains,
-        part: r.part_parrainage,
-        viralite: r.viralite,
-        cac: r.cac,
-      })),
-    [rows, granularity]
-  );
+  const chartData = useMemo(() => {
+    const base = rows.map((r) => ({
+      periode: r.periode,
+      label: periodLabel(r.periode, granularity),
+      filleuls: r.filleuls,
+      parrains: r.parrains,
+      part: r.part_parrainage,
+      viralite: r.viralite,
+      cac: r.cac as number | null,
+    }));
+    // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
+    return base.map((r, i) => {
+      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cac != null);
+      const cacMA =
+        granularity === "month" || win.length === 0
+          ? null
+          : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
+      return { ...r, cacMA };
+    });
+  }, [rows, granularity]);
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
@@ -714,7 +721,11 @@ export default function ChataigneReferral() {
 
                 <Panel
                   title="Coût d'acquisition par filleul"
-                  subtitle="(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
+                  subtitle={
+                    granularity === "month"
+                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
+                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
+                  }
                 >
                   {acquisitionQ.isLoading ? (
                     <Skeleton className="h-[420px] w-full rounded-xl" />
@@ -749,20 +760,47 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip
                           contentStyle={tooltipStyle}
-                          formatter={(value: any) => [fmtEur(Number(value)), "Coût d'acquisition"]}
+                          formatter={(value: any, name: any) => [fmtEur(Number(value)), name]}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
-                        <Area
-                          type="monotone"
-                          dataKey="cac"
-                          name="Coût d'acquisition par filleul"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2.5}
-                          fill="url(#refCacFill)"
-                          dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
-                          activeDot={{ r: 5 }}
-                          connectNulls
-                        />
+                        {granularity === "month" ? (
+                          <Area
+                            type="monotone"
+                            dataKey="cac"
+                            name="Coût d'acquisition par filleul"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2.5}
+                            fill="url(#refCacFill)"
+                            dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                            activeDot={{ r: 5 }}
+                            connectNulls
+                          />
+                        ) : (
+                          <>
+                            <Area
+                              type="monotone"
+                              dataKey="cacMA"
+                              name="Coût d'acquisition (moyenne glissante)"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth={2.5}
+                              fill="url(#refCacFill)"
+                              dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 5 }}
+                              connectNulls
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="cac"
+                              name="Coût brut de la période"
+                              stroke="hsl(var(--muted-foreground))"
+                              strokeWidth={1.5}
+                              strokeDasharray="5 5"
+                              strokeOpacity={0.6}
+                              dot={false}
+                              connectNulls
+                            />
+                          </>
+                        )}
                         {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
