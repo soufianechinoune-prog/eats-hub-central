@@ -25,6 +25,7 @@ import {
   Bike,
   Users,
   CreditCard,
+  Gift,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -112,6 +113,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
   { id: "daily", label: "Vue quotidienne", icon: CalendarDays, route: "/chataigne?tab=daily" },
   { id: "service", label: "Emport vs Livraison", icon: Bike, route: "/chataigne?tab=service" },
   { id: "growth", label: "Croissance & Clients", icon: Users, route: "/chataigne/croissance" },
+  { id: "referral", label: "Parrainage", icon: Gift, route: "/chataigne/parrainage" },
   { id: "pricing", label: "Écarts & Markup", icon: Tag, route: "/chataigne/tarification" },
   { id: "profitability", label: "Rentabilité", icon: Euro, route: "/chataigne/rentabilite" },
 ];
@@ -123,6 +125,7 @@ function channelFromPath(pathname: string, search: string): { channel: OverviewC
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
   if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
+  if (pathname.startsWith("/chataigne/parrainage")) return { channel: "chataigne", subId: "referral" };
   if (pathname.startsWith("/chataigne/tarification")) return { channel: "chataigne", subId: "pricing" };
   if (pathname.startsWith("/chataigne/rentabilite")) return { channel: "chataigne", subId: "profitability" };
   if (pathname === "/chataigne") {
