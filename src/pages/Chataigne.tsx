@@ -153,7 +153,7 @@ export default function Chataigne() {
     dateRange,
   } = useAnalyticsContext();
 
-  const { startDate, endDate } = useDataGranularity({
+  const { startDate, endDate, periodDays } = useDataGranularity({
     periodMode,
     selectedYear,
     selectedMonth,
