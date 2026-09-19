@@ -867,13 +867,20 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip
                           contentStyle={tooltipStyle}
-                          formatter={(value: any, name: any) => [fmtEur(Number(value)), name]}
+                          formatter={(value: any, name: any, item: any) => {
+                            const n = item?.payload?.filleuls ?? 0;
+                            const suffix = ` · ${n} filleul${n > 1 ? "s" : ""}${
+                              n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""
+                            }`;
+                            return [`${fmtEur(Number(value))}${suffix}`, name];
+                          }}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
                         {granularity === "month" ? (
                           <Area
                             type="monotone"
-                            dataKey="cac"
+                            dataKey="cacFiable"
+
                             name="Coût d'acquisition par filleul"
                             stroke="hsl(var(--primary))"
                             strokeWidth={2.5}
