@@ -247,6 +247,7 @@ const App = () => {
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
                     <Route path="/chataigne/croissance" element={<P><ChataigneGrowth /></P>} />
+                    <Route path="/chataigne/parrainage" element={<P><ChataigneReferral /></P>} />
                     <Route path="/chataigne/rentabilite" element={<P><DeliveryProfitability /></P>} />
                     <Route path="/deliveroo/rentabilite" element={<P><DeliverooProfitability /></P>} />
                     <Route path="/prix-sur-place" element={<P><InstorePrices /></P>} />
