@@ -373,23 +373,64 @@ export default function Chataigne() {
 
 
             <TabsContent value="overview" className="space-y-6">
-              {/* Évolution mensuelle */}
+              {/* Évolution */}
               <Card>
-                <CardHeader>
-                  <CardTitle>Évolution mensuelle</CardTitle>
+                <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
+                  <CardTitle>{chartTitle}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <ToggleGroup
+                      type="single"
+                      value={bucket}
+                      onValueChange={(v) => v && setBucketOverride(v as Bucket)}
+                      size="sm"
+                    >
+                      <ToggleGroupItem value="day">Jour</ToggleGroupItem>
+                      <ToggleGroupItem value="week">Semaine</ToggleGroupItem>
+                      <ToggleGroupItem value="month">Mois</ToggleGroupItem>
+                    </ToggleGroup>
+                    <ToggleGroup
+                      type="single"
+                      value={chartType}
+                      onValueChange={(v) => v && setChartType(v as "line" | "bar")}
+                      size="sm"
+                    >
+                      <ToggleGroupItem value="line">Courbes</ToggleGroupItem>
+                      <ToggleGroupItem value="bar">Barres</ToggleGroupItem>
+                    </ToggleGroup>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {monthlyQ.isLoading ? (
-                    <Skeleton className="h-[340px] w-full" />
-                  ) : (
-                    <ResponsiveContainer width="100%" height={340}>
-                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="label" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                  {chartLoading ? (
+                    <Skeleton className="h-[380px] w-full" />
+                  ) : chartData.length === 0 ? (
+                    <p className="py-16 text-center text-sm text-muted-foreground">
+                      Aucune donnée sur cette période.
+                    </p>
+                  ) : chartType === "line" ? (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <AreaChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                        <defs>
+                          <linearGradient id="chataigneCaGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={16}
+                        />
                         <YAxis
                           yAxisId="left"
                           stroke="hsl(var(--muted-foreground))"
                           fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
                           tickFormatter={(v) => fmtEur(Number(v))}
                         />
                         <YAxis
@@ -397,6 +438,74 @@ export default function Chataigne() {
                           orientation="right"
                           stroke="hsl(var(--muted-foreground))"
                           fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => fmtInt(Number(v))}
+                        />
+                        <RTooltip
+                          contentStyle={{
+                            background: "hsl(var(--popover))",
+                            border: "1px solid hsl(var(--border))",
+                            borderRadius: "0.75rem",
+                            color: "hsl(var(--popover-foreground))",
+                            boxShadow: "0 10px 30px -12px rgba(0,0,0,0.35)",
+                          }}
+                          formatter={(value: number, name: string) =>
+                            name === "CA brut" ? fmtEur(Number(value)) : fmtInt(Number(value))
+                          }
+                        />
+                        <Legend />
+                        <Area
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="ca"
+                          name="CA brut"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#chataigneCaGradient)"
+                          dot={false}
+                          activeDot={{ r: 4 }}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="commandes"
+                          name="Commandes"
+                          stroke="hsl(var(--muted-foreground))"
+                          strokeWidth={1.75}
+                          strokeDasharray="4 4"
+                          dot={false}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={16}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(v) => fmtEur(Number(v))}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          stroke="hsl(var(--muted-foreground))"
+                          fontSize={12}
+                          tickLine={false}
+                          axisLine={false}
                           tickFormatter={(v) => fmtInt(Number(v))}
                         />
                         <RTooltip
