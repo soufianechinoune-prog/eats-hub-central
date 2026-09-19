@@ -104,7 +104,9 @@ const SEGMENT_LABELS: Record<string, string> = {
   organique: "Organique",
 };
 
+const MIN_FILLEULS_CAC = 5;
 const MONTH_LABELS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+
 const cohortLabel = (cohorte: string) => {
   const [y, m] = cohorte.split("-");
   return `${MONTH_LABELS[Number(m) - 1] ?? cohorte} ${y}`;
@@ -352,28 +354,34 @@ export default function ChataigneReferral() {
       : defaultOffertCost;
 
   const chartData = useMemo(() => {
-    const base = rows.map((r) => ({
-      periode: r.periode,
-      label: periodLabel(r.periode, granularity),
-      filleuls: r.filleuls,
-      parrains: r.parrains,
-      part: r.part_parrainage,
-      viralite: r.viralite,
-      cac:
+    const base = rows.map((r) => {
+      const cac =
         r.filleuls > 0
           ? Math.round(((effectiveCoutFilleul(r, offertCost) + r.cout_parrain) / r.filleuls) * 100) / 100
-          : null,
-    }));
+          : null;
+      return {
+        periode: r.periode,
+        label: periodLabel(r.periode, granularity),
+        filleuls: r.filleuls,
+        parrains: r.parrains,
+        part: r.part_parrainage,
+        viralite: r.viralite,
+        cac,
+        // Garde de fiabilité : on n'affiche pas un coût calculé sur trop peu de filleuls
+        cacFiable: r.filleuls >= MIN_FILLEULS_CAC ? cac : null,
+      };
+    });
     // Moyenne glissante sur 4 périodes pour lisser le décalage des remises parrain
     return base.map((r, i) => {
-      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cac != null);
+      const win = base.slice(Math.max(0, i - 3), i + 1).filter((w) => w.cacFiable != null);
       const cacMA =
         granularity === "month" || win.length === 0
           ? null
-          : Math.round((win.reduce((s, w) => s + (w.cac ?? 0), 0) / win.length) * 100) / 100;
+          : Math.round((win.reduce((s, w) => s + (w.cacFiable ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
   }, [rows, granularity, offertCost]);
+
 
   // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
