@@ -556,7 +556,10 @@ export default function ChataigneReferral() {
                 « Referral Reward » (−15 %). <strong className="text-foreground">Contribution</strong> = montant
                 encaissé (net des remises) − 1 € Chataigne − frais Stripe (0,25 € + 1,5 %) ; coût matière non inclus.
                 <strong className="text-foreground"> Coût d'acquisition</strong> = remise filleul + remise parrain,
-                celle-ci répartie en moyenne car non reliée à son filleul. Valeur vie client volontairement exclue
+                celle-ci répartie en moyenne car non reliée à son filleul.{" "}
+                <strong className="text-foreground">Produit offert</strong> : valorisé à son coût matière estimé
+                (paramètre modifiable sur la courbe du coût d'acquisition, défaut ≈ 28 % du prix de vente) et non à sa
+                valeur de vente — la remise en € reste de la marge sacrifiée. Valeur vie client volontairement exclue
                 pour l'instant.
               </p>
             </div>
@@ -579,7 +582,16 @@ export default function ChataigneReferral() {
                 hint="Coefficient de viralité"
                 icon={Sparkles}
               />
-              <KpiTile label="Coût d'acquisition" value={fmtEur(kpis.cac)} hint="par filleul" icon={HandCoins} />
+              <KpiTile
+                label="Coût d'acquisition"
+                value={fmtEur(kpis.cac)}
+                hint={
+                  offertTotals.count > 0
+                    ? `par filleul · produit offert valorisé à ${fmtEur(offertCost)}`
+                    : "par filleul"
+                }
+                icon={HandCoins}
+              />
               <KpiTile label="Part des nouveaux clients" value={fmtPct(kpis.part)} icon={Percent} />
             </div>
           )}
