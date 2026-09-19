@@ -4,14 +4,12 @@ import { addDays, format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { KPICard } from "@/components/dashboard/KPICard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  Area,
   Bar,
   BarChart,
   CartesianGrid,
@@ -26,14 +24,20 @@ import {
   YAxis,
 } from "recharts";
 import {
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
+  Flag,
   Gift,
   HandCoins,
-  Info,
   Percent,
   Repeat,
+  ShieldCheck,
   Sparkles,
+  TrendingUp,
   UserPlus,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
@@ -101,8 +105,78 @@ const tooltipStyle = {
   background: "hsl(var(--popover))",
   borderColor: "hsl(var(--border))",
   color: "hsl(var(--popover-foreground))",
-  borderRadius: 8,
+  borderRadius: 12,
+  boxShadow: "0 12px 32px -12px hsl(var(--foreground) / 0.25)",
+  padding: "10px 14px",
+  fontSize: 13,
 };
+
+/* ------------------------------------------------------------------ */
+/* Blocs visuels premium                                               */
+/* ------------------------------------------------------------------ */
+
+function Panel({
+  title,
+  subtitle,
+  action,
+  children,
+  className,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <section
+      className={cn(
+        "rounded-2xl border bg-card shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_12px_32px_-16px_hsl(var(--foreground)/0.12)]",
+        className
+      )}
+    >
+      <header className="flex flex-col gap-3 border-b px-6 py-5 sm:flex-row sm:items-start sm:justify-between">
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+          {subtitle && <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{subtitle}</p>}
+        </div>
+        {action}
+      </header>
+      <div className="px-6 py-6">{children}</div>
+    </section>
+  );
+}
+
+function KpiTile({
+  label,
+  value,
+  hint,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  icon: LucideIcon;
+}) {
+  return (
+    <div className="group relative overflow-hidden rounded-2xl border bg-card p-5 shadow-[0_1px_2px_hsl(var(--foreground)/0.04),0_12px_32px_-16px_hsl(var(--foreground)/0.12)] transition-shadow hover:shadow-[0_2px_4px_hsl(var(--foreground)/0.05),0_16px_40px_-16px_hsl(var(--foreground)/0.18)]">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 blur-2xl transition-opacity opacity-70 group-hover:opacity-100"
+      />
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-2">
+          <p className="text-[13px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+          <p className="text-[34px] font-bold leading-none tracking-tight tabular-nums">{value}</p>
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        </div>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function DeltaValue({
   label,
@@ -119,21 +193,50 @@ function DeltaValue({
 }) {
   const delta = after - before;
   const good = higherIsBetter ? delta >= 0 : delta <= 0;
+  const TrendIcon = delta >= 0 ? ArrowUpRight : ArrowDownRight;
   return (
-    <div className="rounded-lg border p-3 space-y-1">
-      <div className="text-xs text-muted-foreground">{label}</div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-sm text-muted-foreground">{render(before)}</span>
-        <span className="text-muted-foreground">→</span>
-        <span className="text-lg font-semibold">{render(after)}</span>
+    <div className="rounded-xl border bg-muted/30 p-4 space-y-2">
+      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <span className="text-sm text-muted-foreground line-through decoration-muted-foreground/40">
+          {render(before)}
+        </span>
+        <ArrowRight className="h-3.5 w-3.5 self-center text-muted-foreground" />
+        <span className="text-2xl font-bold tracking-tight tabular-nums">{render(after)}</span>
       </div>
-      <div className={cn("text-xs font-medium", good ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>
+      <div
+        className={cn(
+          "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold",
+          good
+            ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+            : "bg-red-500/10 text-red-700 dark:text-red-400"
+        )}
+      >
+        <TrendIcon className="h-3.5 w-3.5" />
         {delta >= 0 ? "+" : "−"}
         {render(Math.abs(delta))}
       </div>
     </div>
   );
 }
+
+function BreakEvenCard({ label, value, icon: Icon }: { label: string; value: string; icon: LucideIcon }) {
+  return (
+    <div className="flex items-center gap-4 rounded-xl border bg-muted/30 p-4">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="text-xl font-bold tracking-tight">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
 
 export default function ChataigneReferral() {
   const [granularity, setGranularity] = useState<GrowthGranularity>("week");
@@ -210,7 +313,7 @@ export default function ChataigneReferral() {
     [rows, granularity]
   );
 
-  // ---- Annotations posées sur les graphiques (mécanisme Actions & Events) ----
+  // ---- Annotations posées sur les graphiques ----
   const notesQ = useChartNotes(start, end);
   const chartNotes = useMemo(
     () => filterNotesByScope(notesQ.data, restaurantFilter),
@@ -231,7 +334,7 @@ export default function ChataigneReferral() {
     setNoteDialog({ open: true, date: first ? parseISO(first.note_date) : null, existing: first ?? null });
   };
 
-  // ---- Avant / après un marqueur ----
+  // ---- Avant / après un repère ----
   const marker = chartNotes.find((n) => n.id === markerId) ?? null;
   const beforeStart = marker ? format(addDays(parseISO(marker.note_date), -windowDays), "yyyy-MM-dd") : "";
   const beforeEnd = marker ? format(addDays(parseISO(marker.note_date), -1), "yyyy-MM-dd") : "";
@@ -338,14 +441,31 @@ export default function ChataigneReferral() {
   return (
     <AppLayout>
       <ChannelNavShell>
-        <div className="space-y-6">
-          <div className="flex flex-col gap-4">
+        <div className="space-y-8">
+          {/* En-tête premium */}
+          <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h1 className="text-2xl font-bold">Parrainage</h1>
-                <p className="text-muted-foreground">
-                  Canal Chataigne · acquisition, coût d'acquisition et rentabilisation des filleuls · 100 % anonyme
-                </p>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary ring-1 ring-inset ring-primary/15">
+                    <Gift className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Parrainage</h1>
+                    <p className="text-sm text-muted-foreground">
+                      Acquisition, coût et rentabilisation des filleuls
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <Badge variant="secondary" className="gap-1.5 rounded-full px-3 py-1 text-xs font-medium">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    100 % anonyme via code client
+                  </Badge>
+                  <Badge variant="outline" className="rounded-full px-3 py-1 text-xs font-medium">
+                    Canal Chataigne
+                  </Badge>
+                </div>
               </div>
               <ToggleGroup
                 type="single"
@@ -353,166 +473,196 @@ export default function ChataigneReferral() {
                 onValueChange={(v) => v && setGranularity(v as GrowthGranularity)}
                 variant="outline"
                 size="sm"
+                className="rounded-xl"
               >
-                <ToggleGroupItem value="day">Jour</ToggleGroupItem>
-                <ToggleGroupItem value="week">Semaine</ToggleGroupItem>
-                <ToggleGroupItem value="month">Mois</ToggleGroupItem>
+                <ToggleGroupItem value="day" className="px-4">Jour</ToggleGroupItem>
+                <ToggleGroupItem value="week" className="px-4">Semaine</ToggleGroupItem>
+                <ToggleGroupItem value="month" className="px-4">Mois</ToggleGroupItem>
               </ToggleGroup>
             </div>
             <AnalyticsHeader />
           </div>
 
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription className="text-xs leading-relaxed">
-              <strong>Filleul</strong> : client dont la 1ʳᵉ commande porte « Code Parrainage » (−25 %), suivi ensuite
-              sur toutes ses commandes. <strong>Parrain</strong> : client dont une commande porte « Referral Reward »
-              (−15 %). <strong>Contribution</strong> = montant encaissé (déjà net des remises) − 1 € Chataigne − frais
-              Stripe (0,25 € + 1,5 %) ; le coût matière n'est pas encore inclus. <strong>Coût d'acquisition</strong> =
-              remise filleul + remise parrain ; la remise parrain n'étant pas reliée à son filleul dans les données,
-              elle est répartie en moyenne sur les filleuls de la période. Valeur vie client et ratio valeur/coût
-              volontairement exclus pour l'instant.
-            </AlertDescription>
-          </Alert>
+          {/* Définitions */}
+          <div className="rounded-2xl border border-primary/15 bg-primary/[0.04] px-5 py-4">
+            <div className="flex gap-3">
+              <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              <p className="text-[13px] leading-relaxed text-muted-foreground">
+                <strong className="text-foreground">Filleul</strong> : 1ʳᵉ commande avec « Code Parrainage » (−25 %),
+                suivi sur toutes ses commandes. <strong className="text-foreground">Parrain</strong> : commande avec
+                « Referral Reward » (−15 %). <strong className="text-foreground">Contribution</strong> = montant
+                encaissé (net des remises) − 1 € Chataigne − frais Stripe (0,25 € + 1,5 %) ; coût matière non inclus.
+                <strong className="text-foreground"> Coût d'acquisition</strong> = remise filleul + remise parrain,
+                celle-ci répartie en moyenne car non reliée à son filleul. Valeur vie client volontairement exclue
+                pour l'instant.
+              </p>
+            </div>
+          </div>
 
+          {/* KPIs */}
           {isLoading ? (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
               {[0, 1, 2, 3, 4].map((i) => (
-                <Skeleton key={i} className="h-32 rounded-xl" />
+                <Skeleton key={i} className="h-[132px] rounded-2xl" />
               ))}
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-              <KPICard title="Filleuls acquis" value={fmtInt(kpis.filleuls)} icon={Gift} />
-              <KPICard title="Parrains actifs" value={fmtInt(kpis.parrains)} icon={Users} />
-              <KPICard
-                title="Filleuls par parrain"
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+              <KpiTile label="Filleuls acquis" value={fmtInt(kpis.filleuls)} icon={Gift} />
+              <KpiTile label="Parrains actifs" value={fmtInt(kpis.parrains)} icon={Users} />
+              <KpiTile
+                label="Filleuls par parrain"
                 value={kpis.viralite ? kpis.viralite.toFixed(2) : "—"}
+                hint="Coefficient de viralité"
                 icon={Sparkles}
               />
-              <KPICard title="Coût d'acquisition filleul" value={fmtEur(kpis.cac)} icon={HandCoins} />
-              <KPICard title="Part des nouveaux clients" value={fmtPct(kpis.part)} icon={Percent} />
+              <KpiTile label="Coût d'acquisition" value={fmtEur(kpis.cac)} hint="par filleul" icon={HandCoins} />
+              <KpiTile label="Part des nouveaux clients" value={fmtPct(kpis.part)} icon={Percent} />
             </div>
           )}
 
           {isEmpty ? (
-            <Card>
-              <CardContent className="py-10 text-center text-muted-foreground">
+            <Panel title="Aucune donnée">
+              <p className="py-6 text-center text-muted-foreground">
                 Aucune commande avec code de parrainage sur la période sélectionnée.
-              </CardContent>
-            </Card>
+              </p>
+            </Panel>
           ) : (
             <>
               {/* 1. Acquisition dans le temps */}
-              <div className="grid gap-4 xl:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Filleuls &amp; parrains dans le temps</CardTitle>
-                    <CardDescription>
-                      Cliquez sur le graphique pour ajouter un repère (changement de barème, campagne…)
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {acquisitionQ.isLoading ? (
-                      <Skeleton className="h-[300px] w-full" />
-                    ) : (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <ComposedChart
-                          data={chartData}
-                          margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
-                          onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
-                          <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
-                          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} width={44} />
-                          <RTooltip contentStyle={tooltipStyle} />
-                          <Legend />
-                          <Bar dataKey="filleuls" name="Filleuls" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                          <Bar dataKey="parrains" name="Parrains" fill="hsl(142 71% 45%)" radius={[4, 4, 0, 0]} />
-                          {renderChartNoteMarkers({
-                            notes: chartNotes,
-                            rows: chartData,
-                            granularity,
-                            onMarkerClick: openExistingNote,
-                          })}
-                        </ComposedChart>
-                      </ResponsiveContainer>
-                    )}
-                  </CardContent>
-                </Card>
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Panel
+                  title="Filleuls & parrains dans le temps"
+                  subtitle="Cliquez sur le graphique pour poser un repère (changement de barème, campagne…)"
+                >
+                  {acquisitionQ.isLoading ? (
+                    <Skeleton className="h-[380px] w-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart
+                        data={chartData}
+                        margin={{ top: 16, right: 8, bottom: 0, left: -8 }}
+                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        style={{ cursor: "pointer" }}
+                        barCategoryGap="28%"
+                      >
+                        <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickMargin={10}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          allowDecimals={false}
+                          width={52}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <RTooltip contentStyle={tooltipStyle} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
+                        <Bar dataKey="filleuls" name="Filleuls" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                        <Bar dataKey="parrains" name="Parrains" fill="hsl(142 71% 45%)" radius={[6, 6, 0, 0]} maxBarSize={26} />
+                        {renderChartNoteMarkers({
+                          notes: chartNotes,
+                          rows: chartData,
+                          granularity,
+                          onMarkerClick: openExistingNote,
+                        })}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
+                </Panel>
 
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Viralité &amp; poids dans l'acquisition</CardTitle>
-                    <CardDescription>Filleuls par parrain · part du parrainage dans les nouveaux clients</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {acquisitionQ.isLoading ? (
-                      <Skeleton className="h-[300px] w-full" />
-                    ) : (
-                      <ResponsiveContainer width="100%" height={300}>
-                        <LineChart
-                          data={chartData}
-                          margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
-                          onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
-                          <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
-                          <YAxis
-                            yAxisId="left"
-                            tick={{ fontSize: 12 }}
-                            tickFormatter={(v) => `${v} %`}
-                            width={52}
-                          />
-                          <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 12 }} width={44} />
-                          <RTooltip contentStyle={tooltipStyle} />
-                          <Legend />
-                          <Line
-                            yAxisId="left"
-                            type="monotone"
-                            dataKey="part"
-                            name="% des nouveaux clients"
-                            stroke="hsl(var(--primary))"
-                            strokeWidth={2}
-                            dot={{ r: 2 }}
-                          />
-                          <Line
-                            yAxisId="right"
-                            type="monotone"
-                            dataKey="viralite"
-                            name="Filleuls par parrain"
-                            stroke="hsl(38 92% 50%)"
-                            strokeWidth={2}
-                            dot={{ r: 2 }}
-                          />
-                          {renderChartNoteMarkers({
-                            notes: chartNotes,
-                            rows: chartData,
-                            granularity,
-                            onMarkerClick: openExistingNote,
-                          })}
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </CardContent>
-                </Card>
+                <Panel
+                  title="Viralité & poids dans l'acquisition"
+                  subtitle="Filleuls par parrain · part du parrainage dans les nouveaux clients"
+                >
+                  {acquisitionQ.isLoading ? (
+                    <Skeleton className="h-[380px] w-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={380}>
+                      <ComposedChart
+                        data={chartData}
+                        margin={{ top: 16, right: 4, bottom: 0, left: -4 }}
+                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <defs>
+                          <linearGradient id="refPartFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickMargin={10}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          yAxisId="left"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickFormatter={(v) => `${v} %`}
+                          width={56}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          yAxisId="right"
+                          orientation="right"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          width={44}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <RTooltip contentStyle={tooltipStyle} />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
+                        <Area
+                          yAxisId="left"
+                          type="monotone"
+                          dataKey="part"
+                          name="% des nouveaux clients"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#refPartFill)"
+                          dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                          activeDot={{ r: 5 }}
+                        />
+                        <Line
+                          yAxisId="right"
+                          type="monotone"
+                          dataKey="viralite"
+                          name="Filleuls par parrain"
+                          stroke="hsl(38 92% 50%)"
+                          strokeWidth={2.5}
+                          dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                          activeDot={{ r: 5 }}
+                        />
+                        {renderChartNoteMarkers({
+                          notes: chartNotes,
+                          rows: chartData,
+                          granularity,
+                          onMarkerClick: openExistingNote,
+                        })}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
+                </Panel>
               </div>
 
               {/* 2. Avant / après un repère */}
-              <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle>Avant / après un changement de barème</CardTitle>
-                    <CardDescription>
-                      Choisissez un repère posé sur les graphiques : les métriques sont comparées sur la même durée
-                      avant et après.
-                    </CardDescription>
-                  </div>
+              <Panel
+                title="Avant / après un changement de barème"
+                subtitle="Choisissez un repère posé sur les graphiques : les métriques sont comparées sur la même durée avant et après."
+                action={
                   <div className="flex flex-wrap gap-2">
                     <Select value={markerId} onValueChange={setMarkerId}>
-                      <SelectTrigger className="w-[260px]">
+                      <SelectTrigger className="w-[260px] rounded-xl">
                         <SelectValue placeholder="Sélectionner un repère" />
                       </SelectTrigger>
                       <SelectContent>
@@ -535,110 +685,126 @@ export default function ChataigneReferral() {
                       onValueChange={(v) => v && setWindowDays(Number(v))}
                       variant="outline"
                       size="sm"
+                      className="rounded-xl"
                     >
-                      <ToggleGroupItem value="14">14 j</ToggleGroupItem>
-                      <ToggleGroupItem value="28">28 j</ToggleGroupItem>
-                      <ToggleGroupItem value="56">56 j</ToggleGroupItem>
+                      <ToggleGroupItem value="14" className="px-4">14 j</ToggleGroupItem>
+                      <ToggleGroupItem value="28" className="px-4">28 j</ToggleGroupItem>
+                      <ToggleGroupItem value="56" className="px-4">56 j</ToggleGroupItem>
                     </ToggleGroup>
                   </div>
-                </CardHeader>
-                <CardContent>
-                  {!marker ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">
+                }
+              >
+                {!marker ? (
+                  <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-10 text-center">
+                    <Flag className="h-8 w-8 text-muted-foreground/50" />
+                    <p className="max-w-md text-sm text-muted-foreground">
                       Aucun repère sélectionné. Cliquez sur un graphique ci-dessus pour ajouter une date et un libellé,
                       puis sélectionnez-le ici.
                     </p>
-                  ) : beforeAfterLoading ? (
-                    <div className="grid gap-3 md:grid-cols-4">
-                      {[0, 1, 2, 3].map((i) => (
-                        <Skeleton key={i} className="h-24 rounded-lg" />
-                      ))}
+                  </div>
+                ) : beforeAfterLoading ? (
+                  <div className="grid gap-4 md:grid-cols-4">
+                    {[0, 1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-28 rounded-xl" />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                      <Badge className="rounded-full px-3 py-1">{marker.title}</Badge>
+                      <span>
+                        {format(parseISO(beforeStart), "dd/MM")} → {format(parseISO(beforeEnd), "dd/MM")} vs{" "}
+                        {format(parseISO(afterStart), "dd/MM")} → {format(parseISO(afterEnd), "dd/MM")}
+                      </span>
                     </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <Badge variant="outline">{marker.title}</Badge>
-                        <span>
-                          {format(parseISO(beforeStart), "dd/MM")} → {format(parseISO(beforeEnd), "dd/MM")} vs{" "}
-                          {format(parseISO(afterStart), "dd/MM")} → {format(parseISO(afterEnd), "dd/MM")}
-                        </span>
-                      </div>
-                      <div className="grid gap-3 md:grid-cols-4">
-                        <DeltaValue
-                          label="Filleuls / semaine"
-                          before={before.filleulsPerWeek}
-                          after={after.filleulsPerWeek}
-                          render={(v) => v.toFixed(1)}
-                        />
-                        <DeltaValue
-                          label="Coût d'acquisition"
-                          before={before.cac}
-                          after={after.cac}
-                          render={(v) => fmtEur(v)}
-                          higherIsBetter={false}
-                        />
-                        <DeltaValue
-                          label="Taux de réachat filleuls"
-                          before={before.reachat}
-                          after={after.reachat}
-                          render={(v) => fmtPct(v)}
-                        />
-                        <DeltaValue
-                          label="Panier moyen filleuls"
-                          before={before.panier}
-                          after={after.panier}
-                          render={(v) => fmtEur(v)}
-                        />
-                      </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                      <DeltaValue
+                        label="Filleuls / semaine"
+                        before={before.filleulsPerWeek}
+                        after={after.filleulsPerWeek}
+                        render={(v) => v.toFixed(1)}
+                      />
+                      <DeltaValue
+                        label="Coût d'acquisition"
+                        before={before.cac}
+                        after={after.cac}
+                        render={(v) => fmtEur(v)}
+                        higherIsBetter={false}
+                      />
+                      <DeltaValue
+                        label="Taux de réachat filleuls"
+                        before={before.reachat}
+                        after={after.reachat}
+                        render={(v) => fmtPct(v)}
+                      />
+                      <DeltaValue
+                        label="Panier moyen filleuls"
+                        before={before.panier}
+                        after={after.panier}
+                        render={(v) => fmtEur(v)}
+                      />
                     </div>
-                  )}
-                </CardContent>
-              </Card>
+                  </div>
+                )}
+              </Panel>
 
               {/* 3. Payback */}
-              <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <CardTitle>Rentabilisation du filleul</CardTitle>
-                    <CardDescription>
-                      Contribution cumulée moyenne par filleul face au coût d'acquisition ({fmtEur(cac)}) — indicatif
-                      tant que les cohortes sont jeunes
-                    </CardDescription>
-                  </div>
+              <Panel
+                title="Rentabilisation du filleul"
+                subtitle={`Contribution cumulée moyenne par filleul face au coût d'acquisition (${fmtEur(cac)}) — indicatif tant que les cohortes sont jeunes`}
+                action={
                   <ToggleGroup
                     type="single"
                     value={paybackBasis}
                     onValueChange={(v) => v && setPaybackBasis(v as "rank" | "days")}
                     variant="outline"
                     size="sm"
+                    className="rounded-xl"
                   >
-                    <ToggleGroupItem value="rank">Par commande</ToggleGroupItem>
-                    <ToggleGroupItem value="days">Par jours</ToggleGroupItem>
+                    <ToggleGroupItem value="rank" className="px-4">Par commande</ToggleGroupItem>
+                    <ToggleGroupItem value="days" className="px-4">Par jours</ToggleGroupItem>
                   </ToggleGroup>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs text-muted-foreground">Rentabilisé au bout de</div>
-                      <div className="text-lg font-semibold">
-                        {breakEven.orders ? `${breakEven.orders} commande${breakEven.orders > 1 ? "s" : ""}` : "pas encore atteint"}
-                      </div>
-                    </div>
-                    <div className="rounded-lg border p-3">
-                      <div className="text-xs text-muted-foreground">Soit environ</div>
-                      <div className="text-lg font-semibold">
-                        {breakEven.days !== null ? `${breakEven.days} jours` : "pas encore atteint"}
-                      </div>
-                    </div>
+                }
+              >
+                <div className="space-y-5">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <BreakEvenCard
+                      label="Rentabilisé au bout de"
+                      value={breakEven.orders ? `${breakEven.orders} commande${breakEven.orders > 1 ? "s" : ""}` : "pas encore atteint"}
+                      icon={Repeat}
+                    />
+                    <BreakEvenCard
+                      label="Soit environ"
+                      value={breakEven.days !== null ? `${breakEven.days} jours` : "pas encore atteint"}
+                      icon={TrendingUp}
+                    />
                   </div>
                   {paybackQ.isLoading ? (
-                    <Skeleton className="h-[300px] w-full" />
+                    <Skeleton className="h-[360px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={300}>
-                      <LineChart data={paybackData} margin={{ top: 18, right: 16, bottom: 0, left: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
-                        <XAxis dataKey="label" tick={{ fontSize: 12 }} tickMargin={8} />
-                        <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${v} €`} width={60} />
+                    <ResponsiveContainer width="100%" height={360}>
+                      <ComposedChart data={paybackData} margin={{ top: 20, right: 8, bottom: 0, left: -4 }}>
+                        <defs>
+                          <linearGradient id="paybackFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.22} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickMargin={10}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickFormatter={(v) => `${v} €`}
+                          width={64}
+                          axisLine={false}
+                          tickLine={false}
+                        />
                         <RTooltip
                           contentStyle={tooltipStyle}
                           formatter={(v: number, n) => [n === "cumul" ? fmtEur(Number(v)) : fmtInt(Number(v)), n === "cumul" ? "Contribution cumulée" : "Clients"]}
@@ -646,129 +812,150 @@ export default function ChataigneReferral() {
                         <ReferenceLine
                           y={cac}
                           stroke="hsl(0 84% 60%)"
-                          strokeDasharray="4 3"
-                          label={{ value: `Coût d'acquisition ${fmtEur(cac)}`, position: "insideTopRight", fontSize: 11 }}
+                          strokeDasharray="6 4"
+                          strokeWidth={1.5}
+                          label={{
+                            value: `Coût d'acquisition ${fmtEur(cac)}`,
+                            position: "insideTopRight",
+                            fontSize: 12,
+                            fill: "hsl(0 84% 60%)",
+                          }}
                         />
-                        <Line
+                        <Area
                           type="monotone"
                           dataKey="cumul"
                           name="cumul"
                           stroke="hsl(var(--primary))"
-                          strokeWidth={2.5}
-                          dot={{ r: 3 }}
+                          strokeWidth={3}
+                          fill="url(#paybackFill)"
+                          dot={{ r: 4, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                          activeDot={{ r: 6 }}
                         />
-                      </LineChart>
+                      </ComposedChart>
                     </ResponsiveContainer>
                   )}
-                </CardContent>
-              </Card>
+                </div>
+              </Panel>
 
               {/* 4. Réachat */}
-              <div className="grid gap-4 xl:grid-cols-2">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Filleul vs bienvenue vs organique</CardTitle>
-                    <CardDescription>
-                      Taux de réachat, commandes par client et panier moyen selon la porte d'entrée
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {segmentsQ.isLoading ? (
-                      <Skeleton className="h-[260px] w-full" />
-                    ) : (
-                      <>
-                        <ResponsiveContainer width="100%" height={240}>
-                          <BarChart data={segmentChart} margin={{ top: 18, right: 16, bottom: 0, left: 0 }}>
-                            <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
-                            <XAxis dataKey="label" tick={{ fontSize: 11 }} tickMargin={8} />
-                            <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${v} %`} width={52} />
-                            <RTooltip contentStyle={tooltipStyle} formatter={(v: number) => [fmtPct(Number(v)), "Taux de réachat"]} />
-                            <Bar dataKey="reachat" name="Taux de réachat" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="text-left text-xs text-muted-foreground">
-                                <th className="py-2">Porte d'entrée</th>
-                                <th className="py-2 text-right">Clients</th>
-                                <th className="py-2 text-right">Réachat</th>
-                                <th className="py-2 text-right">Cmd / client</th>
-                                <th className="py-2 text-right">Panier moyen</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {segmentChart.map((s) => (
-                                <tr key={s.label} className="border-t">
-                                  <td className="py-2">{s.label}</td>
-                                  <td className="py-2 text-right">{fmtInt(s.clients)}</td>
-                                  <td className="py-2 text-right">{fmtPct(s.reachat)}</td>
-                                  <td className="py-2 text-right">{s.commandes.toFixed(2)}</td>
-                                  <td className="py-2 text-right">{fmtEur(s.panier)}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Rétention des filleuls par cohorte</CardTitle>
-                    <CardDescription>% de filleuls qui recommandent le mois suivant, puis les mois d'après</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {retentionQ.isLoading ? (
-                      <Skeleton className="h-[240px] w-full" />
-                    ) : filleulCohorts.length === 0 ? (
-                      <p className="py-8 text-center text-sm text-muted-foreground">
-                        Pas encore assez de recul pour mesurer la rétention des filleuls.
-                      </p>
-                    ) : (
-                      <div className="overflow-x-auto">
+              <div className="grid gap-6 xl:grid-cols-2">
+                <Panel
+                  title="Filleul vs bienvenue vs organique"
+                  subtitle="Taux de réachat, commandes par client et panier moyen selon la porte d'entrée"
+                >
+                  {segmentsQ.isLoading ? (
+                    <Skeleton className="h-[320px] w-full rounded-xl" />
+                  ) : (
+                    <div className="space-y-6">
+                      <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={segmentChart} margin={{ top: 16, right: 8, bottom: 0, left: -8 }} barCategoryGap="32%">
+                          <defs>
+                            <linearGradient id="segBarFill" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={1} />
+                              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.65} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickMargin={10}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v} %`}
+                            width={56}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <RTooltip contentStyle={tooltipStyle} cursor={{ fill: "hsl(var(--muted) / 0.4)" }} formatter={(v: number) => [fmtPct(Number(v)), "Taux de réachat"]} />
+                          <Bar dataKey="reachat" name="Taux de réachat" fill="url(#segBarFill)" radius={[8, 8, 0, 0]} maxBarSize={72} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                      <div className="overflow-x-auto rounded-xl border">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="text-left text-xs text-muted-foreground">
-                              <th className="py-2 pr-3">Cohorte</th>
-                              <th className="py-2 pr-3 text-right">Filleuls</th>
-                              {offsets.map((o) => (
-                                <th key={o} className="py-2 px-2 text-center">
-                                  M+{o}
-                                </th>
-                              ))}
+                            <tr className="bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              <th className="px-4 py-3">Porte d'entrée</th>
+                              <th className="px-4 py-3 text-right">Clients</th>
+                              <th className="px-4 py-3 text-right">Réachat</th>
+                              <th className="px-4 py-3 text-right">Cmd / client</th>
+                              <th className="px-4 py-3 text-right">Panier moyen</th>
                             </tr>
                           </thead>
                           <tbody>
-                            {filleulCohorts.map((c) => (
-                              <tr key={c.cohorte} className="border-t">
-                                <td className="py-2 pr-3 whitespace-nowrap">{cohortLabel(c.cohorte)}</td>
-                                <td className="py-2 pr-3 text-right">{fmtInt(c.taille)}</td>
-                                {offsets.map((o) => {
-                                  const v = c.cells.get(o);
-                                  return (
-                                    <td key={o} className="py-1 px-1 text-center">
-                                      <span
-                                        className={cn(
-                                          "inline-block w-full rounded px-2 py-1 text-xs font-medium",
-                                          retentionColor(v ?? 0)
-                                        )}
-                                      >
-                                        {v === undefined ? "—" : `${v.toFixed(0)} %`}
-                                      </span>
-                                    </td>
-                                  );
-                                })}
+                            {segmentChart.map((s) => (
+                              <tr key={s.label} className="border-t transition-colors hover:bg-muted/30">
+                                <td className="px-4 py-3 font-medium">{s.label}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtInt(s.clients)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtPct(s.reachat)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{s.commandes.toFixed(2)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(s.panier)}</td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </div>
+                  )}
+                </Panel>
+
+                <Panel
+                  title="Rétention des filleuls par cohorte"
+                  subtitle="% de filleuls qui recommandent le mois suivant, puis les mois d'après"
+                >
+                  {retentionQ.isLoading ? (
+                    <Skeleton className="h-[280px] w-full rounded-xl" />
+                  ) : filleulCohorts.length === 0 ? (
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12 text-center">
+                      <Users className="h-8 w-8 text-muted-foreground/50" />
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        Pas encore assez de recul pour mesurer la rétention des filleuls.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto rounded-xl border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            <th className="px-4 py-3">Cohorte</th>
+                            <th className="px-4 py-3 text-right">Filleuls</th>
+                            {offsets.map((o) => (
+                              <th key={o} className="px-2 py-3 text-center">
+                                M+{o}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filleulCohorts.map((c) => (
+                            <tr key={c.cohorte} className="border-t">
+                              <td className="px-4 py-2.5 whitespace-nowrap font-medium">{cohortLabel(c.cohorte)}</td>
+                              <td className="px-4 py-2.5 text-right tabular-nums">{fmtInt(c.taille)}</td>
+                              {offsets.map((o) => {
+                                const v = c.cells.get(o);
+                                return (
+                                  <td key={o} className="px-1.5 py-1.5 text-center">
+                                    <span
+                                      className={cn(
+                                        "inline-block w-full min-w-[64px] rounded-lg px-2 py-1.5 text-xs font-semibold tabular-nums",
+                                        retentionColor(v ?? 0)
+                                      )}
+                                    >
+                                      {v === undefined ? "—" : `${v.toFixed(0)} %`}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </Panel>
               </div>
             </>
           )}
