@@ -838,9 +838,9 @@ export default function ChataigneReferral() {
                     />
                   </div>
                   {paybackQ.isLoading ? (
-                    <Skeleton className="h-[360px] w-full rounded-xl" />
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={360}>
+                    <ResponsiveContainer width="100%" height={420}>
                       <ComposedChart data={paybackData} margin={{ top: 20, right: 8, bottom: 0, left: -4 }}>
                         <defs>
                           <linearGradient id="paybackFill" x1="0" y1="0" x2="0" y2="1">
@@ -905,7 +905,7 @@ export default function ChataigneReferral() {
                     <Skeleton className="h-[320px] w-full rounded-xl" />
                   ) : (
                     <div className="space-y-6">
-                      <ResponsiveContainer width="100%" height={280}>
+                      <ResponsiveContainer width="100%" height={320}>
                         <BarChart data={segmentChart} margin={{ top: 16, right: 8, bottom: 0, left: -8 }} barCategoryGap="32%">
                           <defs>
                             <linearGradient id="segBarFill" x1="0" y1="0" x2="0" y2="1">
