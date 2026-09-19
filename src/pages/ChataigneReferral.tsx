@@ -711,6 +711,68 @@ export default function ChataigneReferral() {
                     </ResponsiveContainer>
                   )}
                 </Panel>
+
+                <Panel
+                  title="Coût d'acquisition par filleul"
+                  subtitle="(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
+                >
+                  {acquisitionQ.isLoading ? (
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
+                  ) : (
+                    <ResponsiveContainer width="100%" height={420}>
+                      <ComposedChart
+                        data={chartData}
+                        margin={{ top: 16, right: 8, bottom: 0, left: -8 }}
+                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        style={{ cursor: "pointer" }}
+                      >
+                        <defs>
+                          <linearGradient id="refCacFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.28} />
+                            <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0.02} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                        <XAxis
+                          dataKey="label"
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickMargin={10}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                          tickFormatter={(v) => `${v} €`}
+                          width={56}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <RTooltip
+                          contentStyle={tooltipStyle}
+                          formatter={(value: any) => [fmtEur(Number(value)), "Coût d'acquisition"]}
+                        />
+                        <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
+                        <Area
+                          type="monotone"
+                          dataKey="cac"
+                          name="Coût d'acquisition par filleul"
+                          stroke="hsl(var(--primary))"
+                          strokeWidth={2.5}
+                          fill="url(#refCacFill)"
+                          dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                          activeDot={{ r: 5 }}
+                          connectNulls
+                        />
+                        {renderChartNoteMarkers({
+                          notes: chartNotes,
+                          rows: chartData,
+                          granularity,
+                          onMarkerClick: openExistingNote,
+                        })}
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  )}
+                </Panel>
               </div>
 
               {/* 2. Avant / après un repère */}
