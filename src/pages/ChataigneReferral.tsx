@@ -760,20 +760,47 @@ export default function ChataigneReferral() {
                         />
                         <RTooltip
                           contentStyle={tooltipStyle}
-                          formatter={(value: any) => [fmtEur(Number(value)), "Coût d'acquisition"]}
+                          formatter={(value: any, name: any) => [fmtEur(Number(value)), name]}
                         />
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
-                        <Area
-                          type="monotone"
-                          dataKey="cac"
-                          name="Coût d'acquisition par filleul"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2.5}
-                          fill="url(#refCacFill)"
-                          dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
-                          activeDot={{ r: 5 }}
-                          connectNulls
-                        />
+                        {granularity === "month" ? (
+                          <Area
+                            type="monotone"
+                            dataKey="cac"
+                            name="Coût d'acquisition par filleul"
+                            stroke="hsl(var(--primary))"
+                            strokeWidth={2.5}
+                            fill="url(#refCacFill)"
+                            dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                            activeDot={{ r: 5 }}
+                            connectNulls
+                          />
+                        ) : (
+                          <>
+                            <Area
+                              type="monotone"
+                              dataKey="cacMA"
+                              name="Coût d'acquisition (moyenne glissante)"
+                              stroke="hsl(var(--primary))"
+                              strokeWidth={2.5}
+                              fill="url(#refCacFill)"
+                              dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 5 }}
+                              connectNulls
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="cac"
+                              name="Coût brut de la période"
+                              stroke="hsl(var(--muted-foreground))"
+                              strokeWidth={1.5}
+                              strokeDasharray="5 5"
+                              strokeOpacity={0.6}
+                              dot={false}
+                              connectNulls
+                            />
+                          </>
+                        )}
                         {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
