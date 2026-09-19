@@ -721,7 +721,11 @@ export default function ChataigneReferral() {
 
                 <Panel
                   title="Coût d'acquisition par filleul"
-                  subtitle="(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
+                  subtitle={
+                    granularity === "month"
+                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · cliquez pour poser un repère"
+                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · cliquez pour poser un repère"
+                  }
                 >
                   {acquisitionQ.isLoading ? (
                     <Skeleton className="h-[420px] w-full rounded-xl" />
