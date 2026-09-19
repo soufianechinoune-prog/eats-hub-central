@@ -639,9 +639,9 @@ export default function ChataigneReferral() {
                   subtitle="Filleuls par parrain · part du parrainage dans les nouveaux clients"
                 >
                   {acquisitionQ.isLoading ? (
-                    <Skeleton className="h-[380px] w-full rounded-xl" />
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
-                    <ResponsiveContainer width="100%" height={380}>
+                    <ResponsiveContainer width="100%" height={420}>
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 4, bottom: 0, left: -4 }}
@@ -896,7 +896,7 @@ export default function ChataigneReferral() {
               </Panel>
 
               {/* 4. Réachat */}
-              <div className="grid gap-6 xl:grid-cols-2">
+              <div className="grid gap-6">
                 <Panel
                   title="Filleul vs bienvenue vs organique"
                   subtitle="Taux de réachat, commandes par client et panier moyen selon la porte d'entrée"
