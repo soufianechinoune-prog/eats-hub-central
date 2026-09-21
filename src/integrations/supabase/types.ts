@@ -12953,6 +12953,18 @@ export type Database = {
           total_spent: number
         }[]
       }
+      get_chataigne_daily_totals: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids?: string[]
+          p_start_date: string
+        }
+        Returns: {
+          date: string
+          order_count: number
+          revenue_ttc: number
+        }[]
+      }
       get_chataigne_heatmap: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
