@@ -209,9 +209,19 @@ export default function Chataigne() {
   const [chartType, setChartType] = useState<"line" | "bar">("line");
 
   const dailyQ = useQuery({
-    queryKey: ["chataigne-daily-evolution", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
-    queryFn: () => fetchDailyChataigne(start, end, restaurantFilter ?? null),
+    queryKey: ["chataigne-daily-totals", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    queryFn: async () => {
+      const ids = restaurantFilter ?? null;
+      const { data, error } = await (supabase.rpc as any)("get_chataigne_daily_totals", {
+        p_start_date: start,
+        p_end_date: end,
+        p_restaurant_ids: ids && ids.length > 0 ? ids : null,
+      });
+      if (error) throw error;
+      return (data ?? []) as { date: string; revenue_ttc: number; order_count: number }[];
+    },
     enabled: restaurantFilter !== undefined && bucket !== "month",
+    retry: false,
   });
 
   const chartData = useMemo(() => {
