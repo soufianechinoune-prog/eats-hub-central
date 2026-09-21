@@ -231,6 +231,18 @@ export function DailyComparisonCharts({
     },
   });
 
+  // Le jour en cours est partiel : sur le mois en cours, on s'arrête à la veille
+  // et on tronque le mois de référence au même nombre de jours (périmètre égal).
+  const cutoffDay = useMemo(() => {
+    const lastDay = new Date(year, month, 0).getDate();
+    const today = new Date();
+    if (today.getFullYear() !== year || today.getMonth() + 1 !== month) return lastDay;
+    const yesterday = today.getDate() - 1;
+    return Math.max(1, Math.min(lastDay, yesterday));
+  }, [year, month]);
+
+  const isTruncated = cutoffDay < new Date(year, month, 0).getDate();
+
   const chartData = useMemo(() => {
     const byDay: Record<
       number,
@@ -241,19 +253,20 @@ export function DailyComparisonCharts({
 
     (data?.cur ?? []).forEach((r) => {
       const d = Number(r.date.slice(8, 10));
+      if (d > cutoffDay) return;
       const e = ensure(d);
       e.revenue += Number(r.revenue_ttc) || 0;
       e.orders += Number(r.order_count) || 0;
     });
     (data?.prev ?? []).forEach((r) => {
       const d = Number(r.date.slice(8, 10));
+      if (d > cutoffDay) return;
       const e = ensure(d);
       e.prevRevenue += Number(r.revenue_ttc) || 0;
       e.prevOrders += Number(r.order_count) || 0;
     });
 
-    const lastDay = new Date(year, month, 0).getDate();
-    return Array.from({ length: lastDay }, (_, i) => {
+    return Array.from({ length: cutoffDay }, (_, i) => {
       const d = i + 1;
       const e = byDay[d] ?? { revenue: 0, orders: 0, prevRevenue: 0, prevOrders: 0 };
       return {
@@ -266,7 +279,7 @@ export function DailyComparisonCharts({
         avgBasketN1: e.prevOrders > 0 ? e.prevRevenue / e.prevOrders : 0,
       };
     });
-  }, [data, year, month]);
+  }, [data, cutoffDay]);
 
   const hasPrevData = useMemo(
     () => chartData.some((d) => d.prevRevenue > 0 || d.prevOrders > 0),
