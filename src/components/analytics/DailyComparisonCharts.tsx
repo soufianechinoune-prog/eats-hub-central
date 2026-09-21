@@ -301,7 +301,8 @@ export function DailyComparisonCharts({
     };
   }, [chartData]);
 
-  const suffix = comparisonSuffix ?? `(${currentLabel} vs ${prevLabel})`;
+  const baseSuffix = comparisonSuffix ?? `(${currentLabel} vs ${prevLabel})`;
+  const suffix = isTruncated ? `${baseSuffix} · à date : 1–${cutoffDay}` : baseSuffix;
 
   const avgBasketDomain = useMemo<[number, number] | undefined>(() => {
     const values = chartData
