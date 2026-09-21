@@ -99,6 +99,13 @@
       "when": 1789801379451,
       "tag": "0013_chataigne_referral_acquisition_offert",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1789973871406,
+      "tag": "0014_chataigne_daily_totals",
+      "breakpoints": true
     }
   ]
 }
