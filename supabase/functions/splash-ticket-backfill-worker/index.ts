@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
   if (!allowed) return json({ error: "Unauthorized" }, 401);
 
   const body = req.method === "POST" ? await req.json().catch(() => ({})) : {};
-  const batch = Math.min(Number(body.batch ?? 4), 4);
+  const batch = Math.min(Number(body.batch ?? 8), 8);
   // Marge de sécurité pour terminer proprement avant la fin de l'exécution.
   const deadlineMs = Date.now() + Number(body.budget_ms ?? 55000);
   const lockUntil = new Date(Date.now() + 3 * 60000).toISOString();
@@ -126,7 +126,7 @@ Deno.serve(async (req) => {
             last_error: null,
             completed_at: res.done ? new Date().toISOString() : null,
             // Pacing : on laisse respirer l'API entre deux reprises.
-            next_attempt_at: new Date(Date.now() + 20000).toISOString(),
+            next_attempt_at: new Date(Date.now() + 5000).toISOString(),
             locked_until: null,
             updated_at: new Date().toISOString(),
           })
