@@ -34,6 +34,12 @@ export function useDataGranularity({
     let periodDays: number;
 
     const today = new Date();
+    const yesterday = subDays(today, 1);
+    // Le jour en cours est partiel : on l'exclut des périodes automatiques
+    // (année, mois, mois en cours, 7/30 derniers jours) pour éviter une
+    // fausse chute en fin de courbe. Une plage choisie à la main est respectée.
+    const capToYesterday = (date: Date, from: Date) =>
+      date > yesterday ? (yesterday >= from ? yesterday : date) : date;
 
     // Handle quick period modes
     if (periodMode === "previous_week") {
@@ -43,34 +49,31 @@ export function useDataGranularity({
       periodDays = 7;
     } else if (periodMode === "7d") {
       startDate = subDays(today, 6);
-      endDate = today;
-      periodDays = 7;
+      endDate = capToYesterday(today, startDate);
+      periodDays = differenceInDays(endDate, startDate) + 1;
     } else if (periodMode === "30d") {
       startDate = subDays(today, 29);
-      endDate = today;
-      periodDays = 30;
+      endDate = capToYesterday(today, startDate);
+      periodDays = differenceInDays(endDate, startDate) + 1;
     } else if (periodMode === "current_month") {
       startDate = startOfMonth(today);
-      endDate = endOfMonth(today);
+      endDate = capToYesterday(endOfMonth(today), startDate);
       periodDays = differenceInDays(endDate, startDate) + 1;
     } else if ((periodMode === "range") && dateRange?.from && dateRange?.to) {
-      // Custom date range
+      // Custom date range (choix explicite de l'utilisateur : non modifié)
       startDate = dateRange.from;
       endDate = dateRange.to;
       periodDays = differenceInDays(endDate, startDate) + 1;
     } else if (periodMode === "month" && selectedMonth) {
       // Single month view
       startDate = startOfMonth(new Date(selectedYear, selectedMonth - 1));
-      endDate = endOfMonth(startDate);
+      endDate = capToYesterday(endOfMonth(startDate), startDate);
       periodDays = differenceInDays(endDate, startDate) + 1;
     } else {
       // Full year view
       startDate = new Date(selectedYear, 0, 1);
       const yearEnd = new Date(selectedYear, 11, 31);
-      // Cap to today if current year
-      endDate = selectedYear === today.getFullYear() && yearEnd > today 
-        ? today 
-        : yearEnd;
+      endDate = capToYesterday(yearEnd, startDate);
       periodDays = differenceInDays(endDate, startDate) + 1;
     }
 
