@@ -133,7 +133,10 @@ function channelFromPath(pathname: string, search: string): { channel: OverviewC
     const tab = new URLSearchParams(search).get("tab");
     return {
       channel: "chataigne",
-      subId: tab === "details" || tab === "orders" || tab === "daily" || tab === "service" ? tab : "synthese",
+      subId:
+        tab === "details" || tab === "orders" || tab === "daily" || tab === "weekday" || tab === "service"
+          ? tab
+          : "synthese",
     };
   }
   return null;
