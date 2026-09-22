@@ -57,6 +57,7 @@ import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySe
 import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServiceComparison";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
+import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
 
 import {
   useChataigneByRestaurant,
@@ -135,6 +136,7 @@ export default function Chataigne() {
     tabParam === "details" ||
     tabParam === "orders" ||
     tabParam === "daily" ||
+    tabParam === "weekday" ||
     tabParam === "service"
       ? tabParam
       : "overview";
@@ -370,6 +372,7 @@ export default function Chataigne() {
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
               <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
               <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
+              <TabsTrigger value="weekday">Jours de la semaine</TabsTrigger>
               <TabsTrigger value="service">Emport vs Livraison</TabsTrigger>
             </TabsList>
 
@@ -641,6 +644,14 @@ export default function Chataigne() {
                 comparisonMode="previous_month"
                 currentLabel={FULL_MONTHS[dailyMonth - 1]}
                 prevLabel={FULL_MONTHS[prevMonthIndex]}
+              />
+            </TabsContent>
+
+            <TabsContent value="weekday" className="space-y-6">
+              <ChataigneWeekdaySection
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter}
               />
             </TabsContent>
           </Tabs>
