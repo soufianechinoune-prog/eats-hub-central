@@ -72,15 +72,16 @@ const fmtEur = (v: number, digits = 2) =>
   }).format(v || 0);
 const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
 
-// Paramètre « coût du produit offert » : remplace la valeur de vente dans le CAC
-// (marge sacrifiée = remise en € ; produit offert = ce coût saisi). Défaut ≈ 28 % du prix de vente.
+// Paramètre « coût du produit offert » (montant € par produit) : remplace, s'il est saisi,
+// la valorisation en pourcentage du produit offert / bogo.
 const OFFERT_COST_KEY = "chataigne-referral-offert-cost";
 const OFFERT_COST_RATIO = 0.28;
 
 // Vision du coût sur la courbe CAC : « client » (montant non encaissé) ou
-// « restaurateur » (coût matière réel = montant × taux de food cost paramétrable).
+// « restaurateur » (coût matière = montant × taux de food cost, paramétrable par type d'offre).
 const COST_VIEW_KEY = "chataigne-referral-cost-view";
-const FOOD_COST_KEY = "chataigne-referral-food-cost-pct";
+const FOOD_COST_KEY = "chataigne-referral-food-cost-pct"; // remises en € (filleul + parrain)
+const FOOD_COST_OFFERT_KEY = "chataigne-referral-food-cost-offert-pct"; // produit offert / bogo
 const DEFAULT_FOOD_COST_PCT = 40;
 type CostView = "client" | "owner";
 
@@ -91,6 +92,29 @@ type AcquisitionRow = {
   offert_count: number;
   offert_vente: number;
 };
+
+type CostSettings = {
+  view: CostView;
+  remisePct: number; // food cost appliqué aux remises en €
+  offertPct: number; // food cost appliqué à la valeur de vente du produit offert
+  offertCostEur: number | null; // montant € par produit offert (prioritaire s'il est saisi)
+};
+
+// Décomposition du coût d'acquisition d'une période, par type d'offre
+const costBreakdown = (r: AcquisitionRow, s: CostSettings) => {
+  const remise = Math.max(0, r.cout_filleul - r.offert_vente); // remises en € (ex. −25 %)
+  const offertBase =
+    s.offertCostEur != null ? r.offert_count * s.offertCostEur : r.offert_vente;
+
+  const owner = s.view === "owner";
+  const coutRemise = owner ? remise * (s.remisePct / 100) : remise;
+  const coutOffert =
+    owner && s.offertCostEur == null ? offertBase * (s.offertPct / 100) : offertBase;
+  const coutParrain = owner ? r.cout_parrain * (s.remisePct / 100) : r.cout_parrain;
+
+  return { coutRemise, coutOffert, coutParrain, total: coutRemise + coutOffert + coutParrain };
+};
+
 const effectiveCoutFilleul = (r: AcquisitionRow, offertCost: number) =>
   r.cout_filleul - r.offert_vente + r.offert_count * offertCost;
 
@@ -319,11 +343,27 @@ export default function ChataigneReferral() {
       /* stockage indisponible */
     }
   };
-  const parsedFoodCost = Number(foodCostInput.replace(",", "."));
-  const foodCostPct =
-    Number.isFinite(parsedFoodCost) && parsedFoodCost > 0 && parsedFoodCost <= 100
-      ? parsedFoodCost
-      : DEFAULT_FOOD_COST_PCT;
+  const [foodCostOffertInput, setFoodCostOffertInput] = useState<string>(() => {
+    try {
+      return localStorage.getItem(FOOD_COST_OFFERT_KEY) ?? String(DEFAULT_FOOD_COST_PCT);
+    } catch {
+      return String(DEFAULT_FOOD_COST_PCT);
+    }
+  });
+  const updateFoodCostOffert = (v: string) => {
+    setFoodCostOffertInput(v);
+    try {
+      localStorage.setItem(FOOD_COST_OFFERT_KEY, v);
+    } catch {
+      /* stockage indisponible */
+    }
+  };
+  const pctOr = (raw: string) => {
+    const n = Number(raw.replace(",", "."));
+    return Number.isFinite(n) && n > 0 && n <= 100 ? n : DEFAULT_FOOD_COST_PCT;
+  };
+  const foodCostPct = pctOr(foodCostInput);
+  const foodCostOffertPct = pctOr(foodCostOffertInput);
 
 
   const {
@@ -393,19 +433,28 @@ export default function ChataigneReferral() {
     [offertTotals]
   );
   const parsedOverride = Number(offertCostOverride.replace(",", "."));
-  const offertCost =
+  const offertCostEur =
     offertCostOverride.trim() !== "" && Number.isFinite(parsedOverride) && parsedOverride >= 0
       ? parsedOverride
-      : defaultOffertCost;
+      : null;
+  // Valeur utilisée en vision client pour un produit offert (montant saisi sinon défaut ≈ 28 %)
+  const offertCost = offertCostEur ?? defaultOffertCost;
+
+  const costSettings: CostSettings = useMemo(
+    () => ({
+      view: costView,
+      remisePct: foodCostPct,
+      offertPct: foodCostOffertPct,
+      offertCostEur,
+    }),
+    [costView, foodCostPct, foodCostOffertPct, offertCostEur]
+  );
 
   const chartData = useMemo(() => {
     const base = rows.map((r) => {
-      // Vision client : montant non encaissé · Vision restaurateur : ce montant × taux de food cost
-      const total =
-        costView === "owner"
-          ? (r.cout_filleul + r.cout_parrain) * (foodCostPct / 100)
-          : effectiveCoutFilleul(r, offertCost) + r.cout_parrain;
-      const cac = r.filleuls > 0 ? Math.round((total / r.filleuls) * 100) / 100 : null;
+      // Coût décomposé par type d'offre (remise en € / produit offert / remise parrain)
+      const b = costBreakdown(r, costSettings);
+      const cac = r.filleuls > 0 ? Math.round((b.total / r.filleuls) * 100) / 100 : null;
 
       return {
         periode: r.periode,
@@ -415,6 +464,10 @@ export default function ChataigneReferral() {
         part: r.part_parrainage,
         viralite: r.viralite,
         cac,
+        coutRemise: b.coutRemise,
+        coutOffert: b.coutOffert,
+        coutParrain: b.coutParrain,
+        offertCount: r.offert_count,
         // Garde de fiabilité : on n'affiche pas un coût calculé sur trop peu de filleuls
         cacFiable: r.filleuls >= MIN_FILLEULS_CAC ? cac : null,
       };
@@ -428,7 +481,18 @@ export default function ChataigneReferral() {
           : Math.round((win.reduce((s, w) => s + (w.cacFiable ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
-  }, [rows, granularity, offertCost, costView, foodCostPct]);
+  }, [rows, granularity, costSettings]);
+
+  // Composition de la période : combien d'acquisitions par remise vs par produit offert
+  const mixLabel = useMemo(() => {
+    const filleuls = rows.reduce((s, r) => s + r.filleuls, 0);
+    const offert = rows.reduce((s, r) => s + r.offert_count, 0);
+    if (filleuls === 0) return "";
+    const remise = Math.max(0, filleuls - offert);
+    if (offert === 0) return `${remise} acquisition${remise > 1 ? "s" : ""} par remise`;
+    if (remise === 0) return `${offert} acquisition${offert > 1 ? "s" : ""} par produit offert`;
+    return `${remise} par remise · ${offert} par produit offert`;
+  }, [rows]);
 
 
   // ---- Annotations posées sur les graphiques ----
@@ -845,11 +909,17 @@ export default function ChataigneReferral() {
                 <Panel
                   title="Coût d'acquisition par filleul"
                   subtitle={
-                    costView === "owner"
-                      ? `Vision restaurateur : remises et produits offerts valorisés à ${foodCostPct} % de food cost (coût matière réel) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées · cliquez pour poser un repère`
+                    (costView === "owner"
+                      ? `Vision restaurateur (coût matière) : remises valorisées à ${foodCostPct} % de food cost, produit offert ${
+                          offertCostEur != null
+                            ? `à ${fmtEur(offertCostEur)} par produit`
+                            : `à ${foodCostOffertPct} % de sa valeur de vente`
+                        } ÷ filleuls acquis`
                       : granularity === "month"
-                        ? "Vision client : (remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées (non fiables) · cliquez pour poser un repère"
-                        : "Vision client : les remises parrain sont versées avec décalage, la courbe brute (pointillés) oscille et la moyenne glissante sur 4 périodes lisse cet effet · les périodes de moins de 5 filleuls sont exclues de la moyenne · cliquez pour poser un repère"
+                        ? "Vision client (perception) : remises en € telles quelles + produit offert à sa valeur de vente ÷ filleuls acquis"
+                        : "Vision client (perception) : les remises parrain sont versées avec décalage, la courbe brute (pointillés) oscille et la moyenne glissante sur 4 périodes lisse cet effet") +
+                    (mixLabel ? ` · ${mixLabel}` : "") +
+                    " · les périodes de moins de 5 filleuls ne sont pas tracées · cliquez pour poser un repère"
                   }
                   action={
                     <div className="flex flex-wrap items-center gap-2">
@@ -864,83 +934,120 @@ export default function ChataigneReferral() {
                         <ToggleGroupItem
                           value="client"
                           className="gap-1.5 px-4"
-                          title="Perception client : la remise en € telle quelle"
+                          title="Perception client : la remise en € telle quelle, produit offert à sa valeur de vente"
                         >
                           Client
                         </ToggleGroupItem>
                         <ToggleGroupItem
                           value="owner"
                           className="gap-1.5 px-4"
-                          title="Coût réel pour le restaurateur : la remise valorisée au food cost"
+                          title="Coût réel pour le restaurateur : remises et produits offerts valorisés au food cost"
                         >
                           Restaurateur
                         </ToggleGroupItem>
                       </ToggleGroup>
-                      {costView === "owner" ? (
-                        <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
-                          <label
-                            htmlFor="food-cost-pct"
-                            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
-                            title="Taux de food cost appliqué aux remises et aux produits offerts"
-                          >
-                            Food cost
-                          </label>
-                          <Input
-                            id="food-cost-pct"
-                            type="number"
-                            min={1}
-                            max={100}
-                            step="1"
-                            value={foodCostInput}
-                            placeholder={`${DEFAULT_FOOD_COST_PCT}`}
-                            onChange={(e) => updateFoodCost(e.target.value)}
-                            className="h-8 w-20 rounded-lg text-right tabular-nums"
-                          />
-                          <span className="text-xs text-muted-foreground">%</span>
-                          {foodCostInput !== String(DEFAULT_FOOD_COST_PCT) && (
-                            <button
-                              type="button"
-                              onClick={() => updateFoodCost(String(DEFAULT_FOOD_COST_PCT))}
-                              title={`Revenir au défaut (${DEFAULT_FOOD_COST_PCT} %)`}
-                              className="text-muted-foreground transition-colors hover:text-foreground"
+                      {costView === "owner" && (
+                        <>
+                          <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                            <label
+                              htmlFor="food-cost-pct"
+                              className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                              title="Taux de food cost appliqué aux remises en € (filleul −25 % et parrain −15 %)"
                             >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
-                          <label
-                            htmlFor="offert-cost"
-                            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
-                            title="Coût matière du produit offert, utilisé dans le coût d'acquisition à la place de sa valeur de vente"
-                          >
-                            Coût produit offert
-                          </label>
-                          <Input
-                            id="offert-cost"
-                            type="number"
-                            min={0}
-                            step="0.1"
-                            value={offertCostOverride}
-                            placeholder={
-                              defaultOffertCost > 0 ? `${defaultOffertCost.toFixed(2)} € (auto)` : "0.00"
-                            }
-                            onChange={(e) => updateOffertCost(e.target.value)}
-                            className="h-8 w-28 rounded-lg text-right tabular-nums"
-                          />
-                          {offertCostOverride !== "" && (
-                            <button
-                              type="button"
-                              onClick={() => updateOffertCost("")}
-                              title="Revenir au défaut (28 % du prix de vente)"
-                              className="text-muted-foreground transition-colors hover:text-foreground"
+                              Food cost remises
+                            </label>
+                            <Input
+                              id="food-cost-pct"
+                              type="number"
+                              min={1}
+                              max={100}
+                              step="1"
+                              value={foodCostInput}
+                              placeholder={`${DEFAULT_FOOD_COST_PCT}`}
+                              onChange={(e) => updateFoodCost(e.target.value)}
+                              className="h-8 w-20 rounded-lg text-right tabular-nums"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                            {foodCostInput !== String(DEFAULT_FOOD_COST_PCT) && (
+                              <button
+                                type="button"
+                                onClick={() => updateFoodCost(String(DEFAULT_FOOD_COST_PCT))}
+                                title={`Revenir au défaut (${DEFAULT_FOOD_COST_PCT} %)`}
+                                className="text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                            <label
+                              htmlFor="food-cost-offert-pct"
+                              className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                              title="Taux de food cost appliqué à la valeur de vente du produit offert (bogo) — ignoré si un montant € est saisi"
                             >
-                              <RotateCcw className="h-3.5 w-3.5" />
-                            </button>
-                          )}
-                        </div>
+                              Food cost produit offert
+                            </label>
+                            <Input
+                              id="food-cost-offert-pct"
+                              type="number"
+                              min={1}
+                              max={100}
+                              step="1"
+                              value={foodCostOffertInput}
+                              placeholder={`${DEFAULT_FOOD_COST_PCT}`}
+                              onChange={(e) => updateFoodCostOffert(e.target.value)}
+                              disabled={offertCostEur != null}
+                              className="h-8 w-20 rounded-lg text-right tabular-nums"
+                            />
+                            <span className="text-xs text-muted-foreground">%</span>
+                            {foodCostOffertInput !== String(DEFAULT_FOOD_COST_PCT) && (
+                              <button
+                                type="button"
+                                onClick={() => updateFoodCostOffert(String(DEFAULT_FOOD_COST_PCT))}
+                                title={`Revenir au défaut (${DEFAULT_FOOD_COST_PCT} %)`}
+                                className="text-muted-foreground transition-colors hover:text-foreground"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </>
                       )}
+                      <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                        <label
+                          htmlFor="offert-cost"
+                          className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                          title="Montant € par produit offert / bogo : s'il est saisi, il remplace la valorisation en pourcentage"
+                        >
+                          Coût produit offert
+                        </label>
+                        <Input
+                          id="offert-cost"
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          value={offertCostOverride}
+                          placeholder={
+                            costView === "owner"
+                              ? `${foodCostOffertPct} % (auto)`
+                              : defaultOffertCost > 0
+                                ? `${defaultOffertCost.toFixed(2)} € (auto)`
+                                : "0.00"
+                          }
+                          onChange={(e) => updateOffertCost(e.target.value)}
+                          className="h-8 w-28 rounded-lg text-right tabular-nums"
+                        />
+                        {offertCostOverride !== "" && (
+                          <button
+                            type="button"
+                            onClick={() => updateOffertCost("")}
+                            title="Revenir à la valorisation automatique"
+                            className="text-muted-foreground transition-colors hover:text-foreground"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   }
                 >
@@ -977,15 +1084,45 @@ export default function ChataigneReferral() {
                           tickLine={false}
                         />
                         <RTooltip
-                          contentStyle={tooltipStyle}
-                          formatter={(value: any, name: any, item: any) => {
-                            const n = item?.payload?.filleuls ?? 0;
-                            const suffix = ` · ${n} filleul${n > 1 ? "s" : ""}${
-                              n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""
-                            }`;
-                            return [`${fmtEur(Number(value))}${suffix}`, name];
+                          content={({ active, payload, label }: any) => {
+                            if (!active || !payload?.length) return null;
+                            const p = payload[0]?.payload ?? {};
+                            const n = p.filleuls ?? 0;
+                            return (
+                              <div style={tooltipStyle} className="min-w-[230px] space-y-1 text-[13px]">
+                                <div className="font-semibold">{label}</div>
+                                {payload.map((s: any) => (
+                                  <div key={s.name} className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">{s.name}</span>
+                                    <span className="font-semibold tabular-nums">{fmtEur(Number(s.value))}</span>
+                                  </div>
+                                ))}
+                                <div className="mt-1 space-y-0.5 border-t pt-1 text-xs text-muted-foreground">
+                                  <div className="flex justify-between gap-4">
+                                    <span>Filleuls acquis</span>
+                                    <span className="tabular-nums">
+                                      {n}
+                                      {n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût remises filleul</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutRemise ?? 0)}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût produits offerts ({p.offertCount ?? 0})</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutOffert ?? 0)}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût remises parrain</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutParrain ?? 0)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
                           }}
                         />
+
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
                         {granularity === "month" ? (
                           <Area
