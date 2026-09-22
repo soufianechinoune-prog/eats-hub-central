@@ -289,6 +289,43 @@ export default function ChataigneReferral() {
     }
   };
 
+  const [costView, setCostView] = useState<CostView>(() => {
+    try {
+      return localStorage.getItem(COST_VIEW_KEY) === "owner" ? "owner" : "client";
+    } catch {
+      return "client";
+    }
+  });
+  const updateCostView = (v: CostView) => {
+    setCostView(v);
+    try {
+      localStorage.setItem(COST_VIEW_KEY, v);
+    } catch {
+      /* stockage indisponible */
+    }
+  };
+  const [foodCostInput, setFoodCostInput] = useState<string>(() => {
+    try {
+      return localStorage.getItem(FOOD_COST_KEY) ?? String(DEFAULT_FOOD_COST_PCT);
+    } catch {
+      return String(DEFAULT_FOOD_COST_PCT);
+    }
+  });
+  const updateFoodCost = (v: string) => {
+    setFoodCostInput(v);
+    try {
+      localStorage.setItem(FOOD_COST_KEY, v);
+    } catch {
+      /* stockage indisponible */
+    }
+  };
+  const parsedFoodCost = Number(foodCostInput.replace(",", "."));
+  const foodCostPct =
+    Number.isFinite(parsedFoodCost) && parsedFoodCost > 0 && parsedFoodCost <= 100
+      ? parsedFoodCost
+      : DEFAULT_FOOD_COST_PCT;
+
+
   const {
     selectedRestaurants,
     selectedChainId,
