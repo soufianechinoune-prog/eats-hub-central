@@ -400,10 +400,13 @@ export default function ChataigneReferral() {
 
   const chartData = useMemo(() => {
     const base = rows.map((r) => {
-      const cac =
-        r.filleuls > 0
-          ? Math.round(((effectiveCoutFilleul(r, offertCost) + r.cout_parrain) / r.filleuls) * 100) / 100
-          : null;
+      // Vision client : montant non encaissé · Vision restaurateur : ce montant × taux de food cost
+      const total =
+        costView === "owner"
+          ? (r.cout_filleul + r.cout_parrain) * (foodCostPct / 100)
+          : effectiveCoutFilleul(r, offertCost) + r.cout_parrain;
+      const cac = r.filleuls > 0 ? Math.round((total / r.filleuls) * 100) / 100 : null;
+
       return {
         periode: r.periode,
         label: periodLabel(r.periode, granularity),
