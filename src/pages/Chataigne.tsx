@@ -57,6 +57,7 @@ import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySe
 import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServiceComparison";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
+import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
 
 import {
   useChataigneByRestaurant,
@@ -370,6 +371,7 @@ export default function Chataigne() {
               <TabsTrigger value="details">Analyse détaillée</TabsTrigger>
               <TabsTrigger value="orders">Commandes (détail)</TabsTrigger>
               <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
+              <TabsTrigger value="weekday">Jours de la semaine</TabsTrigger>
               <TabsTrigger value="service">Emport vs Livraison</TabsTrigger>
             </TabsList>
 
