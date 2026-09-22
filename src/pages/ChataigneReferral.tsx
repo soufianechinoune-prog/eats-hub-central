@@ -845,44 +845,106 @@ export default function ChataigneReferral() {
                 <Panel
                   title="Coût d'acquisition par filleul"
                   subtitle={
-                    granularity === "month"
-                      ? "(Remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées (non fiables) · cliquez pour poser un repère"
-                      : "Les remises parrain sont versées avec décalage : la courbe brute (pointillés) oscille, la moyenne glissante sur 4 périodes lisse cet effet · les périodes de moins de 5 filleuls sont exclues de la moyenne · cliquez pour poser un repère"
+                    costView === "owner"
+                      ? `Vision restaurateur : remises et produits offerts valorisés à ${foodCostPct} % de food cost (coût matière réel) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées · cliquez pour poser un repère`
+                      : granularity === "month"
+                        ? "Vision client : (remise 1ʳᵉ commande filleul + remises parrain de la période) ÷ filleuls acquis · les périodes de moins de 5 filleuls ne sont pas tracées (non fiables) · cliquez pour poser un repère"
+                        : "Vision client : les remises parrain sont versées avec décalage, la courbe brute (pointillés) oscille et la moyenne glissante sur 4 périodes lisse cet effet · les périodes de moins de 5 filleuls sont exclues de la moyenne · cliquez pour poser un repère"
                   }
                   action={
-                    <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
-                      <label
-                        htmlFor="offert-cost"
-                        className="whitespace-nowrap text-xs font-medium text-muted-foreground"
-                        title="Coût matière du produit offert, utilisé dans le coût d'acquisition à la place de sa valeur de vente"
+                    <div className="flex flex-wrap items-center gap-2">
+                      <ToggleGroup
+                        type="single"
+                        value={costView}
+                        onValueChange={(v) => v && updateCostView(v as CostView)}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl"
                       >
-                        Coût produit offert
-                      </label>
-                      <Input
-                        id="offert-cost"
-                        type="number"
-                        min={0}
-                        step="0.1"
-                        value={offertCostOverride}
-                        placeholder={
-                          defaultOffertCost > 0 ? `${defaultOffertCost.toFixed(2)} € (auto)` : "0.00"
-                        }
-                        onChange={(e) => updateOffertCost(e.target.value)}
-                        className="h-8 w-28 rounded-lg text-right tabular-nums"
-                      />
-                      {offertCostOverride !== "" && (
-                        <button
-                          type="button"
-                          onClick={() => updateOffertCost("")}
-                          title="Revenir au défaut (28 % du prix de vente)"
-                          className="text-muted-foreground transition-colors hover:text-foreground"
+                        <ToggleGroupItem
+                          value="client"
+                          className="gap-1.5 px-4"
+                          title="Perception client : la remise en € telle quelle"
                         >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        </button>
+                          Client
+                        </ToggleGroupItem>
+                        <ToggleGroupItem
+                          value="owner"
+                          className="gap-1.5 px-4"
+                          title="Coût réel pour le restaurateur : la remise valorisée au food cost"
+                        >
+                          Restaurateur
+                        </ToggleGroupItem>
+                      </ToggleGroup>
+                      {costView === "owner" ? (
+                        <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                          <label
+                            htmlFor="food-cost-pct"
+                            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                            title="Taux de food cost appliqué aux remises et aux produits offerts"
+                          >
+                            Food cost
+                          </label>
+                          <Input
+                            id="food-cost-pct"
+                            type="number"
+                            min={1}
+                            max={100}
+                            step="1"
+                            value={foodCostInput}
+                            placeholder={`${DEFAULT_FOOD_COST_PCT}`}
+                            onChange={(e) => updateFoodCost(e.target.value)}
+                            className="h-8 w-20 rounded-lg text-right tabular-nums"
+                          />
+                          <span className="text-xs text-muted-foreground">%</span>
+                          {foodCostInput !== String(DEFAULT_FOOD_COST_PCT) && (
+                            <button
+                              type="button"
+                              onClick={() => updateFoodCost(String(DEFAULT_FOOD_COST_PCT))}
+                              title={`Revenir au défaut (${DEFAULT_FOOD_COST_PCT} %)`}
+                              className="text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 rounded-xl border bg-muted/40 px-3 py-2">
+                          <label
+                            htmlFor="offert-cost"
+                            className="whitespace-nowrap text-xs font-medium text-muted-foreground"
+                            title="Coût matière du produit offert, utilisé dans le coût d'acquisition à la place de sa valeur de vente"
+                          >
+                            Coût produit offert
+                          </label>
+                          <Input
+                            id="offert-cost"
+                            type="number"
+                            min={0}
+                            step="0.1"
+                            value={offertCostOverride}
+                            placeholder={
+                              defaultOffertCost > 0 ? `${defaultOffertCost.toFixed(2)} € (auto)` : "0.00"
+                            }
+                            onChange={(e) => updateOffertCost(e.target.value)}
+                            className="h-8 w-28 rounded-lg text-right tabular-nums"
+                          />
+                          {offertCostOverride !== "" && (
+                            <button
+                              type="button"
+                              onClick={() => updateOffertCost("")}
+                              title="Revenir au défaut (28 % du prix de vente)"
+                              className="text-muted-foreground transition-colors hover:text-foreground"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
                   }
                 >
+
                   {acquisitionQ.isLoading ? (
                     <Skeleton className="h-[420px] w-full rounded-xl" />
                   ) : (
