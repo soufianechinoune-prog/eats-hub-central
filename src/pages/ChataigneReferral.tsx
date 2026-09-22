@@ -343,11 +343,27 @@ export default function ChataigneReferral() {
       /* stockage indisponible */
     }
   };
-  const parsedFoodCost = Number(foodCostInput.replace(",", "."));
-  const foodCostPct =
-    Number.isFinite(parsedFoodCost) && parsedFoodCost > 0 && parsedFoodCost <= 100
-      ? parsedFoodCost
-      : DEFAULT_FOOD_COST_PCT;
+  const [foodCostOffertInput, setFoodCostOffertInput] = useState<string>(() => {
+    try {
+      return localStorage.getItem(FOOD_COST_OFFERT_KEY) ?? String(DEFAULT_FOOD_COST_PCT);
+    } catch {
+      return String(DEFAULT_FOOD_COST_PCT);
+    }
+  });
+  const updateFoodCostOffert = (v: string) => {
+    setFoodCostOffertInput(v);
+    try {
+      localStorage.setItem(FOOD_COST_OFFERT_KEY, v);
+    } catch {
+      /* stockage indisponible */
+    }
+  };
+  const pctOr = (raw: string) => {
+    const n = Number(raw.replace(",", "."));
+    return Number.isFinite(n) && n > 0 && n <= 100 ? n : DEFAULT_FOOD_COST_PCT;
+  };
+  const foodCostPct = pctOr(foodCostInput);
+  const foodCostOffertPct = pctOr(foodCostOffertInput);
 
 
   const {
