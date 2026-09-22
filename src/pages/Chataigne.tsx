@@ -645,6 +645,14 @@ export default function Chataigne() {
                 prevLabel={FULL_MONTHS[prevMonthIndex]}
               />
             </TabsContent>
+
+            <TabsContent value="weekday" className="space-y-6">
+              <ChataigneWeekdaySection
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter}
+              />
+            </TabsContent>
           </Tabs>
         )}
       </div>
