@@ -77,6 +77,13 @@ const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
 const OFFERT_COST_KEY = "chataigne-referral-offert-cost";
 const OFFERT_COST_RATIO = 0.28;
 
+// Vision du coût sur la courbe CAC : « client » (montant non encaissé) ou
+// « restaurateur » (coût matière réel = montant × taux de food cost paramétrable).
+const COST_VIEW_KEY = "chataigne-referral-cost-view";
+const FOOD_COST_KEY = "chataigne-referral-food-cost-pct";
+const DEFAULT_FOOD_COST_PCT = 40;
+type CostView = "client" | "owner";
+
 type AcquisitionRow = {
   filleuls: number;
   cout_filleul: number;
@@ -86,6 +93,7 @@ type AcquisitionRow = {
 };
 const effectiveCoutFilleul = (r: AcquisitionRow, offertCost: number) =>
   r.cout_filleul - r.offert_vente + r.offert_count * offertCost;
+
 
 const periodLabel = (periode: string, granularity: GrowthGranularity) => {
   try {
