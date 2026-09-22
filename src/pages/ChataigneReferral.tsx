@@ -428,7 +428,7 @@ export default function ChataigneReferral() {
           : Math.round((win.reduce((s, w) => s + (w.cacFiable ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
-  }, [rows, granularity, offertCost]);
+  }, [rows, granularity, offertCost, costView, foodCostPct]);
 
 
   // ---- Annotations posées sur les graphiques ----
