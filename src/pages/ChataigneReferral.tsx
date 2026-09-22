@@ -72,15 +72,16 @@ const fmtEur = (v: number, digits = 2) =>
   }).format(v || 0);
 const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
 
-// Paramètre « coût du produit offert » : remplace la valeur de vente dans le CAC
-// (marge sacrifiée = remise en € ; produit offert = ce coût saisi). Défaut ≈ 28 % du prix de vente.
+// Paramètre « coût du produit offert » (montant € par produit) : remplace, s'il est saisi,
+// la valorisation en pourcentage du produit offert / bogo.
 const OFFERT_COST_KEY = "chataigne-referral-offert-cost";
 const OFFERT_COST_RATIO = 0.28;
 
 // Vision du coût sur la courbe CAC : « client » (montant non encaissé) ou
-// « restaurateur » (coût matière réel = montant × taux de food cost paramétrable).
+// « restaurateur » (coût matière = montant × taux de food cost, paramétrable par type d'offre).
 const COST_VIEW_KEY = "chataigne-referral-cost-view";
-const FOOD_COST_KEY = "chataigne-referral-food-cost-pct";
+const FOOD_COST_KEY = "chataigne-referral-food-cost-pct"; // remises en € (filleul + parrain)
+const FOOD_COST_OFFERT_KEY = "chataigne-referral-food-cost-offert-pct"; // produit offert / bogo
 const DEFAULT_FOOD_COST_PCT = 40;
 type CostView = "client" | "owner";
 
@@ -91,6 +92,29 @@ type AcquisitionRow = {
   offert_count: number;
   offert_vente: number;
 };
+
+type CostSettings = {
+  view: CostView;
+  remisePct: number; // food cost appliqué aux remises en €
+  offertPct: number; // food cost appliqué à la valeur de vente du produit offert
+  offertCostEur: number | null; // montant € par produit offert (prioritaire s'il est saisi)
+};
+
+// Décomposition du coût d'acquisition d'une période, par type d'offre
+const costBreakdown = (r: AcquisitionRow, s: CostSettings) => {
+  const remise = Math.max(0, r.cout_filleul - r.offert_vente); // remises en € (ex. −25 %)
+  const offertBase =
+    s.offertCostEur != null ? r.offert_count * s.offertCostEur : r.offert_vente;
+
+  const owner = s.view === "owner";
+  const coutRemise = owner ? remise * (s.remisePct / 100) : remise;
+  const coutOffert =
+    owner && s.offertCostEur == null ? offertBase * (s.offertPct / 100) : offertBase;
+  const coutParrain = owner ? r.cout_parrain * (s.remisePct / 100) : r.cout_parrain;
+
+  return { coutRemise, coutOffert, coutParrain, total: coutRemise + coutOffert + coutParrain };
+};
+
 const effectiveCoutFilleul = (r: AcquisitionRow, offertCost: number) =>
   r.cout_filleul - r.offert_vente + r.offert_count * offertCost;
 
