@@ -433,19 +433,28 @@ export default function ChataigneReferral() {
     [offertTotals]
   );
   const parsedOverride = Number(offertCostOverride.replace(",", "."));
-  const offertCost =
+  const offertCostEur =
     offertCostOverride.trim() !== "" && Number.isFinite(parsedOverride) && parsedOverride >= 0
       ? parsedOverride
-      : defaultOffertCost;
+      : null;
+  // Valeur utilisée en vision client pour un produit offert (montant saisi sinon défaut ≈ 28 %)
+  const offertCost = offertCostEur ?? defaultOffertCost;
+
+  const costSettings: CostSettings = useMemo(
+    () => ({
+      view: costView,
+      remisePct: foodCostPct,
+      offertPct: foodCostOffertPct,
+      offertCostEur,
+    }),
+    [costView, foodCostPct, foodCostOffertPct, offertCostEur]
+  );
 
   const chartData = useMemo(() => {
     const base = rows.map((r) => {
-      // Vision client : montant non encaissé · Vision restaurateur : ce montant × taux de food cost
-      const total =
-        costView === "owner"
-          ? (r.cout_filleul + r.cout_parrain) * (foodCostPct / 100)
-          : effectiveCoutFilleul(r, offertCost) + r.cout_parrain;
-      const cac = r.filleuls > 0 ? Math.round((total / r.filleuls) * 100) / 100 : null;
+      // Coût décomposé par type d'offre (remise en € / produit offert / remise parrain)
+      const b = costBreakdown(r, costSettings);
+      const cac = r.filleuls > 0 ? Math.round((b.total / r.filleuls) * 100) / 100 : null;
 
       return {
         periode: r.periode,
@@ -455,6 +464,10 @@ export default function ChataigneReferral() {
         part: r.part_parrainage,
         viralite: r.viralite,
         cac,
+        coutRemise: b.coutRemise,
+        coutOffert: b.coutOffert,
+        coutParrain: b.coutParrain,
+        offertCount: r.offert_count,
         // Garde de fiabilité : on n'affiche pas un coût calculé sur trop peu de filleuls
         cacFiable: r.filleuls >= MIN_FILLEULS_CAC ? cac : null,
       };
@@ -468,7 +481,18 @@ export default function ChataigneReferral() {
           : Math.round((win.reduce((s, w) => s + (w.cacFiable ?? 0), 0) / win.length) * 100) / 100;
       return { ...r, cacMA };
     });
-  }, [rows, granularity, offertCost, costView, foodCostPct]);
+  }, [rows, granularity, costSettings]);
+
+  // Composition de la période : combien d'acquisitions par remise vs par produit offert
+  const mixLabel = useMemo(() => {
+    const filleuls = rows.reduce((s, r) => s + r.filleuls, 0);
+    const offert = rows.reduce((s, r) => s + r.offert_count, 0);
+    if (filleuls === 0) return "";
+    const remise = Math.max(0, filleuls - offert);
+    if (offert === 0) return `${remise} acquisition${remise > 1 ? "s" : ""} par remise`;
+    if (remise === 0) return `${offert} acquisition${offert > 1 ? "s" : ""} par produit offert`;
+    return `${remise} par remise · ${offert} par produit offert`;
+  }, [rows]);
 
 
   // ---- Annotations posées sur les graphiques ----
