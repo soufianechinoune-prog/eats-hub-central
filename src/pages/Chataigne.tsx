@@ -136,6 +136,7 @@ export default function Chataigne() {
     tabParam === "details" ||
     tabParam === "orders" ||
     tabParam === "daily" ||
+    tabParam === "weekday" ||
     tabParam === "service"
       ? tabParam
       : "overview";

@@ -111,6 +111,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
   { id: "details", label: "Analyse détaillée", icon: BarChart3, route: "/chataigne?tab=details" },
   { id: "orders", label: "Commandes", icon: ClipboardList, route: "/chataigne?tab=orders" },
   { id: "daily", label: "Vue quotidienne", icon: CalendarDays, route: "/chataigne?tab=daily" },
+  { id: "weekday", label: "Jours de la semaine", icon: CalendarDays, route: "/chataigne?tab=weekday" },
   { id: "service", label: "Emport vs Livraison", icon: Bike, route: "/chataigne?tab=service" },
   { id: "growth", label: "Croissance & Clients", icon: Users, route: "/chataigne/croissance" },
   { id: "referral", label: "Parrainage", icon: Gift, route: "/chataigne/parrainage" },
