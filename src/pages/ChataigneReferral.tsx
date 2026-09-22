@@ -1084,15 +1084,45 @@ export default function ChataigneReferral() {
                           tickLine={false}
                         />
                         <RTooltip
-                          contentStyle={tooltipStyle}
-                          formatter={(value: any, name: any, item: any) => {
-                            const n = item?.payload?.filleuls ?? 0;
-                            const suffix = ` · ${n} filleul${n > 1 ? "s" : ""}${
-                              n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""
-                            }`;
-                            return [`${fmtEur(Number(value))}${suffix}`, name];
+                          content={({ active, payload, label }: any) => {
+                            if (!active || !payload?.length) return null;
+                            const p = payload[0]?.payload ?? {};
+                            const n = p.filleuls ?? 0;
+                            return (
+                              <div style={tooltipStyle} className="min-w-[230px] space-y-1 text-[13px]">
+                                <div className="font-semibold">{label}</div>
+                                {payload.map((s: any) => (
+                                  <div key={s.name} className="flex justify-between gap-4">
+                                    <span className="text-muted-foreground">{s.name}</span>
+                                    <span className="font-semibold tabular-nums">{fmtEur(Number(s.value))}</span>
+                                  </div>
+                                ))}
+                                <div className="mt-1 space-y-0.5 border-t pt-1 text-xs text-muted-foreground">
+                                  <div className="flex justify-between gap-4">
+                                    <span>Filleuls acquis</span>
+                                    <span className="tabular-nums">
+                                      {n}
+                                      {n > 0 && n < MIN_FILLEULS_CAC ? " (trop peu, non fiable)" : ""}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût remises filleul</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutRemise ?? 0)}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût produits offerts ({p.offertCount ?? 0})</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutOffert ?? 0)}</span>
+                                  </div>
+                                  <div className="flex justify-between gap-4">
+                                    <span>Coût remises parrain</span>
+                                    <span className="tabular-nums">{fmtEur(p.coutParrain ?? 0)}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
                           }}
                         />
+
                         <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 13, paddingTop: 8 }} />
                         {granularity === "month" ? (
                           <Area
