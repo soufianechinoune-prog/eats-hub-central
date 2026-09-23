@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
   const headers = { 'x-api-key': key.trim(), Accept: 'application/json' }
 
   try {
-    let cursor: string | null = null
+    let cursor: string | null = startAfter
     let pages = 0
     let fetched = 0
     let upserted = 0
@@ -155,6 +155,7 @@ Deno.serve(async (req) => {
       customers_upserted: upserted,
       skipped_without_id: skippedNoId,
       consent: consentCounts,
+      next_starting_after: cursor,
       duration_ms: Date.now() - t0,
     })
   } catch (e) {
