@@ -143,7 +143,10 @@ Deno.serve(async (req) => {
       const hasMore = page?.has_more === true
       const last = arr[arr.length - 1]
       cursor = (last?.id as string | undefined) ?? null
-      if (!hasMore || !cursor) break
+      if (!hasMore || !cursor) {
+        cursor = null
+        break
+      }
 
       await sleep(120)
     }
