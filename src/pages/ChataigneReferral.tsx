@@ -53,6 +53,7 @@ import {
 import type { GrowthGranularity } from "@/hooks/useChataigneGrowth";
 import {
   useChataigneReferralAcquisition,
+  useChataigneReferralLtv,
   useChataigneReferralPayback,
   useChataigneReferralRetention,
   useChataigneReferralSegments,
@@ -419,6 +420,7 @@ export default function ChataigneReferral() {
   const paybackQ = useChataigneReferralPayback(start, end, restaurantFilter);
   const segmentsQ = useChataigneReferralSegments(start, end, restaurantFilter);
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
+  const ltvQ = useChataigneReferralLtv(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
 
@@ -617,6 +619,56 @@ export default function ChataigneReferral() {
     [retentionQ.data]
   );
   const offsets = useMemo(() => Array.from({ length: Math.max(0, maxOffset) }, (_, i) => i + 1), [maxOffset]);
+
+  // ---- Valeur cumulée par cohorte (contribution encaissée par filleul, mois après mois) ----
+  const ltv = useMemo(() => {
+    const all = ltvQ.data ?? [];
+    const fil = all.filter((r) => r.segment === "filleul");
+    const cohortes = [...new Set(fil.map((r) => r.cohorte))].sort();
+    const maxOff = fil.reduce((m, r) => Math.max(m, r.mois_offset), 0);
+    const points = Array.from({ length: maxOff + 1 }, (_, i) => {
+      const p: Record<string, number | string | null> = { label: `M+${i}` };
+      for (const c of cohortes) {
+        const head = fil.find((r) => r.cohorte === c);
+        const row = fil.find((r) => r.cohorte === c && r.mois_offset === i);
+        p[c] = row && i <= (head?.mois_observes ?? 0) ? row.contribution_cumul_par_client : null;
+      }
+      const others = all.filter((r) => r.segment !== "filleul" && r.mois_offset === i);
+      const poids = others.reduce((s, r) => s + r.taille_cohorte, 0);
+      p.autres = poids
+        ? Math.round(
+            (others.reduce((s, r) => s + r.contribution_cumul_par_client * r.taille_cohorte, 0) / poids) * 100
+          ) / 100
+        : null;
+      return p;
+    });
+    const heads = cohortes.map((c) => fil.find((r) => r.cohorte === c)!).filter(Boolean);
+    const poidsTotal = heads.reduce((s, r) => s + r.taille_cohorte, 0);
+    const cacMoy = poidsTotal
+      ? heads.reduce((s, r) => s + r.cac * r.taille_cohorte, 0) / poidsTotal
+      : 0;
+    const table = cohortes.map((c) => {
+      const rs = fil.filter((r) => r.cohorte === c).sort((a, b) => a.mois_offset - b.mois_offset);
+      const head = rs[0];
+      const last = rs[rs.length - 1];
+      const valeur = last?.contribution_cumul_par_client ?? 0;
+      return {
+        cohorte: c,
+        taille: head?.taille_cohorte ?? 0,
+        cac: head?.cac ?? 0,
+        ca: last?.ca_cumul_par_client ?? 0,
+        valeur,
+        ratio: head && head.cac > 0 ? valeur / head.cac : 0,
+        mois: last?.mois_offset ?? 0,
+        commandes: rs.reduce((s, r) => s + r.commandes, 0),
+      };
+    });
+    return { cohortes, points, cacMoy, table, hasData: fil.length > 0 };
+  }, [ltvQ.data]);
+
+  const cohortColors = ["hsl(var(--primary))", "hsl(199 89% 48%)", "hsl(38 92% 50%)", "hsl(142 71% 45%)", "hsl(280 70% 60%)", "hsl(0 84% 60%)"];
+
+
 
   const isLoading = restaurantFilter === undefined || acquisitionQ.isLoading;
   const isEmpty = !isLoading && rows.length === 0;
@@ -1476,7 +1528,131 @@ export default function ChataigneReferral() {
                     </div>
                   )}
                 </Panel>
+
+                {/* 5. Valeur cumulée par cohorte (LTV) */}
+                <Panel
+                  title="Valeur cumulée par filleul (cohortes d'acquisition)"
+                  subtitle="Contribution encaissée par filleul, mois après mois, comparée au coût d'acquisition"
+                >
+                  {ltvQ.isLoading ? (
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
+                  ) : !ltv.hasData ? (
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12 text-center">
+                      <Users className="h-8 w-8 text-muted-foreground/50" />
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        Aucun filleul acquis sur la période sélectionnée.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <ResponsiveContainer width="100%" height={420}>
+                        <LineChart data={ltv.points} margin={{ top: 20, right: 12, bottom: 0, left: -4 }}>
+                          <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickMargin={10}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v} €`}
+                            width={64}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <RTooltip
+                            contentStyle={tooltipStyle}
+                            formatter={(v: number, n) => [
+                              fmtEur(Number(v)),
+                              n === "autres" ? "Autres clients (moyenne)" : `Cohorte ${cohortLabel(String(n))}`,
+                            ]}
+                          />
+                          <Legend
+                            verticalAlign="top"
+                            height={36}
+                            formatter={(v) => (v === "autres" ? "Autres clients (moyenne)" : cohortLabel(String(v)))}
+                          />
+                          <ReferenceLine
+                            y={ltv.cacMoy}
+                            stroke="hsl(0 84% 60%)"
+                            strokeDasharray="6 4"
+                            strokeWidth={1.5}
+                            label={{
+                              value: `Coût d'acquisition moyen ${fmtEur(ltv.cacMoy)}`,
+                              position: "insideTopRight",
+                              fontSize: 12,
+                              fill: "hsl(0 84% 60%)",
+                            }}
+                          />
+                          {ltv.cohortes.map((c, i) => (
+                            <Line
+                              key={c}
+                              type="monotone"
+                              dataKey={c}
+                              name={c}
+                              stroke={cohortColors[i % cohortColors.length]}
+                              strokeWidth={3}
+                              dot={{ r: 4, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 6 }}
+                              connectNulls={false}
+                            />
+                          ))}
+                          <Line
+                            type="monotone"
+                            dataKey="autres"
+                            name="autres"
+                            stroke="hsl(var(--muted-foreground))"
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            connectNulls={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div className="overflow-x-auto rounded-xl border">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              <th className="px-4 py-3">Cohorte</th>
+                              <th className="px-4 py-3 text-right">Filleuls</th>
+                              <th className="px-4 py-3 text-right">Recul</th>
+                              <th className="px-4 py-3 text-right">CA / filleul</th>
+                              <th className="px-4 py-3 text-right">Valeur nette / filleul</th>
+                              <th className="px-4 py-3 text-right">Coût d'acquisition</th>
+                              <th className="px-4 py-3 text-right">Valeur / coût</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ltv.table.map((t) => (
+                              <tr key={t.cohorte} className="border-t transition-colors hover:bg-muted/30">
+                                <td className="px-4 py-3 whitespace-nowrap font-medium">{cohortLabel(t.cohorte)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtInt(t.taille)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">M+{t.mois}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.ca)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.valeur)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.cac)}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <Badge variant={t.ratio >= 1 ? "default" : "secondary"} className="tabular-nums">
+                                    {t.ratio > 0 ? `${t.ratio.toFixed(2)} ×` : "—"}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Valeur nette = montant encaissé − 1 € Chataigne − frais de paiement (0,25 € + 1,5 %), cumulée depuis
+                        la première commande, divisée par le nombre de filleuls de la cohorte. Les cohortes récentes ont
+                        forcément moins de recul : le point s'arrête au dernier mois complet observé.
+                      </p>
+                    </div>
+                  )}
+                </Panel>
               </div>
+
             </>
           )}
 
