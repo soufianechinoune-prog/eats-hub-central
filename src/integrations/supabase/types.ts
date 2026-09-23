@@ -13180,6 +13180,21 @@ export type Database = {
           periode: string
         }[]
       }
+      get_chataigne_referral_ltv: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca_cumul_par_client: number
+          cac: number
+          clients_actifs: number
+          cohorte: string
+          commandes: number
+          contribution_cumul_par_client: number
+          mois_observes: number
+          mois_offset: number
+          segment: string
+          taille_cohorte: number
+        }[]
+      }
       get_chataigne_referral_payback: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {

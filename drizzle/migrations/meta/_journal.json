@@ -141,6 +141,13 @@
       "when": 1790153580138,
       "tag": "0019_chataigne_customers_consent",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790160403520,
+      "tag": "0020_chataigne_referral_ltv",
+      "breakpoints": true
     }
   ]
 }
