@@ -620,6 +620,56 @@ export default function ChataigneReferral() {
   );
   const offsets = useMemo(() => Array.from({ length: Math.max(0, maxOffset) }, (_, i) => i + 1), [maxOffset]);
 
+  // ---- Valeur cumulée par cohorte (contribution encaissée par filleul, mois après mois) ----
+  const ltv = useMemo(() => {
+    const all = ltvQ.data ?? [];
+    const fil = all.filter((r) => r.segment === "filleul");
+    const cohortes = [...new Set(fil.map((r) => r.cohorte))].sort();
+    const maxOff = fil.reduce((m, r) => Math.max(m, r.mois_offset), 0);
+    const points = Array.from({ length: maxOff + 1 }, (_, i) => {
+      const p: Record<string, number | string | null> = { label: `M+${i}` };
+      for (const c of cohortes) {
+        const head = fil.find((r) => r.cohorte === c);
+        const row = fil.find((r) => r.cohorte === c && r.mois_offset === i);
+        p[c] = row && i <= (head?.mois_observes ?? 0) ? row.contribution_cumul_par_client : null;
+      }
+      const others = all.filter((r) => r.segment !== "filleul" && r.mois_offset === i);
+      const poids = others.reduce((s, r) => s + r.taille_cohorte, 0);
+      p.autres = poids
+        ? Math.round(
+            (others.reduce((s, r) => s + r.contribution_cumul_par_client * r.taille_cohorte, 0) / poids) * 100
+          ) / 100
+        : null;
+      return p;
+    });
+    const heads = cohortes.map((c) => fil.find((r) => r.cohorte === c)!).filter(Boolean);
+    const poidsTotal = heads.reduce((s, r) => s + r.taille_cohorte, 0);
+    const cacMoy = poidsTotal
+      ? heads.reduce((s, r) => s + r.cac * r.taille_cohorte, 0) / poidsTotal
+      : 0;
+    const table = cohortes.map((c) => {
+      const rs = fil.filter((r) => r.cohorte === c).sort((a, b) => a.mois_offset - b.mois_offset);
+      const head = rs[0];
+      const last = rs[rs.length - 1];
+      const valeur = last?.contribution_cumul_par_client ?? 0;
+      return {
+        cohorte: c,
+        taille: head?.taille_cohorte ?? 0,
+        cac: head?.cac ?? 0,
+        ca: last?.ca_cumul_par_client ?? 0,
+        valeur,
+        ratio: head && head.cac > 0 ? valeur / head.cac : 0,
+        mois: last?.mois_offset ?? 0,
+        commandes: rs.reduce((s, r) => s + r.commandes, 0),
+      };
+    });
+    return { cohortes, points, cacMoy, table, hasData: fil.length > 0 };
+  }, [ltvQ.data]);
+
+  const cohortColors = ["hsl(var(--primary))", "hsl(199 89% 48%)", "hsl(38 92% 50%)", "hsl(142 71% 45%)", "hsl(280 70% 60%)", "hsl(0 84% 60%)"];
+
+
+
   const isLoading = restaurantFilter === undefined || acquisitionQ.isLoading;
   const isEmpty = !isLoading && rows.length === 0;
 
