@@ -105,6 +105,17 @@ Deno.serve(async (req) => {
           ? (page.data as Record<string, unknown>[])
           : []
       if (arr.length === 0) break
+
+      if (pages <= skipPages) {
+        const lastSkipped = arr[arr.length - 1]
+        cursor = (lastSkipped?.id as string | undefined) ?? null
+        if (page?.has_more !== true || !cursor) {
+          cursor = null
+          break
+        }
+        continue
+      }
+
       fetched += arr.length
 
       const rows: Record<string, unknown>[] = []
