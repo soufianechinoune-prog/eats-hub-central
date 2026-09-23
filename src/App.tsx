@@ -69,6 +69,7 @@ const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarifica
 const ChataigneGrowth = React.lazy(() => import("./pages/ChataigneGrowth"));
 const ChataigneReferral = React.lazy(() => import("./pages/ChataigneReferral"));
 const ChataigneClients = React.lazy(() => import("./pages/ChataigneClients"));
+const ChataigneCrossStore = React.lazy(() => import("./pages/ChataigneCrossStore"));
 const DeliveryProfitability = React.lazy(() => import("./pages/DeliveryProfitability"));
 const DeliverooProfitability = React.lazy(() => import("./pages/DeliverooProfitability"));
 const InstorePrices = React.lazy(() => import("./pages/InstorePrices"));
@@ -250,6 +251,7 @@ const App = () => {
                     <Route path="/chataigne/croissance" element={<P><ChataigneGrowth /></P>} />
                     <Route path="/chataigne/parrainage" element={<P><ChataigneReferral /></P>} />
                     <Route path="/chataigne/clients" element={<P><ChataigneClients /></P>} />
+                    <Route path="/chataigne/mobilite" element={<P><ChataigneCrossStore /></P>} />
                     <Route path="/chataigne/rentabilite" element={<P><DeliveryProfitability /></P>} />
                     <Route path="/deliveroo/rentabilite" element={<P><DeliverooProfitability /></P>} />
                     <Route path="/prix-sur-place" element={<P><InstorePrices /></P>} />

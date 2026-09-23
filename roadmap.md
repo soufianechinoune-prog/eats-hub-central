@@ -23,9 +23,10 @@ Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organization
 - Contribution = encaissé − 1 € Chataigne − frais paiement (0,25 € + 1,5 %).
 
 
-## Étape 4 — Mobilité inter-restaurants (Cross-Store)
-- Détecter les clients qui commandent dans plusieurs restaurants du réseau.
-- Matrice de flux entre restaurants, part des multi-sites.
+## Étape 4 — Mobilité inter-restaurants (Cross-Store) ✅
+- RPC `get_chataigne_cross_store(p_start, p_end, p_restaurant_ids)` (SECURITY DEFINER, anti-fan-out, TZ Paris, anon révoqué) : profils 1/2/3/4+ restaurants, paires de restaurants (clients communs), taux de partage par restaurant.
+- Page `/chataigne/mobilite` « Mobilité inter-restos » : KPIs nomades (clients, CA, panier, fréquence), répartition par profil (Clients/CA), paires les plus liées, restaurants carrefours.
+- Période par défaut : 90 derniers jours arrêtés à la veille.
 
 ## Étape 5 — Optimisation technique de la synchronisation
 - Pipeline sync customers/orders : pagination, rate limits, incrémental (updated_at), anti-fan-out.
