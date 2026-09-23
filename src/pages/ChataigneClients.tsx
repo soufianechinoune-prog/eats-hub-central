@@ -199,7 +199,7 @@ export default function ChataigneClients() {
     if (!resolved) return null;
     if (resolved === EMPTY_BRAND_SCOPE_RESTAURANT_IDS) return EMPTY_BRAND_SCOPE_RESTAURANT_IDS;
     return resolved;
-  }, [selectedRestaurants, selectedChainId, chainRestaurantIds]);
+  }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const rfmQ = useChataigneRfm(start, end, restaurantFilter);
   const isLoading = restaurantFilter === undefined || rfmQ.isLoading;
