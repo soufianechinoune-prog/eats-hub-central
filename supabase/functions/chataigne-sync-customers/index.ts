@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
 
     while (pages < maxPages) {
       pages++
-      const qs = new URLSearchParams({ limit: '100' })
+      const qs = new URLSearchParams({ limit: '100', include: 'orders', min_completed_orders: '1' })
       if (cursor) qs.set('starting_after', cursor)
 
       const res = await fetch(`${BASE}/organizations/${ORG_ID}/customers?${qs.toString()}`, {
@@ -118,14 +118,52 @@ Deno.serve(async (req) => {
 
       fetched += arr.length
 
+      // Rattachement au code_client déjà pseudonymisé dans chataigne_orders :
+      // l'API org expose un id client différent de celui des commandes, on relie
+      // donc via (short_id, date de commande) des commandes embarquées.
+      const shortIds = new Set<string>()
+      for (const c of arr) {
+        for (const o of embeddedOrders(c)) {
+          if (o.shortId) shortIds.add(o.shortId)
+        }
+      }
+      const matchMap = new Map<string, { code: string; t: number }[]>()
+      if (shortIds.size > 0) {
+        const { data: ordRows, error: ordErr } = await supabase
+          .from('chataigne_orders')
+          .select('short_id, code_client, order_datetime')
+          .in('short_id', [...shortIds])
+          .not('code_client', 'is', null)
+        if (ordErr) throw ordErr
+        for (const r of ordRows ?? []) {
+          const sid = String((r as Record<string, unknown>).short_id ?? '')
+          if (!sid) continue
+          const list = matchMap.get(sid) ?? []
+          list.push({
+            code: String((r as Record<string, unknown>).code_client),
+            t: new Date(String((r as Record<string, unknown>).order_datetime)).getTime(),
+          })
+          matchMap.set(sid, list)
+        }
+      }
+
       const rows: Record<string, unknown>[] = []
       for (const c of arr) {
-        const rawId = c.id ?? c.customer_id ?? null
-        if (rawId === null || rawId === undefined || String(rawId).trim() === '') {
-          skippedNoId++
-          continue
+        let codeClient: string | null = null
+        for (const o of embeddedOrders(c)) {
+          const candidates = o.shortId ? matchMap.get(o.shortId) : undefined
+          if (!candidates || candidates.length === 0) continue
+          if (candidates.length === 1) {
+            codeClient = candidates[0].code
+            break
+          }
+          const target = o.createdAt ? new Date(o.createdAt).getTime() : NaN
+          const best = Number.isNaN(target)
+            ? candidates[0]
+            : candidates.reduce((a, b) => (Math.abs(a.t - target) <= Math.abs(b.t - target) ? a : b))
+          codeClient = best.code
+          break
         }
-        const codeClient = await hashClientKey(`id:${String(rawId).trim()}`)
         if (!codeClient) {
           skippedNoId++
           continue
