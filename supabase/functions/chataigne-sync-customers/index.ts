@@ -49,6 +49,23 @@ function consentOf(c: Record<string, unknown>): { status: string | null; changed
   return { status: null, changed: null }
 }
 
+/** Commandes embarquées d'un client (aucune PII lue) */
+function embeddedOrders(c: Record<string, unknown>): { shortId: string | null; createdAt: string | null }[] {
+  const o = c.orders as unknown
+  const arr: unknown[] = Array.isArray(o)
+    ? o
+    : o && typeof o === 'object' && Array.isArray((o as Record<string, unknown>).data)
+      ? ((o as Record<string, unknown>).data as unknown[])
+      : []
+  return arr.map((x) => {
+    const r = (x ?? {}) as Record<string, unknown>
+    return {
+      shortId: typeof r.short_id === 'string' && r.short_id.trim() ? r.short_id.trim() : null,
+      createdAt: ts(r.created_at),
+    }
+  })
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
