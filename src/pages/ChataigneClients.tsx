@@ -177,7 +177,18 @@ export default function ChataigneClients() {
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
 
-  const chainRestaurantIds = useMemo<string[]>(() => [], []);
+  const { data: restaurants } = useQuery({
+    queryKey: ["restaurants", selectedChainId],
+    queryFn: async () => {
+      let query = supabase.from("restaurants").select("id, name, city, is_pinned, is_active").order("name");
+      if (selectedChainId) query = query.eq("chain_id", selectedChainId);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const chainRestaurantIds = useMemo(() => restaurants?.map((r) => r.id) ?? [], [restaurants]);
 
   const restaurantFilter = useMemo<string[] | null | undefined>(() => {
     const resolved = resolveBrandScopedRestaurantIds({
