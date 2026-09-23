@@ -114,6 +114,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
   { id: "weekday", label: "Jours de la semaine", icon: CalendarDays, route: "/chataigne?tab=weekday" },
   { id: "service", label: "Emport vs Livraison", icon: Bike, route: "/chataigne?tab=service" },
   { id: "growth", label: "Croissance & Clients", icon: Users, route: "/chataigne/croissance" },
+  { id: "clients", label: "Clients & Segments", icon: Star, route: "/chataigne/clients" },
   { id: "referral", label: "Parrainage", icon: Gift, route: "/chataigne/parrainage" },
   { id: "pricing", label: "Écarts & Markup", icon: Tag, route: "/chataigne/tarification" },
   { id: "profitability", label: "Rentabilité", icon: Euro, route: "/chataigne/rentabilite" },
@@ -126,6 +127,7 @@ function channelFromPath(pathname: string, search: string): { channel: OverviewC
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
   if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
+  if (pathname.startsWith("/chataigne/clients")) return { channel: "chataigne", subId: "clients" };
   if (pathname.startsWith("/chataigne/parrainage")) return { channel: "chataigne", subId: "referral" };
   if (pathname.startsWith("/chataigne/tarification")) return { channel: "chataigne", subId: "pricing" };
   if (pathname.startsWith("/chataigne/rentabilite")) return { channel: "chataigne", subId: "profitability" };
