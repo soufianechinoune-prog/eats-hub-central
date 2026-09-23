@@ -66,6 +66,10 @@ Deno.serve(async (req) => {
     ? Math.max(1, Math.floor(body.max_pages as number))
     : 300
   const startAfter = typeof body?.starting_after === 'string' ? (body.starting_after as string) : null
+  // pages parcourues sans écriture, pour reprendre un import interrompu sans stocker de curseur
+  const skipPages = Number.isFinite(body?.skip_pages as number)
+    ? Math.max(0, Math.floor(body.skip_pages as number))
+    : 0
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
