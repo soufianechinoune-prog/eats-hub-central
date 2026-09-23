@@ -26,6 +26,7 @@ import {
   Users,
   CreditCard,
   Gift,
+  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
