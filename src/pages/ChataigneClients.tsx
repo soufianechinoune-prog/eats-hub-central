@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { format, parseISO } from "date-fns";
+import { addDays, format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -168,7 +168,8 @@ export default function ChataigneClients() {
   useEffect(() => {
     if (didInitPeriod.current) return;
     didInitPeriod.current = true;
-    setDateRange({ from: new Date(2026, 5, 1), to: new Date() });
+    // Par défaut : 30 derniers jours, arrêtés à la veille (la journée en cours est incomplète)
+    setDateRange({ from: addDays(new Date(), -30), to: addDays(new Date(), -1) });
     setPeriodMode("range");
   }, [setDateRange, setPeriodMode]);
 
