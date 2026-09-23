@@ -27,10 +27,14 @@ import {
   YAxis,
 } from "recharts";
 import {
+  BellOff,
+  BellRing,
   CalendarClock,
   Clock,
   Euro,
+  MessageCircle,
   Repeat,
+  ShieldCheck,
   ShoppingBag,
   Sparkles,
   Users,
@@ -43,6 +47,7 @@ import {
   resolveBrandScopedRestaurantIds,
 } from "@/lib/brandScope";
 import { useChataigneRfm, type RfmSegment } from "@/hooks/useChataigneRfm";
+import { useChataigneConsent } from "@/hooks/useChataigneConsent";
 import { cn } from "@/lib/utils";
 
 const fmtInt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
@@ -206,6 +211,10 @@ export default function ChataigneClients() {
   const rfmQ = useChataigneRfm(start, end, restaurantFilter);
   const isLoading = restaurantFilter === undefined || rfmQ.isLoading;
   const data = rfmQ.data;
+
+  const consentQ = useChataigneConsent(start, end, restaurantFilter);
+  const consent = consentQ.data;
+  const consentLoading = restaurantFilter === undefined || consentQ.isLoading;
 
   const chartData = useMemo(
     () =>
