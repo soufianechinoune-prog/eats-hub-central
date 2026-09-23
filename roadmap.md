@@ -17,9 +17,11 @@ Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organization
 - Ciblage des campagnes WhatsApp existantes par segment RFM.
 - Vue pilotage : taille des audiences, exclusions (rétractation, inactifs).
 
-## Étape 3 — Parrainage avancé & LTV
-- Brancher la vraie LTV par filleul (cohortes d'acquisition, CA cumulé post-acquisition).
-- Croiser filleuls ↔ clients API (récurrence, panier, fréquence post-acquisition).
+## Étape 3 — Parrainage avancé & LTV ✅
+- RPC `get_chataigne_referral_ltv(p_start, p_end, p_restaurant_ids)` (SECURITY DEFINER, anti-fan-out, TZ Paris) : cohortes mensuelles filleul / bienvenue / organique, CA et contribution cumulés par client, CAC de la cohorte, recul observé.
+- Bloc « Valeur cumulée par filleul » dans `/chataigne/parrainage` : courbes par cohorte + moyenne autres clients, ligne CAC moyen, tableau valeur/coût.
+- Contribution = encaissé − 1 € Chataigne − frais paiement (0,25 € + 1,5 %).
+
 
 ## Étape 4 — Mobilité inter-restaurants (Cross-Store)
 - Détecter les clients qui commandent dans plusieurs restaurants du réseau.
