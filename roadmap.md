@@ -2,10 +2,12 @@
 
 Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organizations/busorg_fJF9DesU33/customers` avec `include=orders`).
 
-## Étape 0 — Sonde de structure ✅ en cours
-- Sonde `chataigne-probe-customers` : inspecter le schéma réel (customers + orders imbriquées), pagination, champs disponibles. PII masquées.
+## Étape 0 — Sonde de structure ✅
+- Sonde `chataigne-probe-customers` : endpoint org `/v1/organizations/busorg_fJF9DesU33/customers` → 200, pagination (`object/data/has_more`), `completed_orders_count`, `marketing_consent` (opted_in/out + changed_at), commandes imbriquées complètes (items, discounts, fees, subtotal/total, status, short_id). PII masquées dans la sonde.
 
-## Étape 1 — Segmentation CRM & Rétention (Matrice RFM)
+## Étape 1 — Segmentation CRM & Rétention (Matrice RFM) ✅
+- RPC `get_chataigne_rfm(p_start, p_end, p_restaurant_ids)` (SECURITY DEFINER, `statement_timeout=30s`, agrégation anti-fan-out en un passage).
+- Écran `/chataigne/clients` « Clients & Segments » (KPIs, répartition segments Clients/CA, tableau détaillé, top 40 clients pseudonymisés). Période par défaut : 30 derniers jours arrêtés à la veille.
 - Récence / Fréquence / Montant par client (code_client haché, 100 % anonyme).
 - Segments : Champions, Fidèles, À risque, Dormants, Nouveaux…
 - Table `chataigne_customers` (snapshot sync) + RPC d'agrégation + écran dans Chataigne.
