@@ -148,6 +148,13 @@
       "when": 1790160403520,
       "tag": "0020_chataigne_referral_ltv",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790162098349,
+      "tag": "0021_chataigne_cross_store",
+      "breakpoints": true
     }
   ]
 }

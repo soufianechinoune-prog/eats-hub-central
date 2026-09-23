@@ -12955,6 +12955,10 @@ export type Database = {
         Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
         Returns: Json
       }
+      get_chataigne_cross_store: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: Json
+      }
       get_chataigne_customer_evolution: {
         Args: {
           p_end: string
