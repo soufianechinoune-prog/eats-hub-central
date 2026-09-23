@@ -180,3 +180,49 @@ export function useChataigneReferralSegments(
     retry: false,
   });
 }
+
+export interface ReferralLtvRow {
+  segment: string;
+  cohorte: string;
+  mois_offset: number;
+  taille_cohorte: number;
+  clients_actifs: number;
+  commandes: number;
+  ca_cumul_par_client: number;
+  contribution_cumul_par_client: number;
+  cac: number;
+  mois_observes: number;
+}
+
+export function useChataigneReferralLtv(
+  start: string,
+  end: string,
+  restaurantIds: RestaurantScope = null,
+  enabled = true
+) {
+  return useQuery({
+    queryKey: ["chataigne-referral-ltv", start, end, scopeKey(restaurantIds)],
+    queryFn: async (): Promise<ReferralLtvRow[]> => {
+      const { data, error } = await supabase.rpc("get_chataigne_referral_ltv" as never, {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantIds ?? null,
+      } as never);
+      if (error) throw error;
+      return ((data as unknown as ReferralLtvRow[] | null) ?? []).map((r) => ({
+        segment: String(r.segment),
+        cohorte: String(r.cohorte),
+        mois_offset: num(r.mois_offset),
+        taille_cohorte: num(r.taille_cohorte),
+        clients_actifs: num(r.clients_actifs),
+        commandes: num(r.commandes),
+        ca_cumul_par_client: num(r.ca_cumul_par_client),
+        contribution_cumul_par_client: num(r.contribution_cumul_par_client),
+        cac: num(r.cac),
+        mois_observes: num(r.mois_observes),
+      }));
+    },
+    enabled: enabled && restaurantIds !== undefined && !!start && !!end,
+    retry: false,
+  });
+}
