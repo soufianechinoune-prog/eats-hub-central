@@ -134,6 +134,13 @@
       "when": 1790152670756,
       "tag": "0018_drop_get_chataigne_rfm_debug",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790153580138,
+      "tag": "0019_chataigne_customers_consent",
+      "breakpoints": true
     }
   ]
 }
