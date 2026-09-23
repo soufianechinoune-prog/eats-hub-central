@@ -53,6 +53,7 @@ import {
 import type { GrowthGranularity } from "@/hooks/useChataigneGrowth";
 import {
   useChataigneReferralAcquisition,
+  useChataigneReferralLtv,
   useChataigneReferralPayback,
   useChataigneReferralRetention,
   useChataigneReferralSegments,
