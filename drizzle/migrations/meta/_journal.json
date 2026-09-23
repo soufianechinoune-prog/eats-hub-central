@@ -127,6 +127,13 @@
       "when": 1790152502913,
       "tag": "0017_fix_get_chataigne_rfm_performance",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1790152670756,
+      "tag": "0018_drop_get_chataigne_rfm_debug",
+      "breakpoints": true
     }
   ]
 }

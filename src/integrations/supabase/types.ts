@@ -13189,10 +13189,6 @@ export type Database = {
         Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
         Returns: Json
       }
-      get_chataigne_rfm_debug: {
-        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
-        Returns: Json
-      }
       get_chataigne_service_comparison: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {

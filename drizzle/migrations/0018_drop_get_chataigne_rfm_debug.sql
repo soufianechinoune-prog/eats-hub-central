@@ -1,0 +1,1 @@
+drop function if exists public.get_chataigne_rfm_debug(date, date, uuid[]);
