@@ -444,8 +444,86 @@ export default function ChataigneClients() {
             </Panel>
           )}
 
+          {/* Consentement marketing & audiences */}
+          {consentLoading ? (
+            <Skeleton className="h-[360px] rounded-2xl" />
+          ) : (
+            <Panel
+              title="Consentement marketing & audiences"
+              subtitle={
+                consent?.summary.snapshot_at
+                  ? `Base opt-in WhatsApp par segment · dernière synchronisation du ${fmtDateTime(consent.summary.snapshot_at)}`
+                  : "Base opt-in WhatsApp par segment. Aucune synchronisation de consentement pour l'instant."
+              }
+            >
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <KpiTile
+                  label="Audience joignable"
+                  value={fmtInt(consent?.summary.joignables_actifs ?? 0)}
+                  hint="clients opt-in ayant commandé sur la période"
+                  icon={MessageCircle}
+                />
+                <KpiTile
+                  label="Opt-in total"
+                  value={fmtInt(consent?.summary.opted_in ?? 0)}
+                  hint={`${fmtEur(consent?.summary.ca_opted_in ?? 0, 0)} de CA`}
+                  icon={BellRing}
+                />
+                <KpiTile
+                  label="Rétractations"
+                  value={fmtInt(consent?.summary.opted_out ?? 0)}
+                  hint="à exclure de toute campagne"
+                  icon={BellOff}
+                />
+                <KpiTile
+                  label="Couverture consentement"
+                  value={fmtPct(consent?.summary.couverture_pct ?? 0)}
+                  hint={`${fmtInt(consent?.summary.inconnu ?? 0)} statut(s) inconnu(s)`}
+                  icon={ShieldCheck}
+                />
+              </div>
+
+              <div className="mt-6 overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Segment</TableHead>
+                      <TableHead className="text-right">Clients</TableHead>
+                      <TableHead className="text-right">Opt-in (ciblables)</TableHead>
+                      <TableHead className="text-right">Rétractations</TableHead>
+                      <TableHead className="text-right">Statut inconnu</TableHead>
+                      <TableHead className="text-right">CA opt-in</TableHead>
+                      <TableHead className="text-right">Panier moyen</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(consent?.segments ?? []).map((row) => (
+                      <TableRow key={row.segment}>
+                        <TableCell>
+                          <SegmentBadge segment={row.segment} />
+                        </TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtInt(row.clients)}</TableCell>
+                        <TableCell className="text-right tabular-nums font-medium">{fmtInt(row.opted_in)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{fmtInt(row.opted_out)}</TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">{fmtInt(row.inconnu)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtEur(row.ca_opted_in, 0)}</TableCell>
+                        <TableCell className="text-right tabular-nums">{fmtEur(row.panier_moyen)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <p className="mt-4 text-xs text-muted-foreground">
+                Les rétractations et les statuts inconnus ne doivent jamais être sollicités. Comme
+                aucun numéro n'est conservé ici, l'envoi de la campagne se fait côté Chataigne : cet
+                écran sert à dimensionner l'audience (segment + opt-in) avant l'envoi.
+              </p>
+            </Panel>
+          )}
+
           <Badge variant="outline" className="w-fit">
-            Étape 2 (consentement marketing) et 3 (LTV par cohorte) arriveront sur cette même vue.
+            Étape 3 (LTV par cohorte) arrivera sur cette même vue.
           </Badge>
         </div>
       </ChannelNavShell>
