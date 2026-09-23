@@ -420,6 +420,7 @@ export default function ChataigneReferral() {
   const paybackQ = useChataigneReferralPayback(start, end, restaurantFilter);
   const segmentsQ = useChataigneReferralSegments(start, end, restaurantFilter);
   const retentionQ = useChataigneReferralRetention(start, end, restaurantFilter);
+  const ltvQ = useChataigneReferralLtv(start, end, restaurantFilter);
 
   const rows = acquisitionQ.data ?? [];
 
