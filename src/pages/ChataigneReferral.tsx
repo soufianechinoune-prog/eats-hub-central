@@ -1528,7 +1528,131 @@ export default function ChataigneReferral() {
                     </div>
                   )}
                 </Panel>
+
+                {/* 5. Valeur cumulée par cohorte (LTV) */}
+                <Panel
+                  title="Valeur cumulée par filleul (cohortes d'acquisition)"
+                  subtitle="Contribution encaissée par filleul, mois après mois, comparée au coût d'acquisition"
+                >
+                  {ltvQ.isLoading ? (
+                    <Skeleton className="h-[420px] w-full rounded-xl" />
+                  ) : !ltv.hasData ? (
+                    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed py-12 text-center">
+                      <Users className="h-8 w-8 text-muted-foreground/50" />
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        Aucun filleul acquis sur la période sélectionnée.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <ResponsiveContainer width="100%" height={420}>
+                        <LineChart data={ltv.points} margin={{ top: 20, right: 12, bottom: 0, left: -4 }}>
+                          <CartesianGrid strokeDasharray="4 6" vertical={false} className="stroke-border" opacity={0.4} />
+                          <XAxis
+                            dataKey="label"
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickMargin={10}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <YAxis
+                            tick={{ fontSize: 12, fill: "hsl(var(--muted-foreground))" }}
+                            tickFormatter={(v) => `${v} €`}
+                            width={64}
+                            axisLine={false}
+                            tickLine={false}
+                          />
+                          <RTooltip
+                            contentStyle={tooltipStyle}
+                            formatter={(v: number, n) => [
+                              fmtEur(Number(v)),
+                              n === "autres" ? "Autres clients (moyenne)" : `Cohorte ${cohortLabel(String(n))}`,
+                            ]}
+                          />
+                          <Legend
+                            verticalAlign="top"
+                            height={36}
+                            formatter={(v) => (v === "autres" ? "Autres clients (moyenne)" : cohortLabel(String(v)))}
+                          />
+                          <ReferenceLine
+                            y={ltv.cacMoy}
+                            stroke="hsl(0 84% 60%)"
+                            strokeDasharray="6 4"
+                            strokeWidth={1.5}
+                            label={{
+                              value: `Coût d'acquisition moyen ${fmtEur(ltv.cacMoy)}`,
+                              position: "insideTopRight",
+                              fontSize: 12,
+                              fill: "hsl(0 84% 60%)",
+                            }}
+                          />
+                          {ltv.cohortes.map((c, i) => (
+                            <Line
+                              key={c}
+                              type="monotone"
+                              dataKey={c}
+                              name={c}
+                              stroke={cohortColors[i % cohortColors.length]}
+                              strokeWidth={3}
+                              dot={{ r: 4, strokeWidth: 2, fill: "hsl(var(--card))" }}
+                              activeDot={{ r: 6 }}
+                              connectNulls={false}
+                            />
+                          ))}
+                          <Line
+                            type="monotone"
+                            dataKey="autres"
+                            name="autres"
+                            stroke="hsl(var(--muted-foreground))"
+                            strokeWidth={2}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            connectNulls={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                      <div className="overflow-x-auto rounded-xl border">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-muted/50 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                              <th className="px-4 py-3">Cohorte</th>
+                              <th className="px-4 py-3 text-right">Filleuls</th>
+                              <th className="px-4 py-3 text-right">Recul</th>
+                              <th className="px-4 py-3 text-right">CA / filleul</th>
+                              <th className="px-4 py-3 text-right">Valeur nette / filleul</th>
+                              <th className="px-4 py-3 text-right">Coût d'acquisition</th>
+                              <th className="px-4 py-3 text-right">Valeur / coût</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {ltv.table.map((t) => (
+                              <tr key={t.cohorte} className="border-t transition-colors hover:bg-muted/30">
+                                <td className="px-4 py-3 whitespace-nowrap font-medium">{cohortLabel(t.cohorte)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtInt(t.taille)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">M+{t.mois}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.ca)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.valeur)}</td>
+                                <td className="px-4 py-3 text-right tabular-nums">{fmtEur(t.cac)}</td>
+                                <td className="px-4 py-3 text-right">
+                                  <Badge variant={t.ratio >= 1 ? "default" : "secondary"} className="tabular-nums">
+                                    {t.ratio > 0 ? `${t.ratio.toFixed(2)} ×` : "—"}
+                                  </Badge>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Valeur nette = montant encaissé − 1 € Chataigne − frais de paiement (0,25 € + 1,5 %), cumulée depuis
+                        la première commande, divisée par le nombre de filleuls de la cohorte. Les cohortes récentes ont
+                        forcément moins de recul : le point s'arrête au dernier mois complet observé.
+                      </p>
+                    </div>
+                  )}
+                </Panel>
               </div>
+
             </>
           )}
 
