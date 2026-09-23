@@ -6922,6 +6922,53 @@ export type Database = {
           },
         ]
       }
+      chataigne_customers: {
+        Row: {
+          chain_id: string
+          code_client: string
+          completed_orders_count: number | null
+          created_at: string
+          language: string | null
+          marketing_consent_changed_at: string | null
+          marketing_consent_status: string | null
+          source_created_at: string | null
+          source_updated_at: string | null
+          synced_at: string
+        }
+        Insert: {
+          chain_id: string
+          code_client: string
+          completed_orders_count?: number | null
+          created_at?: string
+          language?: string | null
+          marketing_consent_changed_at?: string | null
+          marketing_consent_status?: string | null
+          source_created_at?: string | null
+          source_updated_at?: string | null
+          synced_at?: string
+        }
+        Update: {
+          chain_id?: string
+          code_client?: string
+          completed_orders_count?: number | null
+          created_at?: string
+          language?: string | null
+          marketing_consent_changed_at?: string | null
+          marketing_consent_status?: string | null
+          source_created_at?: string | null
+          source_updated_at?: string | null
+          synced_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_customers_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chataigne_daily_analytics: {
         Row: {
           average_order_value: number | null
@@ -12903,6 +12950,10 @@ export type Database = {
           taille_cohorte: number
           taux_pct: number
         }[]
+      }
+      get_chataigne_consent_audience: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: Json
       }
       get_chataigne_customer_evolution: {
         Args: {
