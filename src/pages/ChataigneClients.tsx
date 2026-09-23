@@ -59,6 +59,13 @@ const fmtEur = (v: number, digits = 2) =>
     minimumFractionDigits: digits,
   }).format(v || 0);
 const fmtPct = (v: number) => `${(v || 0).toFixed(1)} %`;
+const fmtDateTime = (iso: string) => {
+  try {
+    return format(parseISO(iso), "dd/MM/yyyy à HH:mm", { locale: fr });
+  } catch {
+    return "—";
+  }
+};
 
 const SEGMENT_COLORS: Record<string, string> = {
   Champions: "hsl(var(--chart-2))",
