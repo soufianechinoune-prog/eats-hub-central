@@ -261,6 +261,29 @@ export default function Chataigne() {
     retry: false,
   });
 
+  // Détection d'un « plongeon » : hier vs médiane des 7 jours précédents
+  const dropQ = useQuery({
+    queryKey: ["chataigne-drop-check", restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    enabled: restaurantFilter !== undefined,
+    retry: false,
+    queryFn: async () => {
+      const y = new Date(Date.now() - 86400000);
+      const s = new Date(Date.now() - 8 * 86400000);
+      const rows = await fetchDailyChataigne(format(s, "yyyy-MM-dd"), format(y, "yyyy-MM-dd"), restaurantFilter ?? null);
+      const byDay = new Map<string, number>();
+      for (const r of rows as unknown as { date: string; order_count?: number; commandes?: number }[]) {
+        byDay.set(r.date, (byDay.get(r.date) ?? 0) + (Number(r.order_count ?? r.commandes) || 0));
+      }
+      const yKey = format(y, "yyyy-MM-dd");
+      const prev = [...byDay.entries()].filter(([d]) => d < yKey).map(([, v]) => v).sort((a, b) => a - b);
+      if (prev.length < 3) return null;
+      const median = prev[Math.floor(prev.length / 2)];
+      const orders = byDay.get(yKey) ?? 0;
+      if (median < 20 || orders >= median * 0.5) return null;
+      return { date: yKey, orders, median, pct: Math.round((orders / median) * 100) };
+    },
+  });
+
   const chartData = useMemo(() => {
     if (bucket === "month") {
       return (monthlyQ.data ?? []).map((m) => ({
@@ -395,6 +418,23 @@ export default function Chataigne() {
             />
           </div>
         )}
+
+        {dropQ.data && (
+          <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
+            <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-destructive animate-pulse" />
+            <div>
+              <p className="font-semibold text-destructive">
+                Chute anormale le {format(parseISO(dropQ.data.date), "EEEE d MMMM", { locale: fr })}
+              </p>
+              <p className="text-muted-foreground">
+                {fmtInt(dropQ.data.orders)} commandes contre {fmtInt(dropQ.data.median)} en moyenne sur les 7 jours
+                précédents ({dropQ.data.pct} %). Il s'agit probablement de données pas encore synchronisées plutôt que
+                d'une vraie baisse d'activité.
+              </p>
+            </div>
+          </div>
+        )}
+
 
         <p className="text-xs text-muted-foreground">
           <MessageCircle className="mr-1 inline h-3.5 w-3.5 align-[-2px]" />
