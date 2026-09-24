@@ -42,6 +42,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Users as UsersIcon, Repeat as RepeatIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -204,6 +205,40 @@ export default function Chataigne() {
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
   const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
 
+  // Clients uniques & réguliers (≥2 commandes complétées sur la période, jours Paris)
+  const clientsQ = useQuery({
+    queryKey: ["chataigne-clients-kpi", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    enabled: restaurantFilter !== undefined,
+    queryFn: async () => {
+      const fromIso = new Date(`${start}T00:00:00`).toISOString();
+      const toIso = new Date(new Date(`${end}T00:00:00`).getTime() + 86400000).toISOString();
+      const counts = new Map<string, number>();
+      const PAGE = 1000;
+      for (let from = 0; ; from += PAGE) {
+        let q = supabase
+          .from("chataigne_orders")
+          .select("code_client")
+          .eq("status", "completed")
+          .gte("order_datetime", fromIso)
+          .lt("order_datetime", toIso)
+          .not("code_client", "is", null)
+          .order("id")
+          .range(from, from + PAGE - 1);
+        if (restaurantFilter) q = q.in("restaurant_id", restaurantFilter);
+        const { data, error } = await q;
+        if (error) throw error;
+        for (const r of data ?? []) {
+          const k = r.code_client as string;
+          counts.set(k, (counts.get(k) ?? 0) + 1);
+        }
+        if (!data || data.length < PAGE) break;
+      }
+      let reguliers = 0;
+      counts.forEach((n) => { if (n >= 2) reguliers++; });
+      return { clients: counts.size, reguliers };
+    },
+  });
+
   // Granularité du graphique d'évolution : auto selon la période, surchargeable
   const autoBucket: Bucket = periodDays <= 31 ? "day" : periodDays <= 93 ? "week" : "month";
   const [bucketOverride, setBucketOverride] = useState<Bucket | null>(null);
@@ -339,11 +374,25 @@ export default function Chataigne() {
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <KPICard title="Chiffre d'affaires brut" value={fmtEur(o?.ca_brut ?? 0)} icon={Euro} />
             <KPICard title="Commandes" value={fmtInt(o?.commandes ?? 0)} icon={ShoppingBag} />
             <KPICard title="Panier moyen" value={fmtEur(o?.panier_moyen ?? 0, 2)} icon={Wallet} />
             <KPICard title="Restaurants actifs" value={fmtInt(o?.restos_actifs ?? 0)} icon={Store} />
+            <KPICard
+              title="Clients uniques"
+              value={clientsQ.data ? fmtInt(clientsQ.data.clients) : "…"}
+              icon={UsersIcon}
+            />
+            <KPICard
+              title="Clients réguliers (2+ commandes)"
+              value={
+                clientsQ.data
+                  ? `${fmtInt(clientsQ.data.reguliers)} · ${clientsQ.data.clients ? Math.round((clientsQ.data.reguliers / clientsQ.data.clients) * 100) : 0} %`
+                  : "…"
+              }
+              icon={RepeatIcon}
+            />
           </div>
         )}
 
