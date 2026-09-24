@@ -28,7 +28,8 @@ Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organization
 - Page `/chataigne/mobilite` « Mobilité inter-restos » : KPIs nomades (clients, CA, panier, fréquence), répartition par profil (Clients/CA), paires les plus liées, restaurants carrefours.
 - Période par défaut : 90 derniers jours arrêtés à la veille.
 
-## Étape 5 — Optimisation technique de la synchronisation
+## Étape 5 — Optimisation technique de la synchronisation ✅
+- Crons quotidiens : analytics 03:00 UTC, commandes incrémentales (3 j) 03:15 UTC, clients + consentements 04:00 UTC.
 - Pipeline sync customers/orders : pagination, rate limits, incrémental (updated_at), anti-fan-out.
 - Tables : `chataigne_customers`, `chataigne_customer_orders` (agrégée, jamais ligne-à-ligne en UI).
 
