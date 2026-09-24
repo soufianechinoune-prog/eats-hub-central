@@ -77,7 +77,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
   const [tempYear, setTempYear] = useState(selectedYear);
   
   const derivedTab = useMemo(() => {
-    if (["previous_week", "7d", "30d", "current_month"].includes(periodMode)) {
+    if (["yesterday", "previous_week", "7d", "30d", "current_month"].includes(periodMode)) {
       return "quick";
     }
     return periodMode;
@@ -228,12 +228,16 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
   };
 
 
-  const handleQuickSelect = (mode: "previous_week" | "7d" | "30d" | "current_month") => {
+  const handleQuickSelect = (mode: "yesterday" | "previous_week" | "7d" | "30d" | "current_month") => {
     const today = new Date();
     let from: Date;
     let to: Date;
 
     switch (mode) {
+      case "yesterday":
+        from = subDays(today, 1);
+        to = subDays(today, 1);
+        break;
       case "previous_week":
         const lastWeek = subWeeks(today, 1);
         from = startOfWeek(lastWeek, { weekStartsOn: 1 });
@@ -259,6 +263,8 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
 
   const getPeriodDisplayText = () => {
     switch (periodMode) {
+      case "yesterday":
+        return "Hier";
       case "previous_week":
         return "Semaine précédente";
       case "7d":
@@ -289,6 +295,7 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
   };
 
   const showResetButton = periodMode === "month" || 
+    periodMode === "yesterday" || 
     periodMode === "previous_week" || 
     periodMode === "7d" || 
     periodMode === "30d" || 
@@ -473,6 +480,18 @@ export function AnalyticsHeader({ hidePeriodSelector = false, hideFilters = fals
 
                 <TabsContent value="quick" className="p-5 mt-0">
                   <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "h-11 text-sm font-medium rounded-lg transition-all",
+                        periodMode === "yesterday"
+                          ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90 hover:text-primary-foreground"
+                          : "hover:bg-muted hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => handleQuickSelect("yesterday")}
+                    >
+                      Hier
+                    </Button>
                     <Button
                       variant="outline"
                       className={cn(

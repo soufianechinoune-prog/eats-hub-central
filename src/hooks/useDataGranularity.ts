@@ -42,7 +42,11 @@ export function useDataGranularity({
       date > yesterday ? (yesterday >= from ? yesterday : date) : date;
 
     // Handle quick period modes
-    if (periodMode === "previous_week") {
+    if (periodMode === "yesterday") {
+      startDate = yesterday;
+      endDate = yesterday;
+      periodDays = 1;
+    } else if (periodMode === "previous_week") {
       const lastWeek = subWeeks(today, 1);
       startDate = startOfWeek(lastWeek, { weekStartsOn: 1 });
       endDate = endOfWeek(lastWeek, { weekStartsOn: 1 });
