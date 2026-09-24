@@ -175,12 +175,71 @@ Deno.serve(async (req) => {
     }
 
     const total = (mappings ?? []).length
+
+    // Repli : si l'API analytics refuse l'accès (403), on reconstruit les
+    // agrégats journaliers depuis les commandes déjà synchronisées.
+    let fallbackUsed = false
+    const forbidden = errors.filter((e) => e.error === 'HTTP 403').map((e) => e.location)
+    if (forbidden.length > 0) {
+      fallbackUsed = true
+      const mapByLoc = new Map((mappings ?? []).map((m) => [m.chataigne_location_id as string, m]))
+      const agg = new Map<string, { loc: string; day: string; gross: number; count: number }>()
+      const PAGE = 1000
+      for (let p = 0; ; p += PAGE) {
+        const { data, error } = await supabase
+          .from('chataigne_orders')
+          .select('chataigne_location_id, order_datetime, total_amount')
+          .eq('status', 'completed')
+          .in('chataigne_location_id', forbidden)
+          .gte('order_datetime', from.toISOString())
+          .lte('order_datetime', to.toISOString())
+          .order('id')
+          .range(p, p + PAGE - 1)
+        if (error) throw error
+        for (const o of data ?? []) {
+          if (!o.order_datetime) continue
+          const day = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date(o.order_datetime))
+          const k = `${o.chataigne_location_id}|${day}`
+          const e = agg.get(k) ?? { loc: o.chataigne_location_id, day, gross: 0, count: 0 }
+          e.gross += Number(o.total_amount) || 0
+          e.count += 1
+          agg.set(k, e)
+        }
+        if (!data || data.length < PAGE) break
+      }
+      const rows = [...agg.values()].map((v) => {
+        const m = mapByLoc.get(v.loc)!
+        return {
+          chain_id: m.chain_id ?? CHAIN_ID,
+          restaurant_id: m.restaurant_id,
+          chataigne_location_id: v.loc,
+          date: v.day,
+          service_type: 'all',
+          currency: m.currency,
+          gross_order_value: Math.round(v.gross * 100) / 100,
+          average_order_value: v.count ? Math.round((v.gross / v.count) * 100) / 100 : null,
+          order_count: v.count,
+          updated_at: new Date().toISOString(),
+        }
+      })
+      for (let i = 0; i < rows.length; i += 500) {
+        const { error } = await supabase
+          .from('chataigne_daily_analytics')
+          .upsert(rows.slice(i, i + 500), { onConflict: 'chataigne_location_id,date,service_type' })
+        if (error) throw error
+        rowsUpserted += Math.min(500, rows.length - i)
+      }
+      processed += new Set(rows.map((r) => r.chataigne_location_id)).size
+    }
+
     const status = total > 0 && processed === 0 ? 'failed' : 'done'
     await finish(
       status,
       processed,
       rowsUpserted,
-      failed > 0 ? `${failed} location(s) en erreur` : null,
+      fallbackUsed
+        ? `API analytics refusée (403) — agrégats reconstruits depuis les commandes`
+        : failed > 0 ? `${failed} location(s) en erreur` : null,
     )
 
     return json({
