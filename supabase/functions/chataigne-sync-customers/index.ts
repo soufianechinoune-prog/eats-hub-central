@@ -247,7 +247,9 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
+      brand: brandKey,
       pages,
+
       customers_fetched: fetched,
       customers_upserted: upserted,
       skipped_without_id: skippedNoId,
