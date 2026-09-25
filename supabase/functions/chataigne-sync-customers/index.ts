@@ -2,8 +2,20 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BASE = 'https://server.chataigne.ai/v1'
-const ORG_ID = 'busorg_fJF9DesU33'
-const CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
+
+const BRANDS = {
+  chicken_street: {
+    orgId: 'busorg_fJF9DesU33',
+    chainId: '110e05b8-5136-45cc-a385-265360104844',
+    keyEnv: 'CHATAIGNE_API_KEY',
+  },
+  tasty_crousty: {
+    orgId: 'busorg_gJbsiqEWr2',
+    chainId: 'ce67f809-d017-41c5-8bd0-a98086cd3881',
+    keyEnv: 'CHATAIGNE_API_KEY_TASTY_CROUSTY',
+  },
+} as const
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
