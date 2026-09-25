@@ -5,6 +5,9 @@
 - [x] Créer inactifs les sept restaurants non encore ouverts et Créteil Soleil, puis rattacher leurs points de vente Chataigne respectifs. Créteil 2 reste distinct (dark kitchen).
 - [x] Rattacher Rennes Colombier (rue d’Isly) à la fiche Rennes Isly ; Rennes Ville Jean reste sur Tasty Crousty Rennes.
 - [ ] Confirmer si les historiques Uber « Colombier » et caisse « Rennes Isly » doivent être réunis dans une seule fiche avant toute fusion de données.
+- [x] Synchros Chataigne multi-enseignes : commandes + clients Tasty Crousty (148 clients, 139 opt-in) et crons quotidiens dédiés (commandes 03:25 UTC, clients 04:30 UTC).
+- [ ] Vérifier si la permission analytics existe sur la clé Tasty Crousty (refusée côté Chicken Street) avant d'ajouter un cron analytics.
+
 
 Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organizations/busorg_fJF9DesU33/customers` avec `include=orders`).
 
