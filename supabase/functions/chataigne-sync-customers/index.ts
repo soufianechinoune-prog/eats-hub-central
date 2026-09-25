@@ -171,8 +171,10 @@ Deno.serve(async (req) => {
         const { data: ordRows, error: ordErr } = await supabase
           .from('chataigne_orders')
           .select('short_id, code_client, order_datetime')
+          .eq('chain_id', CHAIN_ID)
           .in('short_id', [...shortIds])
           .not('code_client', 'is', null)
+
         if (ordErr) throw ordErr
         for (const r of ordRows ?? []) {
           const sid = String((r as Record<string, unknown>).short_id ?? '')
