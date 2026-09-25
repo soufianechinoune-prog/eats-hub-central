@@ -57,6 +57,7 @@ import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersA
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
 import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServiceComparison";
+import { ChataigneServiceRecurrence } from "@/components/chataigne/ChataigneServiceRecurrence";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
@@ -503,6 +504,7 @@ export default function Chataigne() {
                 end={end}
                 restaurantIds={restaurantFilter}
               />
+              <ChataigneServiceRecurrence start={start} end={end} restaurantIds={restaurantFilter} />
             </TabsContent>
 
 

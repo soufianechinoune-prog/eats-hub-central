@@ -13273,6 +13273,10 @@ export type Database = {
           service_type: string
         }[]
       }
+      get_chataigne_service_recurrence: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: Json
+      }
       get_daily_chataigne: {
         Args: {
           p_end_date: string
