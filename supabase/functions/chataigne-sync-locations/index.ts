@@ -2,8 +2,21 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BASE = 'https://server.chataigne.ai/v1'
-const ORG_ID = 'busorg_fJF9DesU33'
-const CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
+
+const BRANDS = {
+  chicken_street: {
+    ORG_ID: 'busorg_fJF9DesU33',
+    CHAIN_ID: '110e05b8-5136-45cc-a385-265360104844',
+    KEY_ENV: 'CHATAIGNE_API_KEY',
+    STOP: ['chicken street', 'chickenstreet', 'original by chicken street', 'cs original', 'original', 'cs'],
+  },
+  tasty_crousty: {
+    ORG_ID: 'busorg_gJbsiqEWr2',
+    CHAIN_ID: 'ce67f809-d017-41c5-8bd0-a98086cd3881',
+    KEY_ENV: 'CHATAIGNE_API_KEY_TASTY_CROUSTY',
+    STOP: ['tasty crousty', 'tastycrousty', 'tasty', 'crousty', 'tc'],
+  },
+} as const
 
 const strip = (s: string) =>
   s
@@ -12,23 +25,6 @@ const strip = (s: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
-
-const STOP = [
-  'chicken street',
-  'chickenstreet',
-  'original by chicken street',
-  'cs original',
-  'original',
-  'cs',
-]
-
-const normalizeLabel = (s: string) => {
-  let v = strip(s)
-  for (const w of STOP) {
-    v = v.replace(new RegExp(`\\b${w}\\b`, 'g'), ' ')
-  }
-  return v.replace(/\s+/g, ' ').trim()
-}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -39,7 +35,17 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
 
-  const key = Deno.env.get('CHATAIGNE_API_KEY')
+  let reqBody: any = {}
+  try { reqBody = await req.json() } catch { reqBody = {} }
+  const brand = reqBody?.brand === 'tasty_crousty' ? 'tasty_crousty' : 'chicken_street'
+  const { ORG_ID, CHAIN_ID, KEY_ENV, STOP } = BRANDS[brand]
+  const normalizeLabel = (s: string) => {
+    let v = strip(s)
+    for (const w of STOP) v = v.replace(new RegExp(`\\b${w}\\b`, 'g'), ' ')
+    return v.replace(/\s+/g, ' ').trim()
+  }
+
+  const key = Deno.env.get(KEY_ENV)
   if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
 
   const supabase = createClient(
