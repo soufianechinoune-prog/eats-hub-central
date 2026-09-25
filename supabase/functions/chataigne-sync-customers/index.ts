@@ -2,8 +2,20 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BASE = 'https://server.chataigne.ai/v1'
-const ORG_ID = 'busorg_fJF9DesU33'
-const CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
+
+const BRANDS = {
+  chicken_street: {
+    orgId: 'busorg_fJF9DesU33',
+    chainId: '110e05b8-5136-45cc-a385-265360104844',
+    keyEnv: 'CHATAIGNE_API_KEY',
+  },
+  tasty_crousty: {
+    orgId: 'busorg_gJbsiqEWr2',
+    chainId: 'ce67f809-d017-41c5-8bd0-a98086cd3881',
+    keyEnv: 'CHATAIGNE_API_KEY_TASTY_CROUSTY',
+  },
+} as const
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -69,8 +81,6 @@ function embeddedOrders(c: Record<string, unknown>): { shortId: string | null; c
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const key = Deno.env.get('CHATAIGNE_API_KEY')
-  if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
   if (!HASH_SALT) return json({ ok: false, reason: 'missing_hash_salt' }, 200)
 
   let body: Record<string, unknown> = {}
@@ -79,6 +89,17 @@ Deno.serve(async (req) => {
   } catch {
     body = {}
   }
+
+  const brandKey = typeof body?.brand === 'string' && body.brand === 'tasty_crousty'
+    ? 'tasty_crousty'
+    : 'chicken_street'
+  const BRAND = BRANDS[brandKey]
+  const ORG_ID = BRAND.orgId
+  const CHAIN_ID = BRAND.chainId
+
+  const key = Deno.env.get(BRAND.keyEnv)
+  if (!key) return json({ ok: false, reason: 'missing_key', brand: brandKey }, 200)
+
   const maxPages = Number.isFinite(body?.max_pages as number)
     ? Math.max(1, Math.floor(body.max_pages as number))
     : 300
@@ -87,6 +108,7 @@ Deno.serve(async (req) => {
   const skipPages = Number.isFinite(body?.skip_pages as number)
     ? Math.max(0, Math.floor(body.skip_pages as number))
     : 0
+
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -149,8 +171,10 @@ Deno.serve(async (req) => {
         const { data: ordRows, error: ordErr } = await supabase
           .from('chataigne_orders')
           .select('short_id, code_client, order_datetime')
+          .eq('chain_id', CHAIN_ID)
           .in('short_id', [...shortIds])
           .not('code_client', 'is', null)
+
         if (ordErr) throw ordErr
         for (const r of ordRows ?? []) {
           const sid = String((r as Record<string, unknown>).short_id ?? '')
@@ -223,7 +247,9 @@ Deno.serve(async (req) => {
 
     return json({
       ok: true,
+      brand: brandKey,
       pages,
+
       customers_fetched: fetched,
       customers_upserted: upserted,
       skipped_without_id: skippedNoId,
