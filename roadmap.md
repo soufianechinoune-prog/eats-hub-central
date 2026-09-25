@@ -1,5 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Rattachements Tasty Crousty
+- [x] Valider et rattacher les 14 points de vente confirmés par l'utilisateur (Marseille ×4, Toulouse ×2, Bordeaux ×2, Rennes Ville Jean, Villeurbanne, Paris ×2, Créteil, Mantes).
+- [ ] Attendre validation des autres points de vente non rattachés avant toute association.
+
 Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organizations/busorg_fJF9DesU33/customers` avec `include=orders`).
 
 ## Étape 0 — Sonde de structure ✅

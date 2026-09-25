@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
       }
     }).filter((r) => !!r.chataigne_location_id)
 
-    // Preserve existing manual matches: don't overwrite an existing restaurant_id with null
+    // Human-confirmed matches always take precedence over automatic name matching.
     const { data: existing } = await supabase
       .from('chataigne_location_mapping')
       .select('chataigne_location_id, restaurant_id, match_method, matched_at')
@@ -168,7 +168,7 @@ Deno.serve(async (req) => {
 
     for (const row of rows) {
       const prev = existingMap.get(row.chataigne_location_id)
-      if (prev?.restaurant_id && !row.restaurant_id) {
+      if (prev?.restaurant_id && (prev.match_method === 'manual' || !row.restaurant_id)) {
         row.restaurant_id = prev.restaurant_id
         row.match_method = prev.match_method
         row.matched_at = prev.matched_at

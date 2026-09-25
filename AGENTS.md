@@ -1,0 +1,1 @@
+Chataigne: les correspondances de restaurants confirmées manuellement priment sur la détection automatique lors des synchronisations de points de vente, pour éviter leur écrasement.
