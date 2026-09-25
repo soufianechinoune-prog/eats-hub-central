@@ -81,8 +81,6 @@ function embeddedOrders(c: Record<string, unknown>): { shortId: string | null; c
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const key = Deno.env.get('CHATAIGNE_API_KEY')
-  if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
   if (!HASH_SALT) return json({ ok: false, reason: 'missing_hash_salt' }, 200)
 
   let body: Record<string, unknown> = {}
@@ -91,6 +89,17 @@ Deno.serve(async (req) => {
   } catch {
     body = {}
   }
+
+  const brandKey = typeof body?.brand === 'string' && body.brand === 'tasty_crousty'
+    ? 'tasty_crousty'
+    : 'chicken_street'
+  const BRAND = BRANDS[brandKey]
+  const ORG_ID = BRAND.orgId
+  const CHAIN_ID = BRAND.chainId
+
+  const key = Deno.env.get(BRAND.keyEnv)
+  if (!key) return json({ ok: false, reason: 'missing_key', brand: brandKey }, 200)
+
   const maxPages = Number.isFinite(body?.max_pages as number)
     ? Math.max(1, Math.floor(body.max_pages as number))
     : 300
@@ -99,6 +108,7 @@ Deno.serve(async (req) => {
   const skipPages = Number.isFinite(body?.skip_pages as number)
     ? Math.max(0, Math.floor(body.skip_pages as number))
     : 0
+
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
