@@ -2,7 +2,8 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const BASE = 'https://server.chataigne.ai'
-const CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
+const CS_CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
+const TC_CHAIN_ID = 'ce67f809-d017-41c5-8bd0-a98086cd3881'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -218,15 +219,16 @@ function flattenItems(items: unknown, currencyFallback: string | null): FlatItem
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const key = Deno.env.get('CHATAIGNE_API_KEY')
-  if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
-
   let body: any = {}
   try {
     body = await req.json()
   } catch {
     body = {}
   }
+  const isTasty = body?.brand === 'tasty_crousty'
+  const CHAIN_ID = isTasty ? TC_CHAIN_ID : CS_CHAIN_ID
+  const key = Deno.env.get(isTasty ? 'CHATAIGNE_API_KEY_TASTY_CROUSTY' : 'CHATAIGNE_API_KEY')
+  if (!key) return json({ ok: false, reason: 'missing_key' }, 200)
 
   const mode: 'test' | 'backfill' | 'incremental' | 'rehash' =
     body?.mode === 'test' || body?.mode === 'backfill' || body?.mode === 'rehash' ? body.mode : 'incremental'
@@ -290,6 +292,8 @@ Deno.serve(async (req) => {
     let q = supabase
       .from('chataigne_location_mapping')
       .select('chataigne_location_id, restaurant_id, chain_id, currency')
+      .eq('chain_id', CHAIN_ID)
+      .not('restaurant_id', 'is', null)
       .order('chataigne_location_id', { ascending: true })
     if (locationFilter) q = q.eq('chataigne_location_id', locationFilter)
     else if (batchLimit) q = q.range(offset, offset + batchLimit - 1)
