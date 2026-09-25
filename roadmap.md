@@ -2,7 +2,9 @@
 
 ## Rattachements Tasty Crousty
 - [x] Valider et rattacher les 14 points de vente confirmés par l'utilisateur (Marseille ×4, Toulouse ×2, Bordeaux ×2, Rennes Ville Jean, Villeurbanne, Paris ×2, Créteil, Mantes).
-- [ ] Attendre validation des autres points de vente non rattachés avant toute association.
+- [x] Créer inactifs les sept restaurants non encore ouverts et Créteil Soleil, puis rattacher leurs points de vente Chataigne respectifs. Créteil 2 reste distinct (dark kitchen).
+- [x] Rattacher Rennes Colombier (rue d’Isly) à la fiche Rennes Isly ; Rennes Ville Jean reste sur Tasty Crousty Rennes.
+- [ ] Confirmer si les historiques Uber « Colombier » et caisse « Rennes Isly » doivent être réunis dans une seule fiche avant toute fusion de données.
 
 Base : nouvelle clé API avec permission `customers` (endpoint `/v1/organizations/busorg_fJF9DesU33/customers` avec `include=orders`).
 
