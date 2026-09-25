@@ -35,6 +35,7 @@ import {
 import {
   ArrowDown,
   ArrowUp,
+  Bike,
   Euro,
   MessageCircle,
   ShoppingBag,
@@ -64,6 +65,7 @@ import {
   useChataigneByRestaurant,
   useChataigneMonthly,
   useChataigneOverview,
+  useChataigneServiceComparison,
   type ChataigneRestaurant,
 } from "@/hooks/useChataigne";
 
@@ -204,6 +206,27 @@ export default function Chataigne() {
   const overviewQ = useChataigneOverview(start, end, restaurantFilter);
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
   const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
+  const serviceQ = useChataigneServiceComparison(start, end, restaurantFilter);
+
+  const serviceBaskets = useMemo(() => {
+    const totals = (serviceQ.data ?? []).reduce(
+      (acc, row) => {
+        const key = row.service_type === "delivery" ? "delivery" : row.service_type === "collection" ? "collection" : null;
+        if (!key) return acc;
+        acc[key].orders += row.orders;
+        acc[key].revenue += row.revenue;
+        return acc;
+      },
+      {
+        delivery: { orders: 0, revenue: 0 },
+        collection: { orders: 0, revenue: 0 },
+      }
+    );
+    return {
+      delivery: totals.delivery.orders > 0 ? totals.delivery.revenue / totals.delivery.orders : 0,
+      collection: totals.collection.orders > 0 ? totals.collection.revenue / totals.collection.orders : 0,
+    };
+  }, [serviceQ.data]);
 
   // Clients uniques & réguliers (≥2 commandes complétées sur la période, jours Paris)
   const clientsQ = useQuery({
@@ -397,10 +420,19 @@ export default function Chataigne() {
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <KPICard title="Chiffre d'affaires brut" value={fmtEur(o?.ca_brut ?? 0)} icon={Euro} />
             <KPICard title="Commandes" value={fmtInt(o?.commandes ?? 0)} icon={ShoppingBag} />
-            <KPICard title="Panier moyen" value={fmtEur(o?.panier_moyen ?? 0, 2)} icon={Wallet} />
+            <KPICard
+              title="Panier moyen · Livraison"
+              value={serviceQ.isLoading ? "…" : fmtEur(serviceBaskets.delivery, 2)}
+              icon={Bike}
+            />
+            <KPICard
+              title="Panier moyen · Emport"
+              value={serviceQ.isLoading ? "…" : fmtEur(serviceBaskets.collection, 2)}
+              icon={Wallet}
+            />
             <KPICard title="Restaurants actifs" value={fmtInt(o?.restos_actifs ?? 0)} icon={Store} />
             <KPICard
               title="Clients uniques"
