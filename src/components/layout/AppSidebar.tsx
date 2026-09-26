@@ -175,11 +175,6 @@ const analysisItems = [
     icon: Megaphone,
   },
   {
-    title: "Cartographie",
-    url: "/cartography",
-    icon: Map,
-  },
-  {
     title: "Opérations",
     url: "/operations",
     icon: Settings2,
