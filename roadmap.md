@@ -48,3 +48,4 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Supprimer « Saisie de données » (pages saisie/revenus/conversion/frais + liens).
 - [x] Supprimer « Checklist Imports » (page + route + entrée de menu) — plus de sens depuis les API.
 - [ ] Remplacer la checklist par un écran adapté aux rapports : suivi de ce qui est à jour / en retard par rapport (Uber, Deliveroo, caisse, Dishop, Chataigne), et réintroduire les imports ponctuels le jour où d'autres sources que les API arrivent.
+- [x] Supprimer « Marketing Analytics » (entrée de menu, route `/marketing-analytics`, page, composants `components/marketing/`, hooks `useMarketingCampaigns` / `useOfferProfitability` / `useOfferMatchedOrders`). L'import « Campagnes Marketing » dans Import Rapports est conservé.
