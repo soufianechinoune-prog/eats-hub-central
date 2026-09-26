@@ -243,8 +243,9 @@ const Restaurants = () => {
             break;
           }
           case "uber_opening_date":
-            aVal = (a as any).uber_opening_date || "";
-            bVal = (b as any).uber_opening_date || "";
+            aVal = getEffectiveOpeningDate(a as any).date || "";
+            bVal = getEffectiveOpeningDate(b as any).date || "";
+
             break;
           case "uber_api": {
             const rank = (x: typeof a) =>
