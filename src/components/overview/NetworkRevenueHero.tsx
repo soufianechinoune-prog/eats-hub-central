@@ -101,6 +101,8 @@ export interface NetworkRevenueHeroProps {
   isLoading: boolean;
   /** Variation du CA total vs N-1 (même période), null si indisponible */
   variation: number | null;
+  /** CA total de la période N-1 (même périmètre que la variation), null si indisponible */
+  previousTotal?: number | null;
   cash: number | null;
   uber: number;
   deliveroo: number;
@@ -122,6 +124,7 @@ export interface NetworkRevenueHeroProps {
 export function NetworkRevenueHero({
   isLoading,
   variation,
+  previousTotal = null,
   cash,
   uber,
   deliveroo,
@@ -212,8 +215,13 @@ export function NetworkRevenueHero({
                   ) : (
                     <TrendingDown className="h-3 w-3" />
                   )}
-                  {variation > 0 ? "+" : ""}
+              {variation > 0 ? "+" : ""}
                   {variation.toFixed(1).replace(".", ",")} %
+                </span>
+              )}
+              {previousTotal != null && previousTotal > 0 && (
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                  vs {fmtEur(previousTotal)} (N-1)
                 </span>
               )}
             </div>

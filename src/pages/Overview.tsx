@@ -536,11 +536,13 @@ const Overview = () => {
   // que les restaurants comparables, sur N comme sur N-1.
   const isConstantScope = analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
-  const constantVariation = useMemo(() => {
+  // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
+  // sous la barre, quel que soit le périmètre).
+  const constantTotals = useMemo(() => {
     const vals = Object.values(channelComparisons);
     const cur = vals.reduce((s, c) => s + (c?.current ?? 0), 0);
     const prev = vals.reduce((s, c) => s + (c?.previous ?? 0), 0);
-    return prev > 0 ? ((cur - prev) / prev) * 100 : null;
+    return { variation: prev > 0 ? ((cur - prev) / prev) * 100 : null, previous: prev > 0 ? prev : null };
   }, [channelComparisons]);
   const scopedStats = useMemo(
     () => (isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats),
@@ -1169,7 +1171,8 @@ const Overview = () => {
           <div className="mt-10 space-y-4">
             <NetworkRevenueHero
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
-              variation={isConstantScope ? constantVariation : networkTotals.revenueVariation ?? null}
+              variation={isConstantScope ? constantTotals.variation : networkTotals.revenueVariation ?? null}
+              previousTotal={constantTotals.previous}
               cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
               deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
