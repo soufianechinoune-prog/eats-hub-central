@@ -4,6 +4,9 @@
 - [x] Ajouter la saisie par restaurant et par canal (Uber Eats, Deliveroo, Dishop, Châtaigne) avec comparatif caisse et médianes réseau.
 - [x] Permettre l'import Excel ciblé sur un ou plusieurs canaux, avec aperçu des restaurants reconnus avant confirmation.
 
+## Identité des enseignes
+- [x] N'afficher le nom de l'enseigne qu'une fois, dans le sélecteur de chaîne, avec son logo lorsqu'il est configuré.
+
 ## Rattachements Tasty Crousty
 - [x] Valider et rattacher les 14 points de vente confirmés par l'utilisateur (Marseille ×4, Toulouse ×2, Bordeaux ×2, Rennes Ville Jean, Villeurbanne, Paris ×2, Créteil, Mantes).
 - [x] Créer inactifs les sept restaurants non encore ouverts et Créteil Soleil, puis rattacher leurs points de vente Chataigne respectifs. Créteil 2 reste distinct (dark kitchen).

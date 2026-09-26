@@ -47,14 +47,18 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         <main className="flex-1 min-w-0 bg-background">
           <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-card px-6 shadow-sm">
             {!isReportsManager && <SidebarTrigger className="mr-4" />}
-            <div className="flex items-center gap-3 flex-1">
-              {chainLogoUrl ? (
-                <img src={chainLogoUrl} alt={displayName} className="h-9 w-9 rounded-md object-cover" />
-              ) : !selectedChainId ? (
-                <img src={csLogo} alt="CS Delivery Performance" className="h-10 w-10 rounded-full object-cover" />
-              ) : null}
-              <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
-            </div>
+            {isReportsManager ? (
+              <div className="flex flex-1 items-center gap-3">
+                {chainLogoUrl ? (
+                  <img src={chainLogoUrl} alt={displayName} className="h-9 w-9 rounded-md object-cover" />
+                ) : !selectedChainId ? (
+                  <img src={csLogo} alt="CS Delivery Performance" className="h-10 w-10 rounded-full object-cover" />
+                ) : null}
+                <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
+              </div>
+            ) : (
+              <div className="flex-1" />
+            )}
             {isReportsManager ? (
               <Button variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); window.location.href = "/login"; }}>
                 <LogOut className="h-4 w-4 mr-2" /> Déconnexion
