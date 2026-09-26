@@ -27,6 +27,8 @@ import {
   CreditCard,
   Gift,
   Network,
+  RotateCcw,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -80,6 +82,7 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
   { id: "items", label: "Ventes Articles", icon: ShoppingBag, route: "/item-sales" },
   { id: "conversion", label: "Conversion", icon: TrendingUp, route: "/analytics/conversion" },
   { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
+  { id: "refunds", label: "Remboursements", icon: RotateCcw, route: "/analytics/refunds" },
   { id: "offers", label: "Offres & Frais", icon: Tag, route: "/analytics/offers" },
   { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
   { id: "reviews", label: "Avis", icon: Star, route: "/analytics/reviews" },
@@ -122,7 +125,24 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
 ];
 
 /** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
-function channelFromPath(pathname: string, search: string): { channel: OverviewChannel; subId: string } | null {
+function channelFromPath(
+  pathname: string,
+  search: string,
+  platform?: string,
+): { channel: OverviewChannel; subId: string } | null {
+  if (pathname === "/overview") {
+    const ch = new URLSearchParams(search).get("channel") as OverviewChannel | null;
+    if (ch === "uber-tr") return { channel: "uber-tr", subId: "titres-restaurant" };
+    if (ch && ["uber", "deliveroo", "cash", "dishop", "chataigne"].includes(ch)) return { channel: ch, subId: "synthese" };
+    return { channel: "global", subId: "network" };
+  }
+  if (pathname === "/live") return { channel: "global", subId: "live" };
+  if (platform === "deliveroo") {
+    const d = DELIVEROO_SUB_ITEMS.find((s) => s.route && pathname.startsWith(s.route));
+    if (d) return { channel: "deliveroo", subId: d.id };
+  }
+  const u = UBER_SUB_ITEMS.find((s) => s.route && pathname.startsWith(s.route));
+  if (u) return { channel: "uber", subId: u.id };
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
   if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
