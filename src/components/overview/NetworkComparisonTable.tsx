@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { RestaurantNetworkStats, NetworkTotals } from "@/hooks/useNetworkStats";
 import type { RestaurantCashStats } from "@/hooks/useRestaurantCashRevenue";
 
