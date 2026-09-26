@@ -32,7 +32,6 @@ const RestaurantMenu = React.lazy(() => import("./pages/RestaurantMenu"));
 const UberConnections = React.lazy(() => import("./pages/UberConnections"));
 const Exports = React.lazy(() => import("./pages/Exports"));
 const Reports = React.lazy(() => import("./pages/Reports"));
-const WeeklyReports = React.lazy(() => import("./pages/WeeklyReports"));
 const WeeklyReportDownload = React.lazy(() => import("./pages/WeeklyReportDownload"));
 const Disputes = React.lazy(() => import("./pages/Disputes"));
 const UberNaming = React.lazy(() => import("./pages/UberNaming"));
@@ -42,9 +41,7 @@ const MenuEditor = React.lazy(() => import("./pages/MenuEditor"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
 const RankingDetail = React.lazy(() => import("./pages/RankingDetail"));
 const RestaurantDetail = React.lazy(() => import("./pages/RestaurantDetail"));
-const RestaurantActions = React.lazy(() => import("./pages/RestaurantActions"));
 const Messaging = React.lazy(() => import("./pages/Messaging"));
-const Operations = React.lazy(() => import("./pages/Operations"));
 const ReportImport = React.lazy(() => import("./pages/ReportImport"));
 const ImportGuide = React.lazy(() => import("./pages/ImportGuide"));
 const DowntimeComparison = React.lazy(() => import("./pages/DowntimeComparison"));
@@ -129,13 +126,13 @@ const P = ({ children }: { children: React.ReactNode }) => (
   </ProtectedRoute>
 );
 
-// If the logged-in user is a "reports_manager", lock them to /reports/weekly
+// If the logged-in user is a "reports_manager", lock them to the overview
 const ReportsManagerGate = ({ children }: { children: React.ReactNode }) => {
   const { data: role, isLoading } = useUserRole();
   const path = typeof window !== "undefined" ? window.location.pathname : "";
   if (isLoading) return null;
-  if (role === "reports_manager" && path !== "/reports/weekly" && !path.startsWith("/r/wr/") && path !== "/account") {
-    return <Navigate to="/reports/weekly" replace />;
+  if (role === "reports_manager" && path !== "/overview" && !path.startsWith("/r/wr/") && path !== "/account") {
+    return <Navigate to="/overview" replace />;
   }
   return <>{children}</>;
 };
@@ -211,14 +208,11 @@ const App = () => {
                     <Route path="/uber-store-bulk" element={<P><AppLayout><UberStoreBulkMapping /></AppLayout></P>} />
                     <Route path="/exports" element={<P><AppLayout><Exports /></AppLayout></P>} />
                     <Route path="/reports" element={<P><Reports /></P>} />
-                    <Route path="/reports/weekly" element={<P><WeeklyReports /></P>} />
                     <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
                     <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
                     <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
-                    <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
-                    <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                     <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                     <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
                     <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
