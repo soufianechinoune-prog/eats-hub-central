@@ -1170,7 +1170,7 @@ const Overview = () => {
             <NetworkRevenueHero
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
               variation={isConstantScope ? constantTotals.variation : networkTotals.revenueVariation ?? null}
-              previousTotal={isConstantScope ? constantTotals.previous : networkTotals.prevTotalRevenue ?? null}
+              previousTotal={constantTotals.previous}
               cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
               deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
