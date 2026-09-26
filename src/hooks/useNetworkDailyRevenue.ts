@@ -18,6 +18,17 @@ export interface NetworkDailyPoint {
   total: number;
 }
 
+export interface NetworkChannelComparison {
+  current: number;
+  previous: number | null;
+  variation: number | null;
+}
+
+export type NetworkChannelComparisons = Record<
+  "cash" | "uber" | "deliveroo" | "chataigne",
+  NetworkChannelComparison
+>;
+
 interface DailyRow {
   date: string;
   revenue_ttc: number | string;
@@ -44,8 +55,13 @@ export function useNetworkDailyRevenue(
   restaurantIds: string[],
   startDate: string,
   endDate: string,
+  comparisonRestaurantIds: string[] = restaurantIds,
+  previousStartDate?: string,
+  previousEndDate?: string,
 ) {
   const enabled = restaurantIds.length > 0 && !!startDate && !!endDate;
+  const comparisonEnabled =
+    comparisonRestaurantIds.length > 0 && !!previousStartDate && !!previousEndDate;
 
   const platforms = useQuery({
     queryKey: ["network-daily", "platforms", startDate, endDate, restaurantIds],
@@ -66,6 +82,42 @@ export function useNetworkDailyRevenue(
     enabled,
     staleTime: 5 * 60 * 1000,
     queryFn: () => callDailyRpc("get_daily_chataigne", startDate, endDate, restaurantIds),
+  });
+
+  const previousPlatforms = useQuery({
+    queryKey: ["network-daily", "platforms", "n-1", previousStartDate, previousEndDate, comparisonRestaurantIds],
+    enabled: comparisonEnabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => callDailyRpc(
+      "get_daily_revenue_from_orders",
+      previousStartDate ?? "",
+      previousEndDate ?? "",
+      comparisonRestaurantIds,
+    ),
+  });
+
+  const previousCash = useQuery({
+    queryKey: ["network-daily", "cash", "n-1", previousStartDate, previousEndDate, comparisonRestaurantIds],
+    enabled: comparisonEnabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => callDailyRpc(
+      "get_daily_onsite_from_splash",
+      previousStartDate ?? "",
+      previousEndDate ?? "",
+      comparisonRestaurantIds,
+    ),
+  });
+
+  const previousChataigne = useQuery({
+    queryKey: ["network-daily", "chataigne", "n-1", previousStartDate, previousEndDate, comparisonRestaurantIds],
+    enabled: comparisonEnabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => callDailyRpc(
+      "get_daily_chataigne",
+      previousStartDate ?? "",
+      previousEndDate ?? "",
+      comparisonRestaurantIds,
+    ),
   });
 
   const isLoading = platforms.isLoading || cash.isLoading || chataigne.isLoading;
@@ -128,5 +180,53 @@ export function useNetworkDailyRevenue(
     return out;
   }, [platforms.data, cash.data, chataigne.data]);
 
-  return { daily, byRestaurant, isLoading };
+  const comparisons = useMemo<NetworkChannelComparisons>(() => {
+    const scope = new Set(comparisonRestaurantIds);
+    const sum = (rows: DailyRow[] | undefined, predicate?: (row: DailyRow) => boolean) => {
+      const matching = (rows ?? []).filter(
+        (row) => scope.has(row.restaurant_id) && (!predicate || predicate(row)),
+      );
+      return {
+        hasData: matching.length > 0,
+        total: matching.reduce((total, row) => total + (Number(row.revenue_ttc) || 0), 0),
+      };
+    };
+    const isDeliveroo = (row: DailyRow) => (row.platform ?? "").toLowerCase().includes("deliveroo");
+    const isUber = (row: DailyRow) => !isDeliveroo(row);
+    const makeComparison = (
+      currentRows: DailyRow[] | undefined,
+      previousRows: DailyRow[] | undefined,
+      predicate?: (row: DailyRow) => boolean,
+    ): NetworkChannelComparison => {
+      const current = sum(currentRows, predicate).total;
+      const previousResult = sum(previousRows, predicate);
+      const previous = previousResult.hasData ? previousResult.total : null;
+      return {
+        current,
+        previous,
+        variation: previous != null && previous > 0 ? ((current - previous) / previous) * 100 : null,
+      };
+    };
+
+    return {
+      uber: makeComparison(platforms.data, previousPlatforms.data, isUber),
+      deliveroo: makeComparison(platforms.data, previousPlatforms.data, isDeliveroo),
+      cash: makeComparison(cash.data, previousCash.data),
+      chataigne: makeComparison(chataigne.data, previousChataigne.data),
+    };
+  }, [
+    comparisonRestaurantIds,
+    platforms.data,
+    cash.data,
+    chataigne.data,
+    previousPlatforms.data,
+    previousCash.data,
+    previousChataigne.data,
+  ]);
+
+  const comparisonLoading =
+    comparisonEnabled &&
+    (previousPlatforms.isLoading || previousCash.isLoading || previousChataigne.isLoading);
+
+  return { daily, byRestaurant, comparisons, comparisonLoading, isLoading };
 }
