@@ -18,7 +18,6 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
 import UberCallback from "./pages/UberCallback";
 import OAuthConsent from "./pages/OAuthConsent";

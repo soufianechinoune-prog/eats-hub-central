@@ -12,7 +12,6 @@ import {
   MessageSquare,
   Settings2,
   ChevronRight,
-  Eye,
   Euro,
   TrendingUp,
   User,
