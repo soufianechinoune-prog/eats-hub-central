@@ -115,7 +115,8 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
     header.forEach((h, i) => {
       if (i === 0 || !h || /m[ée]diane/i.test(h)) return;
       const normalized = norm(h);
-      const id = byName.get(normalized) ?? (normalized.length >= 5 ? [...byName.entries()].filter(([k]) => k.includes(normalized)).map(([, id]) => id).filter((v, idx, arr) => arr.indexOf(v) === idx).length === 1 ? [...byName.entries()].find(([k]) => k.includes(normalized))?.[1] : undefined : undefined);
+      const partialMatches = normalized.length >= 5 ? [...byName.entries()].filter(([k]) => k.includes(normalized)) : [];
+      const id = byName.get(normalized) ?? (partialMatches.length === 1 ? partialMatches[0][1] : undefined);
       if (id) cols.push({ i, id });
       else unknown.push(h);
     });
