@@ -49,7 +49,6 @@ const Messaging = React.lazy(() => import("./pages/Messaging"));
 const Operations = React.lazy(() => import("./pages/Operations"));
 const ReportImport = React.lazy(() => import("./pages/ReportImport"));
 const ImportGuide = React.lazy(() => import("./pages/ImportGuide"));
-const ImportChecklist = React.lazy(() => import("./pages/ImportChecklist"));
 const DowntimeComparison = React.lazy(() => import("./pages/DowntimeComparison"));
 const RatingsComparison = React.lazy(() => import("./pages/RatingsComparison"));
 const OpeningHoursComparison = React.lazy(() => import("./pages/OpeningHoursComparison"));
@@ -227,7 +226,6 @@ const App = () => {
                     <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                     <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                     <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
-                    <Route path="/import-checklist" element={<P><ImportRoute><AppLayout><ImportChecklist /></AppLayout></ImportRoute></P>} />
                     <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
                     <Route path="/compare/ratings" element={<P><AppLayout><RatingsComparison /></AppLayout></P>} />
                     <Route path="/compare/opening-hours" element={<P><AppLayout><OpeningHoursComparison /></AppLayout></P>} />
