@@ -8,9 +8,7 @@ import {
   LogOut,
   Shield,
   BarChart3,
-  UtensilsCrossed,
   Zap,
-  History,
   MessageSquare,
   Settings2,
   ChevronRight,
@@ -134,16 +132,6 @@ const dataItems = [
     title: "Prix & Tarifs",
     url: "/prix-sur-place",
     icon: Tag,
-  },
-  {
-    title: "Catalogue Produits",
-    url: "/menu-items",
-    icon: UtensilsCrossed,
-  },
-  {
-    title: "Historique Modifs",
-    url: "/menu-history",
-    icon: History,
   },
 ];
 
