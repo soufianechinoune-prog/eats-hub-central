@@ -1121,6 +1121,8 @@ const Overview = () => {
               dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
               chataigne={chataigneTotal}
               daily={networkDaily.daily}
+              startDateStr={startDateStr}
+              endDateStr={endDateStr}
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
