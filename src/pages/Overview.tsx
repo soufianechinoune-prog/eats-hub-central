@@ -38,6 +38,10 @@ import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
 import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
 import { UberLiveTodayCard } from "@/components/overview/UberLiveTodayCard";
 import { DeliverooChannelSummary } from "@/components/overview/DeliverooChannelSummary";
+import { NetworkRevenueHero } from "@/components/overview/NetworkRevenueHero";
+import { NetworkChannelCards } from "@/components/overview/NetworkChannelCards";
+import { NetworkComparisonTable } from "@/components/overview/NetworkComparisonTable";
+import { useNetworkDailyRevenue } from "@/hooks/useNetworkDailyRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -420,6 +424,24 @@ const Overview = () => {
     queryKeys: overviewQueryKeys,
     reviewsData: overviewReviewsData,
   } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds, analyticsCtx.selectedChainId);
+
+  // Logo de l'enseigne active (avatars du tableau comparatif réseau)
+  const { data: activeChainLogo } = useQuery({
+    queryKey: ["active-chain-logo", analyticsCtx.selectedChainId],
+    enabled: !!analyticsCtx.selectedChainId,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("chains")
+        .select("logo_url")
+        .eq("id", analyticsCtx.selectedChainId)
+        .maybeSingle();
+      return (data as { logo_url: string | null } | null)?.logo_url ?? null;
+    },
+  });
+
+  // CA journalier réseau par canal (graphique d'évolution + sparklines) — même périmètre que la vue
+  const networkDaily = useNetworkDailyRevenue(activeIds, startDateStr, endDateStr);
 
   const error = overviewError;
 
