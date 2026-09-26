@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
@@ -21,7 +21,7 @@ import { RestaurantComparisonTable } from "@/components/overview/RestaurantCompa
 import { ChannelRevenueTiles } from "@/components/overview/ChannelRevenueTiles";
 import { useChataigneByRestaurant } from "@/hooks/useChataigne";
 import { PayoutsConsolidationBanner } from "@/components/analytics/PayoutsConsolidationBanner";
-import { OverviewChannelSidebar, type OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
+import type { OverviewChannel } from "@/components/overview/OverviewChannelSidebar";
 import { useNetworkStats } from "@/hooks/useNetworkStats";
 import { useDataSourceBreakdown } from "@/hooks/useDataSourceBreakdown";
 
