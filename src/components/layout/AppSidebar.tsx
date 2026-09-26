@@ -24,7 +24,6 @@ import {
   Star,
   FileUp,
   ShoppingBag,
-  Megaphone,
   Award,
   Leaf,
   Tag,
@@ -154,11 +153,6 @@ const analysisItems = [
     title: "Actions & Events",
     url: "/actions",
     icon: Zap,
-  },
-  {
-    title: "Marketing Analytics",
-    url: "/marketing-analytics",
-    icon: Megaphone,
   },
   {
     title: "Opérations",
