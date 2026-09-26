@@ -1,71 +1,50 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
-
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Search, Tag } from "lucide-react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Search, Tag, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import {
-  GRID_VERSIONS,
-  useInstoreGridPrices,
-  useRestaurantPriceVersions,
-  useSetInstoreGridPrice,
-  useSetRestaurantPriceVersion,
-} from "@/hooks/useInstorePrices";
+  ImportRow,
+  productKey,
+  useImportRestaurantPrices,
+  useInstoreMatrix,
+  useSetRestaurantPrice,
+} from "@/hooks/useInstoreMatrix";
 
-const fmtEur = (v: number | null | undefined, digits = 2) =>
-  v === null || v === undefined
+const fmtEur = (v: number | null | undefined) =>
+  v === null || v === undefined || Number.isNaN(v)
     ? "—"
-    : new Intl.NumberFormat("fr-FR", {
-        style: "currency",
-        currency: "EUR",
-        minimumFractionDigits: digits,
-        maximumFractionDigits: digits,
-      }).format(v);
+    : new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format(v);
 
-
-
-const VERSION_SECTIONS = [...GRID_VERSIONS, "A_CONFIRMER"] as const;
-const VERSION_LABELS: Record<string, string> = {
-  V4BIS: "V4 Bis",
-  VRE: "V Réunion",
-  A_CONFIRMER: "À affecter",
+const median = (xs: number[]) => {
+  if (!xs.length) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 };
-const versionLabel = (v: string) => VERSION_LABELS[v] ?? v;
-const methodLabel = (m: string | null) => (m === "manuel" ? "manuel" : "auto");
 
-function PriceCell({ value, onSave }: { value: number | null; onSave: (price: number) => void }) {
+const norm = (s: string) => productKey(s.replace(/chicken\s*street/i, ""));
+
+function PriceCell({ value, onSave }: { value: number | null; onSave: (p: number) => void }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
-
   const commit = () => {
     setEditing(false);
-    const parsed = Number(draft.replace(",", "."));
-    if (!Number.isFinite(parsed) || parsed < 0) return;
-    if (value !== null && Math.abs(parsed - value) < 0.0001) return;
-    onSave(parsed);
+    const p = Number(draft.replace(",", "."));
+    if (!Number.isFinite(p) || p < 0 || (value !== null && Math.abs(p - value) < 0.001)) return;
+    onSave(p);
   };
-
-  if (editing) {
+  if (editing)
     return (
       <Input
         autoFocus
@@ -79,8 +58,6 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (price: nu
         }}
       />
     );
-  }
-
   return (
     <button
       type="button"
@@ -89,270 +66,257 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (price: nu
         setEditing(true);
       }}
       className={cn(
-        "w-24 rounded-md border border-transparent px-2 py-1 text-right tabular-nums transition-colors hover:border-border hover:bg-muted",
+        "w-24 rounded-md border border-transparent px-2 py-1 text-right tabular-nums hover:border-border hover:bg-muted",
         value === null && "text-muted-foreground"
       )}
     >
-      {value === null ? "—" : fmtEur(value)}
+      {fmtEur(value)}
     </button>
   );
 }
 
-const sortVersions = (versions: string[]) =>
-  [...versions].sort((a, b) => {
-    const ia = GRID_VERSIONS.indexOf(a as never);
-    const ib = GRID_VERSIONS.indexOf(b as never);
-    if (ia !== -1 && ib !== -1) return ia - ib;
-    if (ia !== -1) return -1;
-    if (ib !== -1) return 1;
-    return a.localeCompare(b, "fr");
-  });
-
-function GridSection() {
-  const { data, isLoading } = useInstoreGridPrices();
-  const setPrice = useSetInstoreGridPrice();
+function ImportButton({ restaurants }: { restaurants: { id: string; name: string }[] }) {
+  const ref = useRef<HTMLInputElement>(null);
+  const imp = useImportRestaurantPrices();
   const { toast } = useToast();
-  const [search, setSearch] = useState("");
 
-  const versions = useMemo(
-    () => sortVersions([...new Set((data ?? []).map((r) => r.version))]),
-    [data]
-  );
-
-  const products = useMemo(() => {
-    const map = new Map<string, { key: string; label: string; prices: Record<string, number> }>();
-    for (const r of data ?? []) {
-      const entry = map.get(r.product_key) ?? { key: r.product_key, label: r.product_label, prices: {} };
-      entry.prices[r.version] = r.price;
-      map.set(r.product_key, entry);
+  const onFile = async (file: File) => {
+    const wb = XLSX.read(await file.arrayBuffer());
+    const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
+    const hIdx = grid.findIndex((r) => String(r?.[0] ?? "").trim().toLowerCase() === "produit");
+    if (hIdx < 0) {
+      toast({ title: "Format non reconnu", description: "Colonne « Produit » introuvable.", variant: "destructive" });
+      return;
     }
-    return [...map.values()]
-      .filter((p) => p.label.toLowerCase().includes(search.trim().toLowerCase()))
-      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
-  }, [data, search]);
-
-  const save = (version: string, product_key: string, price: number) => {
-    setPrice.mutate(
-      { version, product_key, price },
-      {
-        onSuccess: () => toast({ title: "Prix mis à jour", description: `${version} · ${fmtEur(price)}` }),
-        onError: (e: unknown) =>
-          toast({
-            title: "Échec de la mise à jour",
-            description: e instanceof Error ? e.message : "Erreur inconnue",
-            variant: "destructive",
-          }),
+    const header = grid[hIdx].map((c) => String(c ?? ""));
+    const byName = new Map(restaurants.map((r) => [norm(r.name), r.id]));
+    const cols: { i: number; id: string }[] = [];
+    const unknown: string[] = [];
+    header.forEach((h, i) => {
+      if (i === 0 || !h || /m[ée]diane/i.test(h)) return;
+      const id = byName.get(norm(h)) ?? [...byName.entries()].find(([k]) => k.includes(norm(h)))?.[1];
+      if (id) cols.push({ i, id });
+      else unknown.push(h);
+    });
+    const map = new Map<string, ImportRow>();
+    for (const row of grid.slice(hIdx + 1)) {
+      const label = String(row?.[0] ?? "").trim();
+      if (!label) continue;
+      for (const c of cols) {
+        const p = Number(String(row[c.i] ?? "").replace(",", "."));
+        if (row[c.i] === undefined || row[c.i] === "" || !Number.isFinite(p)) continue;
+        map.set(`${c.id}|${productKey(label)}`, {
+          restaurant_id: c.id,
+          product_key: productKey(label),
+          product_label: label,
+          price: Math.round(p * 100) / 100,
+        });
       }
-    );
+    }
+    imp.mutate([...map.values()], {
+      onSuccess: (n) =>
+        toast({
+          title: `${n} prix importés`,
+          description: `${cols.length} restaurants reconnus${unknown.length ? ` · ignorés : ${unknown.join(", ")}` : ""}`,
+        }),
+      onError: (e) => toast({ title: "Échec de l'import", description: String(e), variant: "destructive" }),
+    });
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Tag className="h-5 w-5 text-primary" /> Grilles tarifaires
-          </CardTitle>
-          <CardDescription>
-            {versions.length} version{versions.length > 1 ? "s" : ""} de grille. Cliquez sur un prix pour le modifier.
-          </CardDescription>
-        </div>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            className="w-64 pl-8"
-            placeholder="Rechercher un produit…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </CardHeader>
-      <CardContent>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[0, 1, 2, 3, 4].map((i) => (
-              <Skeleton key={i} className="h-10 w-full" />
-            ))}
-          </div>
-        ) : (data ?? []).length === 0 ? (
-          <div className="rounded-md border border-dashed py-12 text-center">
-            <Tag className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm font-medium">Aucune grille de prix sur place n'est encore chargée pour cette enseigne.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Importez ou saisissez une grille tarifaire pour commencer.
-            </p>
-          </div>
-        ) : products.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">Aucun produit trouvé.</p>
-        ) : (
-          <div className="overflow-x-auto rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 z-20 min-w-[220px] bg-card">Produit</TableHead>
-                  {versions.map((v) => (
-                    <TableHead key={v} className="whitespace-nowrap text-right">
-                      {versionLabel(v)}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((p) => (
-                  <TableRow key={p.key}>
-                    <TableCell className="sticky left-0 z-10 min-w-[220px] bg-card font-medium">{p.label}</TableCell>
-                    {versions.map((v) => (
-                      <TableCell key={v} className="text-right">
-                        <div className="flex justify-end">
-                          <PriceCell value={p.prices[v] ?? null} onSave={(price) => save(v, p.key, price)} />
-                        </div>
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function VersionsSection() {
-  const { data, isLoading } = useRestaurantPriceVersions();
-  const setVersion = useSetRestaurantPriceVersion();
-  const { toast } = useToast();
-
-  const grouped = useMemo(() => {
-    const map = new Map<string, typeof data>();
-    for (const v of VERSION_SECTIONS) map.set(v, []);
-    for (const r of data ?? []) {
-      const key = VERSION_SECTIONS.includes(r.version as never) ? r.version : "A_CONFIRMER";
-      map.set(key, [...(map.get(key) ?? []), r]);
-    }
-    for (const [, rows] of map)
-      rows?.sort((a, b) => (a.restaurant_name ?? "").localeCompare(b.restaurant_name ?? "", "fr"));
-    return map;
-  }, [data]);
-
-  const change = (restaurant_id: string, version: string, name: string | null) => {
-    setVersion.mutate(
-      { restaurant_id, version },
-      {
-        onSuccess: () =>
-          toast({ title: "Version mise à jour", description: `${name ?? "Restaurant"} → ${versionLabel(version)}` }),
-        onError: (e: unknown) =>
-          toast({
-            title: "Échec de la mise à jour",
-            description: e instanceof Error ? e.message : "Erreur inconnue",
-            variant: "destructive",
-          }),
-      }
-    );
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Restaurants par version</CardTitle>
-        <CardDescription>Affectation de chaque point de vente à une grille tarifaire.</CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {isLoading ? (
-          [0, 1].map((i) => <Skeleton key={i} className="h-40 w-full" />)
-        ) : (data ?? []).length === 0 ? (
-          <div className="rounded-md border border-dashed py-12 text-center">
-            <p className="text-sm font-medium">Aucune affectation restaurant → grille pour cette enseigne.</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Les affectations apparaîtront ici une fois la grille tarifaire chargée.
-            </p>
-          </div>
-        ) : (
-          VERSION_SECTIONS.map((v) => {
-            const rows = grouped.get(v) ?? [];
-            return (
-              <div key={v} className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-semibold">{versionLabel(v)}</h3>
-                  <Badge variant={v === "A_CONFIRMER" ? "destructive" : "secondary"}>
-                    {rows.length} resto{rows.length > 1 ? "s" : ""}
-                  </Badge>
-                </div>
-                {rows.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Aucun restaurant.</p>
-                ) : (
-                  <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Restaurant</TableHead>
-                          <TableHead>Ville</TableHead>
-                          
-                          <TableHead>Méthode</TableHead>
-                          <TableHead className="w-40">Version</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {rows.map((r) => (
-                          <TableRow key={r.restaurant_id}>
-                            <TableCell className="font-medium">{r.restaurant_name ?? "—"}</TableCell>
-                            <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
-                            
-                            <TableCell>
-                              <Badge variant={r.method === "manuel" ? "default" : "outline"}>
-                                {methodLabel(r.method)}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <Select
-                                value={r.version}
-                                onValueChange={(val) => change(r.restaurant_id, val, r.restaurant_name)}
-                              >
-                                <SelectTrigger className="h-8">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {VERSION_SECTIONS.map((opt) => (
-                                    <SelectItem key={opt} value={opt}>
-                                      {versionLabel(opt)}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </div>
-            );
-          })
-        )}
-      </CardContent>
-    </Card>
+    <>
+      <input
+        ref={ref}
+        type="file"
+        accept=".xlsx,.xls"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) onFile(f);
+          e.target.value = "";
+        }}
+      />
+      <Button variant="outline" onClick={() => ref.current?.click()} disabled={imp.isPending}>
+        <Upload className="mr-2 h-4 w-4" />
+        {imp.isPending ? "Import…" : "Importer le référentiel"}
+      </Button>
+    </>
   );
 }
 
 export default function InstorePrices() {
+  const { data, isLoading } = useInstoreMatrix();
+  const { data: restaurants = [] } = useActiveRestaurants();
+  const setPrice = useSetRestaurantPrice();
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [restaurantId, setRestaurantId] = useState("all");
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (data ?? [])
+      .filter((p) => p.label.toLowerCase().includes(q))
+      .map((p) => {
+        const vals = Object.values(p.prices);
+        const med = median(vals);
+        const aligned = med === null ? 0 : vals.filter((v) => Math.abs(v - med) < 0.005).length;
+        return {
+          ...p,
+          med,
+          min: vals.length ? Math.min(...vals) : null,
+          max: vals.length ? Math.max(...vals) : null,
+          count: vals.length,
+          alignPct: vals.length ? (aligned / vals.length) * 100 : 0,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  }, [data, search]);
+
+  const restaurantCount = useMemo(
+    () => new Set((data ?? []).flatMap((p) => Object.keys(p.prices))).size,
+    [data]
+  );
+
+  const save = (product_key: string, product_label: string, price: number) =>
+    setPrice.mutate(
+      { restaurant_id: restaurantId, product_key, product_label, price },
+      {
+        onSuccess: () => toast({ title: "Prix mis à jour", description: `${product_label} · ${fmtEur(price)}` }),
+        onError: (e) => toast({ title: "Échec", description: String(e), variant: "destructive" }),
+      }
+    );
+
+  const single = restaurantId !== "all";
+
   return (
     <AppLayout>
       <ChannelNavShell>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold">Prix sur place</h1>
-            <p className="text-muted-foreground">
-              Grilles tarifaires de référence du réseau, communes à tous les canaux de vente.
-            </p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold">Prix & Tarifs</h1>
+              <p className="text-muted-foreground">
+                Prix sur place réels de chaque restaurant — référence commune à tous les canaux.
+              </p>
+            </div>
+            <ImportButton restaurants={restaurants} />
           </div>
 
-          <GridSection />
-          <VersionsSection />
+          <Card>
+            <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-primary" /> {single ? "Prix du restaurant" : "Vue réseau"}
+                </CardTitle>
+                <CardDescription>
+                  {(data ?? []).length} produits · {restaurantCount} restaurants
+                  {single && " · cliquez sur un prix pour le modifier"}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Select value={restaurantId} onValueChange={setRestaurantId}>
+                  <SelectTrigger className="w-64">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les restaurants</SelectItem>
+                    {restaurants.map((r) => (
+                      <SelectItem key={r.id} value={r.id}>
+                        {r.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="w-56 pl-8"
+                    placeholder="Rechercher un produit…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : (data ?? []).length === 0 ? (
+                <div className="rounded-md border border-dashed py-12 text-center">
+                  <p className="text-sm font-medium">Aucun prix chargé pour cette enseigne.</p>
+                  <p className="mt-1 text-sm text-muted-foreground">Importez le fichier de référentiel pour commencer.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[220px]">Produit</TableHead>
+                        {single && <TableHead className="text-right">Prix restaurant</TableHead>}
+                        <TableHead className="text-right">Médiane réseau</TableHead>
+                        {single ? (
+                          <TableHead className="text-right">Écart</TableHead>
+                        ) : (
+                          <>
+                            <TableHead className="text-right">Min</TableHead>
+                            <TableHead className="text-right">Max</TableHead>
+                            <TableHead className="text-right">Alignés médiane</TableHead>
+                            <TableHead className="text-right">Restos</TableHead>
+                          </>
+                        )}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rows.map((p) => {
+                        const own = single ? p.prices[restaurantId] ?? null : null;
+                        const diff = own !== null && p.med !== null ? own - p.med : null;
+                        return (
+                          <TableRow key={p.key}>
+                            <TableCell className="font-medium">{p.label}</TableCell>
+                            {single && (
+                              <TableCell className="text-right">
+                                <div className="flex justify-end">
+                                  <PriceCell value={own} onSave={(v) => save(p.key, p.label, v)} />
+                                </div>
+                              </TableCell>
+                            )}
+                            <TableCell className="text-right tabular-nums">{fmtEur(p.med)}</TableCell>
+                            {single ? (
+                              <TableCell className="text-right">
+                                {diff === null ? (
+                                  <span className="text-muted-foreground">—</span>
+                                ) : Math.abs(diff) < 0.005 ? (
+                                  <Badge variant="secondary">aligné</Badge>
+                                ) : (
+                                  <Badge variant={diff > 0 ? "default" : "destructive"}>
+                                    {diff > 0 ? "+" : ""}
+                                    {fmtEur(diff)}
+                                  </Badge>
+                                )}
+                              </TableCell>
+                            ) : (
+                              <>
+                                <TableCell className="text-right tabular-nums">{fmtEur(p.min)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{fmtEur(p.max)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{p.alignPct.toFixed(0)} %</TableCell>
+                                <TableCell className="text-right tabular-nums text-muted-foreground">{p.count}</TableCell>
+                              </>
+                            )}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </ChannelNavShell>
     </AppLayout>
   );
 }
-
