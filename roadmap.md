@@ -53,3 +53,5 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 ## Nettoyage navigation (suite)
 - [x] Supprimer « Catalogue Produits » (`/menu-items`) et « Historique Modifs » (`/menu-history`) — les données restent en base et alimentent « Prix & Tarifs ».
 - [ ] Refaire l'écran « Rapports hebdo » à zéro (version actuelle écartée par l'utilisateur, « les débuts »). Le moteur d'envoi WhatsApp et les liens partagés `/r/wr/:token` restent en place.
+- [x] Supprimer « Rapports hebdo » (menu + page /reports/weekly) — à refaire à zéro plus tard ; liens publics /r/wr/:token conservés
+- [x] Supprimer « Actions & Events » (/actions) et « Opérations » (/operations) du Pilotage — section Pilotage retirée ; « Opérations » d'Analytics conservée

@@ -78,23 +78,6 @@ Focus sur l'amélioration de l'expérience client.`,
       { icon: 'ThumbsUp', title: 'Points forts', question: 'Quels aspects sont les plus appréciés ?' },
     ]
   },
-  '/operations': {
-    pageName: 'Operations',
-    pageNameFr: 'Opérations',
-    analysisPrompt: `Analyse les métriques opérationnelles. 
-Identifie:
-1. Taux d'erreur et impact financier
-2. Temps de préparation et attente coursiers
-3. Disponibilité et temps d'inactivité
-4. Actions pour améliorer l'efficacité opérationnelle
-
-Focus sur l'excellence opérationnelle.`,
-    suggestedQuestions: [
-      { icon: 'Clock', title: 'Temps d\'attente', question: 'Comment optimiser mes temps de préparation ?' },
-      { icon: 'AlertTriangle', title: 'Erreurs', question: 'Quelles erreurs de commande sont les plus fréquentes ?' },
-      { icon: 'CheckCircle', title: 'Disponibilité', question: 'Comment améliorer ma disponibilité sur les plateformes ?' },
-    ]
-  },
   '/compare/profitability': {
     pageName: 'Profitability Comparison',
     pageNameFr: 'Comparaison Rentabilité',

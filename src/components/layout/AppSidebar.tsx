@@ -104,11 +104,6 @@ const mainItems = [
     url: "/messaging",
     icon: MessageSquare,
   },
-  {
-    title: "Rapports hebdo",
-    url: "/reports/weekly",
-    icon: FileUp,
-  },
 ];
 
 // Gestion des données
@@ -135,19 +130,6 @@ const dataItems = [
   },
 ];
 
-// Pilotage & Analyse
-const analysisItems = [
-  {
-    title: "Actions & Events",
-    url: "/actions",
-    icon: Zap,
-  },
-  {
-    title: "Opérations",
-    url: "/operations",
-    icon: Settings2,
-  },
-];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -504,34 +486,6 @@ export function AppSidebar() {
         </SidebarGroup>
         )}
 
-        {canImport && (
-        <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
-            {collapsed ? "📈" : "Pilotage"}
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {analysisItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    className={
-                      isActive(item.url)
-                        ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                        : ""
-                    }
-                  >
-                    <NavLink to={item.url}>
-                      <item.icon className="h-4 w-4" />
-                      {!collapsed && <span>{item.title}</span>}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        )}
 
         <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
