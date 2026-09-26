@@ -215,8 +215,13 @@ export function NetworkRevenueHero({
                   ) : (
                     <TrendingDown className="h-3 w-3" />
                   )}
-                  {variation > 0 ? "+" : ""}
+              {variation > 0 ? "+" : ""}
                   {variation.toFixed(1).replace(".", ",")} %
+                </span>
+              )}
+              {previousTotal != null && previousTotal > 0 && (
+                <span className="text-xs font-medium text-muted-foreground tabular-nums">
+                  vs {fmtEur(previousTotal)} (N-1)
                 </span>
               )}
             </div>
