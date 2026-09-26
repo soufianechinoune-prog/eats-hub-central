@@ -135,16 +135,6 @@ const dataItems = [
     url: "/prix-sur-place",
     icon: Tag,
   },
-  {
-    title: "Catalogue Produits",
-    url: "/menu-items",
-    icon: UtensilsCrossed,
-  },
-  {
-    title: "Historique Modifs",
-    url: "/menu-history",
-    icon: History,
-  },
 ];
 
 // Pilotage & Analyse

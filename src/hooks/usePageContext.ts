@@ -95,23 +95,6 @@ Focus sur l'excellence opérationnelle.`,
       { icon: 'CheckCircle', title: 'Disponibilité', question: 'Comment améliorer ma disponibilité sur les plateformes ?' },
     ]
   },
-  '/menu-items': {
-    pageName: 'Menu Items',
-    pageNameFr: 'Catalogue produits',
-    analysisPrompt: `Analyse le catalogue de produits. 
-Identifie:
-1. Cohérence des prix Uber vs Deliveroo
-2. Produits à forte/faible marge
-3. Opportunités d'optimisation tarifaire
-4. Produits manquants ou à ajouter
-
-Focus sur l'optimisation du catalogue.`,
-    suggestedQuestions: [
-      { icon: 'DollarSign', title: 'Pricing', question: 'Mes prix sont-ils cohérents entre plateformes ?' },
-      { icon: 'TrendingUp', title: 'Marges', question: 'Quels produits ont les meilleures marges ?' },
-      { icon: 'Package', title: 'Catalogue', question: 'Quels produits devrais-je ajouter ou retirer ?' },
-    ]
-  },
   '/compare/profitability': {
     pageName: 'Profitability Comparison',
     pageNameFr: 'Comparaison Rentabilité',

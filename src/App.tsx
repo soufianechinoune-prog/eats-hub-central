@@ -42,9 +42,7 @@ const MenuEditor = React.lazy(() => import("./pages/MenuEditor"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
 const RankingDetail = React.lazy(() => import("./pages/RankingDetail"));
 const RestaurantDetail = React.lazy(() => import("./pages/RestaurantDetail"));
-const MenuItems = React.lazy(() => import("./pages/MenuItems"));
 const RestaurantActions = React.lazy(() => import("./pages/RestaurantActions"));
-const MenuHistory = React.lazy(() => import("./pages/MenuHistory"));
 const Messaging = React.lazy(() => import("./pages/Messaging"));
 const Operations = React.lazy(() => import("./pages/Operations"));
 const ReportImport = React.lazy(() => import("./pages/ReportImport"));
@@ -219,9 +217,7 @@ const App = () => {
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
                     <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
-                    <Route path="/menu-items" element={<P><ImportRoute><AppLayout><MenuItems /></AppLayout></ImportRoute></P>} />
                     <Route path="/actions" element={<P><AppLayout><RestaurantActions /></AppLayout></P>} />
-                    <Route path="/menu-history" element={<P><ImportRoute><AppLayout><MenuHistory /></AppLayout></ImportRoute></P>} />
                     <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                     <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
                     <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
