@@ -126,7 +126,7 @@ export function useNetworkStats({
       if (!hasIds) return [];
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
+        .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source")
         .in("id", restaurantIds);
       if (error) throw error;
       return data || [];
