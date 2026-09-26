@@ -7,7 +7,6 @@ import {
   Store,
   LogOut,
   Shield,
-  PenLine,
   BarChart3,
   UtensilsCrossed,
   Zap,
@@ -118,12 +117,6 @@ const mainItems = [
 
 // Gestion des données
 const dataItems = [
-  {
-
-    title: "Saisie de données",
-    url: "/data-entry",
-    icon: PenLine,
-  },
   {
     title: "Checklist Imports",
     url: "/import-checklist",

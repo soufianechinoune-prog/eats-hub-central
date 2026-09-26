@@ -39,7 +39,6 @@ const UberNaming = React.lazy(() => import("./pages/UberNaming"));
 const UberLinkStores = React.lazy(() => import("./pages/UberLinkStores"));
 const UberStoreBulkMapping = React.lazy(() => import("./pages/UberStoreBulkMapping"));
 const MenuEditor = React.lazy(() => import("./pages/MenuEditor"));
-const DataEntry = React.lazy(() => import("./pages/DataEntry"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
 const RankingDetail = React.lazy(() => import("./pages/RankingDetail"));
 const RestaurantDetail = React.lazy(() => import("./pages/RestaurantDetail"));
@@ -219,10 +218,6 @@ const App = () => {
                     <Route path="/reports/weekly" element={<P><WeeklyReports /></P>} />
                     <Route path="/menu-editor" element={<P><MenuEditor /></P>} />
                     <Route path="/disputes" element={<P><AppLayout><Disputes /></AppLayout></P>} />
-                    <Route path="/data-entry" element={<P><ImportRoute><AppLayout><DataEntry /></AppLayout></ImportRoute></P>} />
-                    <Route path="/data-entry/revenue" element={<Navigate to="/data-entry?tab=revenue" replace />} />
-                    <Route path="/data-entry/conversion" element={<Navigate to="/data-entry?tab=conversion" replace />} />
-                    <Route path="/data-entry/fees" element={<Navigate to="/data-entry?tab=fees" replace />} />
                     <Route path="/analytics" element={<Navigate to="/analytics/overview" replace />} />
                     <Route path="/analytics/:viewMode" element={<P><AppLayout><Analytics /></AppLayout></P>} />
                     <Route path="/analytics/ranking/:metric" element={<P><RankingDetail /></P>} />
