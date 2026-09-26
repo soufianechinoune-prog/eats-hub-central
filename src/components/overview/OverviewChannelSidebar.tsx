@@ -103,7 +103,6 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "onsite-sales", label: "Ventes sur place", icon: Store, route: "/analytics/onsite-sales" },
   { id: "payments", label: "Moyens de paiement", icon: CreditCard, route: "/caisse/paiements" },
   { id: "product-sales", label: "Ventes par produit", icon: Package, route: "/caisse/produits" },
-  { id: "instore-prices", label: "Prix sur place", icon: Tag, route: "/prix-sur-place", section: "Réglages" },
 ];
 
 // Sous-onglets Chataigne — vues internes et écrans dédiés du canal
@@ -127,7 +126,6 @@ function channelFromPath(pathname: string, search: string): { channel: OverviewC
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
   if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
-  if (pathname.startsWith("/prix-sur-place")) return { channel: "cash", subId: "instore-prices" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
   if (pathname.startsWith("/chataigne/clients")) return { channel: "chataigne", subId: "clients" };
   if (pathname.startsWith("/chataigne/mobilite")) return { channel: "chataigne", subId: "crossstore" };
