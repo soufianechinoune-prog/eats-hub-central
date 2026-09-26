@@ -124,6 +124,7 @@ export interface NetworkRevenueHeroProps {
 export function NetworkRevenueHero({
   isLoading,
   variation,
+  previousTotal = null,
   cash,
   uber,
   deliveroo,
