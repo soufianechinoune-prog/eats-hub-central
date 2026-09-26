@@ -1190,7 +1190,7 @@ const Overview = () => {
                 dishopByRestaurant={dishopByRestaurant}
                 periodStart={startDate}
                 periodEnd={endDate}
-                forcedChannel={activeChannel === "global" ? "all" : activeChannel}
+                forcedChannel={activeChannel}
               />
             )}
           </div>
