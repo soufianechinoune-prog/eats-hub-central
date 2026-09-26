@@ -23,7 +23,6 @@ import {
   Home,
   Star,
   FileUp,
-  ClipboardCheck,
   ShoppingBag,
   Megaphone,
   Award,
@@ -117,11 +116,6 @@ const mainItems = [
 
 // Gestion des données
 const dataItems = [
-  {
-    title: "Checklist Imports",
-    url: "/import-checklist",
-    icon: ClipboardCheck,
-  },
   {
     title: "Import Rapports",
     url: "/report-import",
