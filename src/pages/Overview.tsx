@@ -708,29 +708,38 @@ const Overview = () => {
     <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20 -m-6">
       <div className="flex-1 min-w-0 p-8 space-y-8">
 
-      {/* Header with glassmorphism */}
-      <div className="flex items-center justify-between gap-4 flex-wrap backdrop-blur-xl bg-card/50 border border-border/50 rounded-2xl p-6 shadow-lg">
+      {/* En-tête — sobre, style logiciel financier */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-4xl font-bold tracking-tight bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            Vue d'ensemble
-          </h1>
-          <p className="text-muted-foreground mt-2 flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-sm font-medium">
-              Santé du réseau
-            </span>
-            <span className="text-sm">·</span>
-            <span className="font-semibold">{networkData?.totalRestaurants || 0}</span>
-            <span>restaurants suivis</span>
+          <h1 className="text-2xl font-bold tracking-tight">Vue d'ensemble</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Performance du réseau
+            {(networkData?.totalRestaurants || 0) > 0 && (
+              <>
+                {" · "}
+                <span className="font-medium text-foreground">
+                  {networkData?.totalRestaurants} restaurant{(networkData?.totalRestaurants ?? 0) > 1 ? "s" : ""} suivi{(networkData?.totalRestaurants ?? 0) > 1 ? "s" : ""}
+                </span>
+              </>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <OverviewPeriodSelector
+            periodMode={periodMode}
+            onPeriodModeChange={setPeriodMode}
+            selectedYear={selectedYear}
+            onYearChange={setSelectedYear}
+            selectedMonth={selectedMonth}
+            onMonthChange={setSelectedMonth}
+            dateRange={dateRange}
+            onDateRangeChange={setDateRange}
+            showReset={isCustomPeriod}
+            onReset={handleResetPeriod}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                disabled={isExporting}
-                className="gap-2"
-              >
+              <Button disabled={isExporting} className="gap-2">
                 {isExporting ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -755,18 +764,6 @@ const Overview = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <OverviewPeriodSelector
-            periodMode={periodMode}
-            onPeriodModeChange={setPeriodMode}
-            selectedYear={selectedYear}
-            onYearChange={setSelectedYear}
-            selectedMonth={selectedMonth}
-            onMonthChange={setSelectedMonth}
-            dateRange={dateRange}
-            onDateRangeChange={setDateRange}
-            showReset={isCustomPeriod}
-            onReset={handleResetPeriod}
-          />
         </div>
       </div>
 
@@ -1112,36 +1109,29 @@ const Overview = () => {
 
           </div>
 
-          {/* CA par canal — tuiles réseau (Caisse / Uber Eats / Deliveroo / Dishop / Chataigne) */}
+          {/* Vue réseau : héro CA (total + barre empilée + évolution) puis 5 cartes canal */}
           {activeChannel === "global" && (
-          <div className="mt-10">
-            <ChannelRevenueTiles
-              periodLabel={getPeriodLabel()}
+          <div className="mt-10 space-y-4">
+            <NetworkRevenueHero
+              isLoading={statsLoading || cashLoading || networkDaily.isLoading}
+              variation={networkTotals.revenueVariation ?? null}
+              cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
+              uber={channelTotals.uber}
+              deliveroo={channelTotals.deliveroo}
+              dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
+              chataigne={chataigneTotal}
+              daily={networkDaily.daily}
+            />
+            <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
-              periodEnd={format(endDate, "yyyy-MM-dd")}
               cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
               cashVariation={cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               uber={channelTotals.uber}
               deliveroo={channelTotals.deliveroo}
               dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
-              dishopLastDataDate={dishopData?.lastDataDate ?? null}
               chataigne={chataigneTotal}
-            />
-          </div>
-          )}
-
-          {/* Platform Revenue Split */}
-          {activeChannel === "global" && (
-          <div className="mt-10">
-            <PlatformRevenueSplit
-              stats={comparisonStats}
-              isLoading={statsLoading || cashLoading}
-              cashTotal={cashRevenueData?.totalCash ?? 0}
-              cashDaysWithData={cashRevenueData?.daysWithData}
-              cashVariation={cashRevenueData?.cashVariation ?? null}
-              cashConnected={cashConnected}
-              chataigneTotal={chataigneTotal}
+              daily={networkDaily.daily}
             />
           </div>
           )}
