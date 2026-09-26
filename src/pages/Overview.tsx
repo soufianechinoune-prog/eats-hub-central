@@ -1123,6 +1123,10 @@ const Overview = () => {
               daily={networkDaily.daily}
               startDateStr={startDateStr}
               endDateStr={endDateStr}
+              constantScope={analyticsCtx.comparisonScope === "constant"}
+              onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
+              comparedRestaurantCount={networkTotals.comparedRestaurantCount}
+              totalRestaurantCount={networkTotals.totalRestaurantCount}
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}

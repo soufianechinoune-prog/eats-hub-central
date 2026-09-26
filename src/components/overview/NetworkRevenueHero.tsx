@@ -37,6 +37,56 @@ const fmtDatePrevYear = (iso?: string | null): string | null => {
   d.setFullYear(d.getFullYear() - 1);
   return format(d, "d MMM yyyy", { locale: fr });
 };
+/** Bascule de vue : réseau complet ou périmètre constant (variation VS N-1 restreinte aux restos ouverts sur les deux périodes). */
+function ScopeToggle({
+  constantScope,
+  onToggle,
+  compared,
+  total,
+}: {
+  constantScope: boolean;
+  onToggle: (value: boolean) => void;
+  compared?: number | null;
+  total?: number | null;
+}) {
+  const options: { key: boolean; label: string }[] = [
+    { key: false, label: "Réseau complet" },
+    { key: true, label: "Périmètre constant" },
+  ];
+  return (
+    <div
+      role="group"
+      aria-label="Périmètre de comparaison"
+      title="Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
+      className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+    >
+      {options.map((o) => {
+        const active = constantScope === o.key;
+        return (
+          <button
+            key={String(o.key)}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onToggle(o.key)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              active
+                ? "bg-foreground text-background shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {o.label}
+            {o.key && active && compared != null && total != null && (
+              <span className="tabular-nums opacity-70">
+                {compared}/{total}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 interface ChannelSlice {
   key: string;
@@ -59,6 +109,11 @@ export interface NetworkRevenueHeroProps {
   /** Période sélectionnée, yyyy-MM-dd */
   startDateStr: string;
   endDateStr: string;
+  /** Vue « périmètre constant » : variation VS N-1 sur les restos ouverts sur les 2 périodes */
+  constantScope: boolean;
+  onToggleConstantScope: (value: boolean) => void;
+  comparedRestaurantCount?: number | null;
+  totalRestaurantCount?: number | null;
 }
 
 export function NetworkRevenueHero({
@@ -72,6 +127,10 @@ export function NetworkRevenueHero({
   daily,
   startDateStr,
   endDateStr,
+  constantScope,
+  onToggleConstantScope,
+  comparedRestaurantCount,
+  totalRestaurantCount,
 }: NetworkRevenueHeroProps) {
   const slices: ChannelSlice[] = [
     { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))" },
@@ -141,14 +200,22 @@ export function NetworkRevenueHero({
                 </span>
               )}
             </div>
-            {(fromDate || toDate) && (
-              <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium tabular-nums">
-                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>{fromDate ?? "—"}</span>
-                <span className="text-muted-foreground">→</span>
-                <span>{toDate ?? "—"}</span>
-              </p>
-            )}
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
+              {(fromDate || toDate) && (
+                <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium tabular-nums">
+                  <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span>{fromDate ?? "—"}</span>
+                  <span className="text-muted-foreground">→</span>
+                  <span>{toDate ?? "—"}</span>
+                </p>
+              )}
+              <ScopeToggle
+                constantScope={constantScope}
+                onToggle={onToggleConstantScope}
+                compared={comparedRestaurantCount}
+                total={totalRestaurantCount}
+              />
+            </div>
             {variation != null && prevFromDate && prevToDate && (
               <p className="mt-1 pl-5 text-xs text-muted-foreground tabular-nums">
                 vs {prevFromDate} → {prevToDate}

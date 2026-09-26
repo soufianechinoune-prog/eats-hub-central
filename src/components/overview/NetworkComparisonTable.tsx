@@ -192,7 +192,21 @@ export function NetworkComparisonTable({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold">Comparatif des restaurants</h2>
-            <p className="text-sm text-muted-foreground">Classement par chiffre d'affaires</p>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>Classement par chiffre d'affaires</span>
+              {analyticsCtx.comparisonScope === "constant" && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
+                  Périmètre constant
+                  {networkTotals.comparedRestaurantCount != null &&
+                    networkTotals.totalRestaurantCount != null && (
+                      <span className="tabular-nums text-muted-foreground">
+                        {networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
+                      </span>
+                    )}
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1 rounded-full bg-muted/60 p-1">
@@ -245,32 +259,6 @@ export function NetworkComparisonTable({
                 <p className="mt-2 text-xs text-muted-foreground">
                   Affiche la variation du chiffre d'affaires par rapport à la même période l'année précédente.
                 </p>
-                {showN1Comparison && (
-                  <div className="mt-3 border-t border-border/50 pt-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="scope-toggle-network" className="inline-flex items-center gap-1.5 text-sm">
-                        Périmètre constant
-                        {analyticsCtx.comparisonScope === "constant" &&
-                          networkTotals.comparedRestaurantCount != null &&
-                          networkTotals.totalRestaurantCount != null && (
-                            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
-                              {networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
-                            </span>
-                          )}
-                      </Label>
-                      <Switch
-                        id="scope-toggle-network"
-                        checked={analyticsCtx.comparisonScope === "constant"}
-                        onCheckedChange={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      La variation VS N-1 n'est calculée que sur les restaurants ouverts à la fois sur la période
-                      sélectionnée et sur la même période l'année précédente. Les autres restent visibles mais sans
-                      variation.
-                    </p>
-                  </div>
-                )}
               </PopoverContent>
             </Popover>
           </div>
