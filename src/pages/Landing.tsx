@@ -539,9 +539,6 @@ export default function Landing() {
             <span>© 2026 Opineo</span>
           </div>
           <div className="flex gap-6">
-            <Link to="/privacy-policy" className="hover:text-foreground transition-colors">
-              Confidentialité
-            </Link>
             <a href="mailto:api@opineo.io" className="hover:text-foreground transition-colors">
               api@opineo.io
             </a>
