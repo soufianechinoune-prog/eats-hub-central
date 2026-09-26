@@ -11,6 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Search, Tag, Upload } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
@@ -21,6 +25,7 @@ import {
   useInstoreMatrix,
   useSetRestaurantPrice,
 } from "@/hooks/useInstoreMatrix";
+import { CHANNELS, ChannelImportRow, PriceChannel, useChannelPriceMatrix, useImportChannelPrices, useSetChannelPrice } from "@/hooks/useChannelPriceMatrix";
 
 const fmtEur = (v: number | null | undefined) =>
   v === null || v === undefined || Number.isNaN(v)
@@ -42,7 +47,7 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (p: number
   const commit = () => {
     setEditing(false);
     const p = Number(draft.replace(",", "."));
-    if (!Number.isFinite(p) || p < 0 || (value !== null && Math.abs(p - value) < 0.001)) return;
+    if (!draft.trim() || !Number.isFinite(p) || p < 0 || p > 99999999.99 || (value !== null && Math.abs(p - value) < 0.001)) return;
     onSave(p);
   };
   if (editing)
@@ -60,68 +65,103 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (p: number
       />
     );
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      title="Modifier ce prix"
       onClick={() => {
         setDraft(value !== null ? String(value) : "");
         setEditing(true);
       }}
       className={cn(
-        "w-24 rounded-md border border-transparent px-2 py-1 text-right tabular-nums hover:border-border hover:bg-muted",
+        "h-8 w-24 justify-end px-2 text-right tabular-nums hover:bg-muted",
         value === null && "text-muted-foreground"
       )}
     >
       {fmtEur(value)}
-    </button>
+    </Button>
   );
 }
 
 function ImportButton({ restaurants }: { restaurants: { id: string; name: string }[] }) {
   const ref = useRef<HTMLInputElement>(null);
   const imp = useImportRestaurantPrices();
+  const impChannels = useImportChannelPrices();
   const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [channels, setChannels] = useState<(PriceChannel | "caisse")[]>(["caisse"]);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<{ rows: ImportRow[]; recognized: number; unknown: string[]; invalid: number } | null>(null);
 
-  const onFile = async (file: File) => {
-    const wb = XLSX.read(await file.arrayBuffer());
+  const onFile = async (chosen: File) => {
+    setPreview(null);
+    setFile(null);
+    if (chosen.size > 20 * 1024 * 1024 || !/\.xlsx?$/i.test(chosen.name)) {
+      toast({ title: "Fichier non pris en charge", description: "Choisissez un fichier Excel de moins de 20 Mo.", variant: "destructive" });
+      return;
+    }
+    try {
+    const wb = XLSX.read(await chosen.arrayBuffer());
     const grid = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1 });
-    const hIdx = grid.findIndex((r) => String(r?.[0] ?? "").trim().toLowerCase() === "produit");
+    const hIdx = grid.findIndex((r) => productKey(String(r?.[0] ?? "")) === "produit");
     if (hIdx < 0) {
       toast({ title: "Format non reconnu", description: "Colonne « Produit » introuvable.", variant: "destructive" });
       return;
     }
-    const header = grid[hIdx].map((c) => String(c ?? ""));
+    const header = grid[hIdx].map((c) => String(c ?? "").trim());
     const byName = new Map(restaurants.map((r) => [norm(r.name), r.id]));
     const cols: { i: number; id: string }[] = [];
     const unknown: string[] = [];
     header.forEach((h, i) => {
       if (i === 0 || !h || /m[ée]diane/i.test(h)) return;
-      const id = byName.get(norm(h)) ?? [...byName.entries()].find(([k]) => k.includes(norm(h)))?.[1];
+      const normalized = norm(h);
+      const id = byName.get(normalized) ?? (normalized.length >= 5 ? [...byName.entries()].filter(([k]) => k.includes(normalized)).map(([, id]) => id).filter((v, idx, arr) => arr.indexOf(v) === idx).length === 1 ? [...byName.entries()].find(([k]) => k.includes(normalized))?.[1] : undefined : undefined);
       if (id) cols.push({ i, id });
       else unknown.push(h);
     });
     const map = new Map<string, ImportRow>();
+    let invalid = 0;
     for (const row of grid.slice(hIdx + 1)) {
       const label = String(row?.[0] ?? "").trim();
       if (!label) continue;
+      const key = productKey(label);
+      if (!key || key.length > 160 || label.length > 300) { invalid++; continue; }
       for (const c of cols) {
         const p = Number(String(row[c.i] ?? "").replace(",", "."));
-        if (row[c.i] === undefined || row[c.i] === "" || !Number.isFinite(p)) continue;
-        map.set(`${c.id}|${productKey(label)}`, {
+        if (row[c.i] === undefined || row[c.i] === "") continue;
+        if (!Number.isFinite(p) || p < 0 || p > 99999999.99) { invalid++; continue; }
+        map.set(`${c.id}|${key}`, {
           restaurant_id: c.id,
-          product_key: productKey(label),
+          product_key: key,
           product_label: label,
           price: Math.round(p * 100) / 100,
         });
       }
     }
-    imp.mutate([...map.values()], {
-      onSuccess: (n) =>
-        toast({
-          title: `${n} prix importés`,
-          description: `${cols.length} restaurants reconnus${unknown.length ? ` · ignorés : ${unknown.join(", ")}` : ""}`,
-        }),
-      onError: (e) => toast({ title: "Échec de l'import", description: String(e), variant: "destructive" }),
-    });
+    setFile(chosen);
+    setPreview({ rows: [...map.values()], recognized: cols.length, unknown, invalid });
+    } catch {
+      toast({ title: "Fichier illisible", description: "Vérifiez le format Excel.", variant: "destructive" });
+    }
+  };
+
+  const submit = async () => {
+    if (!preview?.rows.length || !channels.length) return;
+    try {
+      let total = 0;
+      if (channels.includes("caisse")) total += await imp.mutateAsync(preview.rows);
+      const other = channels.filter((c): c is PriceChannel => c !== "caisse");
+      if (other.length) {
+        const rows: ChannelImportRow[] = other.flatMap((channel) => preview.rows.map((row) => ({ ...row, channel })));
+        total += await impChannels.mutateAsync(rows);
+      }
+      toast({ title: `${total} prix importés`, description: `${preview.recognized} restaurants reconnus` });
+      setOpen(false);
+      setPreview(null);
+      setFile(null);
+    } catch (e) {
+      toast({ title: "Import incomplet", description: `Vérifiez les prix avant de réessayer. ${String(e)}`, variant: "destructive" });
+    }
   };
 
   return (
@@ -133,14 +173,43 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
-          if (f) onFile(f);
+          if (f) void onFile(f);
           e.target.value = "";
         }}
       />
-      <Button variant="outline" onClick={() => ref.current?.click()} disabled={imp.isPending}>
+      <Button variant="outline" onClick={() => setOpen(true)}>
         <Upload className="mr-2 h-4 w-4" />
-        {imp.isPending ? "Import…" : "Importer le référentiel"}
+        Importer le référentiel
       </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Importer le référentiel</DialogTitle>
+            <DialogDescription>Sélectionnez les canaux auxquels appliquer les prix du fichier.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              {([{ key: "caisse", label: "Caisse" }, ...CHANNELS] as const).map(({ key, label }) => (
+                <div key={key} className="flex items-center gap-2 rounded border p-3">
+                  <Checkbox id={`import-${key}`} checked={channels.includes(key)} onCheckedChange={(checked) => setChannels((prev) => checked === true ? [...prev, key] : prev.filter((c) => c !== key))} />
+                  <Label htmlFor={`import-${key}`}>{label}</Label>
+                </div>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">Le même tarif du fichier sera appliqué à chaque canal coché. Les autres prix restent inchangés.</p>
+            <Button type="button" variant="outline" className="w-full" onClick={() => ref.current?.click()}><Upload className="mr-2 h-4 w-4" />{file ? file.name : "Choisir un fichier Excel"}</Button>
+            {preview && <div className="rounded border bg-muted/40 p-3 text-sm">
+              <p className="font-medium">{preview.rows.length} prix · {preview.recognized} restaurants reconnus</p>
+              {!!preview.unknown.length && <p className="mt-1 text-destructive">Non reconnus : {preview.unknown.slice(0, 8).join(", ")}{preview.unknown.length > 8 ? ` et ${preview.unknown.length - 8} autres` : ""}</p>}
+              {!!preview.invalid && <p className="mt-1 text-destructive">{preview.invalid} valeurs invalides ignorées</p>}
+            </div>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>Annuler</Button>
+            <Button disabled={!preview?.rows.length || !channels.length || imp.isPending || impChannels.isPending} onClick={() => void submit()}>{imp.isPending || impChannels.isPending ? "Import en cours…" : "Importer"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
