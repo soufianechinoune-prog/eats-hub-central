@@ -175,7 +175,7 @@ export function OverviewChannelSidebar({
   const { pathname, search } = useLocation();
   const analyticsCtx = useAnalyticsContext();
 
-  const routeMatch = channelFromPath(pathname, search);
+  const routeMatch = channelFromPath(pathname, search, analyticsCtx.selectedPlatform as string | undefined);
   // Mode "route" : la page n'est pas la Vue d'ensemble, l'état actif vient de l'URL.
   const routeMode = !onChange;
   const activeChannel: OverviewChannel = routeMode
@@ -297,11 +297,18 @@ export function OverviewChannelSidebar({
         <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           Vue globale
         </p>
-        <NavButton
-          item={globalItem}
-          isActive={activeChannel === globalItem.id}
-          onClick={() => handleChannelClick(globalItem)}
-        />
+        <div className="space-y-0.5">
+          <NavButton
+            item={globalItem}
+            isActive={activeChannel === globalItem.id && currentSubId !== "live"}
+            onClick={() => handleChannelClick(globalItem)}
+          />
+          <NavButton
+            item={{ id: "global", label: "Live", sublabel: "Ventes du jour en direct", icon: Zap }}
+            isActive={pathname === "/live"}
+            onClick={() => { navigate("/live"); onNavigate?.(); }}
+          />
+        </div>
       </div>
 
       {/* Par canal */}
