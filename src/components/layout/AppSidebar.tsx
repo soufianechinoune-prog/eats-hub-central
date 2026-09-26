@@ -267,8 +267,17 @@ export function AppSidebar() {
         <SidebarGroup>
           {collapsed && (
             <SidebarGroupLabel className="text-center">
-              {
-              }
+              {activeChain?.logo_url ? (
+                <img src={activeChain.logo_url} alt={activeChain.name} className="mx-auto h-8 w-8 rounded-md object-cover" />
+              ) : activeChain ? (
+                <Avatar className="mx-auto h-8 w-8 text-[10px]">
+                  <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                    {activeChain.name.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+              ) : (
+                <img src={csLogo} alt="CS Delivery Performance" className="mx-auto h-8 w-8 rounded-full object-cover" />
+              )}
             </SidebarGroupLabel>
           )}
           {/* Read-only badge for client role */}
