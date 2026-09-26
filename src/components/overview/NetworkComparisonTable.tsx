@@ -17,7 +17,7 @@ const fmtEur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(v)) + " €";
 
 type StatusFilter = "all" | "up" | "down" | "watch";
-type SortKey = "name" | "revenue" | "cash" | "uber" | "deliveroo" | "mix";
+type SortKey = "name" | "revenue" | "cash" | "uber" | "deliveroo" | "dishop" | "chataigne" | "mix";
 
 /** Sparkline de tendance (CA journalier tous canaux), colorée selon la variation. */
 function TrendSparkline({ points, positive }: { points: number[]; positive: boolean }) {
@@ -117,6 +117,8 @@ export function NetworkComparisonTable({
         case "cash": return r.cash;
         case "uber": return r.uber;
         case "deliveroo": return r.deliveroo;
+        case "dishop": return r.dishop;
+        case "chataigne": return r.chataigne;
         case "mix": return r.deliveryMix ?? -1;
         default: return r.total;
       }
@@ -259,6 +261,8 @@ export function NetworkComparisonTable({
                 <HeadBtn col="cash" className="text-right"><span className="ml-auto">Caisse</span></HeadBtn>
                 <HeadBtn col="uber" className="text-right"><span className="ml-auto">Uber Eats</span></HeadBtn>
                 <HeadBtn col="deliveroo" className="text-right"><span className="ml-auto">Deliveroo</span></HeadBtn>
+                <HeadBtn col="dishop" className="text-right"><span className="ml-auto">Dishop</span></HeadBtn>
+                <HeadBtn col="chataigne" className="text-right"><span className="ml-auto">Châtaigne</span></HeadBtn>
                 <HeadBtn col="mix" className="text-right"><span className="ml-auto">Mix livraison</span></HeadBtn>
                 <TableHead className="text-right text-xs font-medium text-muted-foreground">Tendance</TableHead>
                 <TableHead className="w-[90px]" />
@@ -331,6 +335,12 @@ export function NetworkComparisonTable({
                     <TableCell className="text-right tabular-nums">
                       {row.deliveroo > 0 ? fmtEur(row.deliveroo) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.dishop > 0 ? fmtEur(row.dishop) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums">
+                      {row.chataigne > 0 ? fmtEur(row.chataigne) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {row.deliveryMix != null ? `${Math.round(row.deliveryMix)} %` : "—"}
                     </TableCell>
@@ -370,7 +380,7 @@ export function NetworkComparisonTable({
               })}
               {filtered.length === 0 && (
                 <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={11} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={13} className="py-10 text-center text-sm text-muted-foreground">
                     Aucun restaurant ne correspond à ce filtre.
                   </TableCell>
                 </TableRow>
