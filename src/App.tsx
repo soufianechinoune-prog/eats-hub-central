@@ -18,7 +18,6 @@ import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import Login from "./pages/Login";
 import Landing from "./pages/Landing";
 import NotFound from "./pages/NotFound";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
 import ResetPassword from "./pages/ResetPassword";
 import UberCallback from "./pages/UberCallback";
 import OAuthConsent from "./pages/OAuthConsent";
@@ -186,7 +185,6 @@ const App = () => {
                     <Route path="/" element={<SmartHome />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/auth" element={<Navigate to="/login" replace />} />
-                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/auth/uber/callback" element={<UberCallback />} />
                     <Route path="/uber-callback" element={<UberCallback />} />
