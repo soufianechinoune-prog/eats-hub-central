@@ -1155,6 +1155,20 @@ const Overview = () => {
                 isLoading={dishopBreakdownLoading}
                 onRestaurantClick={navigateToFinances}
               />
+            ) : activeChannel === "global" ? (
+              <NetworkComparisonTable
+                stats={comparisonStats}
+                networkTotals={networkTotals}
+                isLoading={statsLoading || cashLoading}
+                onRestaurantClick={navigateToChannelRestaurant}
+                cashByRestaurant={cashByRestaurant}
+                chataigneByRestaurant={chataigneByRestaurant}
+                dishopByRestaurant={dishopByRestaurant}
+                dailyByRestaurant={networkDaily.byRestaurant}
+                chainLogoUrl={activeChainLogo}
+                showN1Comparison={showN1Comparison}
+                onToggleN1={setShowN1Comparison}
+              />
             ) : (
               <RestaurantComparisonTable
                 stats={comparisonStats}
