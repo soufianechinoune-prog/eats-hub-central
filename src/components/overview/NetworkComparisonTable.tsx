@@ -74,6 +74,7 @@ export function NetworkComparisonTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const analyticsCtx = useAnalyticsContext();
 
   // Lignes enrichies : CA tous canaux + répartition
   const rows = useMemo(() => {
