@@ -6875,6 +6875,57 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_restaurant_prices: {
+        Row: {
+          chain_id: string
+          channel: string
+          id: string
+          price: number
+          product_key: string
+          product_label: string
+          restaurant_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          channel: string
+          id?: string
+          price: number
+          product_key: string
+          product_label: string
+          restaurant_id: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          channel?: string
+          id?: string
+          price?: number
+          product_key?: string
+          product_label?: string
+          restaurant_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_restaurant_prices_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_restaurant_prices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chart_notes: {
         Row: {
           chain_id: string
@@ -12967,6 +13018,7 @@ export type Database = {
           share: number
         }[]
       }
+      get_channel_price_matrix: { Args: { p_chain_id: string }; Returns: Json }
       get_chataigne_basket_segments: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
@@ -14380,6 +14432,10 @@ export type Database = {
           vat_uber_fee: number
         }[]
       }
+      import_channel_restaurant_prices: {
+        Args: { p_chain_id: string; p_rows: Json }
+        Returns: number
+      }
       import_instore_restaurant_prices: {
         Args: { p_chain_id: string; p_rows: Json }
         Returns: number
@@ -14467,6 +14523,16 @@ export type Database = {
           inserted_count: number
           skipped_count: number
         }[]
+      }
+      set_channel_restaurant_price: {
+        Args: {
+          p_channel: string
+          p_price: number
+          p_product_key: string
+          p_product_label: string
+          p_restaurant_id: string
+        }
+        Returns: undefined
       }
       set_instore_grid_price: {
         Args: {
