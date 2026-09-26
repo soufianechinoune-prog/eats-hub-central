@@ -200,7 +200,7 @@ export function NetworkRevenueHero({
                 </span>
               )}
             </div>
-            <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-2">
               {(fromDate || toDate) && (
                 <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium tabular-nums">
                   <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
