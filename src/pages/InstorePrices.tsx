@@ -2,13 +2,14 @@ import { useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
+import { AnalyticsHeader } from "@/components/analytics/AnalyticsHeader";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Tag, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
@@ -147,19 +148,30 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
 export default function InstorePrices() {
   const { data, isLoading } = useInstoreMatrix();
   const { data: restaurants = [] } = useActiveRestaurants();
+  const { selectedRestaurants } = useAnalyticsContext();
   const setPrice = useSetRestaurantPrice();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
-  const [restaurantId, setRestaurantId] = useState("all");
+
+  const selectedIds = useMemo(() => {
+    const activeIds = new Set(restaurants.map((r) => r.id));
+    return selectedRestaurants.filter((id) => activeIds.has(id));
+  }, [selectedRestaurants, restaurants]);
+  const singleId = selectedIds.length === 1 ? selectedIds[0] : null;
+  const single = singleId !== null;
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (data ?? [])
       .filter((p) => p.label.toLowerCase().includes(q))
       .map((p) => {
-        const vals = Object.values(p.prices);
-        const med = median(vals);
-        const aligned = med === null ? 0 : vals.filter((v) => Math.abs(v - med) < 0.005).length;
+        const networkMedian = median(Object.values(p.prices));
+        const vals = selectedIds.length
+          ? selectedIds.flatMap((id) => p.prices[id] === undefined ? [] : [p.prices[id]])
+          : Object.values(p.prices);
+        const scopedMedian = median(vals);
+        const med = single ? networkMedian : scopedMedian;
+        const aligned = scopedMedian === null ? 0 : vals.filter((v) => Math.abs(v - scopedMedian) < 0.005).length;
         return {
           ...p,
           med,
@@ -170,23 +182,21 @@ export default function InstorePrices() {
         };
       })
       .sort((a, b) => a.label.localeCompare(b.label, "fr"));
-  }, [data, search]);
+  }, [data, search, selectedIds, single]);
 
   const restaurantCount = useMemo(
-    () => new Set((data ?? []).flatMap((p) => Object.keys(p.prices))).size,
-    [data]
+    () => selectedIds.length || new Set((data ?? []).flatMap((p) => Object.keys(p.prices))).size,
+    [data, selectedIds]
   );
 
   const save = (product_key: string, product_label: string, price: number) =>
     setPrice.mutate(
-      { restaurant_id: restaurantId, product_key, product_label, price },
+      { restaurant_id: singleId ?? "", product_key, product_label, price },
       {
         onSuccess: () => toast({ title: "Prix mis à jour", description: `${product_label} · ${fmtEur(price)}` }),
         onError: (e) => toast({ title: "Échec", description: String(e), variant: "destructive" }),
       }
     );
-
-  const single = restaurantId !== "all";
 
   return (
     <AppLayout>
@@ -202,11 +212,13 @@ export default function InstorePrices() {
             <ImportButton restaurants={restaurants} />
           </div>
 
+          <AnalyticsHeader hidePeriodSelector />
+
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
               <div>
                 <CardTitle className="flex items-center gap-2">
-                  <Tag className="h-5 w-5 text-primary" /> {single ? "Prix du restaurant" : "Vue réseau"}
+                  <Tag className="h-5 w-5 text-primary" /> {single ? "Prix du restaurant" : selectedIds.length > 1 ? "Prix des restaurants sélectionnés" : "Vue réseau"}
                 </CardTitle>
                 <CardDescription>
                   {(data ?? []).length} produits · {restaurantCount} restaurants
@@ -214,19 +226,6 @@ export default function InstorePrices() {
                 </CardDescription>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Select value={restaurantId} onValueChange={setRestaurantId}>
-                  <SelectTrigger className="w-64">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous les restaurants</SelectItem>
-                    {restaurants.map((r) => (
-                      <SelectItem key={r.id} value={r.id}>
-                        {r.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -272,7 +271,7 @@ export default function InstorePrices() {
                     </TableHeader>
                     <TableBody>
                       {rows.map((p) => {
-                        const own = single ? p.prices[restaurantId] ?? null : null;
+                        const own = singleId ? p.prices[singleId] ?? null : null;
                         const diff = own !== null && p.med !== null ? own - p.med : null;
                         return (
                           <TableRow key={p.key}>
