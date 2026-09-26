@@ -14,7 +14,6 @@ import {
   History,
   MessageSquare,
   Settings2,
-  Map,
   ChevronRight,
   Eye,
   Euro,
@@ -173,11 +172,6 @@ const analysisItems = [
     title: "Marketing Analytics",
     url: "/marketing-analytics",
     icon: Megaphone,
-  },
-  {
-    title: "Cartographie",
-    url: "/cartography",
-    icon: Map,
   },
   {
     title: "Opérations",

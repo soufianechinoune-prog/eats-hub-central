@@ -48,7 +48,6 @@ const RestaurantActions = React.lazy(() => import("./pages/RestaurantActions"));
 const MenuHistory = React.lazy(() => import("./pages/MenuHistory"));
 const Messaging = React.lazy(() => import("./pages/Messaging"));
 const Operations = React.lazy(() => import("./pages/Operations"));
-const Cartography = React.lazy(() => import("./pages/Cartography"));
 const ReportImport = React.lazy(() => import("./pages/ReportImport"));
 const ImportGuide = React.lazy(() => import("./pages/ImportGuide"));
 const ImportChecklist = React.lazy(() => import("./pages/ImportChecklist"));
@@ -232,7 +231,6 @@ const App = () => {
                     <Route path="/menu-history" element={<P><ImportRoute><AppLayout><MenuHistory /></AppLayout></ImportRoute></P>} />
                     <Route path="/operations" element={<P><AppLayout><Operations /></AppLayout></P>} />
                     <Route path="/report-import" element={<P><ImportRoute><AppLayout><ReportImport /></AppLayout></ImportRoute></P>} />
-                    <Route path="/cartography" element={<P><Cartography /></P>} />
                     <Route path="/import-guide" element={<P><ImportRoute><AppLayout><ImportGuide /></AppLayout></ImportRoute></P>} />
                     <Route path="/import-checklist" element={<P><ImportRoute><AppLayout><ImportChecklist /></AppLayout></ImportRoute></P>} />
                     <Route path="/compare/downtime" element={<P><AppLayout><DowntimeComparison /></AppLayout></P>} />
