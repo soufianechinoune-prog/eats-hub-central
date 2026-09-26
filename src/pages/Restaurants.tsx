@@ -493,9 +493,10 @@ const Restaurants = () => {
                   onClick={() => handleSort("uber_opening_date")}
                 >
                   <div className="flex items-center gap-1.5">
-                    Ouverture Uber
+                    Ouverture
                     <SortIcon column="uber_opening_date" />
                   </div>
+
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
