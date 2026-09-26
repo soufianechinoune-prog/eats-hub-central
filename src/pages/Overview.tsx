@@ -532,6 +532,21 @@ const Overview = () => {
     };
   }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data]);
 
+  // Périmètre constant : toute la vue réseau (montants, graphique, tableau) ne compte
+  // que les restaurants comparables, sur N comme sur N-1.
+  const isConstantScope = analyticsCtx.comparisonScope === "constant";
+  const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
+  const constantVariation = useMemo(() => {
+    const vals = Object.values(channelComparisons);
+    const cur = vals.reduce((s, c) => s + (c?.current ?? 0), 0);
+    const prev = vals.reduce((s, c) => s + (c?.previous ?? 0), 0);
+    return prev > 0 ? ((cur - prev) / prev) * 100 : null;
+  }, [channelComparisons]);
+  const scopedStats = useMemo(
+    () => (isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats),
+    [isConstantScope, comparisonStats, comparableSet],
+  );
+
   // Existence de données Chataigne pour la marque, indépendante de la période :
   // évite que l'onglet disparaisse quand la période choisie est vide (ex. lancement récent).
   const { data: hasChataigneData } = useQuery({
