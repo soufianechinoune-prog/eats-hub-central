@@ -176,6 +176,13 @@
       "when": 1790422474722,
       "tag": "0024_channel_restaurant_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790454248412,
+      "tag": "0025_add_restaurant_first_activity_date",
+      "breakpoints": true
     }
   ]
 }

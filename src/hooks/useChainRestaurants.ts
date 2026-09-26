@@ -13,7 +13,7 @@ export function usePinnedRestaurants() {
     queryFn: async () => {
       let query = supabase
         .from("restaurants")
-        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
+        .select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source")
         .eq("is_pinned", true)
         .eq("is_active", true)
         .order("name");
@@ -38,7 +38,7 @@ export function useActiveRestaurants() {
     queryFn: async () => {
       let query = supabase
         .from("restaurants")
-        .select("id, name, city, is_pinned, deliveroo_store_id, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date")
+        .select("id, name, city, is_pinned, deliveroo_store_id, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source")
         .eq("is_active", true)
         .order("name");
       if (selectedChainId) {

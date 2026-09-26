@@ -13,7 +13,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check } from "lucide-react";
+import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check, Sparkles } from "lucide-react";
+import { getEffectiveOpeningDate } from "@/lib/restaurantActivityFilter";
+
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce, type ScanStatus } from "@/components/restaurants/BodaccScanButton";
 import { BodaccDetailSheet } from "@/components/restaurants/BodaccDetailSheet";
 import { loadAllDismissedKeys, getAnnonceKey } from "@/hooks/useBodaccDismissals";
@@ -243,8 +245,9 @@ const Restaurants = () => {
             break;
           }
           case "uber_opening_date":
-            aVal = (a as any).uber_opening_date || "";
-            bVal = (b as any).uber_opening_date || "";
+            aVal = getEffectiveOpeningDate(a as any).date || "";
+            bVal = getEffectiveOpeningDate(b as any).date || "";
+
             break;
           case "uber_api": {
             const rank = (x: typeof a) =>
@@ -493,9 +496,10 @@ const Restaurants = () => {
                   onClick={() => handleSort("uber_opening_date")}
                 >
                   <div className="flex items-center gap-1.5">
-                    Ouverture Uber
+                    Ouverture
                     <SortIcon column="uber_opening_date" />
                   </div>
+
                 </TableHead>
                 <TableHead 
                   className="cursor-pointer hover:bg-muted/50 select-none"
@@ -707,14 +711,33 @@ const Restaurants = () => {
                       })()}
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      {(restaurant as any).uber_opening_date ? (
-                        <span className="text-sm">
-                          {new Date((restaurant as any).uber_opening_date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">-</span>
-                      )}
+                      {(() => {
+                        const opening = getEffectiveOpeningDate(restaurant as any);
+                        if (!opening.date) return <span className="text-muted-foreground">-</span>;
+                        const label = new Date(opening.date + 'T00:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                        const sourceLabel = opening.source === 'uber'
+                          ? 'Uber Eats'
+                          : opening.source === 'deliveroo'
+                            ? 'Deliveroo'
+                            : 'Caisse';
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm">{label}</span>
+                            {opening.isAuto && (
+                              <Badge
+                                variant="outline"
+                                className="w-fit gap-1 border-amber-500/40 bg-amber-500/10 text-[11px] font-normal text-amber-700 dark:text-amber-400"
+                                title={`Date détectée automatiquement : première vente constatée (${sourceLabel})`}
+                              >
+                                <Sparkles className="h-3 w-3" />
+                                Auto · {sourceLabel}
+                              </Badge>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
+
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       <UberApiBadge restaurant={restaurant} />
                     </TableCell>

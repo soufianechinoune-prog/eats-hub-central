@@ -11194,6 +11194,8 @@ export type Database = {
           deliveroo_store_id: string | null
           denomination_sociale: string | null
           dirigeant_legal: string | null
+          first_activity_date: string | null
+          first_activity_source: string | null
           id: string
           is_active: boolean | null
           is_pinned: boolean | null
@@ -11242,6 +11244,8 @@ export type Database = {
           deliveroo_store_id?: string | null
           denomination_sociale?: string | null
           dirigeant_legal?: string | null
+          first_activity_date?: string | null
+          first_activity_source?: string | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -11290,6 +11294,8 @@ export type Database = {
           deliveroo_store_id?: string | null
           denomination_sociale?: string | null
           dirigeant_legal?: string | null
+          first_activity_date?: string | null
+          first_activity_source?: string | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -14490,6 +14496,10 @@ export type Database = {
           p_restaurant_ids?: string[]
           p_start_date: string
         }
+        Returns: number
+      }
+      refresh_restaurant_first_activity: {
+        Args: { p_restaurant_ids?: string[] }
         Returns: number
       }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
