@@ -216,11 +216,14 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
 
 export default function InstorePrices() {
   const { data, isLoading } = useInstoreMatrix();
+  const { data: channelData = [], isLoading: channelLoading } = useChannelPriceMatrix();
   const { data: restaurants = [] } = useActiveRestaurants();
   const { selectedRestaurants } = useAnalyticsContext();
   const setPrice = useSetRestaurantPrice();
+  const setChannelPrice = useSetChannelPrice();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
+  const [tab, setTab] = useState("caisse");
 
   const selectedIds = useMemo(() => {
     const activeIds = new Set(restaurants.map((r) => r.id));
@@ -258,6 +261,18 @@ export default function InstorePrices() {
     [data, selectedIds]
   );
 
+  const channelRows = useMemo(() => {
+    const combined = new Map<string, { key: string; label: string; prices: Partial<Record<PriceChannel, Record<string, number>>>; caisse: Record<string, number> }>();
+    for (const p of data ?? []) combined.set(p.key, { key: p.key, label: p.label, prices: {}, caisse: p.prices });
+    for (const p of channelData) {
+      const row = combined.get(p.key) ?? { key: p.key, label: p.label, prices: {}, caisse: {} };
+      row.prices[p.channel] = p.prices;
+      combined.set(p.key, row);
+    }
+    const q = search.trim().toLowerCase();
+    return [...combined.values()].filter((p) => p.label.toLowerCase().includes(q)).sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  }, [data, channelData, search]);
+
   const save = (product_key: string, product_label: string, price: number) =>
     setPrice.mutate(
       { restaurant_id: singleId ?? "", product_key, product_label, price },
@@ -267,6 +282,14 @@ export default function InstorePrices() {
       }
     );
 
+  const saveChannel = (channel: PriceChannel, product_key: string, product_label: string, price: number) => {
+    if (!singleId) return;
+    setChannelPrice.mutate({ restaurant_id: singleId, channel, product_key, product_label, price }, {
+      onSuccess: () => toast({ title: "Prix mis à jour", description: `${product_label} · ${fmtEur(price)}` }),
+      onError: (e) => toast({ title: "Échec", description: String(e), variant: "destructive" }),
+    });
+  };
+
   return (
     <AppLayout>
       <ChannelNavShell>
@@ -275,7 +298,7 @@ export default function InstorePrices() {
             <div>
               <h1 className="text-2xl font-bold">Prix & Tarifs</h1>
               <p className="text-muted-foreground">
-                Prix sur place réels de chaque restaurant — référence commune à tous les canaux.
+                 Prix par produit et par canal, avec la caisse comme référence.
               </p>
             </div>
             <ImportButton restaurants={restaurants} />
@@ -283,6 +306,58 @@ export default function InstorePrices() {
 
           <AnalyticsHeader hidePeriodSelector />
 
+          <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+            <TabsList className="h-auto flex-wrap justify-start">
+              <TabsTrigger value="caisse">Caisse · référence</TabsTrigger>
+              <TabsTrigger value="canaux">Comparatif des canaux</TabsTrigger>
+            </TabsList>
+            <TabsContent value="canaux">
+              <Card>
+                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5 text-primary" />Prix par canal</CardTitle>
+                    <CardDescription>{channelRows.length} produits · {single ? "Prix du restaurant" : selectedIds.length > 1 ? "Médianes des restaurants sélectionnés" : "Médianes réseau"}</CardDescription>
+                  </div>
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input className="w-56 pl-8" placeholder="Rechercher un produit…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoading || channelLoading ? <Skeleton className="h-48 w-full" /> : channelRows.length === 0 ? <p className="py-10 text-center text-muted-foreground">Aucun tarif pour cette sélection.</p> : (
+                    <div className="overflow-x-auto rounded-md border">
+                      <Table>
+                        <TableHeader><TableRow>
+                          <TableHead className="sticky left-0 z-10 min-w-[220px] bg-background">Produit</TableHead>
+                          <TableHead className="min-w-[140px] text-right">Caisse</TableHead>
+                          {CHANNELS.map((c) => <TableHead key={c.key} className="min-w-[140px] text-right">{c.label}</TableHead>)}
+                        </TableRow></TableHeader>
+                        <TableBody>{channelRows.map((p) => {
+                          const scope = (prices: Record<string, number>) => median(selectedIds.length ? selectedIds.flatMap((id) => prices[id] === undefined ? [] : [prices[id]]) : Object.values(prices));
+                          const base = singleId ? p.caisse[singleId] ?? null : scope(p.caisse);
+                          return <TableRow key={p.key}>
+                            <TableCell className="sticky left-0 z-10 bg-background font-medium">{p.label}</TableCell>
+                            <TableCell className="text-right">{singleId ? <div className="flex justify-end"><PriceCell value={base} onSave={(price) => save(p.key, p.label, price)} /></div> : <span className="tabular-nums font-semibold">{fmtEur(base)}</span>}</TableCell>
+                            {CHANNELS.map((c) => {
+                              const prices = p.prices[c.key] ?? {};
+                              const value = singleId ? prices[singleId] ?? null : scope(prices);
+                              const delta = base !== null && base > 0 && value !== null ? Math.round((value / base - 1) * 100) : null;
+                              return <TableCell key={c.key} className="text-right">
+                                <div className="flex flex-col items-end">
+                                  {singleId ? <PriceCell value={value} onSave={(price) => saveChannel(c.key, p.key, p.label, price)} /> : <span className="tabular-nums">{fmtEur(value)}</span>}
+                                  {delta !== null && <span className={cn("text-xs tabular-nums", delta > 0 ? "text-success" : delta < 0 ? "text-destructive" : "text-muted-foreground")}>{delta > 0 ? "+" : ""}{delta} % vs caisse</span>}
+                                </div>
+                              </TableCell>;
+                            })}
+                          </TableRow>;
+                        })}</TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="caisse">
           <Card>
             <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
               <div>
@@ -383,6 +458,8 @@ export default function InstorePrices() {
               )}
             </CardContent>
           </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       </ChannelNavShell>
     </AppLayout>
