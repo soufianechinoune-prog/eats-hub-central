@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { CalendarDays, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -13,6 +13,30 @@ const fmtEur = (v: number) =>
 
 const fmtCompact = (v: number) =>
   v >= 1000 ? `${Math.round(v / 1000)} k` : `${Math.round(v)}`;
+
+/** date-fns plante sur une valeur vide : on renvoie null plutôt qu'un écran blanc */
+const parseDay = (iso?: string | null): Date | null => {
+  if (!iso || typeof iso !== "string") return null;
+  try {
+    const d = parseISO(iso);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+};
+
+const fmtDate = (iso?: string | null): string | null => {
+  const d = parseDay(iso);
+  return d ? format(d, "d MMM yyyy", { locale: fr }) : null;
+};
+
+/** Même date un an plus tôt (période N-1 comparée par useNetworkStats) */
+const fmtDatePrevYear = (iso?: string | null): string | null => {
+  const d = parseDay(iso);
+  if (!d) return null;
+  d.setFullYear(d.getFullYear() - 1);
+  return format(d, "d MMM yyyy", { locale: fr });
+};
 
 interface ChannelSlice {
   key: string;
@@ -32,6 +56,9 @@ export interface NetworkRevenueHeroProps {
   dishop: number | null;
   chataigne: number;
   daily: NetworkDailyPoint[];
+  /** Période sélectionnée, yyyy-MM-dd */
+  startDateStr: string;
+  endDateStr: string;
 }
 
 export function NetworkRevenueHero({
@@ -43,6 +70,8 @@ export function NetworkRevenueHero({
   dishop,
   chataigne,
   daily,
+  startDateStr,
+  endDateStr,
 }: NetworkRevenueHeroProps) {
   const slices: ChannelSlice[] = [
     { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))" },
@@ -53,6 +82,11 @@ export function NetworkRevenueHero({
   ];
 
   const total = slices.reduce((s, c) => s + Math.max(0, c.value ?? 0), 0);
+
+  const fromDate = fmtDate(startDateStr);
+  const toDate = fmtDate(endDateStr);
+  const prevFromDate = fmtDatePrevYear(startDateStr);
+  const prevToDate = fmtDatePrevYear(endDateStr);
 
   const chartData = useMemo(
     () => daily.map((d) => ({ date: d.date, total: d.total })),
@@ -107,8 +141,18 @@ export function NetworkRevenueHero({
                 </span>
               )}
             </div>
-            {variation != null && (
-              <p className="mt-1 text-xs text-muted-foreground">vs N-1 (même période)</p>
+            {(fromDate || toDate) && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium tabular-nums">
+                <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+                <span>{fromDate ?? "—"}</span>
+                <span className="text-muted-foreground">→</span>
+                <span>{toDate ?? "—"}</span>
+              </p>
+            )}
+            {variation != null && prevFromDate && prevToDate && (
+              <p className="mt-1 pl-5 text-xs text-muted-foreground tabular-nums">
+                vs {prevFromDate} → {prevToDate}
+              </p>
             )}
 
             {/* Barre empilée */}
@@ -127,20 +171,23 @@ export function NetworkRevenueHero({
               })}
             </div>
 
-            {/* Légende */}
-            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+            {/* Légende — une seule ligne, canaux séparés par un trait fin */}
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5 sm:gap-x-0 sm:divide-x sm:divide-border">
               {slices.map((s) => {
                 const v = s.value;
                 const pct = v != null && total > 0 ? (Math.max(0, v) / total) * 100 : null;
                 return (
-                  <div key={s.key} className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-xs">
+                  <div
+                    key={s.key}
+                    className="min-w-0 sm:px-3 sm:first:pl-0 sm:last:pr-0"
+                  >
+                    <div className="flex items-center gap-1.5 whitespace-nowrap text-xs">
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: s.color }}
                       />
-                      <span className="truncate font-medium">{s.label}</span>
-                      <span className="ml-auto tabular-nums text-muted-foreground">
+                      <span className="font-medium">{s.label}</span>
+                      <span className="tabular-nums text-muted-foreground">
                         {pct != null ? `${pct.toFixed(1).replace(".", ",")} %` : "—"}
                       </span>
                     </div>
@@ -186,7 +233,10 @@ export function NetworkRevenueHero({
                       tickLine={false}
                       axisLine={false}
                       minTickGap={20}
-                      tickFormatter={(d: string) => format(parseISO(d), "d MMM", { locale: fr })}
+                      tickFormatter={(d: string) => {
+                        const day = parseDay(d);
+                        return day ? format(day, "d MMM", { locale: fr }) : "";
+                      }}
                     />
                     <YAxis
                       tick={{ fontSize: 10 }}
@@ -202,7 +252,12 @@ export function NetworkRevenueHero({
                         return (
                           <div className="rounded-lg border border-border bg-popover px-3 py-2 text-xs shadow-lg">
                             <div className="font-medium">
-                              {format(parseISO(String(label)), "EEEE d MMMM", { locale: fr })}
+                              {(() => {
+                                const day = parseDay(String(label));
+                                return day
+                                  ? format(day, "EEEE d MMMM", { locale: fr })
+                                  : String(label);
+                              })()}
                             </div>
                             <div className="mt-0.5 font-semibold tabular-nums">
                               {fmtEur(Number(payload[0].value) || 0)}
