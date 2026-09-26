@@ -16,8 +16,8 @@ const fmtEur = (v: number) =>
 
 /** Mini sparkline SVG (aquaremplie légère), colorée selon la tendance. */
 function Sparkline({ points, positive }: { points: number[]; positive: boolean }) {
-  const w = 120;
-  const h = 36;
+  const w = 96;
+  const h = 30;
   if (points.length < 2) {
     return <div style={{ width: w, height: h }} className="ml-auto" />;
   }
@@ -160,25 +160,25 @@ export function NetworkChannelCards({
                       <span className="text-sm font-medium">{c.label}</span>
                     </div>
 
-                    <div className="mt-3 flex items-end justify-between gap-2">
-                      <div className="min-w-0">
-                        {isLoading ? (
-                          <Skeleton className="h-7 w-24" />
-                        ) : c.value == null ? (
-                          <p className="text-sm text-muted-foreground">{c.notConnectedLabel ?? "Pas de données"}</p>
-                        ) : (
-                          <p className="truncate text-xl font-bold tracking-tight tabular-nums">
-                            {fmtEur(c.value)}
-                          </p>
-                        )}
-                        <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
-                          <span className="tabular-nums">
+                    <div className="mt-3">
+                      {isLoading ? (
+                        <Skeleton className="h-7 w-24" />
+                      ) : c.value == null ? (
+                        <p className="text-sm text-muted-foreground">{c.notConnectedLabel ?? "Pas de données"}</p>
+                      ) : (
+                        <p className="text-lg font-bold tracking-tight tabular-nums whitespace-nowrap">
+                          {fmtEur(c.value)}
+                        </p>
+                      )}
+                      <div className="mt-1.5 flex items-end justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="tabular-nums whitespace-nowrap">
                             {share != null ? `${share.toFixed(1).replace(".", ",")} % du CA` : "—"}
                           </span>
                           {c.variation != null && !isLoading && (
                             <span
                               className={cn(
-                                "inline-flex items-center gap-0.5 font-medium",
+                                "inline-flex items-center gap-0.5 font-medium whitespace-nowrap",
                                 c.variation >= 0
                                   ? "text-emerald-600 dark:text-emerald-400"
                                   : "text-red-600 dark:text-red-400",
@@ -194,10 +194,10 @@ export function NetworkChannelCards({
                             </span>
                           )}
                         </div>
+                        {!isLoading && c.value != null && c.value > 0 && (
+                          <Sparkline points={series} positive={positive} />
+                        )}
                       </div>
-                      {!isLoading && c.value != null && c.value > 0 && (
-                        <Sparkline points={series} positive={positive} />
-                      )}
                     </div>
                   </CardContent>
                 </Card>

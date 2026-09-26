@@ -126,7 +126,7 @@ const Overview = () => {
     }
     return analyticsCtx.dateRange;
   });
-  const [showN1Comparison, setShowN1Comparison] = useState(false);
+  const [showN1Comparison, setShowN1Comparison] = useState(true);
   const [showDataSource, setShowDataSource] = useState(true);
   // Canal actif : piloté par ?channel=... (la barre latérale gauche navigue vers cette URL)
   const [channelParams] = useSearchParams();

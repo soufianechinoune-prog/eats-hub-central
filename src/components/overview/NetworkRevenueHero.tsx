@@ -128,7 +128,7 @@ export function NetworkRevenueHero({
             </div>
 
             {/* Légende */}
-            <div className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
               {slices.map((s) => {
                 const v = s.value;
                 const pct = v != null && total > 0 ? (Math.max(0, v) / total) * 100 : null;
@@ -192,7 +192,7 @@ export function NetworkRevenueHero({
                       tick={{ fontSize: 10 }}
                       tickLine={false}
                       axisLine={false}
-                      width={36}
+                      width={44}
                       tickFormatter={(v: number) => fmtCompact(v)}
                     />
                     <Tooltip
