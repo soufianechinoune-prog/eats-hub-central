@@ -121,8 +121,16 @@ export function NetworkRevenueHero({
                 </span>
               )}
             </div>
+            <p className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs font-medium tabular-nums">
+              <CalendarDays className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{fmtDate(startDateStr)}</span>
+              <span className="text-muted-foreground">→</span>
+              <span>{fmtDate(endDateStr)}</span>
+            </p>
             {variation != null && (
-              <p className="mt-1 text-xs text-muted-foreground">vs N-1 (même période)</p>
+              <p className="mt-1 pl-5 text-xs text-muted-foreground tabular-nums">
+                vs {fmtDatePrevYear(startDateStr)} → {fmtDatePrevYear(endDateStr)}
+              </p>
             )}
 
             {/* Barre empilée */}
@@ -141,20 +149,23 @@ export function NetworkRevenueHero({
               })}
             </div>
 
-            {/* Légende */}
-            <div className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+            {/* Légende — une seule ligne, canaux séparés par un trait fin */}
+            <div className="mt-3 grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5 sm:gap-x-0 sm:divide-x sm:divide-border">
               {slices.map((s) => {
                 const v = s.value;
                 const pct = v != null && total > 0 ? (Math.max(0, v) / total) * 100 : null;
                 return (
-                  <div key={s.key} className="min-w-0">
-                    <div className="flex items-center gap-1.5 text-xs">
+                  <div
+                    key={s.key}
+                    className="min-w-0 sm:px-3 sm:first:pl-0 sm:last:pr-0"
+                  >
+                    <div className="flex items-center gap-1.5 whitespace-nowrap text-xs">
                       <span
                         className="h-2 w-2 shrink-0 rounded-full"
                         style={{ backgroundColor: s.color }}
                       />
-                      <span className="truncate font-medium">{s.label}</span>
-                      <span className="ml-auto tabular-nums text-muted-foreground">
+                      <span className="font-medium">{s.label}</span>
+                      <span className="tabular-nums text-muted-foreground">
                         {pct != null ? `${pct.toFixed(1).replace(".", ",")} %` : "—"}
                       </span>
                     </div>
