@@ -297,11 +297,11 @@ export function AppSidebar() {
                 onValueChange={handleChainChange}
               >
                 <SelectTrigger className="h-11 border-sidebar-border bg-sidebar-accent/40 text-sidebar-foreground [&>svg]:text-sidebar-foreground">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-2.5">
                     {activeChain?.logo_url ? (
-                      <img src={activeChain.logo_url} alt="" className="h-4 w-4 shrink-0 rounded object-cover" />
+                      <img src={activeChain.logo_url} alt="" className="h-8 w-8 shrink-0 rounded-md object-contain" />
                     ) : (
-                      <Building2 className="h-4 w-4 shrink-0 text-sidebar-foreground" />
+                      <Building2 className="h-5 w-5 shrink-0 text-sidebar-foreground" />
                     )}
                     <span className="truncate text-sm font-medium text-sidebar-foreground">
                       {activeChainName}
@@ -311,11 +311,11 @@ export function AppSidebar() {
                 <SelectContent>
                   {chains?.map((chain) => (
                     <SelectItem key={chain.id} value={chain.id}>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2.5">
                         {chain.logo_url ? (
-                          <img src={chain.logo_url} alt="" className="h-4 w-4 rounded object-cover" />
+                          <img src={chain.logo_url} alt="" className="h-6 w-6 rounded-md object-contain" />
                         ) : (
-                          <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                          <Building2 className="h-4 w-4 text-muted-foreground" />
                         )}
                         {chain.name}
                       </div>
