@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { RestaurantNetworkStats, NetworkTotals } from "@/hooks/useNetworkStats";
 import type { RestaurantCashStats } from "@/hooks/useRestaurantCashRevenue";
 
@@ -59,6 +60,7 @@ export interface NetworkComparisonTableProps {
 
 export function NetworkComparisonTable({
   stats,
+  networkTotals,
   isLoading,
   onRestaurantClick,
   cashByRestaurant,
@@ -73,6 +75,7 @@ export function NetworkComparisonTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("revenue");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const analyticsCtx = useAnalyticsContext();
 
   // Lignes enrichies : CA tous canaux + répartition
   const rows = useMemo(() => {
@@ -228,7 +231,7 @@ export function NetworkComparisonTable({
                   Filtres
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-64">
+              <PopoverContent align="end" className="w-72">
                 <div className="flex items-center justify-between gap-2">
                   <Label htmlFor="n1-toggle-network" className="text-sm">
                     Comparaison vs N-1
@@ -242,6 +245,32 @@ export function NetworkComparisonTable({
                 <p className="mt-2 text-xs text-muted-foreground">
                   Affiche la variation du chiffre d'affaires par rapport à la même période l'année précédente.
                 </p>
+                {showN1Comparison && (
+                  <div className="mt-3 border-t border-border/50 pt-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="scope-toggle-network" className="inline-flex items-center gap-1.5 text-sm">
+                        Périmètre constant
+                        {analyticsCtx.comparisonScope === "constant" &&
+                          networkTotals.comparedRestaurantCount != null &&
+                          networkTotals.totalRestaurantCount != null && (
+                            <span className="rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium tabular-nums text-muted-foreground">
+                              {networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
+                            </span>
+                          )}
+                      </Label>
+                      <Switch
+                        id="scope-toggle-network"
+                        checked={analyticsCtx.comparisonScope === "constant"}
+                        onCheckedChange={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
+                      />
+                    </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      La variation VS N-1 n'est calculée que sur les restaurants ouverts à la fois sur la période
+                      sélectionnée et sur la même période l'année précédente. Les autres restent visibles mais sans
+                      variation.
+                    </p>
+                  </div>
+                )}
               </PopoverContent>
             </Popover>
           </div>
