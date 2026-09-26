@@ -536,6 +536,8 @@ const Overview = () => {
   // que les restaurants comparables, sur N comme sur N-1.
   const isConstantScope = analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
+  // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
+  // sous la barre, quel que soit le périmètre).
   const constantTotals = useMemo(() => {
     const vals = Object.values(channelComparisons);
     const cur = vals.reduce((s, c) => s + (c?.current ?? 0), 0);
