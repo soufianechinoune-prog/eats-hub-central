@@ -146,6 +146,11 @@ const dataItems = [
     icon: Store,
   },
   {
+    title: "Prix & Tarifs",
+    url: "/prix-sur-place",
+    icon: Tag,
+  },
+  {
     title: "Catalogue Produits",
     url: "/menu-items",
     icon: UtensilsCrossed,
