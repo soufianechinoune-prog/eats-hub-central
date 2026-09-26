@@ -1169,16 +1169,16 @@ const Overview = () => {
           <div className="mt-10 space-y-4">
             <NetworkRevenueHero
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
-              variation={networkTotals.revenueVariation ?? null}
-              cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
-              uber={channelTotals.uber}
-              deliveroo={channelTotals.deliveroo}
-              dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
-              chataigne={chataigneTotal}
-              daily={networkDaily.daily}
+              variation={isConstantScope ? constantVariation : networkTotals.revenueVariation ?? null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
+              deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
+              dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
+              chataigne={isConstantScope ? channelComparisons.chataigne.current : chataigneTotal}
+              daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
               startDateStr={startDateStr}
               endDateStr={endDateStr}
-              constantScope={analyticsCtx.comparisonScope === "constant"}
+              constantScope={isConstantScope}
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
               comparedRestaurantCount={networkTotals.comparedRestaurantCount}
               totalRestaurantCount={networkTotals.totalRestaurantCount}
@@ -1191,14 +1191,14 @@ const Overview = () => {
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
-              cash={cashConnected ? cashRevenueData?.totalCash ?? null : null}
-              cashVariation={cashRevenueData?.cashVariation ?? null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
-              uber={channelTotals.uber}
-              deliveroo={channelTotals.deliveroo}
-              dishop={hasDishopData ? dishopData?.caTTC ?? null : null}
-              chataigne={chataigneTotal}
-              daily={networkDaily.daily}
+              uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
+              deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
+              dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
+              chataigne={isConstantScope ? channelComparisons.chataigne.current : chataigneTotal}
+              daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
             />
           </div>
           )}
@@ -1224,7 +1224,7 @@ const Overview = () => {
               />
             ) : activeChannel === "global" ? (
               <NetworkComparisonTable
-                stats={comparisonStats}
+                stats={scopedStats}
                 networkTotals={networkTotals}
                 isLoading={statsLoading || cashLoading}
                 onRestaurantClick={navigateToChannelRestaurant}
