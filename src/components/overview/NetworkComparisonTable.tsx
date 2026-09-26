@@ -60,6 +60,7 @@ export interface NetworkComparisonTableProps {
 
 export function NetworkComparisonTable({
   stats,
+  networkTotals,
   isLoading,
   onRestaurantClick,
   cashByRestaurant,
