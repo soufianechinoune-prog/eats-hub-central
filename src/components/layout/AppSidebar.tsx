@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import { useUnreadMessages } from "@/hooks/useUnreadMessages";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Sidebar,
   SidebarContent,
@@ -265,30 +265,21 @@ export function AppSidebar() {
     <Sidebar className={collapsed ? "w-16" : "w-64"} collapsible="icon">
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className={collapsed ? "text-center" : ""}>
-            {collapsed ? (
-              activeChain?.logo_url ? (
-                <img src={activeChain.logo_url} alt={activeChain.name} className="h-8 w-8 rounded-md object-cover mx-auto" />
+          {collapsed && (
+            <SidebarGroupLabel className="text-center">
+              {activeChain?.logo_url ? (
+                <img src={activeChain.logo_url} alt={activeChain.name} className="mx-auto h-8 w-8 rounded-md object-cover" />
+              ) : activeChain ? (
+                <Avatar className="mx-auto h-8 w-8 text-[10px]">
+                  <AvatarFallback className="bg-primary/10 text-[10px] text-primary">
+                    {activeChain.name.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
               ) : (
-                <img src={csLogo} alt="CS" className="h-8 w-8 rounded-full object-cover mx-auto" />
-              )
-            ) : (
-              <div className="flex items-center gap-2">
-                {activeChain?.logo_url ? (
-                  <img src={activeChain.logo_url} alt={activeChain.name} className="h-6 w-6 rounded-md object-cover" />
-                ) : activeChain ? (
-                  <Avatar className="h-6 w-6 text-[10px]">
-                    <AvatarFallback className="bg-primary/10 text-primary text-[10px]">
-                      {activeChain.name.substring(0, 2).toUpperCase()}
-                    </AvatarFallback>
-                  </Avatar>
-                ) : (
-                  <img src={csLogo} alt="CS Delivery Performance" className="h-6 w-6 rounded-full object-cover" />
-                )}
-                <span>{activeChain?.name || "CS Delivery Performance"}</span>
-              </div>
-            )}
-          </SidebarGroupLabel>
+                <img src={csLogo} alt="CS Delivery Performance" className="mx-auto h-8 w-8 rounded-full object-cover" />
+              )}
+            </SidebarGroupLabel>
+          )}
           {/* Read-only badge for client role */}
           {!collapsed && isClientReadOnly && (
             <div className="px-2 pb-2">
