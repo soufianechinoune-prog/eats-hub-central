@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { subWeeks, startOfWeek, endOfWeek, format } from "date-fns";
+import { subWeeks, startOfWeek, endOfWeek, format, subYears } from "date-fns";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import type { DateRange } from "react-day-picker";
@@ -440,9 +440,6 @@ const Overview = () => {
     },
   });
 
-  // CA journalier réseau par canal (graphique d'évolution + sparklines) — même périmètre que la vue
-  const networkDaily = useNetworkDailyRevenue(activeIds, startDateStr, endDateStr);
-
   const error = overviewError;
 
   const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
@@ -454,6 +451,20 @@ const Overview = () => {
     comparisonScope: analyticsCtx.comparisonScope,
     reviewsData: overviewReviewsData,
   });
+
+  const comparisonRestaurantIds = networkTotals.comparableRestaurantIds ?? [];
+  const previousStartDateStr = format(subYears(startDate, 1), "yyyy-MM-dd");
+  const previousEndDateStr = format(subYears(endDate, 1), "yyyy-MM-dd");
+
+  // CA journalier réseau et références N-1 par canal, sur le périmètre choisi.
+  const networkDaily = useNetworkDailyRevenue(
+    activeIds,
+    startDateStr,
+    endDateStr,
+    comparisonRestaurantIds,
+    previousStartDateStr,
+    previousEndDateStr,
+  );
 
   const { data: dataSourceMap } = useDataSourceBreakdown({
     restaurantIds: activeIds,
@@ -467,6 +478,18 @@ const Overview = () => {
     endDate,
     chainId: analyticsCtx.selectedChainId,
     restaurantIds: activeIds,
+  });
+  const comparisonDishop = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: comparisonRestaurantIds,
+    startDate,
+    endDate,
+  });
+  const previousComparisonDishop = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: comparisonRestaurantIds,
+    startDate: subYears(startDate, 1),
+    endDate: subYears(endDate, 1),
   });
   const { data: cashByRestaurant, isLoading: cashByRestaurantLoading } = useRestaurantCashRevenue({
     startDate,
@@ -491,6 +514,23 @@ const Overview = () => {
     () => [...chataigneByRestaurant.values()].reduce((sum, c) => sum + c.revenue, 0),
     [chataigneByRestaurant],
   );
+  const channelComparisons = useMemo(() => {
+    const dishopPrevious = previousComparisonDishop.data?.hasData
+      ? previousComparisonDishop.data.caTTC
+      : null;
+    const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
+    return {
+      ...networkDaily.comparisons,
+      dishop: {
+        current: dishopCurrent,
+        previous: dishopPrevious,
+        variation:
+          dishopPrevious != null && dishopPrevious > 0
+            ? ((dishopCurrent - dishopPrevious) / dishopPrevious) * 100
+            : null,
+      },
+    };
+  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data]);
 
   // Existence de données Chataigne pour la marque, indépendante de la période :
   // évite que l'onglet disparaisse quand la période choisie est vide (ex. lancement récent).
@@ -1127,6 +1167,12 @@ const Overview = () => {
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
               comparedRestaurantCount={networkTotals.comparedRestaurantCount}
               totalRestaurantCount={networkTotals.totalRestaurantCount}
+              comparisons={channelComparisons}
+              comparisonsLoading={
+                networkDaily.comparisonLoading ||
+                comparisonDishop.isLoading ||
+                previousComparisonDishop.isLoading
+              }
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}

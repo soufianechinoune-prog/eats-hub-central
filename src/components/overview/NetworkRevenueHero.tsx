@@ -6,7 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import type { NetworkDailyPoint } from "@/hooks/useNetworkDailyRevenue";
+import type { NetworkChannelComparison, NetworkDailyPoint } from "@/hooks/useNetworkDailyRevenue";
 
 const fmtEur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(v)) + " €";
@@ -94,6 +94,7 @@ interface ChannelSlice {
   value: number | null; // null = non provisionné
   color: string; // css color for dot + bar segment
   note?: string;
+  comparison?: NetworkChannelComparison;
 }
 
 export interface NetworkRevenueHeroProps {
@@ -114,6 +115,8 @@ export interface NetworkRevenueHeroProps {
   onToggleConstantScope: (value: boolean) => void;
   comparedRestaurantCount?: number | null;
   totalRestaurantCount?: number | null;
+  comparisons?: Partial<Record<"cash" | "uber" | "deliveroo" | "dishop" | "chataigne", NetworkChannelComparison>>;
+  comparisonsLoading?: boolean;
 }
 
 export function NetworkRevenueHero({
@@ -131,13 +134,15 @@ export function NetworkRevenueHero({
   onToggleConstantScope,
   comparedRestaurantCount,
   totalRestaurantCount,
+  comparisons,
+  comparisonsLoading = false,
 }: NetworkRevenueHeroProps) {
   const slices: ChannelSlice[] = [
-    { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))" },
-    { key: "uber", label: "Uber Eats", value: uber, color: "hsl(var(--uber))" },
-    { key: "deliveroo", label: "Deliveroo", value: deliveroo, color: "hsl(var(--deliveroo))" },
-    { key: "dishop", label: "Dishop", value: dishop, color: "hsl(25 95% 53%)", note: dishop == null ? "Non provisionné" : undefined },
-    { key: "chataigne", label: "Chataigne", value: chataigne, color: "hsl(215 16% 47%)" },
+    { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))", comparison: comparisons?.cash },
+    { key: "uber", label: "Uber Eats", value: uber, color: "hsl(var(--uber))", comparison: comparisons?.uber },
+    { key: "deliveroo", label: "Deliveroo", value: deliveroo, color: "hsl(var(--deliveroo))", comparison: comparisons?.deliveroo },
+    { key: "dishop", label: "Dishop", value: dishop, color: "hsl(25 95% 53%)", note: dishop == null ? "Non provisionné" : undefined, comparison: comparisons?.dishop },
+    { key: "chataigne", label: "Chataigne", value: chataigne, color: "hsl(215 16% 47%)", comparison: comparisons?.chataigne },
   ];
 
   const total = slices.reduce((s, c) => s + Math.max(0, c.value ?? 0), 0);
@@ -269,6 +274,28 @@ export function NetworkRevenueHero({
                         </span>
                       )}
                     </p>
+                    <div className="mt-1.5 min-h-8 pl-3.5 text-[11px] leading-4 text-muted-foreground">
+                      {comparisonsLoading ? (
+                        <Skeleton className="h-3.5 w-20" />
+                      ) : s.comparison?.previous != null && s.comparison.previous > 0 ? (
+                        <>
+                          <span
+                            className={cn(
+                              "font-semibold tabular-nums",
+                              (s.comparison.variation ?? 0) >= 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400",
+                            )}
+                          >
+                            {(s.comparison.variation ?? 0) > 0 ? "+" : ""}
+                            {(s.comparison.variation ?? 0).toFixed(1).replace(".", ",")} %
+                          </span>
+                          <span className="block whitespace-nowrap">vs {fmtEur(s.comparison.previous)} (N-1)</span>
+                        </>
+                      ) : (
+                        <span>N-1 : non disponible</span>
+                      )}
+                    </div>
                   </div>
                 );
               })}

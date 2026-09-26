@@ -67,6 +67,7 @@ export interface NetworkTotals {
   comparisonScope?: "extended" | "constant";
   comparedRestaurantCount?: number; // restos retenus dans la variation (= total quand "extended")
   totalRestaurantCount?: number; // restos actifs sur N
+  comparableRestaurantIds?: string[]; // périmètre réellement utilisé pour N vs N-1
 }
 
 interface UseNetworkStatsParams {
@@ -610,6 +611,7 @@ export function useNetworkStats({
       comparisonScope,
       comparedRestaurantCount: comparableStats.length,
       totalRestaurantCount: stats.length,
+      comparableRestaurantIds: comparableStats.map((restaurant) => restaurant.id),
     };
   }, [stats, includeN1Comparison, comparisonScope, constantScopeIds]);
 
