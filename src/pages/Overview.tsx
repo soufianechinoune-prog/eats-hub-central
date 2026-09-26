@@ -470,6 +470,22 @@ const Overview = () => {
     [chataigneByRestaurant],
   );
 
+  // Existence de données Chataigne pour la marque, indépendante de la période :
+  // évite que l'onglet disparaisse quand la période choisie est vide (ex. lancement récent).
+  const { data: hasChataigneData } = useQuery({
+    queryKey: ["chataigne-channel-exists", activeIds],
+    enabled: !!activeIds && activeIds.length > 0,
+    staleTime: 10 * 60_000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("chataigne_orders")
+        .select("id", { count: "exact", head: true })
+        .in("restaurant_id", activeIds as string[]);
+      if (error) return false;
+      return (count ?? 0) > 0;
+    },
+  });
+
   const { data: activePosConnection } = useActiveChainPOSConnection();
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
   const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
@@ -673,7 +689,7 @@ const Overview = () => {
           <OverviewChannelSidebar
             active={activeChannel}
             onChange={setActiveChannel}
-            available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: chataigneTotal > 0 }}
+            available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: !!hasChataigneData || chataigneTotal > 0 }}
           />
         </div>
       </aside>
