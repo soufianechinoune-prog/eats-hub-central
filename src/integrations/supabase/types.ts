@@ -8741,6 +8741,54 @@ export type Database = {
           },
         ]
       }
+      instore_restaurant_prices: {
+        Row: {
+          chain_id: string
+          id: string
+          price: number
+          product_key: string
+          product_label: string
+          restaurant_id: string
+          source: string
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          id?: string
+          price: number
+          product_key: string
+          product_label: string
+          restaurant_id: string
+          source?: string
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          id?: string
+          price?: number
+          product_key?: string
+          product_label?: string
+          restaurant_id?: string
+          source?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "instore_restaurant_prices_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "instore_restaurant_prices_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       manager_restaurants: {
         Row: {
           created_at: string
@@ -13541,6 +13589,7 @@ export type Database = {
           version: string
         }[]
       }
+      get_instore_price_matrix: { Args: { p_chain_id: string }; Returns: Json }
       get_live_dishop_today: {
         Args: { p_day: string; p_restaurant_ids: string[] }
         Returns: Json
@@ -14331,6 +14380,10 @@ export type Database = {
           vat_uber_fee: number
         }[]
       }
+      import_instore_restaurant_prices: {
+        Args: { p_chain_id: string; p_rows: Json }
+        Returns: number
+      }
       is_super_admin: { Args: never; Returns: boolean }
       mark_uber_live_orders_consolidated: {
         Args: { _date_paris: string; _restaurant_id: string }
@@ -14421,6 +14474,15 @@ export type Database = {
           p_price: number
           p_product_key: string
           p_version: string
+        }
+        Returns: undefined
+      }
+      set_instore_restaurant_price: {
+        Args: {
+          p_price: number
+          p_product_key: string
+          p_product_label: string
+          p_restaurant_id: string
         }
         Returns: undefined
       }

@@ -162,6 +162,13 @@
       "when": 1790323350500,
       "tag": "0022_chataigne_service_recurrence",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790416500090,
+      "tag": "0023_instore_restaurant_prices",
+      "breakpoints": true
     }
   ]
 }
