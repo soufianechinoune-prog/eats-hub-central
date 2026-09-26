@@ -122,8 +122,8 @@ export function useNetworkDailyRevenue(
 
   const isLoading = platforms.isLoading || cash.isLoading || chataigne.isLoading;
 
-  // Série journalière agrégée tous restaurants (pour le graphique « Évolution du CA »)
-  const daily = useMemo<NetworkDailyPoint[]>(() => {
+  // Série journalière agrégée (graphique « Évolution du CA »), optionnellement restreinte à un périmètre
+  const buildDaily = (scope: Set<string> | null): NetworkDailyPoint[] => {
     const byDate = new Map<string, NetworkDailyPoint>();
     const ensure = (d: string) => {
       const key = d.slice(0, 10);
@@ -134,21 +134,31 @@ export function useNetworkDailyRevenue(
       }
       return row;
     };
+    const inScope = (r: DailyRow) => !scope || scope.has(r.restaurant_id);
 
     for (const r of platforms.data ?? []) {
+      if (!inScope(r)) continue;
       const p = (r.platform ?? "").toLowerCase();
       const row = ensure(r.date);
       const v = Number(r.revenue_ttc) || 0;
       if (p.includes("deliveroo")) row.deliveroo += v;
       else row.uber += v;
     }
-    for (const r of cash.data ?? []) ensure(r.date).cash += Number(r.revenue_ttc) || 0;
-    for (const r of chataigne.data ?? []) ensure(r.date).chataigne += Number(r.revenue_ttc) || 0;
+    for (const r of cash.data ?? []) if (inScope(r)) ensure(r.date).cash += Number(r.revenue_ttc) || 0;
+    for (const r of chataigne.data ?? []) if (inScope(r)) ensure(r.date).chataigne += Number(r.revenue_ttc) || 0;
 
     const rows = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     for (const r of rows) r.total = r.uber + r.deliveroo + r.cash + r.chataigne;
     return rows;
-  }, [platforms.data, cash.data, chataigne.data]);
+  };
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const daily = useMemo(() => buildDaily(null), [platforms.data, cash.data, chataigne.data]);
+  const scopedDaily = useMemo(
+    () => buildDaily(new Set(comparisonRestaurantIds)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [platforms.data, cash.data, chataigne.data, comparisonRestaurantIds],
+  );
 
   // Série journalière par restaurant (tous canaux confondus) — sparklines du tableau
   const byRestaurant = useMemo<Map<string, { date: string; total: number }[]>>(() => {
@@ -228,5 +238,5 @@ export function useNetworkDailyRevenue(
     comparisonEnabled &&
     (previousPlatforms.isLoading || previousCash.isLoading || previousChataigne.isLoading);
 
-  return { daily, byRestaurant, comparisons, comparisonLoading, isLoading };
+  return { daily, scopedDaily, byRestaurant, comparisons, comparisonLoading, isLoading };
 }
