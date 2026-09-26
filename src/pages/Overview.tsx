@@ -124,13 +124,13 @@ const Overview = () => {
   });
   const [showN1Comparison, setShowN1Comparison] = useState(false);
   const [showDataSource, setShowDataSource] = useState(true);
-  // Canal actif : peut être pré-sélectionné via ?channel=... (retour depuis une page de canal)
-  const [activeChannel, setActiveChannel] = useState<OverviewChannel>(() => {
-    if (typeof window === "undefined") return "global";
-    const requested = new URLSearchParams(window.location.search).get("channel");
+  // Canal actif : piloté par ?channel=... (la barre latérale gauche navigue vers cette URL)
+  const [channelParams] = useSearchParams();
+  const activeChannel: OverviewChannel = useMemo(() => {
+    const requested = channelParams.get("channel");
     const allowed: OverviewChannel[] = ["global", "uber", "uber-tr", "deliveroo", "cash", "dishop", "chataigne"];
     return allowed.includes(requested as OverviewChannel) ? (requested as OverviewChannel) : "global";
-  });
+  }, [channelParams]);
 
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -683,17 +683,7 @@ const Overview = () => {
   });
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20">
-      <aside className="w-64 shrink-0 border-r border-border/50 bg-card/40 backdrop-blur-xl">
-        <div className="sticky top-0">
-          <OverviewChannelSidebar
-            active={activeChannel}
-            onChange={setActiveChannel}
-            available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: !!hasChataigneData || chataigneTotal > 0 }}
-          />
-        </div>
-      </aside>
-
+    <div className="min-h-screen flex bg-gradient-to-br from-background via-background to-muted/20 -m-6">
       <div className="flex-1 min-w-0 p-8 space-y-8">
 
       {/* Header with glassmorphism */}
