@@ -508,21 +508,6 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  className={
-                    location.pathname === "/privacy-policy"
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                      : ""
-                  }
-                >
-                  <NavLink to="/privacy-policy">
-                    <Eye className="h-4 w-4" />
-                    {!collapsed && <span>Confidentialité</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
                 <ThemeToggle collapsed={collapsed} />
               </SidebarMenuItem>
               <SidebarMenuItem>
