@@ -325,3 +325,71 @@ All colors MUST be HSL.
     background: hsl(var(--whatsapp) / 0.7);
   }
 }
+
+/* ===== Premium finance direction (light) ===== */
+@layer base {
+  :root {
+    --background: 220 18% 97%;        /* #F6F7F9 */
+    --foreground: 221 39% 11%;        /* #111827 */
+    --card: 0 0% 100%;
+    --card-foreground: 221 39% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 221 39% 11%;
+    --primary: 221 39% 11%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 18% 97%;
+    --secondary-foreground: 221 39% 11%;
+    --muted: 220 18% 96%;
+    --muted-foreground: 221 13% 46%;  /* #667085 */
+    --accent: 220 18% 96%;
+    --accent-foreground: 221 39% 11%;
+    --success: 152 82% 39%;           /* #12B76A */
+    --warning: 35 93% 50%;            /* #F79009 */
+    --destructive: 4 86% 58%;         /* #F04438 */
+    --border: 223 16% 92%;            /* #E7E9EE */
+    --input: 223 16% 92%;
+    --ring: 221 39% 11%;
+    --radius: 0.75rem;
+
+    --cash: 262 83% 58%;              /* #7C3AED */
+    --cash-light: 262 83% 96%;
+    --uber: 152 82% 39%;
+    --uber-light: 152 70% 95%;
+    --deliveroo: 185 72% 49%;         /* #22C7D6 */
+    --deliveroo-light: 185 72% 95%;
+    --dishop: 35 93% 50%;
+
+    --chart-1: 262 83% 58%;
+    --chart-2: 152 82% 39%;
+    --chart-3: 185 72% 49%;
+    --chart-4: 35 93% 50%;
+    --chart-5: 4 86% 58%;
+
+    --sidebar-background: 220 51% 10%; /* #0D1628 */
+    --sidebar-foreground: 220 20% 88%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 220 51% 10%;
+    --sidebar-accent: 218 42% 18%;     /* #1B2942 */
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 218 35% 16%;
+    --sidebar-ring: 218 42% 30%;
+
+    --gradient-primary: hsl(221 39% 11%);
+    --shadow-elegant: 0 1px 2px hsl(221 39% 11% / 0.03);
+    --shadow-card: 0 1px 2px hsl(221 39% 11% / 0.03);
+    --shadow-hover: 0 1px 3px hsl(221 39% 11% / 0.05);
+    --glass-shadow: 0 1px 2px hsl(221 39% 11% / 0.03);
+    --glass-shadow-hover: 0 1px 3px hsl(221 39% 11% / 0.05);
+  }
+
+  html { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; font-feature-settings: "cv11", "ss01"; }
+  body { -webkit-font-smoothing: antialiased; letter-spacing: -0.005em; }
+  h1, h2, h3 { letter-spacing: -0.02em; }
+  .tabular-nums, td, th { font-variant-numeric: tabular-nums; }
+
+  /* Tables : lignes 52–56px, séparateurs légers, hover discret */
+  table thead th { height: 44px; font-size: 12px; font-weight: 500; color: hsl(var(--muted-foreground)); }
+  table tbody tr { height: 54px; border-bottom: 1px solid hsl(var(--border) / 0.7); transition: background-color .12s ease; }
+  table tbody tr:last-child { border-bottom: 0; }
+  table tbody tr:hover { background-color: hsl(220 18% 98.5%); }
+}
