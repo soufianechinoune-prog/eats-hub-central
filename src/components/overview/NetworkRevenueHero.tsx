@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { TrendingUp, TrendingDown } from "lucide-react";
+import { CalendarDays, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -13,6 +13,15 @@ const fmtEur = (v: number) =>
 
 const fmtCompact = (v: number) =>
   v >= 1000 ? `${Math.round(v / 1000)} k` : `${Math.round(v)}`;
+
+const fmtDate = (iso: string) => format(parseISO(iso), "d MMM yyyy", { locale: fr });
+
+/** Même date un an plus tôt (période N-1 comparée par useNetworkStats) */
+const fmtDatePrevYear = (iso: string) => {
+  const d = parseISO(iso);
+  d.setFullYear(d.getFullYear() - 1);
+  return format(d, "d MMM yyyy", { locale: fr });
+};
 
 interface ChannelSlice {
   key: string;
@@ -32,6 +41,9 @@ export interface NetworkRevenueHeroProps {
   dishop: number | null;
   chataigne: number;
   daily: NetworkDailyPoint[];
+  /** Période sélectionnée, yyyy-MM-dd */
+  startDateStr: string;
+  endDateStr: string;
 }
 
 export function NetworkRevenueHero({
@@ -43,6 +55,8 @@ export function NetworkRevenueHero({
   dishop,
   chataigne,
   daily,
+  startDateStr,
+  endDateStr,
 }: NetworkRevenueHeroProps) {
   const slices: ChannelSlice[] = [
     { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))" },
