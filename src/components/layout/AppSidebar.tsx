@@ -14,7 +14,6 @@ import {
   History,
   MessageSquare,
   Settings2,
-  Map,
   ChevronRight,
   Eye,
   Euro,
