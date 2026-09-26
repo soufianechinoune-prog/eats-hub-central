@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -41,7 +41,7 @@ const median = (xs: number[]) => {
 
 const norm = (s: string) => productKey(s.replace(/chicken\s*street/i, ""));
 
-function PriceCell({ value, onSave }: { value: number | null; onSave: (p: number) => void }) {
+function PriceCell({ value, onSave, showMissing = false }: { value: number | null; onSave: (p: number) => void; showMissing?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const commit = () => {
@@ -74,11 +74,11 @@ function PriceCell({ value, onSave }: { value: number | null; onSave: (p: number
         setEditing(true);
       }}
       className={cn(
-        "h-8 w-24 justify-end px-2 text-right tabular-nums hover:bg-muted",
+        "h-8 min-w-28 justify-end px-2 text-right tabular-nums hover:bg-muted",
         value === null && "text-muted-foreground"
       )}
     >
-      {fmtEur(value)}
+      {value === null && showMissing ? "Non importé" : fmtEur(value)}
     </Button>
   );
 }
@@ -233,6 +233,10 @@ export default function InstorePrices() {
   const singleId = selectedIds.length === 1 ? selectedIds[0] : null;
   const single = singleId !== null;
 
+  useEffect(() => {
+    if (singleId) setTab("canaux");
+  }, [singleId]);
+
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (data ?? [])
@@ -317,7 +321,7 @@ export default function InstorePrices() {
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
                   <div>
                     <CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5 text-primary" />Prix par canal</CardTitle>
-                    <CardDescription>{channelRows.length} produits · {single ? "Prix du restaurant" : selectedIds.length > 1 ? "Médianes des restaurants sélectionnés" : "Médianes réseau"}</CardDescription>
+                    <CardDescription>{channelRows.length} produits · {single ? "Prix du restaurant · les tarifs manquants sont indiqués" : selectedIds.length > 1 ? "Médianes des restaurants sélectionnés" : "Médianes réseau"}</CardDescription>
                   </div>
                   <div className="relative">
                     <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -330,7 +334,7 @@ export default function InstorePrices() {
                       <Table>
                         <TableHeader><TableRow>
                           <TableHead className="sticky left-0 z-10 min-w-[220px] bg-background">Produit</TableHead>
-                          <TableHead className="min-w-[140px] text-right">Caisse</TableHead>
+                           <TableHead className="min-w-[140px] text-right">Sur place · Caisse</TableHead>
                           {CHANNELS.map((c) => <TableHead key={c.key} className="min-w-[140px] text-right">{c.label}</TableHead>)}
                         </TableRow></TableHeader>
                         <TableBody>{channelRows.map((p) => {
@@ -338,14 +342,14 @@ export default function InstorePrices() {
                           const base = singleId ? p.caisse[singleId] ?? null : scope(p.caisse);
                           return <TableRow key={p.key}>
                             <TableCell className="sticky left-0 z-10 bg-background font-medium">{p.label}</TableCell>
-                            <TableCell className="text-right">{singleId ? <div className="flex justify-end"><PriceCell value={base} onSave={(price) => save(p.key, p.label, price)} /></div> : <span className="tabular-nums font-semibold">{fmtEur(base)}</span>}</TableCell>
+                             <TableCell className="text-right">{singleId ? <div className="flex justify-end"><PriceCell value={base} showMissing onSave={(price) => save(p.key, p.label, price)} /></div> : <span className="tabular-nums font-semibold">{base === null ? "Non importé" : fmtEur(base)}</span>}</TableCell>
                             {CHANNELS.map((c) => {
                               const prices = p.prices[c.key] ?? {};
                               const value = singleId ? prices[singleId] ?? null : scope(prices);
                               const delta = base !== null && base > 0 && value !== null ? Math.round((value / base - 1) * 100) : null;
                               return <TableCell key={c.key} className="text-right">
                                 <div className="flex flex-col items-end">
-                                  {singleId ? <PriceCell value={value} onSave={(price) => saveChannel(c.key, p.key, p.label, price)} /> : <span className="tabular-nums">{fmtEur(value)}</span>}
+                                   {singleId ? <PriceCell value={value} showMissing onSave={(price) => saveChannel(c.key, p.key, p.label, price)} /> : <span className="tabular-nums">{value === null ? "Non importé" : fmtEur(value)}</span>}
                                   {delta !== null && <span className={cn("text-xs tabular-nums", delta > 0 ? "text-success" : delta < 0 ? "text-destructive" : "text-muted-foreground")}>{delta > 0 ? "+" : ""}{delta} % vs caisse</span>}
                                 </div>
                               </TableCell>;
