@@ -101,6 +101,8 @@ export interface NetworkRevenueHeroProps {
   isLoading: boolean;
   /** Variation du CA total vs N-1 (même période), null si indisponible */
   variation: number | null;
+  /** CA total de la période N-1 (même périmètre que la variation), null si indisponible */
+  previousTotal?: number | null;
   cash: number | null;
   uber: number;
   deliveroo: number;
