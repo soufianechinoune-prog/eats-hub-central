@@ -27,6 +27,8 @@ import {
   CreditCard,
   Gift,
   Network,
+  RotateCcw,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -80,6 +82,7 @@ const UBER_SUB_ITEMS: SubNavItem[] = [
   { id: "items", label: "Ventes Articles", icon: ShoppingBag, route: "/item-sales" },
   { id: "conversion", label: "Conversion", icon: TrendingUp, route: "/analytics/conversion" },
   { id: "finances", label: "Finances & Frais", icon: Wallet, route: "/analytics/finances" },
+  { id: "refunds", label: "Remboursements", icon: RotateCcw, route: "/analytics/refunds" },
   { id: "offers", label: "Offres & Frais", icon: Tag, route: "/analytics/offers" },
   { id: "operations", label: "Opérations", icon: Settings2, route: "/analytics/operations" },
   { id: "reviews", label: "Avis", icon: Star, route: "/analytics/reviews" },
@@ -122,7 +125,24 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
 ];
 
 /** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
-function channelFromPath(pathname: string, search: string): { channel: OverviewChannel; subId: string } | null {
+function channelFromPath(
+  pathname: string,
+  search: string,
+  platform?: string,
+): { channel: OverviewChannel; subId: string } | null {
+  if (pathname === "/overview") {
+    const ch = new URLSearchParams(search).get("channel") as OverviewChannel | null;
+    if (ch === "uber-tr") return { channel: "uber-tr", subId: "titres-restaurant" };
+    if (ch && ["uber", "deliveroo", "cash", "dishop", "chataigne"].includes(ch)) return { channel: ch, subId: "synthese" };
+    return { channel: "global", subId: "network" };
+  }
+  if (pathname === "/live") return { channel: "global", subId: "live" };
+  if (platform === "deliveroo") {
+    const d = DELIVEROO_SUB_ITEMS.find((s) => s.route && pathname.startsWith(s.route));
+    if (d) return { channel: "deliveroo", subId: d.id };
+  }
+  const u = UBER_SUB_ITEMS.find((s) => s.route && pathname.startsWith(s.route));
+  if (u) return { channel: "uber", subId: u.id };
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
   if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
@@ -155,7 +175,7 @@ export function OverviewChannelSidebar({
   const { pathname, search } = useLocation();
   const analyticsCtx = useAnalyticsContext();
 
-  const routeMatch = channelFromPath(pathname, search);
+  const routeMatch = channelFromPath(pathname, search, analyticsCtx.selectedPlatform as string | undefined);
   // Mode "route" : la page n'est pas la Vue d'ensemble, l'état actif vient de l'URL.
   const routeMode = !onChange;
   const activeChannel: OverviewChannel = routeMode
@@ -274,20 +294,27 @@ export function OverviewChannelSidebar({
     <div className="p-4 space-y-6">
       {/* Vue globale */}
       <div>
-        <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">
           Vue globale
         </p>
-        <NavButton
-          item={globalItem}
-          isActive={activeChannel === globalItem.id}
-          onClick={() => handleChannelClick(globalItem)}
-        />
+        <div className="space-y-0.5">
+          <NavButton
+            item={globalItem}
+            isActive={activeChannel === globalItem.id && currentSubId !== "live"}
+            onClick={() => handleChannelClick(globalItem)}
+          />
+          <NavButton
+            item={{ id: "global", label: "Live", sublabel: "Ventes du jour en direct", icon: Zap }}
+            isActive={pathname === "/live"}
+            onClick={() => { navigate("/live"); onNavigate?.(); }}
+          />
+        </div>
       </div>
 
       {/* Par canal */}
       {channelItems.length > 0 && (
         <div>
-          <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">
             Par canal
           </p>
           <div className="space-y-0.5">
@@ -311,11 +338,11 @@ export function OverviewChannelSidebar({
                             e.stopPropagation();
                             setExpanded((prev) => ({ ...prev, [item.id]: !isExpanded }));
                           }}
-                          className="p-0.5 rounded hover:bg-muted/60"
+                          className="p-0.5 rounded hover:bg-sidebar-accent"
                         >
                           <ChevronRight
                             className={cn(
-                              "h-3.5 w-3.5 text-muted-foreground transition-transform",
+                              "h-3.5 w-3.5 text-sidebar-foreground/70 transition-transform",
                               isExpanded && "rotate-90",
                             )}
                           />
@@ -324,14 +351,14 @@ export function OverviewChannelSidebar({
                     }
                   />
                   {hasSubs && isExpanded && (
-                    <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-border/60 space-y-0.5">
+                    <div className="ml-5 mt-0.5 mb-1 pl-2 border-l border-sidebar-border space-y-0.5">
                       {item.subItems!.map((sub) => {
                         const SubIcon = sub.icon;
                         const subActive = isActive && currentSubId === sub.id;
                         return (
                           <div key={sub.id}>
                             {sub.section && (
-                              <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                              <p className="px-2 pt-2 pb-1 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">
                                 {sub.section}
                               </p>
                             )}
@@ -341,10 +368,10 @@ export function OverviewChannelSidebar({
                               onClick={() => handleSubItemClick(sub, item.id)}
                               className={cn(
                                 "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-left text-[13px] transition-colors",
-                                sub.soon ? "cursor-default opacity-50" : "hover:bg-muted/60",
+                                sub.soon ? "cursor-default opacity-50" : "hover:bg-sidebar-accent",
                                 subActive
-                                  ? "bg-primary/10 text-primary font-medium"
-                                  : "text-muted-foreground",
+                                  ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
+                                  : "text-sidebar-foreground/70",
                               )}
                             >
                               <SubIcon className="h-3.5 w-3.5 shrink-0" />
@@ -370,7 +397,7 @@ export function OverviewChannelSidebar({
       {/* Bientôt disponible */}
       {!available.chataigne && (
         <div>
-          <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="px-2 mb-2 text-[10px] font-semibold uppercase tracking-wider text-sidebar-foreground/70">
             Bientôt
           </p>
           <div className="space-y-0.5 opacity-50">
@@ -410,8 +437,8 @@ function NavButton({
       }}
       className={cn(
         "w-full flex cursor-pointer items-start gap-2.5 px-2 py-2 rounded-md text-left transition-colors",
-        "hover:bg-muted/60",
-        isActive && "bg-primary/10 text-primary",
+        "hover:bg-sidebar-accent",
+        isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
       )}
     >
       <div className="relative shrink-0 mt-0.5">
@@ -424,11 +451,11 @@ function NavButton({
         )}
       </div>
       <div className="flex-1 min-w-0">
-        <div className={cn("text-sm font-medium leading-tight", isActive ? "text-primary" : "text-foreground")}>
+        <div className={cn("text-sm font-medium leading-tight", isActive ? "text-sidebar-accent-foreground" : "text-sidebar-foreground")}>
           {item.label}
         </div>
         {item.sublabel && (
-          <div className="text-[11px] text-muted-foreground leading-tight mt-0.5 truncate">
+          <div className="text-[11px] text-sidebar-foreground/70 leading-tight mt-0.5 truncate">
             {item.sublabel}
           </div>
         )}

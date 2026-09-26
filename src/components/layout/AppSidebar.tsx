@@ -74,6 +74,8 @@ import { ThemeToggle } from "@/components/ui/theme-toggle";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useIsSuperAdmin } from "@/hooks/useIsSuperAdmin";
 import { useCanImport, useUserRole } from "@/hooks/useUserRole";
+import { OverviewChannelSidebar } from "@/components/overview/OverviewChannelSidebar";
+import { useChannelAvailability } from "@/hooks/useChannelAvailability";
 
 // Analytics sub-items (first in sidebar, includes dashboard)
 const analyticsSubItems = [
@@ -146,6 +148,7 @@ export function AppSidebar() {
   const canImport = useCanImport();
   const { data: userRole } = useUserRole();
   const isClientReadOnly = userRole === "client";
+  const channelAvailability = useChannelAvailability();
 
   // Fetch available chains
   const { data: chains } = useQuery({
@@ -225,7 +228,8 @@ export function AppSidebar() {
   };
 
   const isAnalyticsActive = () => {
-    return location.pathname === "/overview" || 
+    return location.pathname === "/overview" || location.pathname === "/live" ||
+           location.pathname.startsWith("/chataigne") || location.pathname.startsWith("/caisse") ||
            location.pathname.startsWith("/analytics") ||
            location.pathname === "/classements" ||
            location.pathname === "/item-sales" ||
@@ -358,69 +362,22 @@ export function AppSidebar() {
               </div>
             </DialogContent>
           </Dialog>
+          {!collapsed && (
+            <div className="-mx-2">
+              <OverviewChannelSidebar available={channelAvailability} />
+            </div>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {/* Analytics Collapsible Menu - First Item */}
-              <Collapsible
-                open={analyticsOpen || isAnalyticsActive()}
-                onOpenChange={setAnalyticsOpen}
-                className="group/collapsible"
-              >
+              {collapsed && (
                 <SidebarMenuItem>
-                  <CollapsibleTrigger asChild>
-                    <SidebarMenuButton
-                      className={
-                        isAnalyticsActive()
-                          ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                          : ""
-                      }
-                    >
+                  <SidebarMenuButton asChild className={isAnalyticsActive() ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}>
+                    <NavLink to="/overview" title="Analytics par canal">
                       <BarChart3 className="h-4 w-4" />
-                      {!collapsed && <span>Analytics</span>}
-                      {!collapsed && (
-                        <motion.div
-                          animate={{ rotate: (analyticsOpen || isAnalyticsActive()) ? 90 : 0 }}
-                          transition={{ duration: 0.2, ease: "easeInOut" }}
-                          className="ml-auto"
-                        >
-                          <ChevronRight className="h-4 w-4" />
-                        </motion.div>
-                      )}
-                    </SidebarMenuButton>
-                  </CollapsibleTrigger>
-                  {!collapsed && (
-                    <CollapsibleContent className="overflow-hidden">
-                      <SidebarMenuSub>
-                        {analyticsSubItems.map((subItem) => {
-                          const isSubActive = getActiveAnalyticsSubItem(subItem.url);
-                          
-                          return (
-                            <SidebarMenuSubItem key={subItem.title}>
-                              <SidebarMenuSubButton
-                                asChild
-                                className={
-                                  isSubActive
-                                    ? "bg-sidebar-accent/50 text-sidebar-accent-foreground font-medium"
-                                    : ""
-                                }
-                              >
-                                <NavLink 
-                                  to={subItem.url}
-                                  end={subItem.url === "/"}
-                                >
-                                  <subItem.icon className="h-4 w-4" />
-                                  <span>{subItem.title}</span>
-                                </NavLink>
-                              </SidebarMenuSubButton>
-                            </SidebarMenuSubItem>
-                          );
-                        })}
-                      </SidebarMenuSub>
-                    </CollapsibleContent>
-                  )}
+                    </NavLink>
+                  </SidebarMenuButton>
                 </SidebarMenuItem>
-              </Collapsible>
-
+              )}
               {/* Main Items - After Analytics */}
               {mainItems.map((item) => {
                 const badgeCount = getBadgeCount(item.url);
