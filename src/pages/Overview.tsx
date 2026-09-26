@@ -689,7 +689,7 @@ const Overview = () => {
           <OverviewChannelSidebar
             active={activeChannel}
             onChange={setActiveChannel}
-            available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: chataigneTotal > 0 }}
+            available={{ uber: hasUberData, deliveroo: hasDeliverooData, cash: hasCashData, dishop: hasDishopData, chataigne: !!hasChataigneData || chataigneTotal > 0 }}
           />
         </div>
       </aside>
