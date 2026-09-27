@@ -7,3 +7,5 @@ Identité enseigne (nom + logo) dans le sélecteur de chaîne de la sidebar; en-
 Vue réseau: NetworkRevenueHero + NetworkChannelCards + NetworkComparisonTable; N-1 par canal apparaît seulement sous la barre du hero, selon le périmètre choisi.
 Bascule « Réseau complet / Périmètre constant » dans l'en-tête de NetworkRevenueHero (libellé à gauche, switch en haut à droite de la carte), pilote analyticsCtx.comparisonScope; les tableaux affichent un badge d'état, jamais un doublon dans Filtres.
 Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts (getEffectiveOpeningDate): manuelle prioritaire, sinon restaurants.first_activity_date (1re vente caisse Splash, repli Uber/Deliveroo) — un resto sans date n'est plus réputé ouvert depuis toujours, sinon le périmètre constant est faussé.
+
+- Caisse Splash inclut les commandes Châtaigne (pas de tag côté Splash) : soustraire le CA Châtaigne du CA caisse dans toutes les vues réseau (hook useNetworkDailyRevenue + Overview cashNetTotal/cashNetByRestaurant) jusquà ce que Splash tague les commandes.
