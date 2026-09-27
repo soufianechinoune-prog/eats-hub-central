@@ -514,6 +514,24 @@ const Overview = () => {
     () => [...chataigneByRestaurant.values()].reduce((sum, c) => sum + c.revenue, 0),
     [chataigneByRestaurant],
   );
+  // La caisse Splash englobe les commandes Châtaigne (aucun tag distinct côté Splash) :
+  // on soustrait le CA Châtaigne du total caisse pour les vues réseau.
+  const cashNetTotal = useMemo(
+    () => Math.max(0, (cashRevenueData?.totalCash ?? 0) - chataigneTotal),
+    [cashRevenueData?.totalCash, chataigneTotal],
+  );
+  // Même logique par restaurant : CA caisse net de Châtaigne pour le comparatif.
+  const cashNetByRestaurant = useMemo(() => {
+    if (!cashByRestaurant) return cashByRestaurant;
+    const m = new Map(cashByRestaurant);
+    for (const [id, stats] of m) {
+      const chataigne = chataigneByRestaurant.get(id)?.revenue ?? 0;
+      if (chataigne > 0) {
+        m.set(id, { ...stats, cashRevenue: Math.max(0, stats.cashRevenue - chataigne) });
+      }
+    }
+    return m;
+  }, [cashByRestaurant, chataigneByRestaurant]);
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
@@ -1173,7 +1191,7 @@ const Overview = () => {
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
               variation={isConstantScope ? constantTotals.variation : networkTotals.revenueVariation ?? null}
               previousTotal={constantTotals.previous}
-              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
               deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
               dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
@@ -1194,7 +1212,7 @@ const Overview = () => {
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
-              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
@@ -1231,7 +1249,7 @@ const Overview = () => {
                 networkTotals={networkTotals}
                 isLoading={statsLoading || cashLoading}
                 onRestaurantClick={navigateToChannelRestaurant}
-                cashByRestaurant={cashByRestaurant}
+                cashByRestaurant={cashNetByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 dailyByRestaurant={networkDaily.byRestaurant}
@@ -1254,8 +1272,8 @@ const Overview = () => {
                 networkAdsSpend={adsRatio.networkAdsSpend}
                 networkAdsRevenue={adsRatio.networkRevenue}
                 networkAdsPct={adsRatio.networkPct}
-                networkCashTotal={cashRevenueData?.totalCash ?? 0}
-                cashByRestaurant={cashByRestaurant}
+                networkCashTotal={isConstantScope ? channelComparisons.cash.current : cashNetTotal}
+                cashByRestaurant={cashNetByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 periodStart={startDate}

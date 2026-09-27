@@ -146,6 +146,9 @@ export function useNetworkDailyRevenue(
     }
     for (const r of cash.data ?? []) if (inScope(r)) ensure(r.date).cash += Number(r.revenue_ttc) || 0;
     for (const r of chataigne.data ?? []) if (inScope(r)) ensure(r.date).chataigne += Number(r.revenue_ttc) || 0;
+    // La caisse Splash englobe les commandes Châtaigne (pas de tag distinct côté Splash) :
+    // on soustrait Châtaigne du CA caisse pour isoler les ventes comptoir/bornes.
+    for (const row of byDate.values()) row.cash = Math.max(0, row.cash - row.chataigne);
 
     const rows = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     for (const r of rows) r.total = r.uber + r.deliveroo + r.cash + r.chataigne;
@@ -175,7 +178,17 @@ export function useNetworkDailyRevenue(
     };
 
     for (const r of platforms.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
-    for (const r of cash.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
+    // Caisse Splash nette de Châtaigne (Splash ne tague pas les commandes Châtaigne)
+    const chataigneByKey = new Map<string, number>();
+    for (const r of chataigne.data ?? []) {
+      const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+      chataigneByKey.set(k, (chataigneByKey.get(k) ?? 0) + (Number(r.revenue_ttc) || 0));
+    }
+    for (const r of cash.data ?? []) {
+      const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+      const net = Math.max(0, (Number(r.revenue_ttc) || 0) - (chataigneByKey.get(k) ?? 0));
+      add(r.restaurant_id, r.date, net);
+    }
     for (const r of chataigne.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
 
     const out = new Map<string, { date: string; total: number }[]>();
@@ -218,10 +231,24 @@ export function useNetworkDailyRevenue(
       };
     };
 
+    // Caisse nette de Châtaigne : on soustrait les ventes Châtaigne jour par jour
+    // (même restaurant + même date) avant de comparer N vs N-1.
+    const netCashRows = (cashRows: DailyRow[] | undefined, chataigneRows: DailyRow[] | undefined) => {
+      const byKey = new Map<string, number>();
+      for (const r of chataigneRows ?? []) {
+        const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+        byKey.set(k, (byKey.get(k) ?? 0) + (Number(r.revenue_ttc) || 0));
+      }
+      return (cashRows ?? []).map((r) => {
+        const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+        return { ...r, revenue_ttc: Math.max(0, (Number(r.revenue_ttc) || 0) - (byKey.get(k) ?? 0)) };
+      });
+    };
+
     return {
       uber: makeComparison(platforms.data, previousPlatforms.data, isUber),
       deliveroo: makeComparison(platforms.data, previousPlatforms.data, isDeliveroo),
-      cash: makeComparison(cash.data, previousCash.data),
+      cash: makeComparison(netCashRows(cash.data, chataigne.data), netCashRows(previousCash.data, previousChataigne.data)),
       chataigne: makeComparison(chataigne.data, previousChataigne.data),
     };
   }, [
