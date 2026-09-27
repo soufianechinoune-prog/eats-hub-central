@@ -146,6 +146,9 @@ export function useNetworkDailyRevenue(
     }
     for (const r of cash.data ?? []) if (inScope(r)) ensure(r.date).cash += Number(r.revenue_ttc) || 0;
     for (const r of chataigne.data ?? []) if (inScope(r)) ensure(r.date).chataigne += Number(r.revenue_ttc) || 0;
+    // La caisse Splash englobe les commandes Châtaigne (pas de tag distinct côté Splash) :
+    // on soustrait Châtaigne du CA caisse pour isoler les ventes comptoir/bornes.
+    for (const row of byDate.values()) row.cash = Math.max(0, row.cash - row.chataigne);
 
     const rows = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
     for (const r of rows) r.total = r.uber + r.deliveroo + r.cash + r.chataigne;
