@@ -178,7 +178,17 @@ export function useNetworkDailyRevenue(
     };
 
     for (const r of platforms.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
-    for (const r of cash.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
+    // Caisse Splash nette de Châtaigne (Splash ne tague pas les commandes Châtaigne)
+    const chataigneByKey = new Map<string, number>();
+    for (const r of chataigne.data ?? []) {
+      const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+      chataigneByKey.set(k, (chataigneByKey.get(k) ?? 0) + (Number(r.revenue_ttc) || 0));
+    }
+    for (const r of cash.data ?? []) {
+      const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+      const net = Math.max(0, (Number(r.revenue_ttc) || 0) - (chataigneByKey.get(k) ?? 0));
+      add(r.restaurant_id, r.date, net);
+    }
     for (const r of chataigne.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
 
     const out = new Map<string, { date: string; total: number }[]>();
