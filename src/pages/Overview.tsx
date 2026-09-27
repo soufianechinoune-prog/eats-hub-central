@@ -514,6 +514,12 @@ const Overview = () => {
     () => [...chataigneByRestaurant.values()].reduce((sum, c) => sum + c.revenue, 0),
     [chataigneByRestaurant],
   );
+  // La caisse Splash englobe les commandes Châtaigne (aucun tag distinct côté Splash) :
+  // on soustrait le CA Châtaigne du total caisse pour les vues réseau.
+  const cashNetTotal = useMemo(
+    () => Math.max(0, (cashRevenueData?.totalCash ?? 0) - chataigneTotal),
+    [cashRevenueData?.totalCash, chataigneTotal],
+  );
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
