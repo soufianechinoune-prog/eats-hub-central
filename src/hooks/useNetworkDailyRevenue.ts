@@ -231,10 +231,24 @@ export function useNetworkDailyRevenue(
       };
     };
 
+    // Caisse nette de Châtaigne : on soustrait les ventes Châtaigne jour par jour
+    // (même restaurant + même date) avant de comparer N vs N-1.
+    const netCashRows = (cashRows: DailyRow[] | undefined, chataigneRows: DailyRow[] | undefined) => {
+      const byKey = new Map<string, number>();
+      for (const r of chataigneRows ?? []) {
+        const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+        byKey.set(k, (byKey.get(k) ?? 0) + (Number(r.revenue_ttc) || 0));
+      }
+      return (cashRows ?? []).map((r) => {
+        const k = `${r.restaurant_id}|${r.date.slice(0, 10)}`;
+        return { ...r, revenue_ttc: Math.max(0, (Number(r.revenue_ttc) || 0) - (byKey.get(k) ?? 0)) };
+      });
+    };
+
     return {
       uber: makeComparison(platforms.data, previousPlatforms.data, isUber),
       deliveroo: makeComparison(platforms.data, previousPlatforms.data, isDeliveroo),
-      cash: makeComparison(cash.data, previousCash.data),
+      cash: makeComparison(netCashRows(cash.data, chataigne.data), netCashRows(previousCash.data, previousChataigne.data)),
       chataigne: makeComparison(chataigne.data, previousChataigne.data),
     };
   }, [
