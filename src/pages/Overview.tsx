@@ -520,6 +520,18 @@ const Overview = () => {
     () => Math.max(0, (cashRevenueData?.totalCash ?? 0) - chataigneTotal),
     [cashRevenueData?.totalCash, chataigneTotal],
   );
+  // Même logique par restaurant : CA caisse net de Châtaigne pour le comparatif.
+  const cashNetByRestaurant = useMemo(() => {
+    if (!cashByRestaurant) return cashByRestaurant;
+    const m = new Map(cashByRestaurant);
+    for (const [id, stats] of m) {
+      const chataigne = chataigneByRestaurant.get(id)?.revenue ?? 0;
+      if (chataigne > 0) {
+        m.set(id, { ...stats, cashRevenue: Math.max(0, stats.cashRevenue - chataigne) });
+      }
+    }
+    return m;
+  }, [cashByRestaurant, chataigneByRestaurant]);
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
