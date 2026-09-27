@@ -1249,7 +1249,7 @@ const Overview = () => {
                 networkTotals={networkTotals}
                 isLoading={statsLoading || cashLoading}
                 onRestaurantClick={navigateToChannelRestaurant}
-                cashByRestaurant={cashByRestaurant}
+                cashByRestaurant={cashNetByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 dailyByRestaurant={networkDaily.byRestaurant}
@@ -1273,7 +1273,7 @@ const Overview = () => {
                 networkAdsRevenue={adsRatio.networkRevenue}
                 networkAdsPct={adsRatio.networkPct}
                 networkCashTotal={isConstantScope ? channelComparisons.cash.current : cashNetTotal}
-                cashByRestaurant={cashByRestaurant}
+                cashByRestaurant={cashNetByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 periodStart={startDate}
