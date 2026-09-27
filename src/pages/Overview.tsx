@@ -1179,7 +1179,7 @@ const Overview = () => {
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
               variation={isConstantScope ? constantTotals.variation : networkTotals.revenueVariation ?? null}
               previousTotal={constantTotals.previous}
-              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
               deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
               dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
@@ -1200,7 +1200,7 @@ const Overview = () => {
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
-              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashRevenueData?.totalCash ?? null) : null}
+              cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
@@ -1260,7 +1260,7 @@ const Overview = () => {
                 networkAdsSpend={adsRatio.networkAdsSpend}
                 networkAdsRevenue={adsRatio.networkRevenue}
                 networkAdsPct={adsRatio.networkPct}
-                networkCashTotal={cashRevenueData?.totalCash ?? 0}
+                networkCashTotal={isConstantScope ? channelComparisons.cash.current : cashNetTotal}
                 cashByRestaurant={cashByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
