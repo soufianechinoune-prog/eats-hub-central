@@ -570,22 +570,40 @@ const Overview = () => {
   }, [isConstantScope, comparisonStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
   const comparedCount = isConstantScope ? comparisonRestaurantIds.length : networkTotals.comparedRestaurantCount;
 
+  // Deliveroo N-1 : même source que le N (imports CSV), sur les mêmes restaurants.
+  const deliverooPrevIds = useMemo(() => scopedStats.map((r) => r.id).sort(), [scopedStats]);
+  const { data: deliverooPrevious } = useQuery({
+    queryKey: ["overview-deliveroo-prev", deliverooPrevIds, previousStartDateStr, previousEndDateStr],
+    enabled: comparisonMode && deliverooPrevIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_network_deliveroo_summary", {
+        p_restaurant_ids: deliverooPrevIds,
+        p_start_date: previousStartDateStr,
+        p_end_date: previousEndDateStr,
+      } as any);
+      if (error) throw error;
+      const total = ((data ?? []) as any[]).reduce((s, r) => s + (Number(r.total_revenue) || 0), 0);
+      return total > 0 ? total : null;
+    },
+  });
+
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
       : null;
     const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
-    // En périmètre constant, la RPC journalière ne lit que les commandes Uber :
-    // le Deliveroo N est recalculé en sommant les restaurants comparables (mêmes
-    // données que le tableau du bas). Le N-1 reste indisponible (pas d'historique importé).
-    const deliverooCurrent = isConstantScope
-      ? scopedStats.reduce((s, r) => s + (r.platformBreakdown.deliveroo.revenue || 0), 0)
-      : networkDaily.comparisons.deliveroo.current;
+    // Deliveroo N = somme des restaurants du périmètre (mêmes données que le tableau).
+    const deliverooCurrent = scopedStats.reduce((s, r) => s + (r.platformBreakdown.deliveroo.revenue || 0), 0);
+    const delPrev = deliverooPrevious ?? null;
     return {
       ...networkDaily.comparisons,
       deliveroo: {
         ...networkDaily.comparisons.deliveroo,
         current: deliverooCurrent,
+        previous: delPrev,
+        variation: delPrev != null && delPrev > 0 ? ((deliverooCurrent - delPrev) / delPrev) * 100 : null,
       },
       dishop: {
         current: dishopCurrent,
@@ -596,7 +614,7 @@ const Overview = () => {
             : null,
       },
     };
-  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data, isConstantScope, scopedStats]);
+  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data, scopedStats, deliverooPrevious]);
 
   // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
   // sous la barre, quel que soit le périmètre).
