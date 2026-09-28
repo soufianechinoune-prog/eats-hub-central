@@ -312,7 +312,17 @@ export function NetworkRevenueHero({
                 return (
                   <div
                     key={s.key}
-                    className="min-w-0 sm:px-3 sm:first:pl-0 sm:last:pr-0"
+                    role="link"
+                    tabIndex={0}
+                    title={`Voir la synthèse ${s.label}`}
+                    onClick={() => navigate(`/overview?channel=${s.key}`)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        navigate(`/overview?channel=${s.key}`);
+                      }
+                    }}
+                    className="min-w-0 cursor-pointer rounded-md transition-colors hover:bg-muted/60 sm:px-3 sm:first:pl-0 sm:last:pr-0"
                   >
                     <div className="flex items-center gap-1.5 whitespace-nowrap text-xs">
                       <span
