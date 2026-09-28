@@ -27,13 +27,20 @@ async function fetchDaily(
   end: string,
   restaurantId: string,
 ): Promise<Row[]> {
-  const { data, error } = await (supabase.rpc as any)(fn, {
-    p_start_date: start,
-    p_end_date: end,
-    p_restaurant_ids: [restaurantId],
-  });
-  if (error) throw error;
-  return (data ?? []) as Row[];
+  const PAGE_SIZE = 1000;
+  const all: Row[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await (supabase.rpc as any)(fn, {
+      p_start_date: start,
+      p_end_date: end,
+      p_restaurant_ids: [restaurantId],
+    }).range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as Row[];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return all;
 }
 
 export interface ChannelDailyRevenueChartProps {
