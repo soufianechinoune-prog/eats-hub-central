@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -93,6 +94,7 @@ export function NetworkChannelCards({
   daily,
   counts,
 }: NetworkChannelCardsProps) {
+  const navigate = useNavigate();
   const cards: ChannelCardDef[] = [
     {
       key: "cash",
@@ -179,7 +181,10 @@ export function NetworkChannelCards({
           <TooltipProvider key={c.key} delayDuration={200}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Card className="cursor-help transition-shadow hover:shadow-md">
+                <Card
+                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  onClick={() => navigate(`/overview?channel=${c.key}`)}
+                >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2.5">
                       <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", c.tileClass)}>
