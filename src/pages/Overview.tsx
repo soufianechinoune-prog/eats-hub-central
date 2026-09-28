@@ -1247,6 +1247,8 @@ const Overview = () => {
               daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
               startDateStr={startDateStr}
               endDateStr={endDateStr}
+              comparisonMode={comparisonMode}
+              onToggleComparisonMode={setComparisonMode}
               constantScope={isConstantScope}
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
               comparedRestaurantCount={comparedCount}
@@ -1262,6 +1264,7 @@ const Overview = () => {
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
+              comparisonMode={comparisonMode}
               cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
@@ -1306,6 +1309,7 @@ const Overview = () => {
                 chainLogoUrl={activeChainLogo}
                 comparedCount={comparedCount}
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}
+                comparisonMode={comparisonMode}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
               />
