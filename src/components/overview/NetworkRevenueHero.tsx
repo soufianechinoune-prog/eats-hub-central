@@ -157,6 +157,7 @@ export function NetworkRevenueHero({
   comparisons,
   comparisonsLoading = false,
 }: NetworkRevenueHeroProps) {
+  const navigate = useNavigate();
   const slices: ChannelSlice[] = [
     { key: "cash", label: "Caisse", value: cash, color: "hsl(var(--cash))", comparison: comparisons?.cash },
     { key: "uber", label: "Uber Eats", value: uber, color: "hsl(var(--uber))", comparison: comparisons?.uber },
