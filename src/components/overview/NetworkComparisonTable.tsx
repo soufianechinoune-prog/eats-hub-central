@@ -58,6 +58,8 @@ export interface NetworkComparisonTableProps {
   comparedCount?: number | null;
   /** Ouvre la fiche restaurant (statut d'ouverture/fermeture). */
   onOpenRestaurantFile?: (restaurantId: string) => void;
+  /** false = vue simple : colonne Δ, pills de variation et réglages N-1 masqués */
+  comparisonMode?: boolean;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
 }
@@ -74,6 +76,7 @@ export function NetworkComparisonTable({
   chainLogoUrl,
   comparedCount,
   onOpenRestaurantFile,
+  comparisonMode = true,
   showN1Comparison,
   onToggleN1,
 }: NetworkComparisonTableProps) {

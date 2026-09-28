@@ -145,7 +145,7 @@ export function NetworkChannelCards({
       {cards.map((c) => {
         const share = total > 0 && c.value != null ? (Math.max(0, c.value) / total) * 100 : null;
         const series = seriesByKey.get(c.key) ?? [];
-        const positive = c.variation != null ? c.variation >= 0 : true;
+        const positive = comparisonMode && c.variation != null ? c.variation >= 0 : true;
         return (
           <TooltipProvider key={c.key} delayDuration={200}>
             <Tooltip>
