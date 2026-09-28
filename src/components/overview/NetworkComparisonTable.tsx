@@ -54,6 +54,10 @@ export interface NetworkComparisonTableProps {
   dailyByRestaurant?: Map<string, { date: string; total: number }[]>;
   /** Logo de l'enseigne active (avatar des lignes). */
   chainLogoUrl?: string | null;
+  /** Nombre de restaurants réellement retenus en périmètre constant. */
+  comparedCount?: number | null;
+  /** Ouvre la fiche restaurant (statut d'ouverture/fermeture). */
+  onOpenRestaurantFile?: (restaurantId: string) => void;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
 }
@@ -68,6 +72,8 @@ export function NetworkComparisonTable({
   dishopByRestaurant,
   dailyByRestaurant,
   chainLogoUrl,
+  comparedCount,
+  onOpenRestaurantFile,
   showN1Comparison,
   onToggleN1,
 }: NetworkComparisonTableProps) {
@@ -199,10 +205,10 @@ export function NetworkComparisonTable({
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
                   Périmètre constant
-                  {networkTotals.comparedRestaurantCount != null &&
+                  {(comparedCount ?? networkTotals.comparedRestaurantCount) != null &&
                     networkTotals.totalRestaurantCount != null && (
                       <span className="tabular-nums text-muted-foreground">
-                        {networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
+                        {comparedCount ?? networkTotals.comparedRestaurantCount}/{networkTotals.totalRestaurantCount}
                       </span>
                     )}
                 </span>
@@ -382,6 +388,12 @@ export function NetworkComparisonTable({
                             <Eye className="h-4 w-4" />
                             Voir le détail
                           </DropdownMenuItem>
+                          {onOpenRestaurantFile && (
+                            <DropdownMenuItem onClick={() => onOpenRestaurantFile(resto.id)} className="gap-2">
+                              <Store className="h-4 w-4" />
+                              Fiche restaurant (ouverture / fermeture)
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>

@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { format } from "date-fns";
-import { filterActiveRestaurants, isActiveForPeriod } from "@/lib/restaurantActivityFilter";
+import { filterActiveRestaurants, isActiveForPeriod, getEffectiveOpeningDate } from "@/lib/restaurantActivityFilter";
 
 export interface PlatformBreakdown {
   revenue: number;
@@ -77,6 +77,8 @@ interface UseNetworkStatsParams {
   profitabilityBase?: "gross" | "net";
   includeN1Comparison?: boolean;
   comparisonScope?: "extended" | "constant";
+  /** Périmètre constant : écarte les restos dont le mois d'ouverture tombe dans la période N-1 (mois partiel). */
+  excludeOpeningMonth?: boolean;
   reviewsData?: any[] | null;
 }
 
@@ -102,6 +104,7 @@ export function useNetworkStats({
   profitabilityBase = "gross",
   includeN1Comparison = false,
   comparisonScope = "extended",
+  excludeOpeningMonth = false,
   reviewsData: externalReviewsData = null,
 }: UseNetworkStatsParams) {
   const startDateStr = format(startDate, "yyyy-MM-dd");
@@ -154,11 +157,20 @@ export function useNetworkStats({
         isActiveForPeriod(r, startDate, endDate) &&
         isActiveForPeriod(r, prevStart, prevEnd)
       ) {
+        if (excludeOpeningMonth) {
+          const od = getEffectiveOpeningDate(r).date;
+          if (od) {
+            const monthStart = od.slice(0, 7) + "-01";
+            const [y, m] = od.split("-").map(Number);
+            const monthEnd = format(new Date(y, m, 0), "yyyy-MM-dd");
+            if (monthStart <= format(prevEnd, "yyyy-MM-dd") && monthEnd >= format(prevStart, "yyyy-MM-dd")) continue;
+          }
+        }
         ids.add(r.id);
       }
     }
     return ids;
-  }, [restaurantsRaw, startDate, endDate]);
+  }, [restaurantsRaw, startDate, endDate, excludeOpeningMonth]);
 
 
   // Deliveroo sales via RPC — shared cache key with useOverviewData
