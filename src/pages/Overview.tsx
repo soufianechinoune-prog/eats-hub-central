@@ -442,6 +442,9 @@ const Overview = () => {
   });
 
   const error = overviewError;
+  // Vue simple (défaut) vs vue Comparaison : les variations N-1, le périmètre
+  // constant et l'exclusion du mois d'ouverture ne s'affichent qu'en mode Comparaison.
+  const [comparisonMode, setComparisonMode] = useState(false);
   const [excludeOpeningMonth, setExcludeOpeningMonth] = useState(false);
   const [excludeZeroRevenue, setExcludeZeroRevenue] = useState(false);
 
@@ -558,7 +561,7 @@ const Overview = () => {
 
   // Périmètre constant : toute la vue réseau (montants, graphique, tableau) ne compte
   // que les restaurants comparables, sur N comme sur N-1.
-  const isConstantScope = analyticsCtx.comparisonScope === "constant";
+  const isConstantScope = comparisonMode && analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
   const scopedStats = useMemo(() => {
     let out = isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats;
