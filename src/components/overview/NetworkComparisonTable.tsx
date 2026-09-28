@@ -305,7 +305,7 @@ export function NetworkComparisonTable({
             <TableBody>
               {filtered.map((row, idx) => {
                 const { resto } = row;
-                const positive = (row.variation ?? 0) >= 0;
+                const positive = comparisonMode ? (row.variation ?? 0) >= 0 : true;
                 const spark = (dailyByRestaurant?.get(resto.id) ?? []).map((d) => d.total);
                 return (
                   <TableRow
