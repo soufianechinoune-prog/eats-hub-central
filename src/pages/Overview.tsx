@@ -41,6 +41,7 @@ import { DeliverooChannelSummary } from "@/components/overview/DeliverooChannelS
 import { NetworkRevenueHero } from "@/components/overview/NetworkRevenueHero";
 import { NetworkChannelCards } from "@/components/overview/NetworkChannelCards";
 import { NetworkComparisonTable } from "@/components/overview/NetworkComparisonTable";
+import { ZeroRevenueAlert } from "@/components/overview/ZeroRevenueAlert";
 import { useNetworkDailyRevenue } from "@/hooks/useNetworkDailyRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
@@ -1223,6 +1224,14 @@ const Overview = () => {
           {/* Vue réseau : héro CA (total + barre empilée + évolution) puis 5 cartes canal */}
           {activeChannel === "global" && (
           <div className="mt-10 space-y-4">
+            {!statsLoading && zeroRevenueRestaurants.length > 0 && (
+              <ZeroRevenueAlert
+                restaurants={zeroRevenueRestaurants.map((r) => ({ id: r.id, name: r.name }))}
+                excluded={excludeZeroRevenue}
+                onToggleExcluded={setExcludeZeroRevenue}
+                onOpenRestaurant={(id) => navigate(`/restaurants/${id}`)}
+              />
+            )}
             <NetworkRevenueHero
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
               variation={constantTotals.variation}
@@ -1237,8 +1246,10 @@ const Overview = () => {
               endDateStr={endDateStr}
               constantScope={isConstantScope}
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
-              comparedRestaurantCount={networkTotals.comparedRestaurantCount}
+              comparedRestaurantCount={comparedCount}
               totalRestaurantCount={networkTotals.totalRestaurantCount}
+              excludeOpeningMonth={excludeOpeningMonth}
+              onToggleExcludeOpeningMonth={setExcludeOpeningMonth}
               comparisons={channelComparisons}
               comparisonsLoading={
                 networkDaily.comparisonLoading ||
@@ -1290,6 +1301,8 @@ const Overview = () => {
                 dishopByRestaurant={dishopByRestaurant}
                 dailyByRestaurant={networkDaily.byRestaurant}
                 chainLogoUrl={activeChainLogo}
+                comparedCount={comparedCount}
+                onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
               />

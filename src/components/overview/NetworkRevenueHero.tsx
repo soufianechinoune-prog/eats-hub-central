@@ -1,3 +1,4 @@
+import { Switch } from "@/components/ui/switch";
 import { useMemo } from "react";
 import { CalendarDays, TrendingUp, TrendingDown } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -117,6 +118,8 @@ export interface NetworkRevenueHeroProps {
   onToggleConstantScope: (value: boolean) => void;
   comparedRestaurantCount?: number | null;
   totalRestaurantCount?: number | null;
+  excludeOpeningMonth?: boolean;
+  onToggleExcludeOpeningMonth?: (value: boolean) => void;
   comparisons?: Partial<Record<"cash" | "uber" | "deliveroo" | "dishop" | "chataigne", NetworkChannelComparison>>;
   comparisonsLoading?: boolean;
 }
@@ -137,6 +140,8 @@ export function NetworkRevenueHero({
   onToggleConstantScope,
   comparedRestaurantCount,
   totalRestaurantCount,
+  excludeOpeningMonth = false,
+  onToggleExcludeOpeningMonth,
   comparisons,
   comparisonsLoading = false,
 }: NetworkRevenueHeroProps) {
@@ -187,12 +192,23 @@ export function NetworkRevenueHero({
         {/* En-tête de carte : libellé à gauche, bascule de périmètre en haut à droite */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">Chiffre d'affaires total</p>
-          <ScopeToggle
-            constantScope={constantScope}
-            onToggle={onToggleConstantScope}
-            compared={comparedRestaurantCount}
-            total={totalRestaurantCount}
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            {constantScope && onToggleExcludeOpeningMonth && (
+              <label
+                className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel (ouverture le 22 ou le 30) fausse la comparaison."
+              >
+                <Switch checked={excludeOpeningMonth} onCheckedChange={onToggleExcludeOpeningMonth} />
+                Exclure le mois d'ouverture
+              </label>
+            )}
+            <ScopeToggle
+              constantScope={constantScope}
+              onToggle={onToggleConstantScope}
+              compared={comparedRestaurantCount}
+              total={totalRestaurantCount}
+            />
+          </div>
         </div>
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_420px]">
           {/* GAUCHE — total + barre empilée + légende */}
