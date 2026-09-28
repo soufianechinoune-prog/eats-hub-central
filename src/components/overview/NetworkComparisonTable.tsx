@@ -240,6 +240,7 @@ export function NetworkComparisonTable({
                 </button>
               ))}
             </div>
+            )}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -249,6 +250,7 @@ export function NetworkComparisonTable({
                 className="h-9 w-[220px] pl-8 text-sm"
               />
             </div>
+            {comparisonMode && (
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 gap-1.5">
