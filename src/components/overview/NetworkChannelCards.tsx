@@ -14,6 +14,11 @@ import deliverooLogo from "@/assets/deliveroo-wordmark.png.asset.json";
 const fmtEur = (v: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(v)) + " €";
 
+const fmtInt = (v: number) =>
+  new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(Math.round(v));
+
+type ChannelKey = "cash" | "uber" | "deliveroo" | "dishop" | "chataigne";
+
 /** Mini sparkline SVG (aquaremplie légère), colorée selon la tendance. */
 function Sparkline({ points, positive }: { points: number[]; positive: boolean }) {
   const w = 96;
@@ -39,7 +44,7 @@ function Sparkline({ points, positive }: { points: number[]; positive: boolean }
 }
 
 interface ChannelCardDef {
-  key: "cash" | "uber" | "deliveroo" | "dishop" | "chataigne";
+  key: ChannelKey;
   label: string;
   logo: string;
   logoAlt: string;
@@ -48,6 +53,10 @@ interface ChannelCardDef {
   value: number | null; // null = non provisionné / non connecté
   notConnectedLabel?: string;
   variation?: number | null;
+  /** Nombre de commandes / tickets sur la période (null = indisponible) */
+  count?: number | null;
+  /** Libellé du décompte : « tickets » pour la caisse, « commandes » sinon */
+  countLabel: string;
   hint: string;
 }
 
@@ -65,6 +74,8 @@ export interface NetworkChannelCardsProps {
   dishop: number | null;
   chataigne: number;
   daily: NetworkDailyPoint[];
+  /** Volume de commandes/tickets par canal, sur le même périmètre que les montants */
+  counts?: Partial<Record<ChannelKey, number | null>>;
 }
 
 export function NetworkChannelCards({
@@ -80,6 +91,7 @@ export function NetworkChannelCards({
   dishop,
   chataigne,
   daily,
+  counts,
 }: NetworkChannelCardsProps) {
   const cards: ChannelCardDef[] = [
     {
@@ -91,6 +103,8 @@ export function NetworkChannelCards({
       value: cashConnected ? cash : null,
       notConnectedLabel: "Caisse non connectée",
       variation: cashVariation ?? null,
+      count: counts?.cash ?? null,
+      countLabel: "tickets",
       hint: "Chiffre d'affaires sur place (TTC) remonté par le logiciel de caisse.",
     },
     {
@@ -102,6 +116,8 @@ export function NetworkChannelCards({
       tileClass: "bg-uber/10",
       value: uber,
       variation: uberVariation ?? null,
+      count: counts?.uber ?? null,
+      countLabel: "commandes",
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (avant commission).",
     },
     {
@@ -112,6 +128,8 @@ export function NetworkChannelCards({
       tileClass: "bg-deliveroo/10",
       value: deliveroo,
       variation: deliverooVariation ?? null,
+      count: counts?.deliveroo ?? null,
+      countLabel: "commandes",
       hint: "Chiffre d'affaires brut TTC Deliveroo sur la période.",
     },
     {
@@ -122,6 +140,8 @@ export function NetworkChannelCards({
       tileClass: "bg-orange-500/10",
       value: dishop,
       notConnectedLabel: "Non provisionné",
+      count: counts?.dishop ?? null,
+      countLabel: "commandes",
       hint: "Chiffre d'affaires TTC de la boutique en ligne Dishop.",
     },
     {
@@ -132,6 +152,8 @@ export function NetworkChannelCards({
       darkInvert: true,
       tileClass: "bg-slate-500/10",
       value: chataigne,
+      count: counts?.chataigne ?? null,
+      countLabel: "commandes",
       hint: "Chiffre d'affaires TTC des commandes via Chataigne.",
     },
   ];
@@ -152,6 +174,7 @@ export function NetworkChannelCards({
         const share = total > 0 && c.value != null ? (Math.max(0, c.value) / total) * 100 : null;
         const series = seriesByKey.get(c.key) ?? [];
         const positive = comparisonMode && c.variation != null ? c.variation >= 0 : true;
+        const showCount = !isLoading && c.count != null && c.count > 0 && c.value != null;
         return (
           <TooltipProvider key={c.key} delayDuration={200}>
             <Tooltip>
@@ -179,6 +202,9 @@ export function NetworkChannelCards({
                           {fmtEur(c.value)}
                         </p>
                       )}
+                      <p className="mt-0.5 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                        {showCount ? `${fmtInt(c.count as number)} ${c.countLabel}` : "\u00A0"}
+                      </p>
                       <div className="mt-1.5 flex items-end justify-between gap-2">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="tabular-nums whitespace-nowrap">
@@ -203,8 +229,11 @@ export function NetworkChannelCards({
                             </span>
                           )}
                         </div>
-                        {!isLoading && c.value != null && c.value > 0 && (
+                        {!isLoading && c.value != null && c.value > 0 ? (
                           <Sparkline points={series} positive={positive} />
+                        ) : (
+                          /* Espace réservé de même taille : garde les « % du CA » alignés */
+                          <div style={{ width: 96, height: 30 }} className="ml-auto shrink-0" />
                         )}
                       </div>
                     </div>

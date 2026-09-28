@@ -831,6 +831,59 @@ const Overview = () => {
     return { uber, deliveroo };
   }, [comparisonStats]);
 
+  // Nombre de commandes / tickets par canal, calculé sur le même périmètre que les
+  // montants affichés dans les vignettes (réseau complet ou périmètre constant).
+  const chataigneTotalOrders = useMemo(
+    () => [...chataigneByRestaurant.values()].reduce((s, c) => s + c.orders, 0),
+    [chataigneByRestaurant],
+  );
+  const channelCounts = useMemo(() => {
+    const scope = isConstantScope ? scopedStats : comparisonStats;
+    let uber = 0;
+    let deliveroo = 0;
+    for (const r of scope) {
+      uber += r.platformBreakdown.uber.orders || 0;
+      deliveroo += r.platformBreakdown.deliveroo.orders || 0;
+    }
+    if (isConstantScope) {
+      let cashTickets = 0;
+      let chataigne = 0;
+      for (const r of scope) {
+        cashTickets += cashByRestaurant?.get(r.id)?.cashOrders ?? 0;
+        chataigne += chataigneByRestaurant.get(r.id)?.orders ?? 0;
+      }
+      return {
+        // La caisse Splash englobe Châtaigne : mêmes tickets nets que le CA net affiché.
+        cash: Math.max(0, cashTickets - chataigne),
+        uber,
+        deliveroo,
+        dishop: comparisonDishop.data?.orderCount ?? null,
+        chataigne,
+      };
+    }
+    return {
+      cash:
+        cashRevenueData?.totalCashOrders != null
+          ? Math.max(0, cashRevenueData.totalCashOrders - chataigneTotalOrders)
+          : null,
+      uber,
+      deliveroo,
+      dishop: hasDishopData ? dishopData?.orderCount ?? null : null,
+      chataigne: chataigneTotalOrders,
+    };
+  }, [
+    isConstantScope,
+    scopedStats,
+    comparisonStats,
+    cashByRestaurant,
+    chataigneByRestaurant,
+    chataigneTotalOrders,
+    cashRevenueData?.totalCashOrders,
+    comparisonDishop.data?.orderCount,
+    dishopData?.orderCount,
+    hasDishopData,
+  ]);
+
   const { data: mealVoucherRows, isLoading: mealVoucherLoading } = useMealVoucherBreakdown({
     restaurantIds: activeChannel === "uber-tr" ? activeIds : [],
     startDate,
@@ -1294,6 +1347,7 @@ const Overview = () => {
               dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
               chataigne={isConstantScope ? channelComparisons.chataigne.current : chataigneTotal}
               daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
+              counts={channelCounts}
             />
           </div>
           )}
