@@ -441,6 +441,8 @@ const Overview = () => {
   });
 
   const error = overviewError;
+  const [excludeOpeningMonth, setExcludeOpeningMonth] = useState(false);
+  const [excludeZeroRevenue, setExcludeZeroRevenue] = useState(false);
 
   const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
     restaurantIds: activeIds,
@@ -449,22 +451,16 @@ const Overview = () => {
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
     comparisonScope: analyticsCtx.comparisonScope,
+    excludeOpeningMonth,
     reviewsData: overviewReviewsData,
   });
 
-  const comparisonRestaurantIds = networkTotals.comparableRestaurantIds ?? [];
+  const baseComparableIds = useMemo(
+    () => networkTotals.comparableRestaurantIds ?? [],
+    [networkTotals.comparableRestaurantIds],
+  );
   const previousStartDateStr = format(subYears(startDate, 1), "yyyy-MM-dd");
   const previousEndDateStr = format(subYears(endDate, 1), "yyyy-MM-dd");
-
-  // CA journalier réseau et références N-1 par canal, sur le périmètre choisi.
-  const networkDaily = useNetworkDailyRevenue(
-    activeIds,
-    startDateStr,
-    endDateStr,
-    comparisonRestaurantIds,
-    previousStartDateStr,
-    previousEndDateStr,
-  );
 
   const { data: dataSourceMap } = useDataSourceBreakdown({
     restaurantIds: activeIds,
@@ -478,18 +474,6 @@ const Overview = () => {
     endDate,
     chainId: analyticsCtx.selectedChainId,
     restaurantIds: activeIds,
-  });
-  const comparisonDishop = useDishopOverview({
-    chainId: analyticsCtx.selectedChainId,
-    restaurantIds: comparisonRestaurantIds,
-    startDate,
-    endDate,
-  });
-  const previousComparisonDishop = useDishopOverview({
-    chainId: analyticsCtx.selectedChainId,
-    restaurantIds: comparisonRestaurantIds,
-    startDate: subYears(startDate, 1),
-    endDate: subYears(endDate, 1),
   });
   const { data: cashByRestaurant, isLoading: cashByRestaurantLoading } = useRestaurantCashRevenue({
     startDate,
@@ -532,14 +516,55 @@ const Overview = () => {
     }
     return m;
   }, [cashByRestaurant, chataigneByRestaurant]);
+  // Restaurants sans aucun CA sur la période (tous canaux) : travaux, fermeture…
+  const zeroRevenueRestaurants = useMemo(() => {
+    return comparisonStats.filter((r) => {
+      const total =
+        (r.platformBreakdown.uber.revenue || 0) +
+        (r.platformBreakdown.deliveroo.revenue || 0) +
+        (cashNetByRestaurant?.get(r.id)?.cashRevenue ?? 0) +
+        (chataigneByRestaurant.get(r.id)?.revenue ?? 0);
+      return total <= 0;
+    });
+  }, [comparisonStats, cashNetByRestaurant, chataigneByRestaurant]);
+  const zeroIdSet = useMemo(() => new Set(zeroRevenueRestaurants.map((r) => r.id)), [zeroRevenueRestaurants]);
+  const comparisonRestaurantIds = useMemo(
+    () => (excludeZeroRevenue ? baseComparableIds.filter((id) => !zeroIdSet.has(id)) : baseComparableIds),
+    [excludeZeroRevenue, baseComparableIds, zeroIdSet],
+  );
+
+  // CA journalier réseau et références N-1 par canal, sur le périmètre choisi.
+  const networkDaily = useNetworkDailyRevenue(
+    activeIds,
+    startDateStr,
+    endDateStr,
+    comparisonRestaurantIds,
+    previousStartDateStr,
+    previousEndDateStr,
+  );
+  const comparisonDishop = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: comparisonRestaurantIds,
+    startDate,
+    endDate,
+  });
+  const previousComparisonDishop = useDishopOverview({
+    chainId: analyticsCtx.selectedChainId,
+    restaurantIds: comparisonRestaurantIds,
+    startDate: subYears(startDate, 1),
+    endDate: subYears(endDate, 1),
+  });
+
   // Périmètre constant : toute la vue réseau (montants, graphique, tableau) ne compte
   // que les restaurants comparables, sur N comme sur N-1.
   const isConstantScope = analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
-  const scopedStats = useMemo(
-    () => (isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats),
-    [isConstantScope, comparisonStats, comparableSet],
-  );
+  const scopedStats = useMemo(() => {
+    let out = isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats;
+    if (excludeZeroRevenue) out = out.filter((r) => !zeroIdSet.has(r.id));
+    return out;
+  }, [isConstantScope, comparisonStats, comparableSet, excludeZeroRevenue, zeroIdSet]);
+  const comparedCount = isConstantScope ? comparisonRestaurantIds.length : networkTotals.comparedRestaurantCount;
 
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
