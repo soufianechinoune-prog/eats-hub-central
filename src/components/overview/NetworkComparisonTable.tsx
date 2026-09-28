@@ -137,6 +137,8 @@ export function NetworkComparisonTable({
   }, [rows, statusFilter, searchQuery, sortKey, sortDir]);
 
 
+
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir(sortDir === "asc" ? "desc" : "asc");
