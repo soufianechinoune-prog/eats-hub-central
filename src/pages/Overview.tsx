@@ -532,13 +532,32 @@ const Overview = () => {
     }
     return m;
   }, [cashByRestaurant, chataigneByRestaurant]);
+  // Périmètre constant : toute la vue réseau (montants, graphique, tableau) ne compte
+  // que les restaurants comparables, sur N comme sur N-1.
+  const isConstantScope = analyticsCtx.comparisonScope === "constant";
+  const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
+  const scopedStats = useMemo(
+    () => (isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats),
+    [isConstantScope, comparisonStats, comparableSet],
+  );
+
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
       : null;
     const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
+    // En périmètre constant, la RPC journalière ne lit que les commandes Uber :
+    // le Deliveroo N est recalculé en sommant les restaurants comparables (mêmes
+    // données que le tableau du bas). Le N-1 reste indisponible (pas d'historique importé).
+    const deliverooCurrent = isConstantScope
+      ? scopedStats.reduce((s, r) => s + (r.platformBreakdown.deliveroo.revenue || 0), 0)
+      : networkDaily.comparisons.deliveroo.current;
     return {
       ...networkDaily.comparisons,
+      deliveroo: {
+        ...networkDaily.comparisons.deliveroo,
+        current: deliverooCurrent,
+      },
       dishop: {
         current: dishopCurrent,
         previous: dishopPrevious,
@@ -548,12 +567,8 @@ const Overview = () => {
             : null,
       },
     };
-  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data]);
+  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data, isConstantScope, scopedStats]);
 
-  // Périmètre constant : toute la vue réseau (montants, graphique, tableau) ne compte
-  // que les restaurants comparables, sur N comme sur N-1.
-  const isConstantScope = analyticsCtx.comparisonScope === "constant";
-  const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
   // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
   // sous la barre, quel que soit le périmètre).
   const constantTotals = useMemo(() => {
@@ -562,10 +577,6 @@ const Overview = () => {
     const prev = vals.reduce((s, c) => s + (c?.previous ?? 0), 0);
     return { variation: prev > 0 ? ((cur - prev) / prev) * 100 : null, previous: prev > 0 ? prev : null };
   }, [channelComparisons]);
-  const scopedStats = useMemo(
-    () => (isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats),
-    [isConstantScope, comparisonStats, comparableSet],
-  );
 
   // Existence de données Chataigne pour la marque, indépendante de la période :
   // évite que l'onglet disparaisse quand la période choisie est vide (ex. lancement récent).
