@@ -1288,7 +1288,9 @@ const Overview = () => {
               cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
+              uberVariation={channelComparisons.uber.variation ?? null}
               deliveroo={isConstantScope ? channelComparisons.deliveroo.current : channelTotals.deliveroo}
+              deliverooVariation={channelComparisons.deliveroo.variation ?? null}
               dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
               chataigne={isConstantScope ? channelComparisons.chataigne.current : chataigneTotal}
               daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
