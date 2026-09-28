@@ -533,8 +533,8 @@ const Overview = () => {
   }, [comparisonStats, cashNetByRestaurant, chataigneByRestaurant]);
   const zeroIdSet = useMemo(() => new Set(zeroRevenueRestaurants.map((r) => r.id)), [zeroRevenueRestaurants]);
   const comparisonRestaurantIds = useMemo(
-    () => (excludeZeroRevenue ? baseComparableIds.filter((id) => !zeroIdSet.has(id)) : baseComparableIds),
-    [excludeZeroRevenue, baseComparableIds, zeroIdSet],
+    () => (comparisonMode && excludeZeroRevenue ? baseComparableIds.filter((id) => !zeroIdSet.has(id)) : baseComparableIds),
+    [comparisonMode, excludeZeroRevenue, baseComparableIds, zeroIdSet],
   );
 
   // CA journalier réseau et références N-1 par canal, sur le périmètre choisi.
@@ -565,9 +565,9 @@ const Overview = () => {
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
   const scopedStats = useMemo(() => {
     let out = isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats;
-    if (excludeZeroRevenue) out = out.filter((r) => !zeroIdSet.has(r.id));
+    if (comparisonMode && excludeZeroRevenue) out = out.filter((r) => !zeroIdSet.has(r.id));
     return out;
-  }, [isConstantScope, comparisonStats, comparableSet, excludeZeroRevenue, zeroIdSet]);
+  }, [isConstantScope, comparisonStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
   const comparedCount = isConstantScope ? comparisonRestaurantIds.length : networkTotals.comparedRestaurantCount;
 
   const channelComparisons = useMemo(() => {
@@ -1230,8 +1230,6 @@ const Overview = () => {
             {!statsLoading && zeroRevenueRestaurants.length > 0 && (
               <ZeroRevenueAlert
                 restaurants={zeroRevenueRestaurants.map((r) => ({ id: r.id, name: r.name }))}
-                excluded={excludeZeroRevenue}
-                onToggleExcluded={setExcludeZeroRevenue}
                 onOpenRestaurant={(id) => navigate(`/restaurants/${id}`)}
               />
             )}
@@ -1255,6 +1253,9 @@ const Overview = () => {
               totalRestaurantCount={networkTotals.totalRestaurantCount}
               excludeOpeningMonth={excludeOpeningMonth}
               onToggleExcludeOpeningMonth={setExcludeOpeningMonth}
+              zeroRevenueCount={statsLoading ? 0 : zeroRevenueRestaurants.length}
+              excludeZeroRevenue={excludeZeroRevenue}
+              onToggleExcludeZeroRevenue={setExcludeZeroRevenue}
               comparisons={channelComparisons}
               comparisonsLoading={
                 networkDaily.comparisonLoading ||
