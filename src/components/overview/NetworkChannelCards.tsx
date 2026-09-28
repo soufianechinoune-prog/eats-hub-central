@@ -229,8 +229,11 @@ export function NetworkChannelCards({
                             </span>
                           )}
                         </div>
-                        {!isLoading && c.value != null && c.value > 0 && (
+                        {!isLoading && c.value != null && c.value > 0 ? (
                           <Sparkline points={series} positive={positive} />
+                        ) : (
+                          /* Espace réservé de même taille : garde les « % du CA » alignés */
+                          <div style={{ width: 96, height: 30 }} className="ml-auto shrink-0" />
                         )}
                       </div>
                     </div>
