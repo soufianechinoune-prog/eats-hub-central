@@ -1200,7 +1200,7 @@ const Overview = () => {
           <div className="mt-10 space-y-4">
             <NetworkRevenueHero
               isLoading={statsLoading || cashLoading || networkDaily.isLoading}
-              variation={isConstantScope ? constantTotals.variation : networkTotals.revenueVariation ?? null}
+              variation={constantTotals.variation}
               previousTotal={constantTotals.previous}
               cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               uber={isConstantScope ? channelComparisons.uber.current : channelTotals.uber}
