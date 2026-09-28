@@ -202,11 +202,9 @@ export function NetworkChannelCards({
                           {fmtEur(c.value)}
                         </p>
                       )}
-                      {showCount && (
-                        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
-                          {fmtInt(c.count as number)} {c.countLabel}
-                        </p>
-                      )}
+                      <p className="mt-0.5 text-xs text-muted-foreground tabular-nums whitespace-nowrap">
+                        {showCount ? `${fmtInt(c.count as number)} ${c.countLabel}` : "\u00A0"}
+                      </p>
                       <div className="mt-1.5 flex items-end justify-between gap-2">
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span className="tabular-nums whitespace-nowrap">
