@@ -206,6 +206,15 @@ export function NetworkRevenueHero({
           <div className="flex flex-wrap items-center gap-3">
             {comparisonMode && (
               <>
+                {zeroRevenueCount > 0 && onToggleExcludeZeroRevenue && (
+                  <label
+                    className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                    title="Écarte de la comparaison les restaurants sans aucun CA sur la période (travaux, fermeture)."
+                  >
+                    <Switch checked={excludeZeroRevenue} onCheckedChange={onToggleExcludeZeroRevenue} />
+                    Exclure les restaurants à 0 € ({zeroRevenueCount})
+                  </label>
+                )}
                 {constantScope && onToggleExcludeOpeningMonth && (
                   <label
                     className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
@@ -223,24 +232,13 @@ export function NetworkRevenueHero({
                 />
               </>
             )}
-            <div className="flex flex-col items-start gap-2">
-              <label
-                className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
-                title="Affiche la comparaison avec la même période l'année précédente (variations, montants N-1, périmètre constant)."
-              >
-                <Switch checked={comparisonMode} onCheckedChange={onToggleComparisonMode} />
-                Comparaison N-1
-              </label>
-              {comparisonMode && zeroRevenueCount > 0 && onToggleExcludeZeroRevenue && (
-                <label
-                  className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-                  title="Écarte de la comparaison les restaurants sans aucun CA sur la période (travaux, fermeture)."
-                >
-                  <Switch checked={excludeZeroRevenue} onCheckedChange={onToggleExcludeZeroRevenue} />
-                  Exclure les restaurants à 0 € ({zeroRevenueCount})
-                </label>
-              )}
-            </div>
+            <label
+              className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
+              title="Affiche la comparaison avec la même période l'année précédente (variations, montants N-1, périmètre constant)."
+            >
+              <Switch checked={comparisonMode} onCheckedChange={onToggleComparisonMode} />
+              Comparaison N-1
+            </label>
           </div>
         </div>
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_420px]">
