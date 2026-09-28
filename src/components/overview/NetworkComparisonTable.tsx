@@ -136,7 +136,8 @@ export function NetworkComparisonTable({
     });
   }, [rows, statusFilter, searchQuery, sortKey, sortDir]);
 
-  const maxTotal = useMemo(() => Math.max(...rows.map((r) => r.total), 1), [rows]);
+
+
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -315,15 +316,7 @@ export function NetworkComparisonTable({
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="font-semibold tabular-nums">{fmtEur(row.total)}</span>
-                        <span className="hidden h-1.5 w-16 overflow-hidden rounded-full bg-muted lg:inline-block">
-                          <span
-                            className="block h-full rounded-full bg-cash"
-                            style={{ width: `${Math.max(2, (row.total / maxTotal) * 100)}%` }}
-                          />
-                        </span>
-                      </div>
+                      <span className="font-semibold tabular-nums">{fmtEur(row.total)}</span>
                     </TableCell>
                     <TableCell className="text-right">
                       {row.variation != null ? (
