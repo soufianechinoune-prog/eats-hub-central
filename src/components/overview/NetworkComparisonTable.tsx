@@ -274,6 +274,7 @@ export function NetworkComparisonTable({
                 </p>
               </PopoverContent>
             </Popover>
+            )}
           </div>
         </div>
 
@@ -287,7 +288,9 @@ export function NetworkComparisonTable({
                 <HeadBtn col="revenue" className="text-right">
                   <span className="ml-auto">CA total</span>
                 </HeadBtn>
-                <TableHead className="text-right text-xs font-medium text-muted-foreground">Δ</TableHead>
+                {comparisonMode && (
+                  <TableHead className="text-right text-xs font-medium text-muted-foreground">Δ</TableHead>
+                )}
                 <HeadBtn col="cash" className="text-right"><span className="ml-auto">Caisse</span></HeadBtn>
                 <HeadBtn col="uber" className="text-right"><span className="ml-auto">Uber Eats</span></HeadBtn>
                 <HeadBtn col="deliveroo" className="text-right"><span className="ml-auto">Deliveroo</span></HeadBtn>
