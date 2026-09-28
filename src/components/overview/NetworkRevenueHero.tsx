@@ -251,7 +251,7 @@ export function NetworkRevenueHero({
                   {variation.toFixed(1).replace(".", ",")} %
                 </span>
               )}
-              {previousTotal != null && previousTotal > 0 && (
+              {comparisonMode && previousTotal != null && previousTotal > 0 && (
                 <span className="text-xs font-medium text-muted-foreground tabular-nums">
                   vs {fmtEur(previousTotal)} (N-1)
                 </span>
@@ -265,7 +265,7 @@ export function NetworkRevenueHero({
                 <span>{toDate ?? "—"}</span>
               </p>
             )}
-            {variation != null && prevFromDate && prevToDate && (
+            {comparisonMode && variation != null && prevFromDate && prevToDate && (
               <p className="mt-1 pl-5 text-xs text-muted-foreground tabular-nums">
                 vs {prevFromDate} → {prevToDate}
               </p>
@@ -315,7 +315,7 @@ export function NetworkRevenueHero({
                       )}
                     </p>
                     <div className="mt-1.5 min-h-8 pl-3.5 text-[11px] leading-4 text-muted-foreground">
-                      {comparisonsLoading ? (
+                      {!comparisonMode ? null : comparisonsLoading ? (
                         <Skeleton className="h-3.5 w-20" />
                       ) : s.comparison?.previous != null && s.comparison.previous > 0 ? (
                         <>
