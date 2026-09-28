@@ -58,6 +58,8 @@ export interface NetworkComparisonTableProps {
   comparedCount?: number | null;
   /** Ouvre la fiche restaurant (statut d'ouverture/fermeture). */
   onOpenRestaurantFile?: (restaurantId: string) => void;
+  /** false = vue simple : colonne Δ, pills de variation et réglages N-1 masqués */
+  comparisonMode?: boolean;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
 }
@@ -74,6 +76,7 @@ export function NetworkComparisonTable({
   chainLogoUrl,
   comparedCount,
   onOpenRestaurantFile,
+  comparisonMode = true,
   showN1Comparison,
   onToggleN1,
 }: NetworkComparisonTableProps) {
@@ -201,7 +204,7 @@ export function NetworkComparisonTable({
             <h2 className="text-lg font-semibold">Comparatif des restaurants</h2>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Classement par chiffre d'affaires</span>
-              {analyticsCtx.comparisonScope === "constant" && (
+              {comparisonMode && analyticsCtx.comparisonScope === "constant" && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
                   Périmètre constant
@@ -216,6 +219,7 @@ export function NetworkComparisonTable({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {comparisonMode && (
             <div className="flex items-center gap-1 rounded-full bg-muted/60 p-1">
               {pills.map((p) => (
                 <button
@@ -236,6 +240,7 @@ export function NetworkComparisonTable({
                 </button>
               ))}
             </div>
+            )}
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -245,6 +250,7 @@ export function NetworkComparisonTable({
                 className="h-9 w-[220px] pl-8 text-sm"
               />
             </div>
+            {comparisonMode && (
             <Popover>
               <PopoverTrigger asChild>
                 <Button variant="outline" size="sm" className="h-9 gap-1.5">
@@ -268,6 +274,7 @@ export function NetworkComparisonTable({
                 </p>
               </PopoverContent>
             </Popover>
+            )}
           </div>
         </div>
 
@@ -281,7 +288,9 @@ export function NetworkComparisonTable({
                 <HeadBtn col="revenue" className="text-right">
                   <span className="ml-auto">CA total</span>
                 </HeadBtn>
-                <TableHead className="text-right text-xs font-medium text-muted-foreground">Δ</TableHead>
+                {comparisonMode && (
+                  <TableHead className="text-right text-xs font-medium text-muted-foreground">Δ</TableHead>
+                )}
                 <HeadBtn col="cash" className="text-right"><span className="ml-auto">Caisse</span></HeadBtn>
                 <HeadBtn col="uber" className="text-right"><span className="ml-auto">Uber Eats</span></HeadBtn>
                 <HeadBtn col="deliveroo" className="text-right"><span className="ml-auto">Deliveroo</span></HeadBtn>
@@ -296,7 +305,7 @@ export function NetworkComparisonTable({
             <TableBody>
               {filtered.map((row, idx) => {
                 const { resto } = row;
-                const positive = (row.variation ?? 0) >= 0;
+                const positive = comparisonMode ? (row.variation ?? 0) >= 0 : true;
                 const spark = (dailyByRestaurant?.get(resto.id) ?? []).map((d) => d.total);
                 return (
                   <TableRow
@@ -324,6 +333,7 @@ export function NetworkComparisonTable({
                     <TableCell className="text-right">
                       <span className="font-semibold tabular-nums">{fmtEur(row.total)}</span>
                     </TableCell>
+                    {comparisonMode && (
                     <TableCell className="text-right">
                       {row.variation != null ? (
                         <span
@@ -342,6 +352,7 @@ export function NetworkComparisonTable({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    )}
                     <TableCell className="text-right tabular-nums">
                       {row.cash > 0 ? fmtEur(row.cash) : <span className="text-muted-foreground">—</span>}
                     </TableCell>

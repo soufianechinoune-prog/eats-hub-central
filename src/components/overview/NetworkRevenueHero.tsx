@@ -113,6 +113,9 @@ export interface NetworkRevenueHeroProps {
   /** Période sélectionnée, yyyy-MM-dd */
   startDateStr: string;
   endDateStr: string;
+  /** Vue simple (false) vs vue Comparaison (true) : masque variations N-1 et réglages de périmètre */
+  comparisonMode: boolean;
+  onToggleComparisonMode: (value: boolean) => void;
   /** Vue « périmètre constant » : variation VS N-1 sur les restos ouverts sur les 2 périodes */
   constantScope: boolean;
   onToggleConstantScope: (value: boolean) => void;
@@ -136,6 +139,8 @@ export function NetworkRevenueHero({
   daily,
   startDateStr,
   endDateStr,
+  comparisonMode,
+  onToggleComparisonMode,
   constantScope,
   onToggleConstantScope,
   comparedRestaurantCount,
@@ -193,21 +198,32 @@ export function NetworkRevenueHero({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">Chiffre d'affaires total</p>
           <div className="flex flex-wrap items-center gap-3">
-            {constantScope && onToggleExcludeOpeningMonth && (
-              <label
-                className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-                title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel (ouverture le 22 ou le 30) fausse la comparaison."
-              >
-                <Switch checked={excludeOpeningMonth} onCheckedChange={onToggleExcludeOpeningMonth} />
-                Exclure le mois d'ouverture
-              </label>
+            {comparisonMode && (
+              <>
+                {constantScope && onToggleExcludeOpeningMonth && (
+                  <label
+                    className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
+                    title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel (ouverture le 22 ou le 30) fausse la comparaison."
+                  >
+                    <Switch checked={excludeOpeningMonth} onCheckedChange={onToggleExcludeOpeningMonth} />
+                    Exclure le mois d'ouverture
+                  </label>
+                )}
+                <ScopeToggle
+                  constantScope={constantScope}
+                  onToggle={onToggleConstantScope}
+                  compared={comparedRestaurantCount}
+                  total={totalRestaurantCount}
+                />
+              </>
             )}
-            <ScopeToggle
-              constantScope={constantScope}
-              onToggle={onToggleConstantScope}
-              compared={comparedRestaurantCount}
-              total={totalRestaurantCount}
-            />
+            <label
+              className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground"
+              title="Affiche la comparaison avec la même période l'année précédente (variations, montants N-1, périmètre constant)."
+            >
+              <Switch checked={comparisonMode} onCheckedChange={onToggleComparisonMode} />
+              Comparaison N-1
+            </label>
           </div>
         </div>
         <div className="mt-4 grid gap-8 lg:grid-cols-[1fr_420px]">
@@ -217,7 +233,7 @@ export function NetworkRevenueHero({
               <span className="text-3xl font-bold tracking-tight tabular-nums">
                 {fmtEur(total)}
               </span>
-              {variation != null && (
+              {comparisonMode && variation != null && (
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold",
@@ -235,7 +251,7 @@ export function NetworkRevenueHero({
                   {variation.toFixed(1).replace(".", ",")} %
                 </span>
               )}
-              {previousTotal != null && previousTotal > 0 && (
+              {comparisonMode && previousTotal != null && previousTotal > 0 && (
                 <span className="text-xs font-medium text-muted-foreground tabular-nums">
                   vs {fmtEur(previousTotal)} (N-1)
                 </span>
@@ -249,7 +265,7 @@ export function NetworkRevenueHero({
                 <span>{toDate ?? "—"}</span>
               </p>
             )}
-            {variation != null && prevFromDate && prevToDate && (
+            {comparisonMode && variation != null && prevFromDate && prevToDate && (
               <p className="mt-1 pl-5 text-xs text-muted-foreground tabular-nums">
                 vs {prevFromDate} → {prevToDate}
               </p>
@@ -299,7 +315,7 @@ export function NetworkRevenueHero({
                       )}
                     </p>
                     <div className="mt-1.5 min-h-8 pl-3.5 text-[11px] leading-4 text-muted-foreground">
-                      {comparisonsLoading ? (
+                      {!comparisonMode ? null : comparisonsLoading ? (
                         <Skeleton className="h-3.5 w-20" />
                       ) : s.comparison?.previous != null && s.comparison.previous > 0 ? (
                         <>

@@ -53,6 +53,8 @@ interface ChannelCardDef {
 
 export interface NetworkChannelCardsProps {
   isLoading: boolean;
+  /** false = vue simple : les variations N-1 sont masquées */
+  comparisonMode?: boolean;
   cash: number | null;
   cashVariation?: number | null;
   cashConnected: boolean;
@@ -65,6 +67,7 @@ export interface NetworkChannelCardsProps {
 
 export function NetworkChannelCards({
   isLoading,
+  comparisonMode = true,
   cash,
   cashVariation,
   cashConnected,
@@ -142,7 +145,7 @@ export function NetworkChannelCards({
       {cards.map((c) => {
         const share = total > 0 && c.value != null ? (Math.max(0, c.value) / total) * 100 : null;
         const series = seriesByKey.get(c.key) ?? [];
-        const positive = c.variation != null ? c.variation >= 0 : true;
+        const positive = comparisonMode && c.variation != null ? c.variation >= 0 : true;
         return (
           <TooltipProvider key={c.key} delayDuration={200}>
             <Tooltip>
@@ -175,7 +178,7 @@ export function NetworkChannelCards({
                           <span className="tabular-nums whitespace-nowrap">
                             {share != null ? `${share.toFixed(1).replace(".", ",")} % du CA` : "—"}
                           </span>
-                          {c.variation != null && !isLoading && (
+                          {comparisonMode && c.variation != null && !isLoading && (
                             <span
                               className={cn(
                                 "inline-flex items-center gap-0.5 font-medium whitespace-nowrap",
