@@ -333,6 +333,7 @@ export function NetworkComparisonTable({
                     <TableCell className="text-right">
                       <span className="font-semibold tabular-nums">{fmtEur(row.total)}</span>
                     </TableCell>
+                    {comparisonMode && (
                     <TableCell className="text-right">
                       {row.variation != null ? (
                         <span
