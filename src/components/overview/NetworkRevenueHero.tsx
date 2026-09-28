@@ -7,6 +7,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import type { NetworkChannelComparison, NetworkDailyPoint } from "@/hooks/useNetworkDailyRevenue";
 
 const fmtEur = (v: number) =>
