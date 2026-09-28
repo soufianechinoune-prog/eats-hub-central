@@ -113,6 +113,9 @@ export interface NetworkRevenueHeroProps {
   /** Période sélectionnée, yyyy-MM-dd */
   startDateStr: string;
   endDateStr: string;
+  /** Vue simple (false) vs vue Comparaison (true) : masque variations N-1 et réglages de périmètre */
+  comparisonMode: boolean;
+  onToggleComparisonMode: (value: boolean) => void;
   /** Vue « périmètre constant » : variation VS N-1 sur les restos ouverts sur les 2 périodes */
   constantScope: boolean;
   onToggleConstantScope: (value: boolean) => void;
@@ -136,6 +139,8 @@ export function NetworkRevenueHero({
   daily,
   startDateStr,
   endDateStr,
+  comparisonMode,
+  onToggleComparisonMode,
   constantScope,
   onToggleConstantScope,
   comparedRestaurantCount,
