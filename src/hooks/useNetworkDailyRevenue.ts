@@ -42,13 +42,21 @@ async function callDailyRpc(
   end: string,
   restaurantIds: string[],
 ): Promise<DailyRow[]> {
-  const { data, error } = await (supabase.rpc as any)(fn, {
-    p_start_date: start,
-    p_end_date: end,
-    p_restaurant_ids: restaurantIds,
-  });
-  if (error) throw error;
-  return (data ?? []) as DailyRow[];
+  // 1 ligne par restaurant et par jour : l'API tronque à 1000 lignes → pagination.
+  const PAGE_SIZE = 1000;
+  const all: DailyRow[] = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await (supabase.rpc as any)(fn, {
+      p_start_date: start,
+      p_end_date: end,
+      p_restaurant_ids: restaurantIds,
+    }).range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const rows = (data ?? []) as DailyRow[];
+    all.push(...rows);
+    if (rows.length < PAGE_SIZE) break;
+  }
+  return all;
 }
 
 export function useNetworkDailyRevenue(
