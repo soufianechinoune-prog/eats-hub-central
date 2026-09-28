@@ -59,7 +59,9 @@ export interface NetworkChannelCardsProps {
   cashVariation?: number | null;
   cashConnected: boolean;
   uber: number;
+  uberVariation?: number | null;
   deliveroo: number;
+  deliverooVariation?: number | null;
   dishop: number | null;
   chataigne: number;
   daily: NetworkDailyPoint[];
@@ -72,7 +74,9 @@ export function NetworkChannelCards({
   cashVariation,
   cashConnected,
   uber,
+  uberVariation,
   deliveroo,
+  deliverooVariation,
   dishop,
   chataigne,
   daily,
@@ -97,6 +101,7 @@ export function NetworkChannelCards({
       darkInvert: true,
       tileClass: "bg-uber/10",
       value: uber,
+      variation: uberVariation ?? null,
       hint: "Chiffre d'affaires brut TTC Uber Eats sur la période (avant commission).",
     },
     {
@@ -106,6 +111,7 @@ export function NetworkChannelCards({
       logoAlt: "Deliveroo",
       tileClass: "bg-deliveroo/10",
       value: deliveroo,
+      variation: deliverooVariation ?? null,
       hint: "Chiffre d'affaires brut TTC Deliveroo sur la période.",
     },
     {
