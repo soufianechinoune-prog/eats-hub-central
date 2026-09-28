@@ -352,6 +352,7 @@ export function NetworkComparisonTable({
                         <span className="text-muted-foreground">—</span>
                       )}
                     </TableCell>
+                    )}
                     <TableCell className="text-right tabular-nums">
                       {row.cash > 0 ? fmtEur(row.cash) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
