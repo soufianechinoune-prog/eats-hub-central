@@ -204,7 +204,7 @@ export function NetworkComparisonTable({
             <h2 className="text-lg font-semibold">Comparatif des restaurants</h2>
             <p className="mt-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Classement par chiffre d'affaires</span>
-              {analyticsCtx.comparisonScope === "constant" && (
+              {comparisonMode && analyticsCtx.comparisonScope === "constant" && (
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground">
                   <span className="h-1.5 w-1.5 rounded-full bg-foreground/50" />
                   Périmètre constant
@@ -219,6 +219,7 @@ export function NetworkComparisonTable({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            {comparisonMode && (
             <div className="flex items-center gap-1 rounded-full bg-muted/60 p-1">
               {pills.map((p) => (
                 <button
