@@ -1347,6 +1347,7 @@ const Overview = () => {
               dishop={hasDishopData ? (isConstantScope ? channelComparisons.dishop.current : dishopData?.caTTC ?? null) : null}
               chataigne={isConstantScope ? channelComparisons.chataigne.current : chataigneTotal}
               daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
+              counts={channelCounts}
             />
           </div>
           )}
