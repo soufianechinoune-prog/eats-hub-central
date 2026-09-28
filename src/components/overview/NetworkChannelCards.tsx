@@ -53,6 +53,8 @@ interface ChannelCardDef {
 
 export interface NetworkChannelCardsProps {
   isLoading: boolean;
+  /** false = vue simple : les variations N-1 sont masquées */
+  comparisonMode?: boolean;
   cash: number | null;
   cashVariation?: number | null;
   cashConnected: boolean;
@@ -65,6 +67,7 @@ export interface NetworkChannelCardsProps {
 
 export function NetworkChannelCards({
   isLoading,
+  comparisonMode = true,
   cash,
   cashVariation,
   cashConnected,
@@ -175,7 +178,7 @@ export function NetworkChannelCards({
                           <span className="tabular-nums whitespace-nowrap">
                             {share != null ? `${share.toFixed(1).replace(".", ",")} % du CA` : "—"}
                           </span>
-                          {c.variation != null && !isLoading && (
+                          {comparisonMode && c.variation != null && !isLoading && (
                             <span
                               className={cn(
                                 "inline-flex items-center gap-0.5 font-medium whitespace-nowrap",
