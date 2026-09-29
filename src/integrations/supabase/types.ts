@@ -434,6 +434,45 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_ticket_integrity: {
+        Row: {
+          chain_id: string | null
+          checked_at: string
+          completeness: number
+          restaurant_id: string
+          revenue_detail: number
+          revenue_official: number
+          station: string
+          ticket_date: string
+          tickets_detail: number
+          tickets_official: number
+        }
+        Insert: {
+          chain_id?: string | null
+          checked_at?: string
+          completeness?: number
+          restaurant_id: string
+          revenue_detail?: number
+          revenue_official?: number
+          station?: string
+          ticket_date: string
+          tickets_detail?: number
+          tickets_official?: number
+        }
+        Update: {
+          chain_id?: string | null
+          checked_at?: string
+          completeness?: number
+          restaurant_id?: string
+          revenue_detail?: number
+          revenue_official?: number
+          station?: string
+          ticket_date?: string
+          tickets_detail?: number
+          tickets_official?: number
+        }
+        Relationships: []
+      }
       caisse_ticket_lines: {
         Row: {
           category: string | null
@@ -12957,6 +12996,22 @@ export type Database = {
           tickets: number
         }[]
       }
+      get_caisse_integrity_gaps: {
+        Args: {
+          p_chain_id: string
+          p_from: string
+          p_restaurant_ids?: string[]
+          p_threshold?: number
+          p_to: string
+        }
+        Returns: {
+          completeness: number
+          restaurants_incomplete: number
+          ticket_date: string
+          tickets_detail: number
+          tickets_official: number
+        }[]
+      }
       get_caisse_payment_brands: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
@@ -14594,6 +14649,10 @@ export type Database = {
         Args: { p_from: string; p_restaurant_id: string; p_to: string }
         Returns: undefined
       }
+      refresh_caisse_ticket_integrity: {
+        Args: { p_from: string; p_to: string }
+        Returns: number
+      }
       refresh_refund_daily_cache: {
         Args: {
           p_end_date: string
@@ -14604,6 +14663,10 @@ export type Database = {
       }
       refresh_restaurant_first_activity: {
         Args: { p_restaurant_ids?: string[] }
+        Returns: number
+      }
+      requeue_incomplete_caisse_months: {
+        Args: { p_lookback_days?: number; p_threshold?: number }
         Returns: number
       }
       requeue_recent_splash_tickets: { Args: never; Returns: number }

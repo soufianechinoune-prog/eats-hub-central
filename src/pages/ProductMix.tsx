@@ -180,6 +180,31 @@ export default function ProductMix() {
     return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0 };
   });
 
+  // Contrôle d'intégrité : journées dont le détail ticket n'est pas complètement aspiré.
+  const windowFrom = format(subDays(new Date(launch), days), "yyyy-MM-dd");
+  const windowTo = format(new Date(new Date(launch).getTime() + days * 86400000), "yyyy-MM-dd");
+  const gaps = useQuery({
+    queryKey: ["caisse-integrity-gaps", selectedChainId, windowFrom, windowTo, ids],
+    enabled: channel === "cash" && !!selectedChainId && enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_caisse_integrity_gaps", {
+        p_chain_id: selectedChainId,
+        p_from: windowFrom,
+        p_to: windowTo,
+        p_restaurant_ids: ids ?? null,
+      });
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        d: String(r.ticket_date),
+        restaurants: Number(r.restaurants_incomplete) || 0,
+        completeness: Number(r.completeness) || 0,
+      })).filter((r) => r.completeness < 0.95);
+    },
+  });
+  const gapDays = gaps.data ?? [];
+
+
   return (
     <AppLayout>
       <ChannelNavShell>
@@ -191,6 +216,28 @@ export default function ProductMix() {
             </p>
           </div>
           <AnalyticsHeader />
+
+          {gapDays.length > 0 && (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+              <p className="font-semibold">
+                {gapDays.length === 1 ? "1 journée" : `${gapDays.length} journées`} de caisse encore en cours de consolidation
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Le détail des tickets n'est pas complet sur ces dates, les courbes peuvent y être sous-évaluées. La reprise est automatique.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {gapDays.slice(0, 12).map((g) => (
+                  <span key={g.d} className="rounded-md bg-background px-2 py-0.5 text-xs">
+                    {format(new Date(g.d), "dd/MM")} · {Math.round(g.completeness * 100)} %
+                  </span>
+                ))}
+                {gapDays.length > 12 && (
+                  <span className="text-xs text-muted-foreground">+{gapDays.length - 12} autres</span>
+                )}
+              </div>
+            </div>
+          )}
+
 
           <Card>
             <CardContent className="pt-6 flex flex-wrap items-end gap-6">

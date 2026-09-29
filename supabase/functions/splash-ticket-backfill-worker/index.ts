@@ -103,7 +103,12 @@ Deno.serve(async (req) => {
 
       const from = `${job.year}-${String(job.month).padStart(2, "0")}-01`;
       const lastDay = new Date(Date.UTC(job.year, job.month, 0)).getUTCDate();
-      const to = `${job.year}-${String(job.month).padStart(2, "0")}-${lastDay}`;
+      // Marge de sécurité : on demande un jour de plus pour absorber le décalage
+      // UTC/Paris des services de fin de soirée du dernier jour du mois.
+      const toDate = new Date(Date.UTC(job.year, job.month - 1, lastDay));
+      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      const to = toDate.toISOString().slice(0, 10);
+
 
       try {
         const res = await syncRange(
