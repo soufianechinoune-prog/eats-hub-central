@@ -633,15 +633,9 @@ const Overview = () => {
       ? previousComparisonDishop.data.caTTC
       : null;
     const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
-    // Deliveroo N = somme des restaurants du périmètre (mêmes données que le tableau).
+    // Uber Eats / Deliveroo N et N-1 : caisse Splash (repli API/imports sans caisse).
     return {
       ...networkDaily.comparisons,
-      deliveroo: {
-        ...networkDaily.comparisons.deliveroo,
-        current: deliverooCurrent,
-        previous: delPrev,
-        variation: delPrev != null && delPrev > 0 ? ((deliverooCurrent - delPrev) / delPrev) * 100 : null,
-      },
       dishop: {
         current: dishopCurrent,
         previous: dishopPrevious,
