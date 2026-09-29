@@ -51,14 +51,21 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
   const { chart, slotTable } = useMemo(() => {
     const rows = q.data ?? [];
     const totals = new Map<string, number>();
-    rows.forEach((r) => r.product !== "__all__" && totals.set(r.product, (totals.get(r.product) ?? 0) + Number(r.qty)));
+    rows.forEach((r) => r.product !== "__all__" && r.product !== "__total__" && totals.set(r.product, (totals.get(r.product) ?? 0) + Number(r.qty)));
     const chart = HOURS.map((h) => {
       const row: Record<string, number | string | null> = { h, label: `${h}h`, x: axisPos(h) };
       row.tickets = Number(rows.find((r) => r.product === "__all__" && r.hour === h)?.tickets ?? 0);
+      const prodVals = products.map((p) => Number(rows.find((r) => r.product === p && r.hour === h)?.qty ?? 0));
+      const selSum = prodVals.reduce((a, b) => a + b, 0);
+      const netTotal = Number(rows.find((r) => r.product === "__total__" && r.hour === h)?.qty ?? 0);
       products.forEach((p, i) => {
-        const v = Number(rows.find((r) => r.product === p && r.hour === h)?.qty ?? 0);
+        const v = prodVals[i];
         const t = totals.get(p) ?? 0;
-        row[`p${i}`] = metric === "qty" ? v : t > 0 ? (v / t) * 100 : 0;
+        row[`p${i}`] =
+          metric === "qty" ? v
+          : metric === "own" ? (t > 0 ? (v / t) * 100 : 0)
+          : metric === "selection" ? (selSum > 0 ? (v / selSum) * 100 : 0)
+          : (netTotal > 0 ? (v / netTotal) * 100 : 0);
       });
       return row;
     });
