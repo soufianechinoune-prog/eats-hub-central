@@ -684,6 +684,45 @@ const Overview = () => {
     },
   });
 
+  // N-1 par restaurant (ligne de chaque restaurant en mode Comparaison N-1) :
+  // même règle que le N — caisse Splash prioritaire, repli API/imports si 0 €.
+  const perRestoPrevIds = useMemo(() => scopedStats.map((r) => r.id).sort(), [scopedStats]);
+  const { data: perRestaurantPrevious } = useQuery({
+    queryKey: ["overview-per-resto-prev", perRestoPrevIds, previousStartDateStr, previousEndDateStr],
+    enabled: comparisonMode && showN1Comparison && perRestoPrevIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      const args = { p_restaurant_ids: perRestoPrevIds, p_start_date: previousStartDateStr, p_end_date: previousEndDateStr };
+      const [sp, ub, dl] = await Promise.all([
+        (supabase.rpc as any)("get_splash_platforms_by_restaurant", args),
+        supabase.rpc("get_network_orders_summary", args as any),
+        supabase.rpc("get_network_deliveroo_summary", args as any),
+      ]);
+      const m = new Map<string, { uber: number; deliveroo: number }>();
+      const get = (id: string) => m.get(id) ?? (m.set(id, { uber: 0, deliveroo: 0 }), m.get(id)!);
+      for (const r of (ub.data ?? []) as any[]) get(r.restaurant_id).uber = Number(r.total_sales_incl_vat) || 0;
+      for (const r of (dl.data ?? []) as any[]) get(r.restaurant_id).deliveroo = Number(r.total_revenue) || 0;
+      for (const r of (sp.data ?? []) as any[]) {
+        if (!r.has_splash) continue;
+        const e = get(r.restaurant_id);
+        if (Number(r.uber_revenue) > 0) e.uber = Number(r.uber_revenue);
+        if (Number(r.deliveroo_revenue) > 0) e.deliveroo = Number(r.deliveroo_revenue);
+      }
+      return m;
+    },
+  });
+  const previousByRestaurant = useMemo(() => {
+    if (!perRestaurantPrevious) return undefined;
+    const out = new Map<string, { cash: number | null; uber: number | null; deliveroo: number | null }>();
+    for (const id of perRestoPrevIds) {
+      const p = perRestaurantPrevious.get(id);
+      const cash = cashByRestaurant?.get(id)?.prevCashRevenue ?? null;
+      out.set(id, { cash, uber: p?.uber || null, deliveroo: p?.deliveroo || null });
+    }
+    return out;
+  }, [perRestaurantPrevious, perRestoPrevIds, cashByRestaurant]);
+
   const channelComparisons = useMemo(() => {
     const dishopPrevious = previousComparisonDishop.data?.hasData
       ? previousComparisonDishop.data.caTTC
@@ -1538,6 +1577,7 @@ const Overview = () => {
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}
                 comparisonMode={comparisonMode}
                 footerTotals={comparisonFooterTotals}
+                previousByRestaurant={comparisonMode && showN1Comparison ? previousByRestaurant : undefined}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
               />
