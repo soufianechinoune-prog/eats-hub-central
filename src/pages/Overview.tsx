@@ -1326,11 +1326,17 @@ const Overview = () => {
                       icon={Euro}
                       label="CA Caisse (TTC)"
                       value={cashRevenueData?.totalCash != null
-                        ? Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")
+                        ? Math.round(cashNetTotal).toLocaleString("fr-FR")
                         : null}
                       unit="€"
                       color="text-cash"
                     />
+                    {chataigneTotal > 0 && cashRevenueData?.totalCash != null && (
+                      <p className="text-[11px] text-muted-foreground -mt-2 pl-1">
+                        Brut Splash : {Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")} €
+                        {" "}(−{Math.round(chataigneTotal).toLocaleString("fr-FR")} € Châtaigne)
+                      </p>
+                    )}
                     <MetricRow
                       icon={TrendingUp}
                       label="Part dans le CA réseau"
@@ -1359,7 +1365,7 @@ const Overview = () => {
                       icon={Truck}
                       label="Nb commandes Caisse"
                       value={cashRevenueData?.totalCashOrders != null
-                        ? cashRevenueData.totalCashOrders.toLocaleString("fr-FR")
+                        ? Math.max(0, cashRevenueData.totalCashOrders - chataigneTotalOrders).toLocaleString("fr-FR")
                         : null}
                       color="text-cyan-500"
                     />
@@ -1381,9 +1387,10 @@ const Overview = () => {
                     <MetricRow
                       icon={Euro}
                       label="Panier moyen Caisse"
-                      value={cashRevenueData?.cashAvgBasket != null && cashRevenueData.cashAvgBasket > 0
-                        ? cashRevenueData.cashAvgBasket.toFixed(2)
-                        : null}
+                      value={(() => {
+                        const netOrders = Math.max(0, (cashRevenueData?.totalCashOrders ?? 0) - chataigneTotalOrders);
+                        return netOrders > 0 ? (cashNetTotal / netOrders).toFixed(2) : null;
+                      })()}
                       unit="€"
                       color="text-amber-500"
                     />
