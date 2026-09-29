@@ -260,6 +260,13 @@
       "when": 1790710600505,
       "tag": "0036_product_mix_daily_qty_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1790712740452,
+      "tag": "0037_caisse_ticket_integrity_monitoring",
+      "breakpoints": true
     }
   ]
 }
