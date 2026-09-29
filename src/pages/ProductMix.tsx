@@ -180,6 +180,31 @@ export default function ProductMix() {
     return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0 };
   });
 
+  // Contrôle d'intégrité : journées dont le détail ticket n'est pas complètement aspiré.
+  const windowFrom = format(subDays(new Date(launch), days), "yyyy-MM-dd");
+  const windowTo = format(new Date(new Date(launch).getTime() + days * 86400000), "yyyy-MM-dd");
+  const gaps = useQuery({
+    queryKey: ["caisse-integrity-gaps", selectedChainId, windowFrom, windowTo, ids],
+    enabled: channel === "cash" && !!selectedChainId && enabled,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_caisse_integrity_gaps", {
+        p_chain_id: selectedChainId,
+        p_from: windowFrom,
+        p_to: windowTo,
+        p_restaurant_ids: ids ?? null,
+      });
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        d: String(r.ticket_date),
+        restaurants: Number(r.restaurants_incomplete) || 0,
+        completeness: Number(r.completeness) || 0,
+      })).filter((r) => r.completeness < 0.95);
+    },
+  });
+  const gapDays = gaps.data ?? [];
+
+
   return (
     <AppLayout>
       <ChannelNavShell>
