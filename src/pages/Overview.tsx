@@ -918,6 +918,49 @@ const Overview = () => {
     return { uber, deliveroo };
   }, [networkStats]);
 
+  // Totaux réseau N vs N-1 par canal pour la ligne « Total réseau » du comparatif
+  // (mêmes montants que les vignettes sous la barre du hero).
+  const comparisonFooterTotals = useMemo(() => {
+    const cc = channelComparisons as Record<
+      string,
+      { current: number; previous: number | null }
+    >;
+    const cashCur = cashConnected
+      ? isConstantScope
+        ? cc.cash?.current ?? 0
+        : cashNetTotal
+      : 0;
+    const uberCur = isConstantScope ? cc.uber?.current ?? 0 : channelTotals.uber;
+    const deliverooCur = isConstantScope ? cc.deliveroo?.current ?? 0 : channelTotals.deliveroo;
+    const dishopCur = hasDishopData
+      ? isConstantScope
+        ? cc.dishop?.current ?? 0
+        : dishopData?.caTTC ?? 0
+      : 0;
+    const chataigneCur = isConstantScope ? cc.chataigne?.current ?? 0 : chataigneTotal;
+    return {
+      total: {
+        current: cashCur + uberCur + deliverooCur + dishopCur + chataigneCur,
+        previous: constantTotals.previous,
+      },
+      cash: { current: cashCur, previous: cc.cash?.previous ?? null },
+      uber: { current: uberCur, previous: cc.uber?.previous ?? null },
+      deliveroo: { current: deliverooCur, previous: cc.deliveroo?.previous ?? null },
+      dishop: { current: dishopCur, previous: cc.dishop?.previous ?? null },
+      chataigne: { current: chataigneCur, previous: cc.chataigne?.previous ?? null },
+    };
+  }, [
+    channelComparisons,
+    cashConnected,
+    isConstantScope,
+    cashNetTotal,
+    channelTotals,
+    hasDishopData,
+    dishopData,
+    chataigneTotal,
+    constantTotals,
+  ]);
+
   // Nombre de commandes / tickets par canal, calculé sur le même périmètre que les
   // montants affichés dans les vignettes (réseau complet ou périmètre constant).
   const chataigneTotalOrders = useMemo(
@@ -1494,6 +1537,7 @@ const Overview = () => {
                 comparedCount={comparedCount}
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}
                 comparisonMode={comparisonMode}
+                footerTotals={comparisonFooterTotals}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
               />
