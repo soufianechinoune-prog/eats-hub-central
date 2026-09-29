@@ -1059,7 +1059,12 @@ const Overview = () => {
       ) : (
         <div>
           {activeChannel === "deliveroo" && (
-            <div className="mb-8">
+            <div className="mb-8 space-y-4">
+              <SourceHealthAlerts
+                gaps={statsLoading ? [] : sourceGaps.filter((g) => g.label === "Deliveroo")}
+                unmapped={[]}
+                onOpenMapping={() => navigate("/settings/integrations")}
+              />
               <DeliverooChannelSummary
                 restaurantIds={activeIds}
                 startDate={startDateStr}
@@ -1071,6 +1076,15 @@ const Overview = () => {
           <div className={cn("grid gap-8", activeChannel === "uber" ? "lg:grid-cols-3" : "lg:grid-cols-1")}>
 
             {/* Uber Eats Card — métriques opérationnelles, réservées à l'onglet Uber Eats */}
+            {activeChannel === "uber" && !statsLoading && sourceGaps.some((g) => g.label === "Uber Eats") && (
+            <div className="lg:col-span-3">
+              <SourceHealthAlerts
+                gaps={sourceGaps.filter((g) => g.label === "Uber Eats")}
+                unmapped={[]}
+                onOpenMapping={() => navigate("/settings/integrations")}
+              />
+            </div>
+            )}
             {activeChannel === "uber" && (
             <Card className={cn(
               "border-2 border-uber/30 shadow-2xl bg-gradient-to-br from-card via-card to-uber/5 backdrop-blur-xl hover:shadow-uber/20 transition-all duration-500 hover:scale-[1.02]",
@@ -1163,6 +1177,13 @@ const Overview = () => {
             )}
 
             {/* Caisse Card */}
+            {activeChannel === "cash" && (unmappedSplash ?? []).length > 0 && (
+            <SourceHealthAlerts
+              gaps={[]}
+              unmapped={unmappedSplash ?? []}
+              onOpenMapping={() => navigate("/settings/integrations")}
+            />
+            )}
             {activeChannel === "cash" && (
             <Card className="border-2 border-cash/30 shadow-2xl bg-gradient-to-br from-card via-card to-cash/5 backdrop-blur-xl hover:shadow-cash/20 transition-all duration-500 hover:scale-[1.02] lg:col-span-1">
               <CardHeader className="pb-4">
@@ -1367,11 +1388,6 @@ const Overview = () => {
           {/* Vue réseau : héro CA (total + barre empilée + évolution) puis 5 cartes canal */}
           {activeChannel === "global" && (
           <div className="mt-10 space-y-4">
-            <SourceHealthAlerts
-              gaps={statsLoading ? [] : sourceGaps}
-              unmapped={unmappedSplash ?? []}
-              onOpenMapping={() => navigate("/settings/integrations")}
-            />
             {!statsLoading && zeroRevenueRestaurants.length > 0 && (
               <ZeroRevenueAlert
                 restaurants={zeroRevenueRestaurants.map((r) => ({ id: r.id, name: r.name }))}
