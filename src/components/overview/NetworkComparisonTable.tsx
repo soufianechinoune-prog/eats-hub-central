@@ -84,6 +84,15 @@ export interface NetworkComparisonTableProps {
   onOpenRestaurantFile?: (restaurantId: string) => void;
   /** false = vue simple : colonne Δ, pills de variation et réglages N-1 masqués */
   comparisonMode?: boolean;
+  /** Totaux réseau N vs N-1 par canal (ligne de total en bas, mode comparaison N-1). */
+  footerTotals?: {
+    total: { current: number; previous: number | null };
+    cash: { current: number; previous: number | null };
+    uber: { current: number; previous: number | null };
+    deliveroo: { current: number; previous: number | null };
+    dishop: { current: number; previous: number | null };
+    chataigne: { current: number; previous: number | null };
+  } | null;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
 }
@@ -102,6 +111,7 @@ export function NetworkComparisonTable({
   comparedCount,
   onOpenRestaurantFile,
   comparisonMode = true,
+  footerTotals,
   showN1Comparison,
   onToggleN1,
 }: NetworkComparisonTableProps) {
