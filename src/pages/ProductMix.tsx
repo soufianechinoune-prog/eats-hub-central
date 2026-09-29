@@ -217,6 +217,28 @@ export default function ProductMix() {
           </div>
           <AnalyticsHeader />
 
+          {gapDays.length > 0 && (
+            <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
+              <p className="font-semibold">
+                {gapDays.length === 1 ? "1 journée" : `${gapDays.length} journées`} de caisse encore en cours de consolidation
+              </p>
+              <p className="text-muted-foreground mt-1">
+                Le détail des tickets n'est pas complet sur ces dates, les courbes peuvent y être sous-évaluées. La reprise est automatique.
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {gapDays.slice(0, 12).map((g) => (
+                  <span key={g.d} className="rounded-md bg-background px-2 py-0.5 text-xs">
+                    {format(new Date(g.d), "dd/MM")} · {Math.round(g.completeness * 100)} %
+                  </span>
+                ))}
+                {gapDays.length > 12 && (
+                  <span className="text-xs text-muted-foreground">+{gapDays.length - 12} autres</span>
+                )}
+              </div>
+            </div>
+          )}
+
+
           <Card>
             <CardContent className="pt-6 flex flex-wrap items-end gap-6">
               <div>
