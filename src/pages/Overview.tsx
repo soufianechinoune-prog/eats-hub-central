@@ -1326,11 +1326,17 @@ const Overview = () => {
                       icon={Euro}
                       label="CA Caisse (TTC)"
                       value={cashRevenueData?.totalCash != null
-                        ? Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")
+                        ? Math.round(cashNetTotal).toLocaleString("fr-FR")
                         : null}
                       unit="€"
                       color="text-cash"
                     />
+                    {chataigneTotal > 0 && cashRevenueData?.totalCash != null && (
+                      <p className="text-[11px] text-muted-foreground -mt-2 pl-1">
+                        Brut Splash : {Math.round(cashRevenueData.totalCash).toLocaleString("fr-FR")} €
+                        {" "}(−{Math.round(chataigneTotal).toLocaleString("fr-FR")} € Châtaigne)
+                      </p>
+                    )}
                     <MetricRow
                       icon={TrendingUp}
                       label="Part dans le CA réseau"
