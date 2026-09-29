@@ -310,6 +310,12 @@ export function OverviewChannelSidebar({
             isActive={pathname === "/live"}
             onClick={() => { navigate("/live"); onNavigate?.(); }}
           />
+          <NavButton
+            item={{ id: "global", label: "Mix produit", sublabel: "Nouveautés, volume vs panier", icon: Package }}
+            isActive={pathname === "/mix-produit"}
+            onClick={() => { navigate("/mix-produit"); onNavigate?.(); }}
+          />
+
         </div>
       </div>
 

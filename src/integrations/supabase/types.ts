@@ -14135,6 +14135,35 @@ export type Database = {
               restaurant_id: string
             }[]
           }
+      get_product_mix_diagnostic: {
+        Args: {
+          p_channel: string
+          p_days: number
+          p_launch: string
+          p_restaurant_ids: string[]
+        }
+        Returns: {
+          product: string
+          qty_after: number
+          qty_before: number
+          rev_after: number
+          rev_before: number
+        }[]
+      }
+      get_product_mix_totals: {
+        Args: {
+          p_channel: string
+          p_days: number
+          p_launch: string
+          p_restaurant_ids: string[]
+        }
+        Returns: {
+          rev_after: number
+          rev_before: number
+          tickets_after: number
+          tickets_before: number
+        }[]
+      }
       get_product_sales_for_period:
         | {
             Args: {
