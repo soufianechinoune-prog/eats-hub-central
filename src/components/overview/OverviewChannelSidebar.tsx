@@ -105,6 +105,7 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "synthese", label: "Synthèse", icon: Sparkles },
   { id: "onsite-sales", label: "Ventes sur place", icon: Store, route: "/analytics/onsite-sales" },
   { id: "payments", label: "Moyens de paiement", icon: CreditCard, route: "/caisse/paiements" },
+  { id: "avg-basket", label: "Panier moyen", icon: ShoppingBag, route: "/caisse/panier-moyen" },
   { id: "product-sales", label: "Ventes par produit", icon: Package, route: "/caisse/produits" },
 ];
 
@@ -145,6 +146,7 @@ function channelFromPath(
   if (u) return { channel: "uber", subId: u.id };
   if (pathname.startsWith("/analytics/onsite-sales")) return { channel: "cash", subId: "onsite-sales" };
   if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
+  if (pathname.startsWith("/caisse/panier-moyen")) return { channel: "cash", subId: "avg-basket" };
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
   if (pathname.startsWith("/chataigne/clients")) return { channel: "chataigne", subId: "clients" };
