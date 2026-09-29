@@ -13426,6 +13426,20 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_daily_platforms_from_splash: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          date: string
+          order_count: number
+          platform: string
+          restaurant_id: string
+          revenue_ttc: number
+        }[]
+      }
       get_daily_revenue_from_orders: {
         Args: {
           p_end_date: string
@@ -14336,6 +14350,21 @@ export type Database = {
           p_year?: number
         }
         Returns: Json
+      }
+      get_splash_platforms_by_restaurant: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          deliveroo_orders: number
+          deliveroo_revenue: number
+          has_splash: boolean
+          restaurant_id: string
+          uber_orders: number
+          uber_revenue: number
+        }[]
       }
       get_total_delivery_time_daily: {
         Args: {

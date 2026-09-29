@@ -128,7 +128,46 @@ export function useNetworkDailyRevenue(
     ),
   });
 
-  const isLoading = platforms.isLoading || cash.isLoading || chataigne.isLoading;
+  // Source de vérité Vue d'ensemble = caisse Splash, y compris pour Uber Eats / Deliveroo
+  // (lignes platform=uber_eats/deliveroo). Repli sur les API pour les restaurants sans caisse.
+  const splashPlatforms = useQuery({
+    queryKey: ["network-daily", "splash-platforms", startDate, endDate, restaurantIds],
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => callDailyRpc("get_daily_platforms_from_splash", startDate, endDate, restaurantIds),
+  });
+  const previousSplashPlatforms = useQuery({
+    queryKey: ["network-daily", "splash-platforms", "n-1", previousStartDate, previousEndDate, comparisonRestaurantIds],
+    enabled: comparisonEnabled,
+    staleTime: 5 * 60 * 1000,
+    queryFn: () => callDailyRpc("get_daily_platforms_from_splash", previousStartDate ?? "", previousEndDate ?? "", comparisonRestaurantIds),
+  });
+  const mergePlatforms = (
+    apiRows: DailyRow[] | undefined,
+    splashRows: DailyRow[] | undefined,
+    cashRows: DailyRow[] | undefined,
+  ): DailyRow[] | undefined => {
+    if (!apiRows && !splashRows) return undefined;
+    const withCash = new Set<string>();
+    for (const r of cashRows ?? []) if ((Number(r.revenue_ttc) || 0) > 0) withCash.add(r.restaurant_id);
+    for (const r of splashRows ?? []) if ((Number(r.revenue_ttc) || 0) > 0) withCash.add(r.restaurant_id);
+    return [
+      ...(splashRows ?? []).filter((r) => withCash.has(r.restaurant_id)),
+      ...(apiRows ?? []).filter((r) => !withCash.has(r.restaurant_id)),
+    ];
+  };
+  const mergedPlatforms = useMemo(
+    () => mergePlatforms(platforms.data, splashPlatforms.data, cash.data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [platforms.data, splashPlatforms.data, cash.data],
+  );
+  const mergedPreviousPlatforms = useMemo(
+    () => mergePlatforms(previousPlatforms.data, previousSplashPlatforms.data, previousCash.data),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [previousPlatforms.data, previousSplashPlatforms.data, previousCash.data],
+  );
+
+  const isLoading = platforms.isLoading || cash.isLoading || chataigne.isLoading || splashPlatforms.isLoading;
 
   // Série journalière agrégée (graphique « Évolution du CA »), optionnellement restreinte à un périmètre
   const buildDaily = (scope: Set<string> | null): NetworkDailyPoint[] => {
@@ -144,7 +183,7 @@ export function useNetworkDailyRevenue(
     };
     const inScope = (r: DailyRow) => !scope || scope.has(r.restaurant_id);
 
-    for (const r of platforms.data ?? []) {
+    for (const r of mergedPlatforms ?? []) {
       if (!inScope(r)) continue;
       const p = (r.platform ?? "").toLowerCase();
       const row = ensure(r.date);
@@ -164,11 +203,11 @@ export function useNetworkDailyRevenue(
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const daily = useMemo(() => buildDaily(null), [platforms.data, cash.data, chataigne.data]);
+  const daily = useMemo(() => buildDaily(null), [mergedPlatforms, cash.data, chataigne.data]);
   const scopedDaily = useMemo(
     () => buildDaily(new Set(comparisonRestaurantIds)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [platforms.data, cash.data, chataigne.data, comparisonRestaurantIds],
+    [mergedPlatforms, cash.data, chataigne.data, comparisonRestaurantIds],
   );
 
   // Série journalière par restaurant (tous canaux confondus) — sparklines du tableau
@@ -185,7 +224,7 @@ export function useNetworkDailyRevenue(
       m.set(d, (m.get(d) ?? 0) + value);
     };
 
-    for (const r of platforms.data ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
+    for (const r of mergedPlatforms ?? []) add(r.restaurant_id, r.date, Number(r.revenue_ttc) || 0);
     // Caisse Splash nette de Châtaigne (Splash ne tague pas les commandes Châtaigne)
     const chataigneByKey = new Map<string, number>();
     for (const r of chataigne.data ?? []) {
@@ -209,7 +248,7 @@ export function useNetworkDailyRevenue(
       );
     }
     return out;
-  }, [platforms.data, cash.data, chataigne.data]);
+  }, [mergedPlatforms, cash.data, chataigne.data]);
 
   const comparisons = useMemo<NetworkChannelComparisons>(() => {
     const scope = new Set(comparisonRestaurantIds);
@@ -254,24 +293,24 @@ export function useNetworkDailyRevenue(
     };
 
     return {
-      uber: makeComparison(platforms.data, previousPlatforms.data, isUber),
-      deliveroo: makeComparison(platforms.data, previousPlatforms.data, isDeliveroo),
+      uber: makeComparison(mergedPlatforms, mergedPreviousPlatforms, isUber),
+      deliveroo: makeComparison(mergedPlatforms, mergedPreviousPlatforms, isDeliveroo),
       cash: makeComparison(netCashRows(cash.data, chataigne.data), netCashRows(previousCash.data, previousChataigne.data)),
       chataigne: makeComparison(chataigne.data, previousChataigne.data),
     };
   }, [
     comparisonRestaurantIds,
-    platforms.data,
+    mergedPlatforms,
     cash.data,
     chataigne.data,
-    previousPlatforms.data,
+    mergedPreviousPlatforms,
     previousCash.data,
     previousChataigne.data,
   ]);
 
   const comparisonLoading =
     comparisonEnabled &&
-    (previousPlatforms.isLoading || previousCash.isLoading || previousChataigne.isLoading);
+    ((previousPlatforms.isLoading || previousSplashPlatforms.isLoading) || previousCash.isLoading || previousChataigne.isLoading);
 
   return { daily, scopedDaily, byRestaurant, comparisons, comparisonLoading, isLoading };
 }

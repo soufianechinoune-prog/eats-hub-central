@@ -520,9 +520,48 @@ const Overview = () => {
     }
     return m;
   }, [cashByRestaurant, chataigneByRestaurant]);
+  // Source de vérité Vue d'ensemble = caisse Splash : Uber Eats / Deliveroo lus dans la
+  // caisse pour les restaurants branchés ; repli API/imports pour ceux sans caisse.
+  const { data: splashPlatforms } = useQuery({
+    queryKey: ["overview-splash-platforms", startDateStr, endDateStr, activeIds],
+    enabled: !!activeIds && activeIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_splash_platforms_by_restaurant", {
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+        p_restaurant_ids: activeIds,
+      });
+      if (error) throw error;
+      const m = new Map<string, { uR: number; uO: number; dR: number; dO: number }>();
+      for (const r of (data ?? []) as any[]) {
+        if (!r.has_splash) continue;
+        m.set(r.restaurant_id, {
+          uR: Number(r.uber_revenue) || 0, uO: Number(r.uber_orders) || 0,
+          dR: Number(r.deliveroo_revenue) || 0, dO: Number(r.deliveroo_orders) || 0,
+        });
+      }
+      return m;
+    },
+  });
+  const networkStats = useMemo(() => {
+    if (!splashPlatforms) return comparisonStats;
+    return comparisonStats.map((r) => {
+      const s = splashPlatforms.get(r.id);
+      if (!s) return r;
+      return {
+        ...r,
+        platformBreakdown: {
+          ...r.platformBreakdown,
+          uber: { ...r.platformBreakdown.uber, revenue: s.uR, orders: s.uO },
+          deliveroo: { ...r.platformBreakdown.deliveroo, revenue: s.dR, orders: s.dO },
+        },
+      };
+    });
+  }, [comparisonStats, splashPlatforms]);
   // Restaurants sans aucun CA sur la période (tous canaux) : travaux, fermeture…
   const zeroRevenueRestaurants = useMemo(() => {
-    return comparisonStats.filter((r) => {
+    return networkStats.filter((r) => {
       const total =
         (r.platformBreakdown.uber.revenue || 0) +
         (r.platformBreakdown.deliveroo.revenue || 0) +
@@ -530,7 +569,7 @@ const Overview = () => {
         (chataigneByRestaurant.get(r.id)?.revenue ?? 0);
       return total <= 0;
     });
-  }, [comparisonStats, cashNetByRestaurant, chataigneByRestaurant]);
+  }, [networkStats, cashNetByRestaurant, chataigneByRestaurant]);
   const zeroIdSet = useMemo(() => new Set(zeroRevenueRestaurants.map((r) => r.id)), [zeroRevenueRestaurants]);
   const comparisonRestaurantIds = useMemo(
     () => (comparisonMode && excludeZeroRevenue ? baseComparableIds.filter((id) => !zeroIdSet.has(id)) : baseComparableIds),
@@ -564,10 +603,10 @@ const Overview = () => {
   const isConstantScope = comparisonMode && analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
   const scopedStats = useMemo(() => {
-    let out = isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats;
+    let out = isConstantScope ? networkStats.filter((r) => comparableSet.has(r.id)) : networkStats;
     if (comparisonMode && excludeZeroRevenue) out = out.filter((r) => !zeroIdSet.has(r.id));
     return out;
-  }, [isConstantScope, comparisonStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
+  }, [isConstantScope, networkStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
   const comparedCount = isConstantScope ? comparisonRestaurantIds.length : networkTotals.comparedRestaurantCount;
 
   // Deliveroo N-1 : même source que le N (imports CSV), sur les mêmes restaurants.
@@ -594,17 +633,9 @@ const Overview = () => {
       ? previousComparisonDishop.data.caTTC
       : null;
     const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
-    // Deliveroo N = somme des restaurants du périmètre (mêmes données que le tableau).
-    const deliverooCurrent = scopedStats.reduce((s, r) => s + (r.platformBreakdown.deliveroo.revenue || 0), 0);
-    const delPrev = deliverooPrevious ?? null;
+    // Uber Eats / Deliveroo N et N-1 : caisse Splash (repli API/imports sans caisse).
     return {
       ...networkDaily.comparisons,
-      deliveroo: {
-        ...networkDaily.comparisons.deliveroo,
-        current: deliverooCurrent,
-        previous: delPrev,
-        variation: delPrev != null && delPrev > 0 ? ((deliverooCurrent - delPrev) / delPrev) * 100 : null,
-      },
       dishop: {
         current: dishopCurrent,
         previous: dishopPrevious,
@@ -614,7 +645,7 @@ const Overview = () => {
             : null,
       },
     };
-  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data, scopedStats, deliverooPrevious]);
+  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data]);
 
   // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
   // sous la barre, quel que soit le périmètre).
@@ -824,12 +855,12 @@ const Overview = () => {
   const channelTotals = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
-    for (const r of comparisonStats) {
+    for (const r of networkStats) {
       uber += r.platformBreakdown.uber.revenue;
       deliveroo += r.platformBreakdown.deliveroo.revenue;
     }
     return { uber, deliveroo };
-  }, [comparisonStats]);
+  }, [networkStats]);
 
   // Nombre de commandes / tickets par canal, calculé sur le même périmètre que les
   // montants affichés dans les vignettes (réseau complet ou périmètre constant).
@@ -838,7 +869,7 @@ const Overview = () => {
     [chataigneByRestaurant],
   );
   const channelCounts = useMemo(() => {
-    const scope = isConstantScope ? scopedStats : comparisonStats;
+    const scope = isConstantScope ? scopedStats : networkStats;
     let uber = 0;
     let deliveroo = 0;
     for (const r of scope) {
@@ -874,7 +905,7 @@ const Overview = () => {
   }, [
     isConstantScope,
     scopedStats,
-    comparisonStats,
+    networkStats,
     cashByRestaurant,
     chataigneByRestaurant,
     chataigneTotalOrders,
