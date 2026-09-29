@@ -603,10 +603,10 @@ const Overview = () => {
   const isConstantScope = comparisonMode && analyticsCtx.comparisonScope === "constant";
   const comparableSet = useMemo(() => new Set(comparisonRestaurantIds), [comparisonRestaurantIds]);
   const scopedStats = useMemo(() => {
-    let out = isConstantScope ? comparisonStats.filter((r) => comparableSet.has(r.id)) : comparisonStats;
+    let out = isConstantScope ? networkStats.filter((r) => comparableSet.has(r.id)) : networkStats;
     if (comparisonMode && excludeZeroRevenue) out = out.filter((r) => !zeroIdSet.has(r.id));
     return out;
-  }, [isConstantScope, comparisonStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
+  }, [isConstantScope, networkStats, comparableSet, comparisonMode, excludeZeroRevenue, zeroIdSet]);
   const comparedCount = isConstantScope ? comparisonRestaurantIds.length : networkTotals.comparedRestaurantCount;
 
   // Deliveroo N-1 : même source que le N (imports CSV), sur les mêmes restaurants.
@@ -651,7 +651,7 @@ const Overview = () => {
             : null,
       },
     };
-  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data, scopedStats, deliverooPrevious]);
+  }, [networkDaily.comparisons, comparisonDishop.data, previousComparisonDishop.data]);
 
   // Totaux N vs N-1 calculés comme la somme des canaux (cohérents avec les vignettes
   // sous la barre, quel que soit le périmètre).
