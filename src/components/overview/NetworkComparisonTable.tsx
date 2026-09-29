@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { RestaurantNetworkStats, NetworkTotals } from "@/hooks/useNetworkStats";
@@ -39,6 +40,27 @@ function TrendSparkline({ points, positive }: { points: number[]; positive: bool
       <path d={area} fill={fill} />
       <path d={line} fill="none" stroke={stroke} strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
     </svg>
+  );
+}
+
+/** Pastille « API » : la caisse Splash ne remonte pas ce canal, donnée issue de l'API plateforme. */
+function ApiSourceBadge() {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex cursor-help items-center rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400"
+            onClick={(e) => e.stopPropagation()}
+          >
+            API
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[240px] text-xs">
+          La caisse Splash ne remonte pas ce canal pour ce restaurant : montant issu de l'API plateforme. Dès que Splash intègre le flux, la caisse redevient la référence.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 
