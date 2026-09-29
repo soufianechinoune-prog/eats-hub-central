@@ -77,13 +77,9 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
       <CardHeader>
         <CardTitle className="text-base">Profil horaire des produits (Caisse)</CardTitle>
         <CardDescription>
-          À quelle heure se vendent les produits sélectionnés, découpé par service. Du {format(new Date(from), "dd/MM")} au {format(new Date(to), "dd/MM")} (14 jours).
+          À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page : du {format(new Date(from), "dd/MM/yyyy")} au {format(new Date(to), "dd/MM/yyyy")}.
         </CardDescription>
         <div className="flex flex-wrap gap-4 pt-2">
-          <div className="flex gap-1">
-            <Button size="sm" variant={period === "before" ? "default" : "outline"} onClick={() => setPeriod("before")}>14 j avant lancement</Button>
-            <Button size="sm" variant={period === "after" ? "default" : "outline"} onClick={() => setPeriod("after")}>14 j après lancement</Button>
-          </div>
           <div className="flex gap-1">
             <Button size="sm" variant={metric === "profile" ? "default" : "outline"} onClick={() => setMetric("profile")}>% de ses ventes</Button>
             <Button size="sm" variant={metric === "qty" ? "default" : "outline"} onClick={() => setMetric("qty")}>Volume</Button>
