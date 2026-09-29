@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,18 +25,19 @@ interface Props {
   restaurantIds: string[];
   products: string[];
   colors: string[];
-  launch: string;
+  from: string;
+  to: string;
 }
 
-export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, launch }: Props) {
-  const [period, setPeriod] = useState<"before" | "after">("after");
+export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, from, to }: Props) {
   const [metric, setMetric] = useState<"qty" | "profile">("profile");
-  const from = period === "after" ? launch : format(subDays(new Date(launch), 14), "yyyy-MM-dd");
-  const to = period === "after" ? format(addDays(new Date(launch), 13), "yyyy-MM-dd") : format(subDays(new Date(launch), 1), "yyyy-MM-dd");
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const validRange = !isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && fromDate <= toDate;
 
   const q = useQuery({
     queryKey: ["mix-hourly", chainId, restaurantIds, from, to, products],
-    enabled: !!chainId && restaurantIds.length > 0 && products.length > 0,
+    enabled: validRange && !!chainId && restaurantIds.length > 0 && products.length > 0,
     retry: false,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_product_mix_hourly_v2", {
@@ -79,13 +80,9 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
       <CardHeader>
         <CardTitle className="text-base">Profil horaire des produits (Caisse)</CardTitle>
         <CardDescription>
-          À quelle heure se vendent les produits sélectionnés, découpé par service. Du {format(new Date(from), "dd/MM")} au {format(new Date(to), "dd/MM")} (14 jours).
+          À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page{validRange ? ` : du ${format(fromDate, "dd/MM/yyyy")} au ${format(toDate, "dd/MM/yyyy")}` : " invalide — choisissez une plage de dates complète"}.
         </CardDescription>
         <div className="flex flex-wrap gap-4 pt-2">
-          <div className="flex gap-1">
-            <Button size="sm" variant={period === "before" ? "default" : "outline"} onClick={() => setPeriod("before")}>14 j avant lancement</Button>
-            <Button size="sm" variant={period === "after" ? "default" : "outline"} onClick={() => setPeriod("after")}>14 j après lancement</Button>
-          </div>
           <div className="flex gap-1">
             <Button size="sm" variant={metric === "profile" ? "default" : "outline"} onClick={() => setMetric("profile")}>% de ses ventes</Button>
             <Button size="sm" variant={metric === "qty" ? "default" : "outline"} onClick={() => setMetric("qty")}>Volume</Button>
