@@ -30,7 +30,7 @@ interface Props {
 }
 
 export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, from, to }: Props) {
-  const [metric, setMetric] = useState<"qty" | "profile">("profile");
+  const [metric, setMetric] = useState<"own" | "selection" | "network" | "qty">("own");
   const fromDate = new Date(from);
   const toDate = new Date(to);
   const validRange = !isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && fromDate <= toDate;
@@ -51,14 +51,21 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
   const { chart, slotTable } = useMemo(() => {
     const rows = q.data ?? [];
     const totals = new Map<string, number>();
-    rows.forEach((r) => r.product !== "__all__" && totals.set(r.product, (totals.get(r.product) ?? 0) + Number(r.qty)));
+    rows.forEach((r) => r.product !== "__all__" && r.product !== "__total__" && totals.set(r.product, (totals.get(r.product) ?? 0) + Number(r.qty)));
     const chart = HOURS.map((h) => {
       const row: Record<string, number | string | null> = { h, label: `${h}h`, x: axisPos(h) };
       row.tickets = Number(rows.find((r) => r.product === "__all__" && r.hour === h)?.tickets ?? 0);
+      const prodVals = products.map((p) => Number(rows.find((r) => r.product === p && r.hour === h)?.qty ?? 0));
+      const selSum = prodVals.reduce((a, b) => a + b, 0);
+      const netTotal = Number(rows.find((r) => r.product === "__total__" && r.hour === h)?.qty ?? 0);
       products.forEach((p, i) => {
-        const v = Number(rows.find((r) => r.product === p && r.hour === h)?.qty ?? 0);
+        const v = prodVals[i];
         const t = totals.get(p) ?? 0;
-        row[`p${i}`] = metric === "qty" ? v : t > 0 ? (v / t) * 100 : 0;
+        row[`p${i}`] =
+          metric === "qty" ? v
+          : metric === "own" ? (t > 0 ? (v / t) * 100 : 0)
+          : metric === "selection" ? (selSum > 0 ? (v / selSum) * 100 : 0)
+          : (netTotal > 0 ? (v / netTotal) * 100 : 0);
       });
       return row;
     });
@@ -81,10 +88,14 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
         <CardTitle className="text-base">Profil horaire des produits (Caisse)</CardTitle>
         <CardDescription>
           À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page{validRange ? ` : du ${format(fromDate, "dd/MM/yyyy")} au ${format(toDate, "dd/MM/yyyy")}` : " invalide — choisissez une plage de dates complète"}.
+          {metric === "selection" && " Base 100 : les produits cochés représentent 100 % du volume, heure par heure."}
+          {metric === "network" && " Base : tout le réseau — part de chaque produit dans tous les articles encaissés, heure par heure."}
         </CardDescription>
         <div className="flex flex-wrap gap-4 pt-2">
-          <div className="flex gap-1">
-            <Button size="sm" variant={metric === "profile" ? "default" : "outline"} onClick={() => setMetric("profile")}>% de ses ventes</Button>
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" variant={metric === "own" ? "default" : "outline"} onClick={() => setMetric("own")}>% de ses ventes</Button>
+            <Button size="sm" variant={metric === "selection" ? "default" : "outline"} onClick={() => setMetric("selection")}>Base 100 : ma sélection</Button>
+            <Button size="sm" variant={metric === "network" ? "default" : "outline"} onClick={() => setMetric("network")}>Base : tout le réseau</Button>
             <Button size="sm" variant={metric === "qty" ? "default" : "outline"} onClick={() => setMetric("qty")}>Volume</Button>
           </div>
         </div>
