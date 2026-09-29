@@ -232,6 +232,13 @@
       "when": 1790707442944,
       "tag": "0032_product_mix_daily",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790707472203,
+      "tag": "0033_product_mix_daily_fix",
+      "breakpoints": true
     }
   ]
 }
