@@ -1387,9 +1387,10 @@ const Overview = () => {
                     <MetricRow
                       icon={Euro}
                       label="Panier moyen Caisse"
-                      value={cashRevenueData?.cashAvgBasket != null && cashRevenueData.cashAvgBasket > 0
-                        ? cashRevenueData.cashAvgBasket.toFixed(2)
-                        : null}
+                      value={(() => {
+                        const netOrders = Math.max(0, (cashRevenueData?.totalCashOrders ?? 0) - chataigneTotalOrders);
+                        return netOrders > 0 ? (cashNetTotal / netOrders).toFixed(2) : null;
+                      })()}
                       unit="€"
                       color="text-amber-500"
                     />
