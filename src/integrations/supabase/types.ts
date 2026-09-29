@@ -14237,6 +14237,22 @@ export type Database = {
           tickets: number
         }[]
       }
+      get_product_mix_hourly_v2: {
+        Args: {
+          p_chain_id: string
+          p_from: string
+          p_products: string[]
+          p_restaurant_ids: string[]
+          p_to: string
+        }
+        Returns: {
+          hour: number
+          product: string
+          qty: number
+          revenue: number
+          tickets: number
+        }[]
+      }
       get_product_mix_totals: {
         Args: {
           p_channel: string
