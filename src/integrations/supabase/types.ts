@@ -14412,6 +14412,14 @@ export type Database = {
           uber_one_revenue: number
         }[]
       }
+      get_unmapped_splash_stores: {
+        Args: { p_chain_id: string; p_days?: number }
+        Returns: {
+          restaurant_splash_id: number
+          revenue_ttc: number
+          splash_name: string
+        }[]
+      }
       get_user_role: { Args: never; Returns: string }
       get_wait_time_daily: {
         Args: {
