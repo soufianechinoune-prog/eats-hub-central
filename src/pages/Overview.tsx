@@ -1365,7 +1365,7 @@ const Overview = () => {
                       icon={Truck}
                       label="Nb commandes Caisse"
                       value={cashRevenueData?.totalCashOrders != null
-                        ? cashRevenueData.totalCashOrders.toLocaleString("fr-FR")
+                        ? Math.max(0, cashRevenueData.totalCashOrders - chataigneTotalOrders).toLocaleString("fr-FR")
                         : null}
                       color="text-cyan-500"
                     />
