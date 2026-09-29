@@ -52,6 +52,7 @@ export default function ProductMix() {
   const [search, setSearch] = useState("");
   const [excluded, setExcluded] = useState<string[]>([]);
   const [metric, setMetric] = useState<"rev" | "qty" | "revShare" | "qtyShare">("rev");
+  const [shareBase, setShareBase] = useState<"all" | "sel">("all");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -148,8 +149,9 @@ export default function ProductMix() {
 
   const loading = products.isLoading || totals.isLoading;
 
-  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
-  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : xs.length >= 5 ? xs : [...xs, p]));
+  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--primary))", "hsl(var(--destructive))", "hsl(var(--muted-foreground))"];
+  const MAX_SEL = 8;
+  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : xs.length >= MAX_SEL ? xs : [...xs, p]));
   const series = useQueries({
     queries: excluded.map((prod) => ({
       queryKey: ["mix-daily", params, prod],
@@ -166,18 +168,25 @@ export default function ProductMix() {
   const seriesLoading = series.some((s) => s.isLoading);
   const curve = useMemo(() => {
     const map = new Map<string, any>();
+    // Base "sélection" : les produits cochés = 100 % (somme journalière de la sélection)
+    const selTot = new Map<string, { r: number; q: number }>();
+    series.forEach((s) => (s.data ?? []).forEach((r) => {
+      const t = selTot.get(r.d) ?? { r: 0, q: 0 }; t.r += r.rs; t.q += r.qs; selTot.set(r.d, t);
+    }));
     series.forEach((s, i) => (s.data ?? []).forEach((r) => {
       const row = map.get(r.d) ?? { d: r.d, label: format(new Date(r.d), "dd/MM"), basket: r.t > 0 ? r.ra / r.t : null };
-      row[`p${i}`] = metric === "rev" ? r.rs : metric === "qty" ? r.qs : metric === "revShare" ? (r.ra > 0 ? (r.rs / r.ra) * 100 : null) : (r.qa > 0 ? (r.qs / r.qa) * 100 : null);
+      const t = selTot.get(r.d)!;
+      const baseR = shareBase === "sel" ? t.r : r.ra, baseQ = shareBase === "sel" ? t.q : r.qa;
+      row[`p${i}`] = metric === "rev" ? r.rs : metric === "qty" ? r.qs : metric === "revShare" ? (baseR > 0 ? (r.rs / baseR) * 100 : null) : (baseQ > 0 ? (r.qs / baseQ) * 100 : null);
       map.set(r.d, row);
     }));
     return [...map.values()].sort((x, y) => x.d.localeCompare(y.d));
-  }, [series, metric]);
+  }, [series, metric, shareBase]);
   const fmtMetric = (v: number) => metric === "rev" ? eur0(v) : metric === "qty" ? int(v) : `${v.toFixed(1)} %`;
   const summary = excluded.map((prod, i) => {
     const a = series[i]?.data ?? [];
     const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0), qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
-    return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0 };
+    return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0, selRevShare: 0, selQtyShare: 0 };
   });
 
   // Contrôle d'intégrité : journées dont le détail ticket n'est pas complètement aspiré.
@@ -450,7 +459,7 @@ export default function ProductMix() {
                     {tableRows.map((r) => (
                       <TableRow key={r.product} className={`cursor-pointer ${focus === r.product ? "bg-muted" : ""}`} onClick={() => setFocus(r.product)}>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2"><Checkbox checked={excluded.includes(r.product)} disabled={!excluded.includes(r.product) && excluded.length >= 5} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Comparer ${r.product}`} />{excluded.includes(r.product) && <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[excluded.indexOf(r.product)] }} />}</div>
+                          <div className="flex items-center gap-2"><Checkbox checked={excluded.includes(r.product)} disabled={!excluded.includes(r.product) && excluded.length >= MAX_SEL} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Comparer ${r.product}`} />{excluded.includes(r.product) && <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[excluded.indexOf(r.product)] }} />}</div>
                         </TableCell>
                         <TableCell className="font-medium">{r.product}{r.qb === 0 && r.qa > 0 && <span className="ml-2 text-xs text-primary">Nouveau</span>}</TableCell>
                         <TableCell className="text-right">{int(r.qb)}</TableCell>
