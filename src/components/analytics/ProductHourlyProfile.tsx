@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, format, subDays } from "date-fns";
+import { format } from "date-fns";
 import { CartesianGrid, ComposedChart, Legend, Line, ReferenceArea, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,14 +25,12 @@ interface Props {
   restaurantIds: string[];
   products: string[];
   colors: string[];
-  launch: string;
+  from: string;
+  to: string;
 }
 
-export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, launch }: Props) {
-  const [period, setPeriod] = useState<"before" | "after">("after");
+export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, from, to }: Props) {
   const [metric, setMetric] = useState<"qty" | "profile">("profile");
-  const from = period === "after" ? launch : format(subDays(new Date(launch), 14), "yyyy-MM-dd");
-  const to = period === "after" ? format(addDays(new Date(launch), 13), "yyyy-MM-dd") : format(subDays(new Date(launch), 1), "yyyy-MM-dd");
 
   const q = useQuery({
     queryKey: ["mix-hourly", chainId, restaurantIds, from, to, products],
