@@ -88,10 +88,14 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
         <CardTitle className="text-base">Profil horaire des produits (Caisse)</CardTitle>
         <CardDescription>
           À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page{validRange ? ` : du ${format(fromDate, "dd/MM/yyyy")} au ${format(toDate, "dd/MM/yyyy")}` : " invalide — choisissez une plage de dates complète"}.
+          {metric === "selection" && " Base 100 : les produits cochés représentent 100 % du volume, heure par heure."}
+          {metric === "network" && " Base : tout le réseau — part de chaque produit dans tous les articles encaissés, heure par heure."}
         </CardDescription>
         <div className="flex flex-wrap gap-4 pt-2">
-          <div className="flex gap-1">
-            <Button size="sm" variant={metric === "profile" ? "default" : "outline"} onClick={() => setMetric("profile")}>% de ses ventes</Button>
+          <div className="flex flex-wrap gap-1">
+            <Button size="sm" variant={metric === "own" ? "default" : "outline"} onClick={() => setMetric("own")}>% de ses ventes</Button>
+            <Button size="sm" variant={metric === "selection" ? "default" : "outline"} onClick={() => setMetric("selection")}>Base 100 : ma sélection</Button>
+            <Button size="sm" variant={metric === "network" ? "default" : "outline"} onClick={() => setMetric("network")}>Base : tout le réseau</Button>
             <Button size="sm" variant={metric === "qty" ? "default" : "outline"} onClick={() => setMetric("qty")}>Volume</Button>
           </div>
         </div>
