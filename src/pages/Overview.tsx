@@ -42,6 +42,7 @@ import { NetworkRevenueHero } from "@/components/overview/NetworkRevenueHero";
 import { NetworkChannelCards } from "@/components/overview/NetworkChannelCards";
 import { NetworkComparisonTable } from "@/components/overview/NetworkComparisonTable";
 import { ZeroRevenueAlert } from "@/components/overview/ZeroRevenueAlert";
+import { SourceHealthAlerts } from "@/components/overview/SourceHealthAlerts";
 import { useNetworkDailyRevenue } from "@/hooks/useNetworkDailyRevenue";
 
 const getOverviewStorageKey = (chainId: string | null) =>
@@ -559,6 +560,43 @@ const Overview = () => {
       };
     });
   }, [comparisonStats, splashPlatforms]);
+  // Contrôle de cohérence : caisse vs données plateformes (restaurants avec caisse uniquement).
+  const sourceGaps = useMemo(() => {
+    if (!splashPlatforms) return [];
+    let uC = 0, uS = 0, dC = 0, dS = 0;
+    for (const r of comparisonStats) {
+      const s = splashPlatforms.get(r.id);
+      if (!s) continue;
+      uC += s.uR; uS += r.platformBreakdown.uber.revenue || 0;
+      dC += s.dR; dS += r.platformBreakdown.deliveroo.revenue || 0;
+    }
+    const out: { label: string; caisse: number; source: number; gapPct: number }[] = [];
+    const push = (label: string, c: number, src: number) => {
+      if (c < 1000) return;
+      const gap = ((src - c) / c) * 100;
+      if (Math.abs(gap) > 5) out.push({ label, caisse: c, source: src, gapPct: gap });
+    };
+    push("Uber Eats", uC, uS);
+    push("Deliveroo", dC, dS);
+    return out;
+  }, [comparisonStats, splashPlatforms]);
+  const { data: unmappedSplash } = useQuery({
+    queryKey: ["overview-unmapped-splash", analyticsCtx.selectedChainId],
+    enabled: !!analyticsCtx.selectedChainId,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_unmapped_splash_stores", {
+        p_chain_id: analyticsCtx.selectedChainId,
+        p_days: 14,
+      });
+      if (error) return [];
+      return ((data ?? []) as any[]).map((u) => ({
+        restaurant_splash_id: Number(u.restaurant_splash_id),
+        splash_name: u.splash_name ?? null,
+        revenue_ttc: Number(u.revenue_ttc) || 0,
+      }));
+    },
+  });
   // Restaurants sans aucun CA sur la période (tous canaux) : travaux, fermeture…
   const zeroRevenueRestaurants = useMemo(() => {
     return networkStats.filter((r) => {
@@ -1329,6 +1367,11 @@ const Overview = () => {
           {/* Vue réseau : héro CA (total + barre empilée + évolution) puis 5 cartes canal */}
           {activeChannel === "global" && (
           <div className="mt-10 space-y-4">
+            <SourceHealthAlerts
+              gaps={statsLoading ? [] : sourceGaps}
+              unmapped={unmappedSplash ?? []}
+              onOpenMapping={() => navigate("/settings/integrations")}
+            />
             {!statsLoading && zeroRevenueRestaurants.length > 0 && (
               <ZeroRevenueAlert
                 restaurants={zeroRevenueRestaurants.map((r) => ({ id: r.id, name: r.name }))}

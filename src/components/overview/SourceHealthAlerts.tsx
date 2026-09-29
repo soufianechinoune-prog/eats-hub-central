@@ -24,7 +24,7 @@ export function SourceHealthAlerts({ gaps, unmapped, onOpenMapping }: Props) {
     <div className="space-y-2">
       {gaps.map((g) => (
         <div key={g.label} className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <p className="text-muted-foreground">
             <span className="font-medium text-foreground">{g.label} : écart de {g.gapPct > 0 ? "+" : ""}{g.gapPct.toFixed(1)} %</span>{" "}
             entre la caisse ({eur(g.caisse)}) et les données {g.label} ({eur(g.source)}). La Vue d'ensemble affiche la caisse ;
@@ -34,7 +34,7 @@ export function SourceHealthAlerts({ gaps, unmapped, onOpenMapping }: Props) {
       ))}
       {unmapped.length > 0 && (
         <div className="flex items-start gap-3 rounded-xl border border-border bg-card px-4 py-3 text-sm">
-          <Store className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+          <Store className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
           <div className="flex-1 text-muted-foreground">
             <span className="font-medium text-foreground">
               {unmapped.length} caisse{unmapped.length > 1 ? "s" : ""} non rattachée{unmapped.length > 1 ? "s" : ""}
