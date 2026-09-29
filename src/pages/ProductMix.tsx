@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -49,6 +50,8 @@ export default function ProductMix() {
   const [days, setDays] = useState(30);
   const [focus, setFocus] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [excluded, setExcluded] = useState<string[]>([]);
+  const [metric, setMetric] = useState<"rev" | "qty" | "basket">("rev");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -144,6 +147,33 @@ export default function ProductMix() {
     .slice(0, 50);
 
   const loading = products.isLoading || totals.isLoading;
+
+  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : [...xs, p]));
+  const daily = useQuery({
+    queryKey: ["mix-daily", params, excluded],
+    enabled, retry: false,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_product_mix_daily", { ...params, p_products: excluded });
+      if (error) throw error;
+      return ((data ?? []) as any[]).map((r) => ({
+        d: String(r.d), ra: Number(r.rev_all) || 0, qa: Number(r.qty_all) || 0, rs: Number(r.rev_sel) || 0, qs: Number(r.qty_sel) || 0, t: Number(r.tickets) || 0,
+      }));
+    },
+  });
+  const curve = useMemo(() => (daily.data ?? []).map((r) => {
+    const label = format(new Date(r.d), "dd/MM");
+    if (metric === "rev") return { label, real: r.ra, without: r.ra - r.rs };
+    if (metric === "qty") return { label, real: r.qa, without: r.qa - r.qs };
+    return { label, real: r.t > 0 ? r.ra / r.t : null, without: r.t > 0 ? (r.ra - r.rs) / r.t : null };
+  }), [daily.data, metric]);
+  const weight = useMemo(() => {
+    const a = daily.data ?? [];
+    const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0);
+    const qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
+    const t = a.reduce((s, r) => s + r.t, 0);
+    if (ra === 0) return null;
+    return { revSel: rs, qtySel: qs, revShare: (rs / ra) * 100, qtyShare: qa > 0 ? (qs / qa) * 100 : 0, basketContribution: t > 0 ? rs / t : 0 };
+  }, [daily.data]);
 
   return (
     <AppLayout>
@@ -247,6 +277,51 @@ export default function ProductMix() {
             </>
           )}
 
+          <Card>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle className="text-base">Réel vs hors produits exclus</CardTitle>
+                <CardDescription>
+                  {excluded.length === 0
+                    ? "Cochez « Exclure » sur un ou plusieurs produits dans le tableau du bas pour voir la courbe sans eux."
+                    : `${excluded.length} produit(s) exclu(s) : ${excluded.slice(0, 3).join(", ")}${excluded.length > 3 ? "…" : ""}`}
+                </CardDescription>
+              </div>
+              <div className="flex gap-1 shrink-0">
+                {([["rev", "CA"], ["qty", "Articles"], ["basket", "Panier moyen"]] as const).map(([id, l]) => (
+                  <Button key={id} size="sm" variant={metric === id ? "default" : "outline"} onClick={() => setMetric(id)}>{l}</Button>
+                ))}
+                {excluded.length > 0 && <Button size="sm" variant="ghost" onClick={() => setExcluded([])}>Tout réinclure</Button>}
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {excluded.length > 0 && weight && (
+                <div className="grid gap-3 sm:grid-cols-3 text-sm">
+                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Poids dans le CA</p><p className="text-lg font-semibold">{weight.revShare.toFixed(1)} %</p><p className="text-xs text-muted-foreground">{eur0(weight.revSel)} sur la période</p></div>
+                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Poids dans les articles vendus</p><p className="text-lg font-semibold">{weight.qtyShare.toFixed(1)} %</p><p className="text-xs text-muted-foreground">{int(weight.qtySel)} articles</p></div>
+                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Apport au panier moyen</p><p className="text-lg font-semibold">{eur2(weight.basketContribution)}</p><p className="text-xs text-muted-foreground">par commande, en moyenne</p></div>
+                </div>
+              )}
+              <div className="h-[300px]">
+                {daily.isLoading ? <Skeleton className="h-full" /> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={curve}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={20} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => metric === "rev" ? `${Math.round(Number(v) / 1000)} k€` : metric === "basket" ? `${Number(v).toFixed(0)} €` : int(Number(v))} />
+                      <ReTooltip formatter={(v: any, n: any) => [metric === "rev" ? eur0(Number(v)) : metric === "basket" ? eur2(Number(v)) : int(Number(v)), n]} />
+                      <Legend />
+                      <ReferenceLine x={format(new Date(launch), "dd/MM")} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: "Lancement", fontSize: 11 }} />
+                      <Line type="monotone" dataKey="real" name="Réel" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
+                      {excluded.length > 0 && <Line type="monotone" dataKey="without" name="Hors produits exclus" stroke="hsl(var(--chart-2))" strokeWidth={2} strokeDasharray="5 4" dot={false} />}
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              {metric === "basket" && <p className="text-xs text-muted-foreground">Panier « hors produits » = ce que chaque commande rapporte sans ces produits (nombre de commandes inchangé).</p>}
+            </CardContent>
+          </Card>
+
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
               <CardHeader>
@@ -301,6 +376,7 @@ export default function ProductMix() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-16">Exclure</TableHead>
                       <TableHead>Produit</TableHead>
                       <TableHead className="text-right">Qté avant</TableHead>
                       <TableHead className="text-right">Qté après</TableHead>
@@ -313,6 +389,9 @@ export default function ProductMix() {
                   <TableBody>
                     {tableRows.map((r) => (
                       <TableRow key={r.product} className={`cursor-pointer ${focus === r.product ? "bg-muted" : ""}`} onClick={() => setFocus(r.product)}>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox checked={excluded.includes(r.product)} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Exclure ${r.product}`} />
+                        </TableCell>
                         <TableCell className="font-medium">{r.product}{r.qb === 0 && r.qa > 0 && <span className="ml-2 text-xs text-primary">Nouveau</span>}</TableCell>
                         <TableCell className="text-right">{int(r.qb)}</TableCell>
                         <TableCell className="text-right">{int(r.qa)}</TableCell>
