@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { ProductHourlyProfile } from "@/components/analytics/ProductHourlyProfile";
 
 type Channel = "cash" | "uber" | "chataigne";
 const CHANNELS: { id: Channel; label: string }[] = [
@@ -401,6 +402,11 @@ export default function ProductMix() {
               </div>
             </CardContent>
           </Card>
+
+          {channel === "cash" && (
+            <ProductHourlyProfile chainId={selectedChainId} restaurantIds={ids ?? []} products={excluded} colors={COLORS} launch={launch} />
+          )}
+
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Card>
