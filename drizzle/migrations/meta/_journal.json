@@ -183,6 +183,13 @@
       "when": 1790454248412,
       "tag": "0025_add_restaurant_first_activity_date",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790666995710,
+      "tag": "0026_uber_service_day_4h",
+      "breakpoints": true
     }
   ]
 }
