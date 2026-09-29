@@ -281,6 +281,13 @@
       "when": 1790716491288,
       "tag": "0039_product_mix_hourly_chain",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1790718305399,
+      "tag": "0040_product_mix_hourly_total",
+      "breakpoints": true
     }
   ]
 }
