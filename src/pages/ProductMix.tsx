@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -51,7 +51,7 @@ export default function ProductMix() {
   const [focus, setFocus] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [excluded, setExcluded] = useState<string[]>([]);
-  const [metric, setMetric] = useState<"rev" | "qty" | "basket">("rev");
+  const [metric, setMetric] = useState<"rev" | "qty" | "revShare" | "qtyShare">("rev");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -148,32 +148,37 @@ export default function ProductMix() {
 
   const loading = products.isLoading || totals.isLoading;
 
-  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : [...xs, p]));
-  const daily = useQuery({
-    queryKey: ["mix-daily", params, excluded],
-    enabled, retry: false,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_product_mix_daily", { ...params, p_products: excluded });
-      if (error) throw error;
-      return ((data ?? []) as any[]).map((r) => ({
-        d: String(r.d), ra: Number(r.rev_all) || 0, qa: Number(r.qty_all) || 0, rs: Number(r.rev_sel) || 0, qs: Number(r.qty_sel) || 0, t: Number(r.tickets) || 0,
-      }));
-    },
+  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
+  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : xs.length >= 5 ? xs : [...xs, p]));
+  const series = useQueries({
+    queries: excluded.map((prod) => ({
+      queryKey: ["mix-daily", params, prod],
+      enabled, retry: false,
+      queryFn: async () => {
+        const { data, error } = await (supabase as any).rpc("get_product_mix_daily", { ...params, p_products: [prod] });
+        if (error) throw error;
+        return ((data ?? []) as any[]).map((r) => ({
+          d: String(r.d), ra: Number(r.rev_all) || 0, qa: Number(r.qty_all) || 0, rs: Number(r.rev_sel) || 0, qs: Number(r.qty_sel) || 0, t: Number(r.tickets) || 0,
+        }));
+      },
+    })),
   });
-  const curve = useMemo(() => (daily.data ?? []).map((r) => {
-    const label = format(new Date(r.d), "dd/MM");
-    if (metric === "rev") return { label, real: r.ra, without: r.ra - r.rs };
-    if (metric === "qty") return { label, real: r.qa, without: r.qa - r.qs };
-    return { label, real: r.t > 0 ? r.ra / r.t : null, without: r.t > 0 ? (r.ra - r.rs) / r.t : null };
-  }), [daily.data, metric]);
-  const weight = useMemo(() => {
-    const a = daily.data ?? [];
-    const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0);
-    const qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
-    const t = a.reduce((s, r) => s + r.t, 0);
-    if (ra === 0) return null;
-    return { revSel: rs, qtySel: qs, revShare: (rs / ra) * 100, qtyShare: qa > 0 ? (qs / qa) * 100 : 0, basketContribution: t > 0 ? rs / t : 0 };
-  }, [daily.data]);
+  const seriesLoading = series.some((s) => s.isLoading);
+  const curve = useMemo(() => {
+    const map = new Map<string, any>();
+    series.forEach((s, i) => (s.data ?? []).forEach((r) => {
+      const row = map.get(r.d) ?? { d: r.d, label: format(new Date(r.d), "dd/MM"), basket: r.t > 0 ? r.ra / r.t : null };
+      row[`p${i}`] = metric === "rev" ? r.rs : metric === "qty" ? r.qs : metric === "revShare" ? (r.ra > 0 ? (r.rs / r.ra) * 100 : null) : (r.qa > 0 ? (r.qs / r.qa) * 100 : null);
+      map.set(r.d, row);
+    }));
+    return [...map.values()].sort((x, y) => x.d.localeCompare(y.d));
+  }, [series, metric]);
+  const fmtMetric = (v: number) => metric === "rev" ? eur0(v) : metric === "qty" ? int(v) : `${v.toFixed(1)} %`;
+  const summary = excluded.map((prod, i) => {
+    const a = series[i]?.data ?? [];
+    const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0), qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
+    return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0 };
+  });
 
   return (
     <AppLayout>
@@ -280,45 +285,53 @@ export default function ProductMix() {
           <Card>
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
               <div>
-                <CardTitle className="text-base">Réel vs hors produits exclus</CardTitle>
+                <CardTitle className="text-base">Comparateur de produits</CardTitle>
                 <CardDescription>
                   {excluded.length === 0
-                    ? "Cochez « Exclure » sur un ou plusieurs produits dans le tableau du bas pour voir la courbe sans eux."
-                    : `${excluded.length} produit(s) exclu(s) : ${excluded.slice(0, 3).join(", ")}${excluded.length > 3 ? "…" : ""}`}
+                    ? "Cochez « Comparer » sur 1 à 5 produits dans le tableau du bas : une courbe par produit, avec le panier moyen global en fond."
+                    : "Une courbe par produit · pointillés gris = panier moyen global (échelle de droite)."}
                 </CardDescription>
               </div>
-              <div className="flex gap-1 shrink-0">
-                {([["rev", "CA"], ["qty", "Articles"], ["basket", "Panier moyen"]] as const).map(([id, l]) => (
+              <div className="flex flex-wrap gap-1 shrink-0">
+                {([["rev", "CA"], ["qty", "Volume"], ["revShare", "Poids CA"], ["qtyShare", "Poids volume"]] as const).map(([id, l]) => (
                   <Button key={id} size="sm" variant={metric === id ? "default" : "outline"} onClick={() => setMetric(id)}>{l}</Button>
                 ))}
-                {excluded.length > 0 && <Button size="sm" variant="ghost" onClick={() => setExcluded([])}>Tout réinclure</Button>}
+                {excluded.length > 0 && <Button size="sm" variant="ghost" onClick={() => setExcluded([])}>Tout retirer</Button>}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              {excluded.length > 0 && weight && (
-                <div className="grid gap-3 sm:grid-cols-3 text-sm">
-                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Poids dans le CA</p><p className="text-lg font-semibold">{weight.revShare.toFixed(1)} %</p><p className="text-xs text-muted-foreground">{eur0(weight.revSel)} sur la période</p></div>
-                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Poids dans les articles vendus</p><p className="text-lg font-semibold">{weight.qtyShare.toFixed(1)} %</p><p className="text-xs text-muted-foreground">{int(weight.qtySel)} articles</p></div>
-                  <div className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">Apport au panier moyen</p><p className="text-lg font-semibold">{eur2(weight.basketContribution)}</p><p className="text-xs text-muted-foreground">par commande, en moyenne</p></div>
+              {summary.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+                  {summary.map((s) => (
+                    <div key={s.prod} className="rounded-lg border p-3">
+                      <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} /><p className="text-xs font-medium truncate" title={s.prod}>{s.prod}</p></div>
+                      <p className="text-lg font-semibold mt-1">{eur0(s.rs)}</p>
+                      <p className="text-xs text-muted-foreground">{int(s.qs)} articles · {s.revShare.toFixed(1)} % du CA · {s.qtyShare.toFixed(1)} % du volume</p>
+                    </div>
+                  ))}
                 </div>
               )}
-              <div className="h-[300px]">
-                {daily.isLoading ? <Skeleton className="h-full" /> : (
+              <div className="h-[320px]">
+                {excluded.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-sm text-muted-foreground border border-dashed rounded-lg">Aucun produit sélectionné</div>
+                ) : seriesLoading ? <Skeleton className="h-full" /> : (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={curve}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} minTickGap={20} />
-                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => metric === "rev" ? `${Math.round(Number(v) / 1000)} k€` : metric === "basket" ? `${Number(v).toFixed(0)} €` : int(Number(v))} />
-                      <ReTooltip formatter={(v: any, n: any) => [metric === "rev" ? eur0(Number(v)) : metric === "basket" ? eur2(Number(v)) : int(Number(v)), n]} />
+                      <YAxis yAxisId="l" tick={{ fontSize: 11 }} tickFormatter={(v) => metric === "rev" ? `${Math.round(Number(v) / 1000)} k€` : metric === "qty" ? int(Number(v)) : `${Number(v).toFixed(0)} %`} />
+                      <YAxis yAxisId="r" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${Number(v).toFixed(0)} €`} domain={["auto", "auto"]} />
+                      <ReTooltip formatter={(v: any, n: any) => [n === "Panier moyen global" ? eur2(Number(v)) : fmtMetric(Number(v)), n]} />
                       <Legend />
-                      <ReferenceLine x={format(new Date(launch), "dd/MM")} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: "Lancement", fontSize: 11 }} />
-                      <Line type="monotone" dataKey="real" name="Réel" stroke="hsl(var(--chart-1))" strokeWidth={2} dot={false} />
-                      {excluded.length > 0 && <Line type="monotone" dataKey="without" name="Hors produits exclus" stroke="hsl(var(--chart-2))" strokeWidth={2} strokeDasharray="5 4" dot={false} />}
+                      <ReferenceLine yAxisId="l" x={format(new Date(launch), "dd/MM")} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" label={{ value: "Lancement", fontSize: 11 }} />
+                      <Line yAxisId="r" type="monotone" dataKey="basket" name="Panier moyen global" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="5 4" dot={false} opacity={0.6} />
+                      {excluded.map((prod, i) => (
+                        <Line key={prod} yAxisId="l" type="monotone" dataKey={`p${i}`} name={prod} stroke={COLORS[i]} strokeWidth={2} dot={false} />
+                      ))}
                     </LineChart>
                   </ResponsiveContainer>
                 )}
               </div>
-              {metric === "basket" && <p className="text-xs text-muted-foreground">Panier « hors produits » = ce que chaque commande rapporte sans ces produits (nombre de commandes inchangé).</p>}
             </CardContent>
           </Card>
 
@@ -376,7 +389,7 @@ export default function ProductMix() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-16">Exclure</TableHead>
+                      <TableHead className="w-20">Comparer</TableHead>
                       <TableHead>Produit</TableHead>
                       <TableHead className="text-right">Qté avant</TableHead>
                       <TableHead className="text-right">Qté après</TableHead>
@@ -390,7 +403,7 @@ export default function ProductMix() {
                     {tableRows.map((r) => (
                       <TableRow key={r.product} className={`cursor-pointer ${focus === r.product ? "bg-muted" : ""}`} onClick={() => setFocus(r.product)}>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox checked={excluded.includes(r.product)} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Exclure ${r.product}`} />
+                          <div className="flex items-center gap-2"><Checkbox checked={excluded.includes(r.product)} disabled={!excluded.includes(r.product) && excluded.length >= 5} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Comparer ${r.product}`} />{excluded.includes(r.product) && <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[excluded.indexOf(r.product)] }} />}</div>
                         </TableCell>
                         <TableCell className="font-medium">{r.product}{r.qb === 0 && r.qa > 0 && <span className="ml-2 text-xs text-primary">Nouveau</span>}</TableCell>
                         <TableCell className="text-right">{int(r.qb)}</TableCell>
