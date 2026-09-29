@@ -634,8 +634,6 @@ const Overview = () => {
       : null;
     const dishopCurrent = comparisonDishop.data?.caTTC ?? 0;
     // Deliveroo N = somme des restaurants du périmètre (mêmes données que le tableau).
-    const deliverooCurrent = scopedStats.reduce((s, r) => s + (r.platformBreakdown.deliveroo.revenue || 0), 0);
-    const delPrev = deliverooPrevious ?? null;
     return {
       ...networkDaily.comparisons,
       deliveroo: {
