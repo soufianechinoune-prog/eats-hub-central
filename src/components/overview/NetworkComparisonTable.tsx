@@ -75,6 +75,7 @@ export function NetworkComparisonTable({
   chataigneByRestaurant,
   dishopByRestaurant,
   dailyByRestaurant,
+  apiFallback,
   chainLogoUrl,
   comparedCount,
   onOpenRestaurantFile,
@@ -359,10 +360,24 @@ export function NetworkComparisonTable({
                       {row.cash > 0 ? fmtEur(row.cash) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.uber > 0 ? fmtEur(row.uber) : <span className="text-muted-foreground">—</span>}
+                      {row.uber > 0 ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          {apiFallback?.uber.has(resto.id) && <ApiSourceBadge />}
+                          {fmtEur(row.uber)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.deliveroo > 0 ? fmtEur(row.deliveroo) : <span className="text-muted-foreground">—</span>}
+                      {row.deliveroo > 0 ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          {apiFallback?.deliveroo.has(resto.id) && <ApiSourceBadge />}
+                          {fmtEur(row.deliveroo)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.dishop > 0 ? fmtEur(row.dishop) : <span className="text-muted-foreground">—</span>}
