@@ -204,6 +204,13 @@
       "when": 1790668056602,
       "tag": "0028_unmapped_splash_stores_rpc",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1790704338561,
+      "tag": "0029_attach_colombier_uber_store_to_rennes_colombier",
+      "breakpoints": true
     }
   ]
 }
