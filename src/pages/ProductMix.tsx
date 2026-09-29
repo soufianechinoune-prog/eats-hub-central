@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { ProductHourlyProfile } from "@/components/analytics/ProductHourlyProfile";
 
@@ -45,7 +46,10 @@ const TIERS = [
 ];
 
 export default function ProductMix() {
-  const { selectedRestaurants, selectedChainId } = useAnalyticsContext();
+  const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } = useAnalyticsContext();
+  const { startDate, endDate } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
+  const periodFrom = format(startDate, "yyyy-MM-dd");
+  const periodTo = format(endDate, "yyyy-MM-dd");
   const [channel, setChannel] = useState<Channel>("cash");
   const [launch, setLaunch] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
   const [days, setDays] = useState(30);
@@ -404,7 +408,7 @@ export default function ProductMix() {
           </Card>
 
           {channel === "cash" && (
-            <ProductHourlyProfile chainId={selectedChainId} restaurantIds={ids ?? []} products={excluded} colors={COLORS} launch={launch} />
+            <ProductHourlyProfile chainId={selectedChainId} restaurantIds={ids ?? []} products={excluded} colors={COLORS} from={periodFrom} to={periodTo} />
           )}
 
 
