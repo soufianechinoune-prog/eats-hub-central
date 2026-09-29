@@ -239,6 +239,13 @@
       "when": 1790707472203,
       "tag": "0033_product_mix_daily_fix",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790708692656,
+      "tag": "0034_splash_ticket_daily_requeue",
+      "breakpoints": true
     }
   ]
 }

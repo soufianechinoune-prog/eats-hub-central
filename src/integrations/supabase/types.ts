@@ -14606,6 +14606,7 @@ export type Database = {
         Args: { p_restaurant_ids?: string[] }
         Returns: number
       }
+      requeue_recent_splash_tickets: { Args: never; Returns: number }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
       resync_live_tag_all_restaurants: {
         Args: never
