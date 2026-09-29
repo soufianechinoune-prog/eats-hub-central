@@ -12936,6 +12936,27 @@ export type Database = {
           tickets_with_category: number
         }[]
       }
+      get_caisse_avg_basket_by_restaurant: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          prev_revenue: number
+          prev_tickets: number
+          restaurant_id: string
+          restaurant_name: string
+          revenue: number
+          tickets: number
+        }[]
+      }
+      get_caisse_avg_basket_daily: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          date: string
+          prev_revenue: number
+          prev_tickets: number
+          revenue: number
+          tickets: number
+        }[]
+      }
       get_caisse_payment_brands: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {

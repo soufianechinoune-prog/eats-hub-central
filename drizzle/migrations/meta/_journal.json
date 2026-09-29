@@ -211,6 +211,13 @@
       "when": 1790704338561,
       "tag": "0029_attach_colombier_uber_store_to_rennes_colombier",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790705353791,
+      "tag": "0030_caisse_avg_basket_rpcs",
+      "breakpoints": true
     }
   ]
 }
