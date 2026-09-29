@@ -52,6 +52,7 @@ export default function ProductMix() {
   const [search, setSearch] = useState("");
   const [excluded, setExcluded] = useState<string[]>([]);
   const [metric, setMetric] = useState<"rev" | "qty" | "revShare" | "qtyShare">("rev");
+  const [shareBase, setShareBase] = useState<"all" | "sel">("all");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
@@ -148,8 +149,9 @@ export default function ProductMix() {
 
   const loading = products.isLoading || totals.isLoading;
 
-  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
-  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : xs.length >= 5 ? xs : [...xs, p]));
+  const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))", "hsl(var(--primary))", "hsl(var(--destructive))", "hsl(var(--muted-foreground))"];
+  const MAX_SEL = 8;
+  const toggleExcluded = (p: string) => setExcluded((xs) => (xs.includes(p) ? xs.filter((x) => x !== p) : xs.length >= MAX_SEL ? xs : [...xs, p]));
   const series = useQueries({
     queries: excluded.map((prod) => ({
       queryKey: ["mix-daily", params, prod],
@@ -166,19 +168,30 @@ export default function ProductMix() {
   const seriesLoading = series.some((s) => s.isLoading);
   const curve = useMemo(() => {
     const map = new Map<string, any>();
+    // Base "sélection" : les produits cochés = 100 % (somme journalière de la sélection)
+    const selTot = new Map<string, { r: number; q: number }>();
+    series.forEach((s) => (s.data ?? []).forEach((r) => {
+      const t = selTot.get(r.d) ?? { r: 0, q: 0 }; t.r += r.rs; t.q += r.qs; selTot.set(r.d, t);
+    }));
     series.forEach((s, i) => (s.data ?? []).forEach((r) => {
       const row = map.get(r.d) ?? { d: r.d, label: format(new Date(r.d), "dd/MM"), basket: r.t > 0 ? r.ra / r.t : null };
-      row[`p${i}`] = metric === "rev" ? r.rs : metric === "qty" ? r.qs : metric === "revShare" ? (r.ra > 0 ? (r.rs / r.ra) * 100 : null) : (r.qa > 0 ? (r.qs / r.qa) * 100 : null);
+      const t = selTot.get(r.d)!;
+      const baseR = shareBase === "sel" ? t.r : r.ra, baseQ = shareBase === "sel" ? t.q : r.qa;
+      row[`p${i}`] = metric === "rev" ? r.rs : metric === "qty" ? r.qs : metric === "revShare" ? (baseR > 0 ? (r.rs / baseR) * 100 : null) : (baseQ > 0 ? (r.qs / baseQ) * 100 : null);
       map.set(r.d, row);
     }));
     return [...map.values()].sort((x, y) => x.d.localeCompare(y.d));
-  }, [series, metric]);
+  }, [series, metric, shareBase]);
   const fmtMetric = (v: number) => metric === "rev" ? eur0(v) : metric === "qty" ? int(v) : `${v.toFixed(1)} %`;
   const summary = excluded.map((prod, i) => {
     const a = series[i]?.data ?? [];
     const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0), qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
-    return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0 };
+    return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0, selRevShare: 0, selQtyShare: 0 };
   });
+  {
+    const tr = summary.reduce((a, x) => a + x.rs, 0), tq = summary.reduce((a, x) => a + x.qs, 0);
+    summary.forEach((x) => { x.selRevShare = tr > 0 ? (x.rs / tr) * 100 : 0; x.selQtyShare = tq > 0 ? (x.qs / tq) * 100 : 0; });
+  }
 
   // Contrôle d'intégrité : journées dont le détail ticket n'est pas complètement aspiré.
   const windowFrom = format(subDays(new Date(launch), days), "yyyy-MM-dd");
@@ -335,7 +348,7 @@ export default function ProductMix() {
                 <CardTitle className="text-base">Comparateur de produits</CardTitle>
                 <CardDescription>
                   {excluded.length === 0
-                    ? "Cochez « Comparer » sur 1 à 5 produits dans le tableau du bas : une courbe par produit, avec le panier moyen global en fond."
+                    ? "Cochez « Comparer » sur 1 à 8 produits (ex. vos plats, puis « Base : ma sélection » pour les comparer entre eux) dans le tableau du bas : une courbe par produit, avec le panier moyen global en fond."
                     : "Une courbe par produit · pointillés gris = panier moyen global (échelle de droite)."}
                 </CardDescription>
               </div>
@@ -343,17 +356,24 @@ export default function ProductMix() {
                 {([["rev", "CA"], ["qty", "Volume"], ["revShare", "Poids CA"], ["qtyShare", "Poids volume"]] as const).map(([id, l]) => (
                   <Button key={id} size="sm" variant={metric === id ? "default" : "outline"} onClick={() => setMetric(id)}>{l}</Button>
                 ))}
+                <span className="mx-1 w-px bg-border" />
+                <Button size="sm" variant={shareBase === "all" ? "secondary" : "ghost"} onClick={() => setShareBase("all")} title="Poids calculé sur tous les articles vendus (boissons, sides inclus)">Base : tout le réseau</Button>
+                <Button size="sm" variant={shareBase === "sel" ? "secondary" : "ghost"} onClick={() => setShareBase("sel")} title="Les produits cochés représentent 100 %">Base : ma sélection</Button>
                 {excluded.length > 0 && <Button size="sm" variant="ghost" onClick={() => setExcluded([])}>Tout retirer</Button>}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {summary.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                   {summary.map((s) => (
                     <div key={s.prod} className="rounded-lg border p-3">
                       <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} /><p className="text-xs font-medium truncate" title={s.prod}>{s.prod}</p></div>
                       <p className="text-lg font-semibold mt-1">{eur0(s.rs)}</p>
-                      <p className="text-xs text-muted-foreground">{int(s.qs)} articles · {s.revShare.toFixed(1)} % du CA · {s.qtyShare.toFixed(1)} % du volume</p>
+                      {shareBase === "sel" ? (
+                        <p className="text-xs text-muted-foreground"><strong className="text-foreground">{s.selQtyShare.toFixed(1)} %</strong> du volume sélectionné · {s.selRevShare.toFixed(1)} % du CA sélectionné <span className="block">({s.qtyShare.toFixed(1)} % du volume réseau · {int(s.qs)} articles)</span></p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{int(s.qs)} articles · {s.revShare.toFixed(1)} % du CA · {s.qtyShare.toFixed(1)} % du volume</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -450,7 +470,7 @@ export default function ProductMix() {
                     {tableRows.map((r) => (
                       <TableRow key={r.product} className={`cursor-pointer ${focus === r.product ? "bg-muted" : ""}`} onClick={() => setFocus(r.product)}>
                         <TableCell onClick={(e) => e.stopPropagation()}>
-                          <div className="flex items-center gap-2"><Checkbox checked={excluded.includes(r.product)} disabled={!excluded.includes(r.product) && excluded.length >= 5} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Comparer ${r.product}`} />{excluded.includes(r.product) && <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[excluded.indexOf(r.product)] }} />}</div>
+                          <div className="flex items-center gap-2"><Checkbox checked={excluded.includes(r.product)} disabled={!excluded.includes(r.product) && excluded.length >= MAX_SEL} onCheckedChange={() => toggleExcluded(r.product)} aria-label={`Comparer ${r.product}`} />{excluded.includes(r.product) && <span className="h-2.5 w-2.5 rounded-full" style={{ background: COLORS[excluded.indexOf(r.product)] }} />}</div>
                         </TableCell>
                         <TableCell className="font-medium">{r.product}{r.qb === 0 && r.qa > 0 && <span className="ml-2 text-xs text-primary">Nouveau</span>}</TableCell>
                         <TableCell className="text-right">{int(r.qb)}</TableCell>
