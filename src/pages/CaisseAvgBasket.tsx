@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { format, startOfISOWeek, getISOWeek } from "date-fns";
+import { Button } from "@/components/ui/button";
 import { fr } from "date-fns/locale";
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 
@@ -31,10 +32,12 @@ function Delta({ value, suffix = " %" }: { value: number | null; suffix?: string
 }
 
 type SortKey = "basket" | "var" | "tickets" | "revenue";
+type Gran = "day" | "week" | "month";
 
 export default function CaisseAvgBasket() {
   const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } = useAnalyticsContext();
-  const { startDate, endDate } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
+  const { startDate, endDate, granularity } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
+  const [gran, setGran] = useState<Gran | null>(null);
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
   const [search, setSearch] = useState("");
@@ -101,15 +104,24 @@ export default function CaisseAvgBasket() {
     return { rev, t, pt, b, pb, bVar: varPct(b, pb), tVar: varPct(t, pt || null) };
   }, [daily.data]);
 
-  const chart = useMemo(
-    () => (daily.data ?? []).map((x) => ({
-      label: format(new Date(x.date), "dd MMM", { locale: fr }),
-      N: basket(Number(x.revenue), Number(x.tickets)),
-      "N-1": basket(Number(x.prev_revenue), Number(x.prev_tickets)),
-      tickets: Number(x.tickets),
-    })),
-    [daily.data],
-  );
+  const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
+
+  const chart = useMemo(() => {
+    const buckets = new Map<string, { label: string; r: number; t: number; pr: number; pt: number }>();
+    for (const x of daily.data ?? []) {
+      const d = new Date(x.date + "T12:00:00");
+      let key: string, label: string;
+      if (effGran === "day") { key = x.date; label = format(d, "dd MMM", { locale: fr }); }
+      else if (effGran === "week") { const s = startOfISOWeek(d); key = format(s, "yyyy-MM-dd"); label = `S${getISOWeek(d)} · ${format(s, "dd MMM", { locale: fr })}`; }
+      else { key = format(d, "yyyy-MM"); label = format(d, "MMM yyyy", { locale: fr }); }
+      const b = buckets.get(key) ?? { label, r: 0, t: 0, pr: 0, pt: 0 };
+      b.r += Number(x.revenue); b.t += Number(x.tickets); b.pr += Number(x.prev_revenue); b.pt += Number(x.prev_tickets);
+      buckets.set(key, b);
+    }
+    return [...buckets.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, b]) => ({
+      label: b.label, N: basket(b.r, b.t), "N-1": basket(b.pr, b.pt), tickets: b.t,
+    }));
+  }, [daily.data, effGran]);
 
   const ranked = useMemo(() => {
     const rows = (byResto.data ?? []).filter((r) => r.tickets > 0);
@@ -167,9 +179,20 @@ export default function CaisseAvgBasket() {
           )}
 
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Évolution du panier moyen</CardTitle>
-              <CardDescription>Par jour, N en trait plein, N-1 (même date l'an dernier) en pointillés</CardDescription>
+            <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+              <div>
+                <CardTitle className="text-base">Évolution du panier moyen</CardTitle>
+                <CardDescription>
+                  Par {effGran === "day" ? "jour" : effGran === "week" ? "semaine" : "mois"} (CA ÷ tickets du groupe), N en trait plein, N-1 en pointillés
+                </CardDescription>
+              </div>
+              <div className="flex gap-1">
+                {(["day", "week", "month"] as Gran[]).map((g) => (
+                  <Button key={g} size="sm" variant={effGran === g ? "default" : "outline"} onClick={() => setGran(g)}>
+                    {g === "day" ? "Jour" : g === "week" ? "Semaine" : "Mois"}
+                  </Button>
+                ))}
+              </div>
             </CardHeader>
             <CardContent className="h-[320px]">
               <ResponsiveContainer width="100%" height="100%">
