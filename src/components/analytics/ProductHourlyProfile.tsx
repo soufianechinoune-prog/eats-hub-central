@@ -30,7 +30,7 @@ interface Props {
 }
 
 export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, from, to }: Props) {
-  const [metric, setMetric] = useState<"qty" | "profile">("profile");
+  const [metric, setMetric] = useState<"own" | "selection" | "network" | "qty">("own");
   const fromDate = new Date(from);
   const toDate = new Date(to);
   const validRange = !isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && fromDate <= toDate;
