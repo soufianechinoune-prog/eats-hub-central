@@ -218,6 +218,13 @@
       "when": 1790705353791,
       "tag": "0030_caisse_avg_basket_rpcs",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790706452464,
+      "tag": "0031_product_mix_diagnostic",
+      "breakpoints": true
     }
   ]
 }
