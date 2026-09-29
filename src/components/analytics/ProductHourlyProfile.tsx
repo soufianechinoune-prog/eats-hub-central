@@ -37,7 +37,7 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
 
   const q = useQuery({
     queryKey: ["mix-hourly", chainId, restaurantIds, from, to, products],
-    enabled: !!chainId && restaurantIds.length > 0 && products.length > 0,
+    enabled: validRange && !!chainId && restaurantIds.length > 0 && products.length > 0,
     retry: false,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_product_mix_hourly_v2", {
@@ -80,7 +80,7 @@ export function ProductHourlyProfile({ chainId, restaurantIds, products, colors,
       <CardHeader>
         <CardTitle className="text-base">Profil horaire des produits (Caisse)</CardTitle>
         <CardDescription>
-          À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page : du {format(new Date(from), "dd/MM/yyyy")} au {format(new Date(to), "dd/MM/yyyy")}.
+          À quelle heure se vendent les produits sélectionnés, découpé par service. Période du sélecteur en haut de page{validRange ? ` : du ${format(fromDate, "dd/MM/yyyy")} au ${format(toDate, "dd/MM/yyyy")}` : " invalide — choisissez une plage de dates complète"}.
         </CardDescription>
         <div className="flex flex-wrap gap-4 pt-2">
           <div className="flex gap-1">
