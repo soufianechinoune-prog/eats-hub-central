@@ -492,7 +492,7 @@ export function NetworkComparisonTable({
                         ? ((ch.current - ch.previous) / ch.previous) * 100
                         : null;
                     const diff = ch.previous != null ? ch.current - ch.previous : null;
-                    return (
+                    const cell = (
                       <TableCell key={key} className="text-right align-top">
                         <div className={cn("tabular-nums", i === 0 ? "font-bold" : "font-semibold")}>
                           {ch.current > 0 ? fmtEur(ch.current) : "—"}
@@ -515,6 +515,8 @@ export function NetworkComparisonTable({
                         )}
                       </TableCell>
                     );
+                    // Après le CA total, la colonne Δ reste vide (la variation est sous le montant).
+                    return i === 0 ? [cell, <TableCell key="delta" />] : cell;
                   })}
                   {/* Colonnes Mix livraison / Tendance / actions : vides */}
                   <TableCell colSpan={4} />
