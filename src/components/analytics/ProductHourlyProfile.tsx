@@ -31,6 +31,9 @@ interface Props {
 
 export function ProductHourlyProfile({ chainId, restaurantIds, products, colors, from, to }: Props) {
   const [metric, setMetric] = useState<"qty" | "profile">("profile");
+  const fromDate = new Date(from);
+  const toDate = new Date(to);
+  const validRange = !isNaN(fromDate.getTime()) && !isNaN(toDate.getTime()) && fromDate <= toDate;
 
   const q = useQuery({
     queryKey: ["mix-hourly", chainId, restaurantIds, from, to, products],
