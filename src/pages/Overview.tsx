@@ -1489,6 +1489,7 @@ const Overview = () => {
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 dailyByRestaurant={networkDaily.byRestaurant}
+                apiFallback={apiFallback}
                 chainLogoUrl={activeChainLogo}
                 comparedCount={comparedCount}
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}

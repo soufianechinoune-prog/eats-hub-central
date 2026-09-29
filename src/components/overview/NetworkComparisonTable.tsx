@@ -52,6 +52,8 @@ export interface NetworkComparisonTableProps {
   dishopByRestaurant?: Map<string, number>;
   /** CA journalier par restaurant (sparklines de tendance). */
   dailyByRestaurant?: Map<string, { date: string; total: number }[]>;
+  /** Restaurants dont le canal vient de l'API (caisse Splash non intégrée au canal). */
+  apiFallback?: { uber: Set<string>; deliveroo: Set<string> };
   /** Logo de l'enseigne active (avatar des lignes). */
   chainLogoUrl?: string | null;
   /** Nombre de restaurants réellement retenus en périmètre constant. */
