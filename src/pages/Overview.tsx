@@ -569,7 +569,7 @@ const Overview = () => {
         (chataigneByRestaurant.get(r.id)?.revenue ?? 0);
       return total <= 0;
     });
-  }, [comparisonStats, cashNetByRestaurant, chataigneByRestaurant]);
+  }, [networkStats, cashNetByRestaurant, chataigneByRestaurant]);
   const zeroIdSet = useMemo(() => new Set(zeroRevenueRestaurants.map((r) => r.id)), [zeroRevenueRestaurants]);
   const comparisonRestaurantIds = useMemo(
     () => (comparisonMode && excludeZeroRevenue ? baseComparableIds.filter((id) => !zeroIdSet.has(id)) : baseComparableIds),
@@ -861,12 +861,12 @@ const Overview = () => {
   const channelTotals = useMemo(() => {
     let uber = 0;
     let deliveroo = 0;
-    for (const r of comparisonStats) {
+    for (const r of networkStats) {
       uber += r.platformBreakdown.uber.revenue;
       deliveroo += r.platformBreakdown.deliveroo.revenue;
     }
     return { uber, deliveroo };
-  }, [comparisonStats]);
+  }, [networkStats]);
 
   // Nombre de commandes / tickets par canal, calculé sur le même périmètre que les
   // montants affichés dans les vignettes (réseau complet ou périmètre constant).
@@ -875,7 +875,7 @@ const Overview = () => {
     [chataigneByRestaurant],
   );
   const channelCounts = useMemo(() => {
-    const scope = isConstantScope ? scopedStats : comparisonStats;
+    const scope = isConstantScope ? scopedStats : networkStats;
     let uber = 0;
     let deliveroo = 0;
     for (const r of scope) {
