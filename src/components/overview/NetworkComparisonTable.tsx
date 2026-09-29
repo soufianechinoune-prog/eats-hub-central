@@ -471,6 +471,55 @@ export function NetworkComparisonTable({
                   </TableRow>
                 );
               })}
+              {comparisonMode && showN1Comparison && footerTotals && (
+                <TableRow className="border-t-2 border-border bg-muted/40 hover:bg-muted/40">
+                  <TableCell />
+                  <TableCell>
+                    <span className="font-semibold">Total réseau</span>
+                  </TableCell>
+                  {(
+                    [
+                      ["total", footerTotals.total],
+                      ["cash", footerTotals.cash],
+                      ["uber", footerTotals.uber],
+                      ["deliveroo", footerTotals.deliveroo],
+                      ["dishop", footerTotals.dishop],
+                      ["chataigne", footerTotals.chataigne],
+                    ] as const
+                  ).map(([key, ch], i) => {
+                    const variation =
+                      ch.previous != null && ch.previous > 0
+                        ? ((ch.current - ch.previous) / ch.previous) * 100
+                        : null;
+                    const diff = ch.previous != null ? ch.current - ch.previous : null;
+                    return (
+                      <TableCell key={key} className="text-right align-top">
+                        <div className={cn("tabular-nums", i === 0 ? "font-bold" : "font-semibold")}>
+                          {ch.current > 0 ? fmtEur(ch.current) : "—"}
+                        </div>
+                        {variation != null && diff != null ? (
+                          <div
+                            className={cn(
+                              "mt-0.5 text-[11px] font-medium tabular-nums",
+                              variation >= 0
+                                ? "text-emerald-600 dark:text-emerald-400"
+                                : "text-red-600 dark:text-red-400",
+                            )}
+                          >
+                            {variation > 0 ? "+" : ""}
+                            {variation.toFixed(1)} % · {diff > 0 ? "+" : ""}
+                            {fmtEur(diff)}
+                          </div>
+                        ) : (
+                          <div className="mt-0.5 text-[11px] text-muted-foreground">N-1 : —</div>
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                  {/* Colonnes Mix livraison / Tendance / actions : vides */}
+                  <TableCell colSpan={4} />
+                </TableRow>
+              )}
               {filtered.length === 0 && (
                 <TableRow className="hover:bg-transparent">
                   <TableCell colSpan={13} className="py-10 text-center text-sm text-muted-foreground">
