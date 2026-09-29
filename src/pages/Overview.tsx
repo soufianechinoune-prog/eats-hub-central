@@ -545,6 +545,23 @@ const Overview = () => {
       return m;
     },
   });
+  // Repli par canal : la caisse Splash est la référence, mais si elle remonte 0 €
+  // pour un canal (tablette Uber/Deliveroo non intégrée à la caisse), on garde la
+  // donnée API et on le signale avec un badge « API ». Dès que Splash intègre le
+  // flux, la caisse reprend automatiquement la main.
+  const apiFallback = useMemo(() => {
+    const uber = new Set<string>();
+    const deliveroo = new Set<string>();
+    if (splashPlatforms) {
+      for (const r of comparisonStats) {
+        const s = splashPlatforms.get(r.id);
+        if (!s) continue;
+        if (s.uR <= 0 && (r.platformBreakdown.uber.revenue || 0) > 0) uber.add(r.id);
+        if (s.dR <= 0 && (r.platformBreakdown.deliveroo.revenue || 0) > 0) deliveroo.add(r.id);
+      }
+    }
+    return { uber, deliveroo };
+  }, [comparisonStats, splashPlatforms]);
   const networkStats = useMemo(() => {
     if (!splashPlatforms) return comparisonStats;
     return comparisonStats.map((r) => {
@@ -554,21 +571,22 @@ const Overview = () => {
         ...r,
         platformBreakdown: {
           ...r.platformBreakdown,
-          uber: { ...r.platformBreakdown.uber, revenue: s.uR, orders: s.uO },
-          deliveroo: { ...r.platformBreakdown.deliveroo, revenue: s.dR, orders: s.dO },
+          uber: s.uR > 0 ? { ...r.platformBreakdown.uber, revenue: s.uR, orders: s.uO } : r.platformBreakdown.uber,
+          deliveroo: s.dR > 0 ? { ...r.platformBreakdown.deliveroo, revenue: s.dR, orders: s.dO } : r.platformBreakdown.deliveroo,
         },
       };
     });
   }, [comparisonStats, splashPlatforms]);
-  // Contrôle de cohérence : caisse vs données plateformes (restaurants avec caisse uniquement).
+  // Contrôle de cohérence : caisse vs données plateformes (restaurants dont la caisse
+  // remonte réellement le canal — ceux en repli API sont exclus du contrôle).
   const sourceGaps = useMemo(() => {
     if (!splashPlatforms) return [];
     let uC = 0, uS = 0, dC = 0, dS = 0;
     for (const r of comparisonStats) {
       const s = splashPlatforms.get(r.id);
       if (!s) continue;
-      uC += s.uR; uS += r.platformBreakdown.uber.revenue || 0;
-      dC += s.dR; dS += r.platformBreakdown.deliveroo.revenue || 0;
+      if (s.uR > 0) { uC += s.uR; uS += r.platformBreakdown.uber.revenue || 0; }
+      if (s.dR > 0) { dC += s.dR; dS += r.platformBreakdown.deliveroo.revenue || 0; }
     }
     const out: { label: string; caisse: number; source: number; gapPct: number }[] = [];
     const push = (label: string, c: number, src: number) => {
@@ -1471,6 +1489,7 @@ const Overview = () => {
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}
                 dailyByRestaurant={networkDaily.byRestaurant}
+                apiFallback={apiFallback}
                 chainLogoUrl={activeChainLogo}
                 comparedCount={comparedCount}
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}

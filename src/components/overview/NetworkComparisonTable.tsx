@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { RestaurantNetworkStats, NetworkTotals } from "@/hooks/useNetworkStats";
@@ -42,6 +43,27 @@ function TrendSparkline({ points, positive }: { points: number[]; positive: bool
   );
 }
 
+/** Pastille « API » : la caisse Splash ne remonte pas ce canal, donnée issue de l'API plateforme. */
+function ApiSourceBadge() {
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span
+            className="inline-flex cursor-help items-center rounded border border-amber-500/30 bg-amber-500/10 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400"
+            onClick={(e) => e.stopPropagation()}
+          >
+            API
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[240px] text-xs">
+          La caisse Splash ne remonte pas ce canal pour ce restaurant : montant issu de l'API plateforme. Dès que Splash intègre le flux, la caisse redevient la référence.
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export interface NetworkComparisonTableProps {
   stats: RestaurantNetworkStats[];
   networkTotals: NetworkTotals;
@@ -52,6 +74,8 @@ export interface NetworkComparisonTableProps {
   dishopByRestaurant?: Map<string, number>;
   /** CA journalier par restaurant (sparklines de tendance). */
   dailyByRestaurant?: Map<string, { date: string; total: number }[]>;
+  /** Restaurants dont le canal vient de l'API (caisse Splash non intégrée au canal). */
+  apiFallback?: { uber: Set<string>; deliveroo: Set<string> };
   /** Logo de l'enseigne active (avatar des lignes). */
   chainLogoUrl?: string | null;
   /** Nombre de restaurants réellement retenus en périmètre constant. */
@@ -73,6 +97,7 @@ export function NetworkComparisonTable({
   chataigneByRestaurant,
   dishopByRestaurant,
   dailyByRestaurant,
+  apiFallback,
   chainLogoUrl,
   comparedCount,
   onOpenRestaurantFile,
@@ -357,10 +382,24 @@ export function NetworkComparisonTable({
                       {row.cash > 0 ? fmtEur(row.cash) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.uber > 0 ? fmtEur(row.uber) : <span className="text-muted-foreground">—</span>}
+                      {row.uber > 0 ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          {apiFallback?.uber.has(resto.id) && <ApiSourceBadge />}
+                          {fmtEur(row.uber)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {row.deliveroo > 0 ? fmtEur(row.deliveroo) : <span className="text-muted-foreground">—</span>}
+                      {row.deliveroo > 0 ? (
+                        <span className="inline-flex items-center justify-end gap-1.5">
+                          {apiFallback?.deliveroo.has(resto.id) && <ApiSourceBadge />}
+                          {fmtEur(row.deliveroo)}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.dishop > 0 ? fmtEur(row.dishop) : <span className="text-muted-foreground">—</span>}

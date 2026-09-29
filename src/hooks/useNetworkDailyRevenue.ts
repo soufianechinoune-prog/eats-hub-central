@@ -148,12 +148,20 @@ export function useNetworkDailyRevenue(
     cashRows: DailyRow[] | undefined,
   ): DailyRow[] | undefined => {
     if (!apiRows && !splashRows) return undefined;
-    const withCash = new Set<string>();
-    for (const r of cashRows ?? []) if ((Number(r.revenue_ttc) || 0) > 0) withCash.add(r.restaurant_id);
-    for (const r of splashRows ?? []) if ((Number(r.revenue_ttc) || 0) > 0) withCash.add(r.restaurant_id);
+    // Repli par canal : la caisse Splash est la référence, mais si elle remonte 0 €
+    // pour un canal (tablette non intégrée à la caisse), on garde la donnée API.
+    // Dès que Splash intègre le flux, la caisse reprend automatiquement la main.
+    const splashUber = new Set<string>();
+    const splashDel = new Set<string>();
+    for (const r of splashRows ?? []) {
+      if ((Number(r.revenue_ttc) || 0) <= 0) continue;
+      if ((r.platform ?? "").toLowerCase().includes("deliveroo")) splashDel.add(r.restaurant_id);
+      else splashUber.add(r.restaurant_id);
+    }
+    const isDel = (r: DailyRow) => (r.platform ?? "").toLowerCase().includes("deliveroo");
     return [
-      ...(splashRows ?? []).filter((r) => withCash.has(r.restaurant_id)),
-      ...(apiRows ?? []).filter((r) => !withCash.has(r.restaurant_id)),
+      ...(splashRows ?? []).filter((r) => (isDel(r) ? splashDel : splashUber).has(r.restaurant_id)),
+      ...(apiRows ?? []).filter((r) => !(isDel(r) ? splashDel : splashUber).has(r.restaurant_id)),
     ];
   };
   const mergedPlatforms = useMemo(
