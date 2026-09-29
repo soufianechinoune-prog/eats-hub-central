@@ -139,6 +139,12 @@ export function NetworkComparisonTable({
     return { all: rows.length, up, down, watch };
   }, [rows]);
 
+  const networkRank = useMemo(() => {
+    const m = new Map<string, number>();
+    [...rows].sort((a, b) => b.total - a.total).forEach((r, i) => m.set(r.resto.id, i + 1));
+    return m;
+  }, [rows]);
+
   const filtered = useMemo(() => {
     let out = rows;
     if (statusFilter === "up") out = out.filter((r) => r.variation != null && r.variation > 0);
@@ -338,7 +344,12 @@ export function NetworkComparisonTable({
                     className="h-[54px] cursor-pointer border-border/60 hover:bg-muted/40"
                     onClick={() => onRestaurantClick?.(resto.id)}
                   >
-                    <TableCell className="text-sm text-muted-foreground tabular-nums">{idx + 1}</TableCell>
+                    <TableCell
+                      className="text-sm text-muted-foreground tabular-nums"
+                      title={`${networkRank.get(row.resto.id) ?? idx + 1}ᵉ sur ${rows.length} restaurants (CA total)`}
+                    >
+                      {networkRank.get(row.resto.id) ?? idx + 1}
+                    </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2.5">
                         {chainLogoUrl ? (
