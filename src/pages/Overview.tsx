@@ -911,7 +911,7 @@ const Overview = () => {
   }, [
     isConstantScope,
     scopedStats,
-    comparisonStats,
+    networkStats,
     cashByRestaurant,
     chataigneByRestaurant,
     chataigneTotalOrders,
