@@ -64,6 +64,27 @@ function ApiSourceBadge() {
   );
 }
 
+/** Variation vs N-1 sous un montant de canal (% et €). */
+function PrevDelta({ current, previous }: { current: number; previous: number | null | undefined }) {
+  if (previous == null || previous <= 0) {
+    return <div className="mt-0.5 text-[10px] text-muted-foreground">N-1 : —</div>;
+  }
+  const diff = current - previous;
+  const pct = (diff / previous) * 100;
+  const fmt = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+  return (
+    <div
+      className={cn(
+        "mt-0.5 whitespace-nowrap text-[10px] font-medium tabular-nums",
+        pct >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400",
+      )}
+      title={`N-1 : ${fmt.format(previous)}`}
+    >
+      {pct > 0 ? "+" : ""}{pct.toFixed(1)} % · {diff > 0 ? "+" : ""}{fmt.format(diff)}
+    </div>
+  );
+}
+
 export interface NetworkComparisonTableProps {
   stats: RestaurantNetworkStats[];
   networkTotals: NetworkTotals;
@@ -93,6 +114,8 @@ export interface NetworkComparisonTableProps {
     dishop: { current: number; previous: number | null };
     chataigne: { current: number; previous: number | null };
   } | null;
+  /** N-1 par restaurant et par canal (mode Comparaison N-1). */
+  previousByRestaurant?: Map<string, { cash: number | null; uber: number | null; deliveroo: number | null }>;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
 }
@@ -114,6 +137,7 @@ export function NetworkComparisonTable({
   footerTotals,
   showN1Comparison,
   onToggleN1,
+  previousByRestaurant,
 }: NetworkComparisonTableProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -347,6 +371,7 @@ export function NetworkComparisonTable({
               {filtered.map((row, idx) => {
                 const { resto } = row;
                 const positive = comparisonMode ? (row.variation ?? 0) >= 0 : true;
+                const prev = previousByRestaurant?.get(resto.id);
                 const spark = (dailyByRestaurant?.get(resto.id) ?? []).map((d) => d.total);
                 return (
                   <TableRow
@@ -378,6 +403,12 @@ export function NetworkComparisonTable({
                     </TableCell>
                     <TableCell className="text-right">
                       <span className="font-semibold tabular-nums">{fmtEur(row.total)}</span>
+                      {prev && (
+                        <PrevDelta
+                          current={row.cash + row.uber + row.deliveroo}
+                          previous={((prev.cash ?? 0) + (prev.uber ?? 0) + (prev.deliveroo ?? 0)) || null}
+                        />
+                      )}
                     </TableCell>
                     {comparisonMode && (
                     <TableCell className="text-right">
@@ -401,6 +432,7 @@ export function NetworkComparisonTable({
                     )}
                     <TableCell className="text-right tabular-nums">
                       {row.cash > 0 ? fmtEur(row.cash) : <span className="text-muted-foreground">—</span>}
+                      {prev && <PrevDelta current={row.cash} previous={prev.cash} />}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.uber > 0 ? (
@@ -411,6 +443,7 @@ export function NetworkComparisonTable({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                      {prev && <PrevDelta current={row.uber} previous={prev.uber} />}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.deliveroo > 0 ? (
@@ -421,6 +454,7 @@ export function NetworkComparisonTable({
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
+                      {prev && <PrevDelta current={row.deliveroo} previous={prev.deliveroo} />}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
                       {row.dishop > 0 ? fmtEur(row.dishop) : <span className="text-muted-foreground">—</span>}
