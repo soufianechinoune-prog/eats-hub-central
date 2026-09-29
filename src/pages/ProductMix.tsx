@@ -188,6 +188,10 @@ export default function ProductMix() {
     const ra = a.reduce((s, r) => s + r.ra, 0), rs = a.reduce((s, r) => s + r.rs, 0), qa = a.reduce((s, r) => s + r.qa, 0), qs = a.reduce((s, r) => s + r.qs, 0);
     return { prod, color: COLORS[i], rs, qs, revShare: ra > 0 ? (rs / ra) * 100 : 0, qtyShare: qa > 0 ? (qs / qa) * 100 : 0, selRevShare: 0, selQtyShare: 0 };
   });
+  {
+    const tr = summary.reduce((a, x) => a + x.rs, 0), tq = summary.reduce((a, x) => a + x.qs, 0);
+    summary.forEach((x) => { x.selRevShare = tr > 0 ? (x.rs / tr) * 100 : 0; x.selQtyShare = tq > 0 ? (x.qs / tq) * 100 : 0; });
+  }
 
   // Contrôle d'intégrité : journées dont le détail ticket n'est pas complètement aspiré.
   const windowFrom = format(subDays(new Date(launch), days), "yyyy-MM-dd");
@@ -344,7 +348,7 @@ export default function ProductMix() {
                 <CardTitle className="text-base">Comparateur de produits</CardTitle>
                 <CardDescription>
                   {excluded.length === 0
-                    ? "Cochez « Comparer » sur 1 à 5 produits dans le tableau du bas : une courbe par produit, avec le panier moyen global en fond."
+                    ? "Cochez « Comparer » sur 1 à 8 produits (ex. vos plats, puis « Base : ma sélection » pour les comparer entre eux) dans le tableau du bas : une courbe par produit, avec le panier moyen global en fond."
                     : "Une courbe par produit · pointillés gris = panier moyen global (échelle de droite)."}
                 </CardDescription>
               </div>
@@ -352,17 +356,24 @@ export default function ProductMix() {
                 {([["rev", "CA"], ["qty", "Volume"], ["revShare", "Poids CA"], ["qtyShare", "Poids volume"]] as const).map(([id, l]) => (
                   <Button key={id} size="sm" variant={metric === id ? "default" : "outline"} onClick={() => setMetric(id)}>{l}</Button>
                 ))}
+                <span className="mx-1 w-px bg-border" />
+                <Button size="sm" variant={shareBase === "all" ? "secondary" : "ghost"} onClick={() => setShareBase("all")} title="Poids calculé sur tous les articles vendus (boissons, sides inclus)">Base : tout le réseau</Button>
+                <Button size="sm" variant={shareBase === "sel" ? "secondary" : "ghost"} onClick={() => setShareBase("sel")} title="Les produits cochés représentent 100 %">Base : ma sélection</Button>
                 {excluded.length > 0 && <Button size="sm" variant="ghost" onClick={() => setExcluded([])}>Tout retirer</Button>}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {summary.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 text-sm">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                   {summary.map((s) => (
                     <div key={s.prod} className="rounded-lg border p-3">
                       <div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: s.color }} /><p className="text-xs font-medium truncate" title={s.prod}>{s.prod}</p></div>
                       <p className="text-lg font-semibold mt-1">{eur0(s.rs)}</p>
-                      <p className="text-xs text-muted-foreground">{int(s.qs)} articles · {s.revShare.toFixed(1)} % du CA · {s.qtyShare.toFixed(1)} % du volume</p>
+                      {shareBase === "sel" ? (
+                        <p className="text-xs text-muted-foreground"><strong className="text-foreground">{s.selQtyShare.toFixed(1)} %</strong> du volume sélectionné · {s.selRevShare.toFixed(1)} % du CA sélectionné <span className="block">({s.qtyShare.toFixed(1)} % du volume réseau · {int(s.qs)} articles)</span></p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">{int(s.qs)} articles · {s.revShare.toFixed(1)} % du CA · {s.qtyShare.toFixed(1)} % du volume</p>
+                      )}
                     </div>
                   ))}
                 </div>
