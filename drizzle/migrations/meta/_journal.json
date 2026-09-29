@@ -253,6 +253,13 @@
       "when": 1790709503801,
       "tag": "0035_product_mix_daily_splash_basket",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790710600505,
+      "tag": "0036_product_mix_daily_qty_fix",
+      "breakpoints": true
     }
   ]
 }
