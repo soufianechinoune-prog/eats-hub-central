@@ -520,9 +520,48 @@ const Overview = () => {
     }
     return m;
   }, [cashByRestaurant, chataigneByRestaurant]);
+  // Source de vérité Vue d'ensemble = caisse Splash : Uber Eats / Deliveroo lus dans la
+  // caisse pour les restaurants branchés ; repli API/imports pour ceux sans caisse.
+  const { data: splashPlatforms } = useQuery({
+    queryKey: ["overview-splash-platforms", startDateStr, endDateStr, activeIds],
+    enabled: !!activeIds && activeIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_splash_platforms_by_restaurant", {
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+        p_restaurant_ids: activeIds,
+      });
+      if (error) throw error;
+      const m = new Map<string, { uR: number; uO: number; dR: number; dO: number }>();
+      for (const r of (data ?? []) as any[]) {
+        if (!r.has_splash) continue;
+        m.set(r.restaurant_id, {
+          uR: Number(r.uber_revenue) || 0, uO: Number(r.uber_orders) || 0,
+          dR: Number(r.deliveroo_revenue) || 0, dO: Number(r.deliveroo_orders) || 0,
+        });
+      }
+      return m;
+    },
+  });
+  const networkStats = useMemo(() => {
+    if (!splashPlatforms) return comparisonStats;
+    return comparisonStats.map((r) => {
+      const s = splashPlatforms.get(r.id);
+      if (!s) return r;
+      return {
+        ...r,
+        platformBreakdown: {
+          ...r.platformBreakdown,
+          uber: { ...r.platformBreakdown.uber, revenue: s.uR, orders: s.uO },
+          deliveroo: { ...r.platformBreakdown.deliveroo, revenue: s.dR, orders: s.dO },
+        },
+      };
+    });
+  }, [comparisonStats, splashPlatforms]);
   // Restaurants sans aucun CA sur la période (tous canaux) : travaux, fermeture…
   const zeroRevenueRestaurants = useMemo(() => {
-    return comparisonStats.filter((r) => {
+    return networkStats.filter((r) => {
       const total =
         (r.platformBreakdown.uber.revenue || 0) +
         (r.platformBreakdown.deliveroo.revenue || 0) +
