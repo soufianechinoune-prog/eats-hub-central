@@ -32,7 +32,8 @@ function Delta({ value, className }: { value: number | null; className?: string 
 }
 
 type Gran = "day" | "week" | "month";
-type SortKey = "tickets" | "var" | "diff";
+type SortKey = "tickets" | "prev" | "var" | "diff";
+type SortDir = "asc" | "desc";
 
 function bucketOf(date: string, g: Gran) {
   const d = new Date(date + "T12:00:00");
@@ -49,6 +50,7 @@ export default function CaisseOrderVolume() {
   const [gran, setGran] = useState<Gran | null>(null);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("tickets");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [constantScope, setConstantScope] = useState(false);
