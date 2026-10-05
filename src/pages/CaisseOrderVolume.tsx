@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { format, startOfISOWeek, getISOWeek } from "date-fns";
+import { format, startOfISOWeek, getISOWeek, subYears } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { X, Search } from "lucide-react";
@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { getEffectiveOpeningDate, type RestaurantWithDates } from "@/lib/restaurantActivityFilter";
 import { cn } from "@/lib/utils";
 
 const int = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
