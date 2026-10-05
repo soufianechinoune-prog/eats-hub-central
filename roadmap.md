@@ -62,3 +62,8 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [ ] Refaire l'écran « Rapports hebdo » à zéro (version actuelle écartée par l'utilisateur, « les débuts »). Le moteur d'envoi WhatsApp et les liens partagés `/r/wr/:token` restent en place.
 - [x] Supprimer « Rapports hebdo » (menu + page /reports/weekly) — à refaire à zéro plus tard ; liens publics /r/wr/:token conservés
 - [x] Supprimer « Actions & Events » (/actions) et « Opérations » (/operations) du Pilotage — section Pilotage retirée ; « Opérations » d'Analytics conservée
+
+## Optimisation base (Phase 1 lancée 05/10/2026)
+- [ ] Contrôle après 1re nuit : lignes caisse_ticket_lines du jour présentes, page Live OK, plus aucune écriture dans splash_ticket_raw (dernière : 05/10 08:10 UTC). Sinon rollback.
+- [ ] Désactiver uber-backfill-worker-cron et splash-ticket-backfill-tick une fois leurs files vides (608 / 80 en attente au 05/10)
+- [ ] Export mensuel puis suppression de splash_ticket_raw — bloqué : confirmation sauvegarde par l'utilisateur
