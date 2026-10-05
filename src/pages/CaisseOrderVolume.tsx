@@ -188,11 +188,14 @@ export default function CaisseOrderVolume() {
   const ranked = useMemo(() => {
     const list = byResto.filter((r) => r.t > 0 || r.pt > 0).map((r) => ({ ...r, v: varPct(r.t, r.pt), diff: r.t - r.pt }));
     const rank = new Map([...list].sort((a, b) => b.t - a.t).map((r, i) => [r.id, i + 1]));
-    const max = Math.max(1, ...list.map((r) => r.t));
-    const key = (r: (typeof list)[number]) => (sort === "tickets" ? r.t : sort === "var" ? r.v ?? -Infinity : r.diff);
+    const key = (r: (typeof list)[number]) =>
+      sort === "tickets" ? r.t : sort === "prev" ? r.pt : sort === "var" ? (r.v ?? (sortDir === "desc" ? -Infinity : Infinity)) : r.diff;
     const q = search.trim().toLowerCase();
-    return { total: list.length, rank, max, rows: list.sort((a, b) => key(b) - key(a)).filter((r) => !q || r.name.toLowerCase().includes(q)) };
-  }, [byResto, search, sort]);
+    const rows = list
+      .filter((r) => !q || r.name.toLowerCase().includes(q))
+      .sort((a, b) => (sortDir === "desc" ? key(b) - key(a) : key(a) - key(b)));
+    return { total: list.length, rank, rows };
+  }, [byResto, search, sort, sortDir]);
 
   const prodList = useMemo(() => {
     const q = prodSearch.trim().toLowerCase();
@@ -203,7 +206,13 @@ export default function CaisseOrderVolume() {
 
   const granLabel = effGran === "day" ? "jour" : effGran === "week" ? "semaine" : "mois";
   const sortHead = (k: SortKey, label: string) => (
-    <TableHead className="text-right cursor-pointer select-none" onClick={() => setSort(k)}>{label}{sort === k ? " ↓" : ""}</TableHead>
+    <TableHead
+      className="text-right cursor-pointer select-none hover:text-foreground"
+      onClick={() => (sort === k ? setSortDir((d) => (d === "desc" ? "asc" : "desc")) : (setSort(k), setSortDir("desc")))}
+    >
+      {label}
+      {sort === k ? (sortDir === "desc" ? " ↓" : " ↑") : ""}
+    </TableHead>
   );
 
   return (
