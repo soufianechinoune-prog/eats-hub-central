@@ -310,10 +310,10 @@ export default function CaisseOrderVolume() {
               <Card><CardContent className="pt-6">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Commandes</p>
                 <p className="mt-1 text-3xl font-semibold tabular-nums">{int(totals.t)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">vs {int(totals.pt)} N-1 · <Delta value={totals.v} /></p>
+                <p className="mt-1 text-xs text-muted-foreground">vs {int(totals.pt)} {prevLbl} · <Delta value={totals.v} /></p>
               </CardContent></Card>
               <Card><CardContent className="pt-6">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Écart vs N-1</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Écart vs {prevLbl}</p>
                 <p className={cn("mt-1 text-3xl font-semibold tabular-nums", totals.diff >= 0 ? "text-success" : "text-destructive")}>
                   {totals.diff >= 0 ? "+" : ""}{int(totals.diff)}
                 </p>
@@ -336,9 +336,12 @@ export default function CaisseOrderVolume() {
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
               <div>
                 <CardTitle className="text-base">Évolution des commandes</CardTitle>
-                <CardDescription>Par {granLabel} · N en plein, N-1 en pointillés</CardDescription>
+                <CardDescription>Par {granLabel} · N en plein, {compareW4 ? "4 semaines avant (même jour)" : "N-1"} en pointillés</CardDescription>
               </div>
               <div className="flex gap-1">
+                <Button size="sm" variant={compareW4 ? "default" : "outline"} title="Comparer avec 4 semaines avant (même jour de semaine)" onClick={() => setCompareW4((v) => !v)}>
+                  ⇆ 4 sem.
+                </Button>
                 {(["day", "week", "month"] as Gran[]).map((g) => (
                   <Button key={g} size="sm" variant={effGran === g ? "default" : "outline"} onClick={() => setGran(g)}>
                     {g === "day" ? "Jour" : g === "week" ? "Semaine" : "Mois"}
