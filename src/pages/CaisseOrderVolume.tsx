@@ -52,6 +52,7 @@ export default function CaisseOrderVolume() {
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [constantScope, setConstantScope] = useState(false);
+  const [comparableOnly, setComparableOnly] = useState(false);
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
@@ -89,22 +90,51 @@ export default function CaisseOrderVolume() {
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
 
-  const daily = useQuery({
-    queryKey: ["caisse-basket-daily", start, end, ids], enabled, retry: false,
+  const dailyResto = useQuery({
+    queryKey: ["caisse-tickets-daily-resto", start, end, ids], enabled, retry: false,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_caisse_avg_basket_daily", params);
+      const { data, error } = await (supabase as any).rpc("get_caisse_tickets_daily_by_restaurant", params);
       if (error) throw error;
-      return ((data ?? []) as any[]).map((x) => ({ date: String(x.date), t: Number(x.tickets) || 0, pt: Number(x.prev_tickets) || 0 }));
+      return ((data ?? []) as any[]).map((x) => ({ id: x.restaurant_id as string, date: String(x.date), t: Number(x.tickets) || 0, pt: Number(x.prev_tickets) || 0 }));
     },
   });
-  const byResto = useQuery({
-    queryKey: ["caisse-basket-resto", start, end, ids], enabled, retry: false,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_caisse_avg_basket_by_restaurant", params);
-      if (error) throw error;
-      return ((data ?? []) as any[]).map((r) => ({ id: r.restaurant_id as string, name: r.restaurant_name as string, t: Number(r.tickets) || 0, pt: Number(r.prev_tickets) || 0 }));
-    },
-  });
+
+  const openDateById = useMemo(() => {
+    const m = new Map<string, string | null>();
+    (restaurants ?? []).forEach((r) => m.set(r.id, getEffectiveOpeningDate(r).date));
+    return m;
+  }, [restaurants]);
+
+  // Jours comparables : on ne garde que les jours où le restaurant était ouvert à la fois en N et en N-1
+  const rows = useMemo(() => {
+    const all = dailyResto.data ?? [];
+    if (!comparableOnly) return all;
+    return all.filter((x) => {
+      const open = openDateById.get(x.id);
+      if (!open) return true;
+      const prev = format(subYears(new Date(x.date + "T12:00:00"), 1), "yyyy-MM-dd");
+      return x.date >= open && prev >= open;
+    });
+  }, [dailyResto.data, comparableOnly, openDateById]);
+
+  const daily = useMemo(() => {
+    const m = new Map<string, { date: string; t: number; pt: number }>();
+    for (const x of rows) {
+      const b = m.get(x.date) ?? { date: x.date, t: 0, pt: 0 };
+      b.t += x.t; b.pt += x.pt; m.set(x.date, b);
+    }
+    return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }, [rows]);
+
+  const byResto = useMemo(() => {
+    const nameById = new Map((restaurants ?? []).map((r) => [r.id, r.name]));
+    const m = new Map<string, { id: string; name: string; t: number; pt: number }>();
+    for (const x of rows) {
+      const b = m.get(x.id) ?? { id: x.id, name: nameById.get(x.id) ?? "", t: 0, pt: 0 };
+      b.t += x.t; b.pt += x.pt; m.set(x.id, b);
+    }
+    return [...m.values()];
+  }, [rows, restaurants]);
   const products = useQuery({
     queryKey: ["caisse-product-volume-list", start, end, ids], enabled, retry: false,
     queryFn: async () => {
@@ -125,22 +155,21 @@ export default function CaisseOrderVolume() {
   });
 
   const totals = useMemo(() => {
-    const d = daily.data ?? [];
-    const t = d.reduce((a, x) => a + x.t, 0), pt = d.reduce((a, x) => a + x.pt, 0);
-    const days = d.filter((x) => x.t > 0).length;
-    const best = d.reduce<{ date: string; t: number } | null>((b, x) => (!b || x.t > b.t ? x : b), null);
+    const t = daily.reduce((a, x) => a + x.t, 0), pt = daily.reduce((a, x) => a + x.pt, 0);
+    const days = daily.filter((x) => x.t > 0).length;
+    const best = daily.reduce<{ date: string; t: number } | null>((b, x) => (!b || x.t > b.t ? x : b), null);
     return { t, pt, v: varPct(t, pt), diff: t - pt, perDay: days ? t / days : 0, best };
-  }, [daily.data]);
+  }, [daily]);
 
   const chart = useMemo(() => {
     const m = new Map<string, { label: string; N: number; "N-1": number }>();
-    for (const x of daily.data ?? []) {
+    for (const x of daily) {
       const { key, label } = bucketOf(x.date, effGran);
       const b = m.get(key) ?? { label, N: 0, "N-1": 0 };
       b.N += x.t; b["N-1"] += x.pt; m.set(key, b);
     }
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
-  }, [daily.data, effGran]);
+  }, [daily, effGran]);
 
   const prodChart = useMemo(() => {
     const m = new Map<string, any>();
@@ -155,13 +184,13 @@ export default function CaisseOrderVolume() {
   }, [series, effGran]);
 
   const ranked = useMemo(() => {
-    const rows = (byResto.data ?? []).filter((r) => r.t > 0 || r.pt > 0).map((r) => ({ ...r, v: varPct(r.t, r.pt), diff: r.t - r.pt }));
-    const rank = new Map([...rows].sort((a, b) => b.t - a.t).map((r, i) => [r.id, i + 1]));
-    const max = Math.max(1, ...rows.map((r) => r.t));
-    const key = (r: (typeof rows)[number]) => (sort === "tickets" ? r.t : sort === "var" ? r.v ?? -Infinity : r.diff);
+    const list = byResto.filter((r) => r.t > 0 || r.pt > 0).map((r) => ({ ...r, v: varPct(r.t, r.pt), diff: r.t - r.pt }));
+    const rank = new Map([...list].sort((a, b) => b.t - a.t).map((r, i) => [r.id, i + 1]));
+    const max = Math.max(1, ...list.map((r) => r.t));
+    const key = (r: (typeof list)[number]) => (sort === "tickets" ? r.t : sort === "var" ? r.v ?? -Infinity : r.diff);
     const q = search.trim().toLowerCase();
-    return { total: rows.length, rank, max, rows: rows.sort((a, b) => key(b) - key(a)).filter((r) => !q || r.name.toLowerCase().includes(q)) };
-  }, [byResto.data, search, sort]);
+    return { total: list.length, rank, max, rows: list.sort((a, b) => key(b) - key(a)).filter((r) => !q || r.name.toLowerCase().includes(q)) };
+  }, [byResto, search, sort]);
 
   const prodList = useMemo(() => {
     const q = prodSearch.trim().toLowerCase();
@@ -183,6 +212,33 @@ export default function CaisseOrderVolume() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
               <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="Jours comparables"
+              title="Jours comparables : la comparaison N vs N-1 ne retient que les jours où chaque restaurant était ouvert sur les deux années (évite de comparer des mois où le restaurant n'existait pas encore)."
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+            >
+              {([
+                { key: false, label: "Période complète" },
+                { key: true, label: "Jours comparables" },
+              ] as const).map((o) => (
+                <button
+                  key={String(o.key)}
+                  type="button"
+                  aria-pressed={comparableOnly === o.key}
+                  onClick={() => setComparableOnly(o.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    comparableOnly === o.key
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
             </div>
             <div
               role="group"
@@ -210,10 +266,11 @@ export default function CaisseOrderVolume() {
                 </button>
               ))}
             </div>
+            </div>
           </div>
           <AnalyticsHeader />
 
-          {daily.isLoading ? (
+          {dailyResto.isLoading ? (
             <div className="grid gap-4 md:grid-cols-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}</div>
           ) : (
             <div className="grid gap-4 md:grid-cols-4">
@@ -257,7 +314,7 @@ export default function CaisseOrderVolume() {
               </div>
             </CardHeader>
             <CardContent className="h-[320px]">
-              {daily.isLoading ? <Skeleton className="h-full" /> : (
+              {dailyResto.isLoading ? <Skeleton className="h-full" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chart}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
@@ -355,7 +412,7 @@ export default function CaisseOrderVolume() {
               <Input placeholder="Rechercher un restaurant" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              {byResto.isLoading ? <Skeleton className="h-40" /> : (
+              {dailyResto.isLoading ? <Skeleton className="h-40" /> : (
                 <Table>
                   <TableHeader>
                     <TableRow>
