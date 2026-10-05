@@ -155,22 +155,21 @@ export default function CaisseOrderVolume() {
   });
 
   const totals = useMemo(() => {
-    const d = daily.data ?? [];
-    const t = d.reduce((a, x) => a + x.t, 0), pt = d.reduce((a, x) => a + x.pt, 0);
-    const days = d.filter((x) => x.t > 0).length;
-    const best = d.reduce<{ date: string; t: number } | null>((b, x) => (!b || x.t > b.t ? x : b), null);
+    const t = daily.reduce((a, x) => a + x.t, 0), pt = daily.reduce((a, x) => a + x.pt, 0);
+    const days = daily.filter((x) => x.t > 0).length;
+    const best = daily.reduce<{ date: string; t: number } | null>((b, x) => (!b || x.t > b.t ? x : b), null);
     return { t, pt, v: varPct(t, pt), diff: t - pt, perDay: days ? t / days : 0, best };
-  }, [daily.data]);
+  }, [daily]);
 
   const chart = useMemo(() => {
     const m = new Map<string, { label: string; N: number; "N-1": number }>();
-    for (const x of daily.data ?? []) {
+    for (const x of daily) {
       const { key, label } = bucketOf(x.date, effGran);
       const b = m.get(key) ?? { label, N: 0, "N-1": 0 };
       b.N += x.t; b["N-1"] += x.pt; m.set(key, b);
     }
     return [...m.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([, v]) => v);
-  }, [daily.data, effGran]);
+  }, [daily, effGran]);
 
   const prodChart = useMemo(() => {
     const m = new Map<string, any>();
@@ -185,13 +184,13 @@ export default function CaisseOrderVolume() {
   }, [series, effGran]);
 
   const ranked = useMemo(() => {
-    const rows = (byResto.data ?? []).filter((r) => r.t > 0 || r.pt > 0).map((r) => ({ ...r, v: varPct(r.t, r.pt), diff: r.t - r.pt }));
-    const rank = new Map([...rows].sort((a, b) => b.t - a.t).map((r, i) => [r.id, i + 1]));
-    const max = Math.max(1, ...rows.map((r) => r.t));
-    const key = (r: (typeof rows)[number]) => (sort === "tickets" ? r.t : sort === "var" ? r.v ?? -Infinity : r.diff);
+    const list = byResto.filter((r) => r.t > 0 || r.pt > 0).map((r) => ({ ...r, v: varPct(r.t, r.pt), diff: r.t - r.pt }));
+    const rank = new Map([...list].sort((a, b) => b.t - a.t).map((r, i) => [r.id, i + 1]));
+    const max = Math.max(1, ...list.map((r) => r.t));
+    const key = (r: (typeof list)[number]) => (sort === "tickets" ? r.t : sort === "var" ? r.v ?? -Infinity : r.diff);
     const q = search.trim().toLowerCase();
-    return { total: rows.length, rank, max, rows: rows.sort((a, b) => key(b) - key(a)).filter((r) => !q || r.name.toLowerCase().includes(q)) };
-  }, [byResto.data, search, sort]);
+    return { total: list.length, rank, max, rows: list.sort((a, b) => key(b) - key(a)).filter((r) => !q || r.name.toLowerCase().includes(q)) };
+  }, [byResto, search, sort]);
 
   const prodList = useMemo(() => {
     const q = prodSearch.trim().toLowerCase();
