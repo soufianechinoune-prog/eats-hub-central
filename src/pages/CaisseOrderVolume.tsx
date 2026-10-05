@@ -213,6 +213,33 @@ export default function CaisseOrderVolume() {
               <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
               <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+            <div
+              role="group"
+              aria-label="Jours comparables"
+              title="Jours comparables : la comparaison N vs N-1 ne retient que les jours où chaque restaurant était ouvert sur les deux années (évite de comparer des mois où le restaurant n'existait pas encore)."
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+            >
+              {([
+                { key: false, label: "Période complète" },
+                { key: true, label: "Jours comparables" },
+              ] as const).map((o) => (
+                <button
+                  key={String(o.key)}
+                  type="button"
+                  aria-pressed={comparableOnly === o.key}
+                  onClick={() => setComparableOnly(o.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    comparableOnly === o.key
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
             <div
               role="group"
               aria-label="Périmètre de comparaison"
@@ -242,7 +269,7 @@ export default function CaisseOrderVolume() {
           </div>
           <AnalyticsHeader />
 
-          {daily.isLoading ? (
+          {dailyResto.isLoading ? (
             <div className="grid gap-4 md:grid-cols-4">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-28" />)}</div>
           ) : (
             <div className="grid gap-4 md:grid-cols-4">
@@ -286,7 +313,7 @@ export default function CaisseOrderVolume() {
               </div>
             </CardHeader>
             <CardContent className="h-[320px]">
-              {daily.isLoading ? <Skeleton className="h-full" /> : (
+              {dailyResto.isLoading ? <Skeleton className="h-full" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chart}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
@@ -384,7 +411,7 @@ export default function CaisseOrderVolume() {
               <Input placeholder="Rechercher un restaurant" value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
             </CardHeader>
             <CardContent className="overflow-x-auto">
-              {byResto.isLoading ? <Skeleton className="h-40" /> : (
+              {dailyResto.isLoading ? <Skeleton className="h-40" /> : (
                 <Table>
                   <TableHeader>
                     <TableRow>
