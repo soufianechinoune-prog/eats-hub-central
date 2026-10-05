@@ -430,7 +430,7 @@ export default function CaisseOrderVolume() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Restaurant</TableHead>
                       {sortHead("tickets", "Commandes")}
-                      <TableHead className="text-right">N-1</TableHead>
+                      {sortHead("prev", "N-1")}
                       {sortHead("diff", "Écart")}
                       {sortHead("var", "Var.")}
                     </TableRow>
@@ -439,12 +439,7 @@ export default function CaisseOrderVolume() {
                     {ranked.rows.map((r) => (
                       <TableRow key={r.id}>
                         <TableCell className="text-muted-foreground">{ranked.rank.get(r.id)}</TableCell>
-                        <TableCell className="font-medium">
-                          {r.name}
-                          <div className="mt-1 h-1 w-full max-w-[220px] rounded-full bg-muted">
-                            <div className="h-1 rounded-full" style={{ background: "hsl(var(--chart-1))", width: `${(r.t / ranked.max) * 100}%` }} />
-                          </div>
-                        </TableCell>
+                        <TableCell className="font-medium">{r.name}</TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">{int(r.t)}</TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">{r.pt > 0 ? int(r.pt) : "—"}</TableCell>
                         <TableCell className={cn("text-right tabular-nums", r.pt > 0 ? (r.diff >= 0 ? "text-success" : "text-destructive") : "text-muted-foreground")}>
