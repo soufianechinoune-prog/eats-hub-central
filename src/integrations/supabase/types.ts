@@ -14701,6 +14701,7 @@ export type Database = {
         Returns: number
       }
       requeue_recent_splash_tickets: { Args: never; Returns: number }
+      reset_pg_stat_statements: { Args: never; Returns: undefined }
       reset_stale_backfill_jobs: { Args: never; Returns: number }
       resync_live_tag_all_restaurants: {
         Args: never
