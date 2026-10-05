@@ -56,7 +56,9 @@ export default function CaisseOrderVolume() {
   const [selected, setSelected] = useState<string[]>([]);
   const [constantScopeRaw, setConstantScope] = useState(false);
   const [comparableOnlyRaw, setComparableOnly] = useState(false);
-  const [excludeZero, setExcludeZero] = useState(false);
+  const [excludeZeroRaw, setExcludeZero] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState(true);
+  const [excludeOpeningMonthRaw, setExcludeOpeningMonth] = useState(false);
   const isTargeted = (selectedRestaurants?.length ?? 0) > 0;
   const comparableOnly = isTargeted && comparableOnlyRaw;
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
@@ -83,16 +85,20 @@ export default function CaisseOrderVolume() {
     if (!restaurants || !allIds) return undefined;
     const set = new Set(allIds);
     const prevStartStr = format(prevStartDate, "yyyy-MM-dd");
+    const prevEndStr = format(prevEndDate, "yyyy-MM-dd");
     return restaurants
       .filter((r) => {
         if (!set.has(r.id)) return false;
         const open = getEffectiveOpeningDate(r).date;
-        if (!open || open > prevStartStr) return false;
+        // Ouvert au plus tard pendant N-1 (même logique que la Vue réseau)
+        if (!open || open > prevEndStr) return false;
+        // Option : écarter les restos dont le mois d'ouverture tombe dans N-1 (mois partiel)
+        if (excludeOpeningMonth && open >= prevStartStr.slice(0, 7) + "-01") return false;
         return isActiveForPeriod(r, startDate, endDate) && isActiveForPeriod(r, prevStartDate, prevEndDate);
       })
       .map((r) => r.id);
-  }, [restaurants, allIds, startDate, endDate]);
-  const constantScope = !isTargeted && constantScopeRaw;
+  }, [restaurants, allIds, startDate, endDate, excludeOpeningMonth]);
+  const constantScope = !isTargeted && comparisonMode && constantScopeRaw;
   const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
