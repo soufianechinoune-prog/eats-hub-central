@@ -107,7 +107,7 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "payments", label: "Moyens de paiement", icon: CreditCard, route: "/caisse/paiements" },
   { id: "volume", label: "Volume de commandes", icon: BarChart3, route: "/caisse/volume" },
   { id: "avg-basket", label: "Panier moyen", icon: ShoppingBag, route: "/caisse/panier-moyen" },
-  { id: "product-sales", label: "Ventes par produit", icon: Package, route: "/caisse/produits" },
+  { id: "product-sales", label: "Volume par produit", icon: Package, route: "/caisse/produits" },
 ];
 
 // Sous-onglets Chataigne — vues internes et écrans dédiés du canal
