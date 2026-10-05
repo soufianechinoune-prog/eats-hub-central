@@ -288,6 +288,13 @@
       "when": 1790718305399,
       "tag": "0040_product_mix_hourly_total",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791190549644,
+      "tag": "0041_reset_pg_stat_statements",
+      "breakpoints": true
     }
   ]
 }
