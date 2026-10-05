@@ -55,6 +55,7 @@ const ItemSales = React.lazy(() => import("./pages/ItemSales"));
 const OnsiteSales = React.lazy(() => import("./pages/OnsiteSales"));
 const CaissePayments = React.lazy(() => import("./pages/CaissePayments"));
 const CaisseAvgBasket = React.lazy(() => import("./pages/CaisseAvgBasket"));
+const CaisseOrderVolume = React.lazy(() => import("./pages/CaisseOrderVolume"));
 const ProductMix = React.lazy(() => import("./pages/ProductMix"));
 const CaisseProductSales = React.lazy(() => import("./pages/CaisseProductSales"));
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
@@ -225,6 +226,7 @@ const App = () => {
                     <Route path="/item-sales" element={<P><ItemSales /></P>} />
                     <Route path="/analytics/onsite-sales" element={<P><OnsiteSales /></P>} />
                     <Route path="/caisse/paiements" element={<P><CaissePayments /></P>} />
+                    <Route path="/caisse/volume" element={<P><CaisseOrderVolume /></P>} />
                     <Route path="/caisse/panier-moyen" element={<P><CaisseAvgBasket /></P>} />
                     <Route path="/mix-produit" element={<P><ProductMix /></P>} />
                     <Route path="/caisse/produits" element={<P><CaisseProductSales /></P>} />
