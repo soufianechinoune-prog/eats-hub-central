@@ -44,6 +44,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { ProductVolumeTrend } from "@/components/caisse/ProductVolumeTrend";
 
 interface TrendRow {
   product_ref: string;
@@ -458,13 +459,15 @@ export default function CaisseProductSales() {
       <ChannelNavShell>
         <div className="space-y-5">
           <div>
-            <h1 className="text-2xl font-bold">Ventes par produit</h1>
+            <h1 className="text-2xl font-bold">Volume par produit</h1>
             <p className="text-muted-foreground">
               Suivez les produits qui gagnent du terrain et ceux qui décrochent.
             </p>
           </div>
 
           <AnalyticsHeader />
+
+          <ProductVolumeTrend ids={restaurants ? (restaurantFilter ?? chainRestaurantIds) : undefined} start={start} end={end} gran={bucket} />
 
           <div className="flex flex-col gap-4 rounded-md border border-border/70 bg-card p-3 shadow-sm xl:flex-row xl:items-center">
             <div className="flex flex-wrap items-center gap-3">
