@@ -13121,6 +13121,15 @@ export type Database = {
           qty: number
         }[]
       }
+      get_caisse_tickets_daily_by_restaurant: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          date: string
+          prev_tickets: number
+          restaurant_id: string
+          tickets: number
+        }[]
+      }
       get_channel_price_matrix: { Args: { p_chain_id: string }; Returns: Json }
       get_chataigne_basket_segments: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
