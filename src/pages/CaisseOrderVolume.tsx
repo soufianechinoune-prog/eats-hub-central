@@ -61,6 +61,8 @@ export default function CaisseOrderVolume() {
   const [excludeOpeningMonthRaw, setExcludeOpeningMonth] = useState(false);
   const isTargeted = (selectedRestaurants?.length ?? 0) > 0;
   const comparableOnly = isTargeted && comparableOnlyRaw;
+  const excludeOpeningMonth = !isTargeted && comparisonMode && constantScopeRaw && excludeOpeningMonthRaw;
+  const excludeZero = !isTargeted && comparisonMode && excludeZeroRaw;
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
