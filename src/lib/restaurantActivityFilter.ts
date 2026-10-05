@@ -35,6 +35,10 @@ export function getEffectiveOpeningDate(restaurant: RestaurantWithDates): {
   isAuto: boolean;
   source: string | null;
 } {
+  // Le premier jour de caisse fait foi : c'est la vraie ouverture du restaurant.
+  if (restaurant.first_activity_date && (restaurant.first_activity_source || 'cash') === 'cash') {
+    return { date: restaurant.first_activity_date, isAuto: true, source: 'cash' };
+  }
   const manual = [restaurant.uber_opening_date, restaurant.deliveroo_opening_date]
     .filter((d): d is string => !!d)
     .sort();
