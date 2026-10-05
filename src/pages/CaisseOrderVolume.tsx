@@ -213,18 +213,12 @@ export default function CaisseOrderVolume() {
               {daily.isLoading ? <Skeleton className="h-full" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chart}>
-                    <defs>
-                      <linearGradient id="volN" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.25} />
-                        <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} tickFormatter={(v) => int(Number(v))} width={60} />
                     <ReTooltip formatter={(v: any, n: any) => [int(Number(v)), n]} />
                     <Legend />
-                    <Area type="monotone" dataKey="N" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="url(#volN)" />
+                    <Area type="monotone" dataKey="N" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="hsl(var(--chart-1))" fillOpacity={0.08} />
                     <Area type="monotone" dataKey="N-1" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" strokeWidth={1.5} fill="none" />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -333,7 +327,7 @@ export default function CaisseOrderVolume() {
                         <TableCell className="font-medium">
                           {r.name}
                           <div className="mt-1 h-1 w-full max-w-[220px] rounded-full bg-muted">
-                            <div className="h-1 rounded-full bg-chart-1" style={{ width: `${(r.t / ranked.max) * 100}%` }} />
+                            <div className="h-1 rounded-full" style={{ background: "hsl(var(--chart-1))", width: `${(r.t / ranked.max) * 100}%` }} />
                           </div>
                         </TableCell>
                         <TableCell className="text-right font-semibold tabular-nums">{int(r.t)}</TableCell>
