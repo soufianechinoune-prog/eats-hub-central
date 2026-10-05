@@ -66,7 +66,7 @@ export default function CaisseOrderVolume() {
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
-    queryKey: ["restaurants", selectedChainId],
+    queryKey: ["caisse-volume-restaurants-dates", selectedChainId],
     queryFn: async () => {
       let q = supabase.from("restaurants").select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source").order("name");
       if (selectedChainId) q = q.eq("chain_id", selectedChainId);
