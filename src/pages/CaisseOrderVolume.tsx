@@ -176,9 +176,37 @@ export default function CaisseOrderVolume() {
     <AppLayout>
       <ChannelNavShell>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
-            <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
+              <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
+            </div>
+            <div
+              role="group"
+              aria-label="Périmètre de comparaison"
+              title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+            >
+              {([
+                { key: false, label: "Réseau complet" },
+                { key: true, label: "Périmètre constant" },
+              ] as const).map((o) => (
+                <button
+                  key={String(o.key)}
+                  type="button"
+                  aria-pressed={constantScope === o.key}
+                  onClick={() => setConstantScope(o.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    constantScope === o.key
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
           <AnalyticsHeader />
 
