@@ -52,6 +52,7 @@ export default function CaisseOrderVolume() {
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   const [constantScope, setConstantScope] = useState(false);
+  const [comparableOnly, setComparableOnly] = useState(false);
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
@@ -89,22 +90,51 @@ export default function CaisseOrderVolume() {
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
 
-  const daily = useQuery({
-    queryKey: ["caisse-basket-daily", start, end, ids], enabled, retry: false,
+  const dailyResto = useQuery({
+    queryKey: ["caisse-tickets-daily-resto", start, end, ids], enabled, retry: false,
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_caisse_avg_basket_daily", params);
+      const { data, error } = await (supabase as any).rpc("get_caisse_tickets_daily_by_restaurant", params);
       if (error) throw error;
-      return ((data ?? []) as any[]).map((x) => ({ date: String(x.date), t: Number(x.tickets) || 0, pt: Number(x.prev_tickets) || 0 }));
+      return ((data ?? []) as any[]).map((x) => ({ id: x.restaurant_id as string, date: String(x.date), t: Number(x.tickets) || 0, pt: Number(x.prev_tickets) || 0 }));
     },
   });
-  const byResto = useQuery({
-    queryKey: ["caisse-basket-resto", start, end, ids], enabled, retry: false,
-    queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc("get_caisse_avg_basket_by_restaurant", params);
-      if (error) throw error;
-      return ((data ?? []) as any[]).map((r) => ({ id: r.restaurant_id as string, name: r.restaurant_name as string, t: Number(r.tickets) || 0, pt: Number(r.prev_tickets) || 0 }));
-    },
-  });
+
+  const openDateById = useMemo(() => {
+    const m = new Map<string, string | null>();
+    (restaurants ?? []).forEach((r) => m.set(r.id, getEffectiveOpeningDate(r).date));
+    return m;
+  }, [restaurants]);
+
+  // Jours comparables : on ne garde que les jours où le restaurant était ouvert à la fois en N et en N-1
+  const rows = useMemo(() => {
+    const all = dailyResto.data ?? [];
+    if (!comparableOnly) return all;
+    return all.filter((x) => {
+      const open = openDateById.get(x.id);
+      if (!open) return true;
+      const prev = format(subYears(new Date(x.date + "T12:00:00"), 1), "yyyy-MM-dd");
+      return x.date >= open && prev >= open;
+    });
+  }, [dailyResto.data, comparableOnly, openDateById]);
+
+  const daily = useMemo(() => {
+    const m = new Map<string, { date: string; t: number; pt: number }>();
+    for (const x of rows) {
+      const b = m.get(x.date) ?? { date: x.date, t: 0, pt: 0 };
+      b.t += x.t; b.pt += x.pt; m.set(x.date, b);
+    }
+    return [...m.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }, [rows]);
+
+  const byResto = useMemo(() => {
+    const nameById = new Map((restaurants ?? []).map((r) => [r.id, r.name]));
+    const m = new Map<string, { id: string; name: string; t: number; pt: number }>();
+    for (const x of rows) {
+      const b = m.get(x.id) ?? { id: x.id, name: nameById.get(x.id) ?? "", t: 0, pt: 0 };
+      b.t += x.t; b.pt += x.pt; m.set(x.id, b);
+    }
+    return [...m.values()];
+  }, [rows, restaurants]);
   const products = useQuery({
     queryKey: ["caisse-product-volume-list", start, end, ids], enabled, retry: false,
     queryFn: async () => {
