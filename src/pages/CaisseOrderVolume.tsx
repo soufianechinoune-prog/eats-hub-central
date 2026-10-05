@@ -359,7 +359,7 @@ export default function CaisseOrderVolume() {
                     <ReTooltip formatter={(v: any, n: any) => [int(Number(v)), n]} />
                     <Legend />
                     <Area type="monotone" dataKey="N" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="hsl(var(--chart-1))" fillOpacity={0.08} />
-                    <Area type="monotone" dataKey="N-1" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" strokeWidth={1.5} fill="none" />
+                    <Area type="monotone" dataKey="N-1" name={prevLbl} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" strokeWidth={1.5} fill="none" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -382,7 +382,7 @@ export default function CaisseOrderVolume() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Restaurant</TableHead>
                       {sortHead("tickets", "Commandes")}
-                      {sortHead("prev", "N-1")}
+                      {sortHead("prev", prevLbl)}
                       {sortHead("diff", "Écart")}
                       {sortHead("var", "Var.")}
                     </TableRow>
