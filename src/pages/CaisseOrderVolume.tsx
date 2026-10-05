@@ -51,23 +51,38 @@ export default function CaisseOrderVolume() {
   const [sort, setSort] = useState<SortKey>("tickets");
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [constantScope, setConstantScope] = useState(false);
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
-      let q = supabase.from("restaurants").select("id, name").order("name");
+      let q = supabase.from("restaurants").select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source").order("name");
       if (selectedChainId) q = q.eq("chain_id", selectedChainId);
       const { data, error } = await q;
       if (error) throw error;
-      return data;
+      return data as (RestaurantWithDates & { id: string; name: string })[];
     },
   });
-  const ids = useMemo<string[] | undefined>(() => {
+  const allIds = useMemo<string[] | undefined>(() => {
     if (!restaurants) return undefined;
     const all = restaurants.map((r) => r.id);
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: all }) ?? all;
   }, [restaurants, selectedRestaurants, selectedChainId]);
+  // Périmètre constant : uniquement les restaurants déjà ouverts au début de la période N-1
+  const prevStart = format(subYears(startDate, 1), "yyyy-MM-dd");
+  const constantIds = useMemo(() => {
+    if (!restaurants || !allIds) return undefined;
+    const set = new Set(allIds);
+    return restaurants
+      .filter((r) => {
+        if (!set.has(r.id)) return false;
+        const opening = getEffectiveOpeningDate(r);
+        return !!opening.date && opening.date <= prevStart;
+      })
+      .map((r) => r.id);
+  }, [restaurants, allIds, prevStart]);
+  const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
 
