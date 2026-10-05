@@ -18,7 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
-import { getEffectiveOpeningDate, type RestaurantWithDates } from "@/lib/restaurantActivityFilter";
+import { isActiveForPeriod, type RestaurantWithDates } from "@/lib/restaurantActivityFilter";
 import { cn } from "@/lib/utils";
 
 const int = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -69,19 +69,16 @@ export default function CaisseOrderVolume() {
     const all = restaurants.map((r) => r.id);
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: all }) ?? all;
   }, [restaurants, selectedRestaurants, selectedChainId]);
-  // Périmètre constant : uniquement les restaurants déjà ouverts au début de la période N-1
-  const prevStart = format(subYears(startDate, 1), "yyyy-MM-dd");
+  // Périmètre constant : uniquement les restaurants actifs à la fois sur N et sur N-1
+  const prevStartDate = subYears(startDate, 1);
+  const prevEndDate = subYears(endDate, 1);
   const constantIds = useMemo(() => {
     if (!restaurants || !allIds) return undefined;
     const set = new Set(allIds);
     return restaurants
-      .filter((r) => {
-        if (!set.has(r.id)) return false;
-        const opening = getEffectiveOpeningDate(r);
-        return !!opening.date && opening.date <= prevStart;
-      })
+      .filter((r) => set.has(r.id) && isActiveForPeriod(r, startDate, endDate) && isActiveForPeriod(r, prevStartDate, prevEndDate))
       .map((r) => r.id);
-  }, [restaurants, allIds, prevStart]);
+  }, [restaurants, allIds, startDate, endDate]);
   const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
