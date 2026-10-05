@@ -1,3 +1,4 @@
+import { Switch } from "@/components/ui/switch";
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, startOfISOWeek, getISOWeek, subYears } from "date-fns";
@@ -53,8 +54,11 @@ export default function CaisseOrderVolume() {
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
-  const [constantScope, setConstantScope] = useState(false);
-  const [comparableOnly, setComparableOnly] = useState(false);
+  const [constantScopeRaw, setConstantScope] = useState(false);
+  const [comparableOnlyRaw, setComparableOnly] = useState(false);
+  const [excludeZero, setExcludeZero] = useState(false);
+  const isTargeted = (selectedRestaurants?.length ?? 0) > 0;
+  const comparableOnly = isTargeted && comparableOnlyRaw;
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
@@ -88,6 +92,7 @@ export default function CaisseOrderVolume() {
       })
       .map((r) => r.id);
   }, [restaurants, allIds, startDate, endDate]);
+  const constantScope = !isTargeted && constantScopeRaw;
   const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
@@ -108,8 +113,14 @@ export default function CaisseOrderVolume() {
   }, [restaurants]);
 
   // Jours comparables : on ne garde que les jours où le restaurant était ouvert à la fois en N et en N-1
+  const zeroIds = useMemo(() => {
+    if (isTargeted || !ids || !dailyResto.data) return new Set<string>();
+    const withSales = new Set(dailyResto.data.filter((x) => x.t > 0).map((x) => x.id));
+    return new Set(ids.filter((id) => !withSales.has(id)));
+  }, [isTargeted, ids, dailyResto.data]);
   const rows = useMemo(() => {
-    const all = dailyResto.data ?? [];
+    let all = dailyResto.data ?? [];
+    if (excludeZero && zeroIds.size > 0) all = all.filter((x) => !zeroIds.has(x.id));
     if (!comparableOnly) return all;
     return all.filter((x) => {
       const open = openDateById.get(x.id);
@@ -117,7 +128,7 @@ export default function CaisseOrderVolume() {
       const prev = format(subYears(new Date(x.date + "T12:00:00"), 1), "yyyy-MM-dd");
       return x.date >= open && prev >= open;
     });
-  }, [dailyResto.data, comparableOnly, openDateById]);
+  }, [dailyResto.data, comparableOnly, openDateById, excludeZero, zeroIds]);
 
   const daily = useMemo(() => {
     const m = new Map<string, { date: string; t: number; pt: number }>();
@@ -225,7 +236,7 @@ export default function CaisseOrderVolume() {
               <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-            <div
+            {isTargeted && (<div
               role="group"
               aria-label="Jours comparables"
               title="Jours comparables : la comparaison N vs N-1 ne retient que les jours où chaque restaurant était ouvert sur les deux années (évite de comparer des mois où le restaurant n'existait pas encore)."
@@ -250,8 +261,14 @@ export default function CaisseOrderVolume() {
                   {o.label}
                 </button>
               ))}
-            </div>
-            <div
+            </div>)}
+            {!isTargeted && zeroIds.size > 0 && (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground" title="Écarte les restaurants sans aucune commande sur la période (travaux, fermeture).">
+                <Switch checked={excludeZero} onCheckedChange={setExcludeZero} />
+                Exclure les restaurants à 0 ({zeroIds.size})
+              </label>
+            )}
+            {!isTargeted && (<div
               role="group"
               aria-label="Périmètre de comparaison"
               title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
@@ -276,7 +293,7 @@ export default function CaisseOrderVolume() {
                   {o.label}
                 </button>
               ))}
-            </div>
+            </div>)}
             </div>
           </div>
           <AnalyticsHeader />
