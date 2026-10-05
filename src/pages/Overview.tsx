@@ -1368,6 +1368,7 @@ const Overview = () => {
                         ? Math.max(0, cashRevenueData.totalCashOrders - chataigneTotalOrders).toLocaleString("fr-FR")
                         : null}
                       color="text-cyan-500"
+                      onClick={() => navigate("/caisse/volume")}
                     />
                     <MetricRow
                       icon={Percent}
