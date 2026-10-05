@@ -1,7 +1,7 @@
 import { Switch } from "@/components/ui/switch";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format, startOfISOWeek, getISOWeek, subYears } from "date-fns";
+import { format, startOfISOWeek, getISOWeek, subYears, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { X, Search } from "lucide-react";
@@ -56,6 +56,7 @@ export default function CaisseOrderVolume() {
   const [comparableOnlyRaw, setComparableOnly] = useState(false);
   const [excludeZeroRaw, setExcludeZero] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(true);
+  const [compareW4, setCompareW4] = useState(false);
   const [excludeOpeningMonthRaw, setExcludeOpeningMonth] = useState(false);
   const isTargeted = (selectedRestaurants?.length ?? 0) > 0;
   const comparableOnly = isTargeted && comparableOnlyRaw;
@@ -103,7 +104,7 @@ export default function CaisseOrderVolume() {
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
 
-  const dailyResto = useQuery({
+  const dailyRestoRaw = useQuery({
     queryKey: ["caisse-tickets-daily-resto", start, end, ids], enabled, retry: false,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_caisse_tickets_daily_by_restaurant", params);
@@ -111,6 +112,27 @@ export default function CaisseOrderVolume() {
       return ((data ?? []) as any[]).map((x) => ({ id: x.restaurant_id as string, date: String(x.date), t: Number(x.tickets) || 0, pt: Number(x.prev_tickets) || 0 }));
     },
   });
+  // Comparaison S-4 : même jour de semaine, 28 jours avant
+  const shiftStart = format(subDays(startDate, 28), "yyyy-MM-dd");
+  const shiftEnd = format(subDays(endDate, 28), "yyyy-MM-dd");
+  const w4 = useQuery({
+    queryKey: ["caisse-tickets-daily-resto", shiftStart, shiftEnd, ids], enabled: enabled && compareW4, retry: false,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc("get_caisse_tickets_daily_by_restaurant", { p_restaurant_ids: ids ?? [], p_start: shiftStart, p_end: shiftEnd });
+      if (error) throw error;
+      const m = new Map<string, number>();
+      ((data ?? []) as any[]).forEach((x) => m.set(`${x.restaurant_id}|${String(x.date)}`, Number(x.tickets) || 0));
+      return m;
+    },
+  });
+  const dailyResto = useMemo(() => {
+    if (!compareW4) return dailyRestoRaw;
+    const data = dailyRestoRaw.data && w4.data
+      ? dailyRestoRaw.data.map((x) => ({ ...x, pt: w4.data!.get(`${x.id}|${format(subDays(new Date(x.date + "T12:00:00"), 28), "yyyy-MM-dd")}`) ?? 0 }))
+      : undefined;
+    return { data, isLoading: dailyRestoRaw.isLoading || w4.isLoading };
+  }, [compareW4, dailyRestoRaw, w4.data, w4.isLoading]);
+  const prevLbl = compareW4 ? "S-4" : "N-1";
 
   const openDateById = useMemo(() => {
     const m = new Map<string, string | null>();
@@ -288,10 +310,10 @@ export default function CaisseOrderVolume() {
               <Card><CardContent className="pt-6">
                 <p className="text-xs uppercase tracking-wide text-muted-foreground">Commandes</p>
                 <p className="mt-1 text-3xl font-semibold tabular-nums">{int(totals.t)}</p>
-                <p className="mt-1 text-xs text-muted-foreground">vs {int(totals.pt)} N-1 · <Delta value={totals.v} /></p>
+                <p className="mt-1 text-xs text-muted-foreground">vs {int(totals.pt)} {prevLbl} · <Delta value={totals.v} /></p>
               </CardContent></Card>
               <Card><CardContent className="pt-6">
-                <p className="text-xs uppercase tracking-wide text-muted-foreground">Écart vs N-1</p>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Écart vs {prevLbl}</p>
                 <p className={cn("mt-1 text-3xl font-semibold tabular-nums", totals.diff >= 0 ? "text-success" : "text-destructive")}>
                   {totals.diff >= 0 ? "+" : ""}{int(totals.diff)}
                 </p>
@@ -314,9 +336,12 @@ export default function CaisseOrderVolume() {
             <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
               <div>
                 <CardTitle className="text-base">Évolution des commandes</CardTitle>
-                <CardDescription>Par {granLabel} · N en plein, N-1 en pointillés</CardDescription>
+                <CardDescription>Par {granLabel} · N en plein, {compareW4 ? "4 semaines avant (même jour)" : "N-1"} en pointillés</CardDescription>
               </div>
               <div className="flex gap-1">
+                <Button size="sm" variant={compareW4 ? "default" : "outline"} title="Comparer avec 4 semaines avant (même jour de semaine)" onClick={() => setCompareW4((v) => !v)}>
+                  ⇆ 4 sem.
+                </Button>
                 {(["day", "week", "month"] as Gran[]).map((g) => (
                   <Button key={g} size="sm" variant={effGran === g ? "default" : "outline"} onClick={() => setGran(g)}>
                     {g === "day" ? "Jour" : g === "week" ? "Semaine" : "Mois"}
@@ -334,7 +359,7 @@ export default function CaisseOrderVolume() {
                     <ReTooltip formatter={(v: any, n: any) => [int(Number(v)), n]} />
                     <Legend />
                     <Area type="monotone" dataKey="N" stroke="hsl(var(--chart-1))" strokeWidth={2} fill="hsl(var(--chart-1))" fillOpacity={0.08} />
-                    <Area type="monotone" dataKey="N-1" stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" strokeWidth={1.5} fill="none" />
+                    <Area type="monotone" dataKey="N-1" name={prevLbl} stroke="hsl(var(--muted-foreground))" strokeDasharray="5 4" strokeWidth={1.5} fill="none" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -357,7 +382,7 @@ export default function CaisseOrderVolume() {
                       <TableHead className="w-12">#</TableHead>
                       <TableHead>Restaurant</TableHead>
                       {sortHead("tickets", "Commandes")}
-                      {sortHead("prev", "N-1")}
+                      {sortHead("prev", prevLbl)}
                       {sortHead("diff", "Écart")}
                       {sortHead("var", "Var.")}
                     </TableRow>
