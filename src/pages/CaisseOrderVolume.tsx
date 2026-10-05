@@ -270,13 +270,19 @@ export default function CaisseOrderVolume() {
                 </button>
               ))}
             </div>)}
-            {!isTargeted && zeroIds.size > 0 && (
+            {!isTargeted && comparisonMode && zeroIds.size > 0 && (
               <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground" title="Écarte les restaurants sans aucune commande sur la période (travaux, fermeture).">
-                <Switch checked={excludeZero} onCheckedChange={setExcludeZero} />
+                <Switch checked={excludeZeroRaw} onCheckedChange={setExcludeZero} />
                 Exclure les restaurants à 0 ({zeroIds.size})
               </label>
             )}
-            {!isTargeted && (<div
+            {!isTargeted && comparisonMode && constantScope && (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground" title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel fausse la comparaison.">
+                <Switch checked={excludeOpeningMonthRaw} onCheckedChange={setExcludeOpeningMonth} />
+                Exclure le mois d'ouverture
+              </label>
+            )}
+            {!isTargeted && comparisonMode && (<div
               role="group"
               aria-label="Périmètre de comparaison"
               title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
@@ -299,9 +305,18 @@ export default function CaisseOrderVolume() {
                   )}
                 >
                   {o.label}
+                  {o.key && constantScope && constantIds && allIds && (
+                    <span className="tabular-nums opacity-70">{constantIds.length}/{allIds.length}</span>
+                  )}
                 </button>
               ))}
             </div>)}
+            {!isTargeted && (
+              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-muted-foreground" title="Affiche les réglages de comparaison N-1 (périmètre constant, exclusions).">
+                <Switch checked={comparisonMode} onCheckedChange={setComparisonMode} />
+                Comparaison N-1
+              </label>
+            )}
             </div>
           </div>
           <AnalyticsHeader />
