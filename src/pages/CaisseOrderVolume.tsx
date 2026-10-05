@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { format, startOfISOWeek, getISOWeek } from "date-fns";
+import { format, startOfISOWeek, getISOWeek, subYears } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Area, AreaChart, CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip as ReTooltip, XAxis, YAxis } from "recharts";
 import { X, Search } from "lucide-react";
@@ -18,6 +18,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
+import { isActiveForPeriod, type RestaurantWithDates } from "@/lib/restaurantActivityFilter";
 import { cn } from "@/lib/utils";
 
 const int = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -50,23 +51,35 @@ export default function CaisseOrderVolume() {
   const [sort, setSort] = useState<SortKey>("tickets");
   const [prodSearch, setProdSearch] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [constantScope, setConstantScope] = useState(false);
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
     queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
-      let q = supabase.from("restaurants").select("id, name").order("name");
+      let q = supabase.from("restaurants").select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source").order("name");
       if (selectedChainId) q = q.eq("chain_id", selectedChainId);
       const { data, error } = await q;
       if (error) throw error;
-      return data;
+      return data as (RestaurantWithDates & { id: string; name: string })[];
     },
   });
-  const ids = useMemo<string[] | undefined>(() => {
+  const allIds = useMemo<string[] | undefined>(() => {
     if (!restaurants) return undefined;
     const all = restaurants.map((r) => r.id);
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: all }) ?? all;
   }, [restaurants, selectedRestaurants, selectedChainId]);
+  // Périmètre constant : uniquement les restaurants actifs à la fois sur N et sur N-1
+  const prevStartDate = subYears(startDate, 1);
+  const prevEndDate = subYears(endDate, 1);
+  const constantIds = useMemo(() => {
+    if (!restaurants || !allIds) return undefined;
+    const set = new Set(allIds);
+    return restaurants
+      .filter((r) => set.has(r.id) && isActiveForPeriod(r, startDate, endDate) && isActiveForPeriod(r, prevStartDate, prevEndDate))
+      .map((r) => r.id);
+  }, [restaurants, allIds, startDate, endDate]);
+  const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
   const params = { p_restaurant_ids: ids ?? [], p_start: start, p_end: end };
 
@@ -160,9 +173,37 @@ export default function CaisseOrderVolume() {
     <AppLayout>
       <ChannelNavShell>
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
-            <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Volume de commandes</h1>
+              <p className="text-muted-foreground">Tickets caisse (hors Châtaigne) sur la période, comparés aux mêmes dates N-1.</p>
+            </div>
+            <div
+              role="group"
+              aria-label="Périmètre de comparaison"
+              title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
+              className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
+            >
+              {([
+                { key: false, label: "Réseau complet" },
+                { key: true, label: "Périmètre constant" },
+              ] as const).map((o) => (
+                <button
+                  key={String(o.key)}
+                  type="button"
+                  aria-pressed={constantScope === o.key}
+                  onClick={() => setConstantScope(o.key)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+                    constantScope === o.key
+                      ? "bg-foreground text-background shadow-sm"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
           <AnalyticsHeader />
 
