@@ -13100,6 +13100,27 @@ export type Database = {
           share: number
         }[]
       }
+      get_caisse_product_volume_daily: {
+        Args: {
+          p_end: string
+          p_product: string
+          p_restaurant_ids: string[]
+          p_start: string
+        }
+        Returns: {
+          date: string
+          prev_qty: number
+          qty: number
+        }[]
+      }
+      get_caisse_product_volume_list: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          prev_qty: number
+          product: string
+          qty: number
+        }[]
+      }
       get_channel_price_matrix: { Args: { p_chain_id: string }; Returns: Json }
       get_chataigne_basket_segments: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
