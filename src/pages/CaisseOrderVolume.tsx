@@ -266,6 +266,7 @@ export default function CaisseOrderVolume() {
                 </button>
               ))}
             </div>
+            </div>
           </div>
           <AnalyticsHeader />
 
