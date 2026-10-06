@@ -256,7 +256,7 @@ serve(async (req) => {
               );
           }
 
-          const inserted = await runSync({
+          let inserted = await runSync({
             supabase: supabaseAdmin,
             token,
             year: targetYearC,
@@ -267,6 +267,28 @@ serve(async (req) => {
             chainId: conn.chain_id,
             dayList: scope === "today" ? todayDayList : undefined,
           });
+
+          // Fenêtre glissante 15 jours : Splash peut remonter des ventes en retard
+          // (coupure de connexion). On repasse aussi la fin du mois précédent.
+          if (scope === "month" && today <= 15) {
+            const prev = new Date(targetYearC, targetMonthC - 2, 1);
+            const prevYear = prev.getFullYear();
+            const prevMonth = prev.getMonth() + 1;
+            const lastDay = daysInMonth(prevYear, prevMonth);
+            const firstDay = Math.max(1, lastDay - (15 - today));
+            const prevDays = Array.from({ length: lastDay - firstDay + 1 }, (_, i) => firstDay + i);
+            inserted += await runSync({
+              supabase: supabaseAdmin,
+              token,
+              year: prevYear,
+              month: prevMonth,
+              granularity: "day",
+              splashIds,
+              networkOnly: false,
+              chainId: conn.chain_id,
+              dayList: prevDays,
+            });
+          }
 
           await supabaseAdmin
             .from("chain_pos_connections")
