@@ -1119,8 +1119,8 @@ const Overview = () => {
                       rows: mealVoucherRows ?? [],
                       restaurantNames: new Map(comparisonStats.map((r) => [r.id, r.name])),
                       periodLabel: getPeriodLabel(),
-                      startDate,
-                      endDate,
+                      startDate: format(startDate, "yyyy-MM-dd"),
+                      endDate: format(endDate, "yyyy-MM-dd"),
                     })
                   }
                 >
