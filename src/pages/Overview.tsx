@@ -16,6 +16,7 @@ import { UberEatsLogo, DeliverooLogo } from "@/components/icons/PlatformIcons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useOverviewExport } from "@/hooks/useOverviewExport";
+import { exportMealVoucherExcel } from "@/hooks/useMealVoucherExport";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { RestaurantComparisonTable } from "@/components/overview/RestaurantComparisonTable";
 import { ChannelRevenueTiles } from "@/components/overview/ChannelRevenueTiles";
@@ -1108,15 +1109,36 @@ const Overview = () => {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={handleExportPdf} disabled={isExporting} className="gap-2">
-                <FileDown className="h-4 w-4" />
-                PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleExportExcel} disabled={isExporting} className="gap-2">
-                <FileSpreadsheet className="h-4 w-4" />
-                Excel
-              </DropdownMenuItem>
+            <DropdownMenuContent align="end" className="w-48">
+              {activeChannel === "uber-tr" ? (
+                <DropdownMenuItem
+                  disabled={mealVoucherLoading || !mealVoucherRows?.length}
+                  className="gap-2"
+                  onClick={() =>
+                    exportMealVoucherExcel({
+                      rows: mealVoucherRows ?? [],
+                      restaurantNames: new Map(comparisonStats.map((r) => [r.id, r.name])),
+                      periodLabel: getPeriodLabel(),
+                      startDate: format(startDate, "yyyy-MM-dd"),
+                      endDate: format(endDate, "yyyy-MM-dd"),
+                    })
+                  }
+                >
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Excel Titres Restaurant
+                </DropdownMenuItem>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={handleExportPdf} disabled={isExporting} className="gap-2">
+                    <FileDown className="h-4 w-4" />
+                    PDF
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={handleExportExcel} disabled={isExporting} className="gap-2">
+                    <FileSpreadsheet className="h-4 w-4" />
+                    Excel
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
