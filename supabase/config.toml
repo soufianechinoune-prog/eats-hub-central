@@ -170,3 +170,6 @@ verify_jwt = false
 
 [functions.ingest-deliveroo-ads]
 verify_jwt = false
+
+[functions.splash-stock-webhook]
+verify_jwt = false
