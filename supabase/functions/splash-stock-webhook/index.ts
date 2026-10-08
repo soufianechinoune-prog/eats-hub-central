@@ -10,8 +10,26 @@ const json = (b: unknown, status = 200) =>
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+
+  // 1) Capture brute AVANT tout contrôle : on veut voir le tout premier appel
+  //    de Splash quoi qu'il arrive (mauvaise clé, header avalé, JSON invalide…).
+  const rawBody = await req.text();
+  const headers: Record<string, string> = {};
+  req.headers.forEach((v, k) => { headers[k] = v; });
+  const { error: logError } = await supabase.from("webhook_capture_log").insert({
+    source: "splash-stock-webhook",
+    method: req.method,
+    url: req.url,
+    headers,
+    body: rawBody.slice(0, 50000),
+  });
+  if (logError) console.error("capture log failed", logError);
+
   if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
 
+  // 2) Contrôle de la clé partenaire (le log ci-dessus reste même en cas de rejet).
   const expected = Deno.env.get("SPLASH_STOCK_PARTNER_KEY");
   const provided = req.headers.get("Api-Key");
   if (!expected || provided !== expected) return json({ error: "unauthorized" }, 401);
@@ -22,7 +40,7 @@ Deno.serve(async (req) => {
   const splashKey = idx >= 0 && parts[idx + 1] ? decodeURIComponent(parts[idx + 1]).slice(0, 200) : null;
 
   let payload: unknown;
-  try { payload = await req.json(); } catch { return json({ error: "invalid json" }, 400); }
+  try { payload = JSON.parse(rawBody); } catch { return json({ error: "invalid json" }, 400); }
   const parsed = Body.safeParse(Array.isArray(payload) ? payload : [payload]);
   if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
 
@@ -34,7 +52,6 @@ Deno.serve(async (req) => {
     raw: it,
   }));
 
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
   if (rows.length) {
     const { error } = await supabase.from("splash_stock_events").insert(rows);
     if (error) { console.error(error); return json({ error: "storage failed" }, 500); }
