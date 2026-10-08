@@ -11624,6 +11624,36 @@ export type Database = {
           },
         ]
       }
+      splash_stock_events: {
+        Row: {
+          id: string
+          item_id: string
+          item_kind: string | null
+          raw: Json | null
+          received_at: string
+          splash_api_key: string | null
+          status: string
+        }
+        Insert: {
+          id?: string
+          item_id: string
+          item_kind?: string | null
+          raw?: Json | null
+          received_at?: string
+          splash_api_key?: string | null
+          status: string
+        }
+        Update: {
+          id?: string
+          item_id?: string
+          item_kind?: string | null
+          raw?: Json | null
+          received_at?: string
+          splash_api_key?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       splash_ticket_backfill_jobs: {
         Row: {
           attempts: number
