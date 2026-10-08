@@ -12593,6 +12593,36 @@ export type Database = {
           },
         ]
       }
+      webhook_capture_log: {
+        Row: {
+          body: string | null
+          created_at: string
+          headers: Json | null
+          id: number
+          method: string | null
+          source: string
+          url: string | null
+        }
+        Insert: {
+          body?: string | null
+          created_at?: string
+          headers?: Json | null
+          id?: never
+          method?: string | null
+          source: string
+          url?: string | null
+        }
+        Update: {
+          body?: string | null
+          created_at?: string
+          headers?: Json | null
+          id?: never
+          method?: string | null
+          source?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       webhook_logs: {
         Row: {
           event_type: string
