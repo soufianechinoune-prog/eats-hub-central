@@ -69,6 +69,6 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [ ] Export mensuel puis suppression de splash_ticket_raw — bloqué : confirmation sauvegarde par l'utilisateur
 
 ## Correction totaux journaliers Châtaigne
-- [ ] Corriger la synchro sur des journées complètes Paris.
-- [ ] Recalculer l’historique Chicken Street et contrôler les totaux.
-- [ ] Vérifier Angers et Argenteuil dans Performance par restaurant.
+- [x] Corriger la synchro sur des journées complètes Paris.
+- [x] Recalculer l’historique Chicken Street et contrôler les totaux.
+- [x] Vérifier Angers et Argenteuil dans Performance par restaurant.
