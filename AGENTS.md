@@ -10,3 +10,5 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 
 - Caisse Splash inclut les commandes Châtaigne (pas de tag côté Splash) : soustraire le CA Châtaigne du CA caisse dans toutes les vues réseau (hook useNetworkDailyRevenue + Overview cashNetTotal/cashNetByRestaurant) jusquà ce que Splash tague les commandes.
 - Vue d'ensemble : CA Uber/Deliveroo lu dans la caisse Splash (référence réseau) ; repli API par canal si Splash remonte 0 € (badge « API »), la caisse reprend la main dès que le flux remonte. Onglets canal : API pour la rentabilité.
+
+- Chataigne daily analytics are rebuilt server-side from completed orders over complete Paris calendar days via a service-only RPC; never overwrite a day from a rolling partial timestamp window, so nightly refreshes preserve early orders.
