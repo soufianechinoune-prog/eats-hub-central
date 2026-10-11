@@ -13,3 +13,4 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 
 - Chataigne daily analytics are rebuilt server-side from completed orders over complete Paris calendar days via a service-only RPC; never overwrite a day from a rolling partial timestamp window, so nightly refreshes preserve early orders.
  - Restaurant performance uses one scoped server-side RPC over orders for current and previous Paris periods, so revenue, clients, delivery, discounts and cancellations share consistent boundaries without browser pagination.
+- Chataigne revenue, growth and referral calendar charts share chart_notes and scope filtering; retain ISO bucket dates and named Y axes when rendering markers so events remain reciprocal across day/week/month views.
