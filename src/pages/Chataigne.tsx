@@ -904,7 +904,7 @@ export default function Chataigne() {
                               <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
                               <TableCell className="text-right">{fmtInt(r.commandes)}</TableCell>
                               <TableCell className="text-right font-medium">
-                                {fmtEur(r.ca_brut)}
+                                {fmtEur(r.ca_brut, 2)}
                               </TableCell>
                               <TableCell className="text-right">
                                 {fmtEur(r.panier_moyen, 2)}
