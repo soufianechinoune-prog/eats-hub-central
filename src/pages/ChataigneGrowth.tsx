@@ -45,6 +45,7 @@ import {
 } from "@/hooks/useChataigneGrowth";
 
 import { cn } from "@/lib/utils";
+import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
@@ -177,8 +178,10 @@ export default function ChataigneGrowth() {
     existing: ChartNote | null;
   }>({ open: false, date: null, existing: null });
 
+  const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
   const openNoteForLabel = (label: string | undefined) => {
     if (!label) return;
+    setNoteEndDate(null);
     const row = chartData.find((r) => r.label === label);
     setNoteDialog({
       open: true,
@@ -303,6 +306,11 @@ export default function ChataigneGrowth() {
   const isLoading = restaurantFilter === undefined || evolutionQ.isLoading;
   const isEmpty = !isLoading && rows.length === 0;
 
+  const noteSelection = useChartNoteSelection(chartData, granularity, (date, endDate) => {
+    setNoteEndDate(endDate);
+    setNoteDialog({ open: true, date, existing: null });
+  });
+
   return (
     <AppLayout>
       <ChannelNavShell>
@@ -408,7 +416,8 @@ export default function ChataigneGrowth() {
                     <AreaChart
                       data={chartData}
                       margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
-                      onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                      {...noteSelection.handlers}
+                        onClick={(s) => { if (!noteSelection.consumeClick()) openNoteForLabel(s?.activeLabel); }}
                       style={{ cursor: "pointer" }}
                     >
                       <defs>
@@ -454,6 +463,7 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
+                      {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
                         notes: chartNotes,
                         rows: chartData,
@@ -482,7 +492,8 @@ export default function ChataigneGrowth() {
                     <LineChart
                       data={recurrenceData}
                       margin={{ top: 18, right: 16, bottom: 0, left: 0 }}
-                      onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                      {...noteSelection.handlers}
+                        onClick={(s) => { if (!noteSelection.consumeClick()) openNoteForLabel(s?.activeLabel); }}
                       style={{ cursor: "pointer" }}
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border" opacity={0.5} />
@@ -514,6 +525,7 @@ export default function ChataigneGrowth() {
                         dot={{ r: 2 }}
                         activeDot={{ r: 4 }}
                       />
+                      {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
                         notes: chartNotes,
                         rows: recurrenceData,
@@ -959,6 +971,7 @@ export default function ChataigneGrowth() {
           open={noteDialog.open}
           onOpenChange={(open) => setNoteDialog((s) => ({ ...s, open }))}
           date={noteDialog.date}
+            endDate={noteEndDate}
           existingNote={noteDialog.existing}
           scopedRestaurantIds={restaurantFilter ?? []}
         />
