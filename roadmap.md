@@ -72,3 +72,7 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Corriger la synchro sur des journées complètes Paris.
 - [x] Recalculer l’historique Chicken Street et contrôler les totaux.
 - [x] Vérifier Angers et Argenteuil dans Performance par restaurant.
+
+## Tableau Performance par restaurant
+- [x] Ajouter les neuf colonnes demandées, la recherche et le tri avec agrégation serveur cohérente.
+- [ ] Vérifier le tableau en session connectée.

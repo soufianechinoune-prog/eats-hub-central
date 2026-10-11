@@ -13,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { KPICard } from "@/components/dashboard/KPICard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -224,10 +226,11 @@ function RateCard({
   );
 }
 
-type SortKey = "restaurant_name" | "city" | "commandes" | "ca_brut" | "panier_moyen";
+type SortKey = "restaurant_name" | "commandes" | "ca_brut" | "panier_moyen" | "evolution" | "delivery_rate" | "clients" | "discount_rate" | "cancellation_rate";
 
 export default function Chataigne() {
-  const [sortKey, setSortKey] = useState<SortKey>("ca_brut");
+  const [sortKey, setSortKey] = useState<SortKey>("commandes");
+  const [restaurantSearch, setRestaurantSearch] = useState("");
   const [sortAsc, setSortAsc] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -493,7 +496,10 @@ export default function Chataigne() {
     bucket === "day" ? "Évolution quotidienne" : bucket === "week" ? "Évolution hebdomadaire" : "Évolution mensuelle";
 
   const sorted = useMemo(() => {
-    const rows: ChataigneRestaurant[] = [...(restaurantsQ.data ?? [])];
+    const search = restaurantSearch.trim().toLocaleLowerCase("fr");
+    const rows: ChataigneRestaurant[] = (restaurantsQ.data ?? []).filter((r) =>
+      !search || `${r.restaurant_name ?? ""} ${r.city ?? ""}`.toLocaleLowerCase("fr").includes(search)
+    );
     rows.sort((a, b) => {
       const av = a[sortKey] ?? "";
       const bv = b[sortKey] ?? "";
@@ -503,13 +509,14 @@ export default function Chataigne() {
         : String(bv).localeCompare(String(av), "fr");
     });
     return rows;
-  }, [restaurantsQ.data, sortKey, sortAsc]);
+  }, [restaurantsQ.data, sortKey, sortAsc, restaurantSearch]);
+  const maxCommands = Math.max(1, ...(restaurantsQ.data ?? []).map((r) => r.commandes));
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) setSortAsc((s) => !s);
     else {
       setSortKey(key);
-      setSortAsc(key === "restaurant_name" || key === "city");
+      setSortAsc(key === "restaurant_name");
     }
   };
 
@@ -522,19 +529,20 @@ export default function Chataigne() {
     label: string;
     align?: "left" | "right";
   }) => (
-    <TableHead className={align === "right" ? "text-right" : undefined}>
-      <button
+    <TableHead className={cn("sticky top-0 z-10 bg-card whitespace-nowrap", align === "right" && "text-right")}>
+      <Button
+        variant="ghost"
         type="button"
         onClick={() => toggleSort(keyName)}
         className={cn(
-          "inline-flex items-center gap-1 font-medium hover:text-foreground",
+          "h-auto p-0 inline-flex items-center gap-1 text-xs font-medium hover:bg-transparent hover:text-foreground",
           sortKey === keyName ? "text-foreground" : "text-muted-foreground"
         )}
       >
         {label}
         {sortKey === keyName &&
           (sortAsc ? <ArrowUp className="h-3.5 w-3.5" /> : <ArrowDown className="h-3.5 w-3.5" />)}
-      </button>
+      </Button>
     </TableHead>
   );
 
@@ -870,9 +878,13 @@ export default function Chataigne() {
               <Card>
                 <CardHeader>
                   <CardTitle>Performance par restaurant</CardTitle>
+                  <p className="text-xs text-muted-foreground">{format(startDate, "dd/MM/yyyy")} – {format(endDate, "dd/MM/yyyy")} · Évolution des commandes vs les {periodDays} jours précédents · Comparaison à partir de 20 commandes sur chaque période</p>
+                  <Input aria-label="Rechercher un restaurant" placeholder="Rechercher un restaurant" value={restaurantSearch} onChange={(event) => setRestaurantSearch(event.target.value)} className="max-w-sm" />
                 </CardHeader>
                 <CardContent>
-                  {restaurantsQ.isLoading ? (
+                  {restaurantsQ.isError ? (
+                    <p className="py-8 text-center text-sm text-destructive">Impossible de charger la performance des restaurants.</p>
+                  ) : restaurantsQ.isLoading ? (
                     <div className="space-y-2">
                       {[0, 1, 2, 3, 4].map((i) => (
                         <Skeleton key={i} className="h-10 w-full" />
@@ -884,32 +896,45 @@ export default function Chataigne() {
                     </p>
                   ) : (
                     <div className="max-h-[520px] overflow-auto">
-                      <Table>
+                       <Table className="min-w-[960px] text-xs tabular-nums">
                         <TableHeader>
                           <TableRow>
                             <SortHead keyName="restaurant_name" label="Restaurant" />
-                            <SortHead keyName="city" label="Ville" />
                             <SortHead keyName="commandes" label="Commandes" align="right" />
-                            <SortHead keyName="ca_brut" label="CA brut" align="right" />
-                            <SortHead keyName="panier_moyen" label="Panier moyen" align="right" />
-                            <TableHead className="text-right">vs N-1</TableHead>
+                            <SortHead keyName="evolution" label="Évol." align="right" />
+                            <SortHead keyName="ca_brut" label="CA TTC" align="right" />
+                            <SortHead keyName="panier_moyen" label="Panier moy." align="right" />
+                            <SortHead keyName="delivery_rate" label="Livraison" align="right" />
+                            <SortHead keyName="clients" label="Clients" align="right" />
+                            <SortHead keyName="discount_rate" label="Remises" align="right" />
+                            <SortHead keyName="cancellation_rate" label="Annul." align="right" />
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {sorted.map((r) => (
                             <TableRow key={r.restaurant_id}>
-                              <TableCell className="font-medium">
+                              <TableCell className="py-2 font-medium">
                                 {r.restaurant_name ?? "—"}
                               </TableCell>
-                              <TableCell className="text-muted-foreground">{r.city ?? "—"}</TableCell>
-                              <TableCell className="text-right">{fmtInt(r.commandes)}</TableCell>
-                              <TableCell className="text-right font-medium">
+                              <TableCell className="py-2 text-right">
+                                <div className="flex items-center justify-end gap-3">
+                                  <svg width="48" height="4" aria-hidden="true" className="shrink-0 text-success"><rect width={48 * r.commandes / maxCommands} height="4" rx="2" fill="currentColor" /></svg>
+                                  <span className="min-w-10">{fmtInt(r.commandes)}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className={cn("py-2 text-right whitespace-nowrap", r.evolution === null ? "text-muted-foreground" : r.evolution > 0 ? "text-success" : r.evolution < 0 ? "text-destructive" : "text-muted-foreground")}>
+                                {r.evolution === null ? "—" : `${r.evolution > 0 ? "+" : ""}${fmtPct(r.evolution)}`}
+                              </TableCell>
+                              <TableCell className="py-2 text-right font-medium whitespace-nowrap">
                                 {fmtEur(r.ca_brut, 2)}
                               </TableCell>
-                              <TableCell className="text-right">
+                              <TableCell className="py-2 text-right whitespace-nowrap">
                                 {fmtEur(r.panier_moyen, 2)}
                               </TableCell>
-                              <TableCell className="text-right text-muted-foreground">—</TableCell>
+                              <TableCell className="py-2 text-right whitespace-nowrap">{r.delivery_rate === null ? "—" : fmtPct(r.delivery_rate)}</TableCell>
+                              <TableCell className="py-2 text-right">{fmtInt(r.clients)}</TableCell>
+                              <TableCell className="py-2 text-right whitespace-nowrap">{r.discount_rate === null ? "—" : fmtPct(r.discount_rate)}</TableCell>
+                              <TableCell className="py-2 text-right whitespace-nowrap">{r.cancellation_rate === null ? "—" : fmtPct(r.cancellation_rate)}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
