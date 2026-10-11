@@ -67,3 +67,8 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [ ] Contrôle après 1re nuit : lignes caisse_ticket_lines du jour présentes, page Live OK, plus aucune écriture dans splash_ticket_raw (dernière : 05/10 08:10 UTC). Sinon rollback.
 - [ ] Désactiver uber-backfill-worker-cron et splash-ticket-backfill-tick une fois leurs files vides (608 / 80 en attente au 05/10)
 - [ ] Export mensuel puis suppression de splash_ticket_raw — bloqué : confirmation sauvegarde par l'utilisateur
+
+## Correction totaux journaliers Châtaigne
+- [ ] Corriger la synchro sur des journées complètes Paris.
+- [ ] Recalculer l’historique Chicken Street et contrôler les totaux.
+- [ ] Vérifier Angers et Argenteuil dans Performance par restaurant.
