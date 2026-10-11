@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { endOfMonth, endOfWeek, format, parseISO } from "date-fns";
+import { endOfMonth, endOfWeek, parseISO } from "date-fns";
 import { ReferenceArea } from "recharts";
 import type { NoteGranularity } from "@/components/charts/ChartNoteMarkers";
 
