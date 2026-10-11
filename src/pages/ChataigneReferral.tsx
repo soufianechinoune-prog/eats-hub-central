@@ -61,6 +61,7 @@ import {
 import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { ChartNoteLegend } from "@/components/charts/ChartNoteLegend";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
 import { cn } from "@/lib/utils";
 
@@ -510,6 +511,7 @@ export default function ChataigneReferral() {
     existing: null,
   });
   const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
+  const [showChartNotes, setShowChartNotes] = useState(true);
   const openNoteForLabel = (label: string | undefined) => {
     if (!label) return;
     setNoteEndDate(null);
@@ -879,7 +881,7 @@ export default function ChataigneReferral() {
                         )}
                         {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
-                          notes: chartNotes,
+                          notes: showChartNotes ? chartNotes : [],
                           rows: chartData,
                           granularity,
                           onMarkerClick: openExistingNote,
@@ -887,6 +889,7 @@ export default function ChataigneReferral() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                  <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
                 </Panel>
 
                 <Panel
@@ -959,7 +962,7 @@ export default function ChataigneReferral() {
                         />
                         {noteSelection.renderSelection("left")}
                       {renderChartNoteMarkers({
-                          notes: chartNotes,
+                          notes: showChartNotes ? chartNotes : [],
                           rows: chartData,
                           granularity,
                           onMarkerClick: openExistingNote,
@@ -968,6 +971,7 @@ export default function ChataigneReferral() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                  <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
                 </Panel>
 
                 <Panel
@@ -1230,7 +1234,7 @@ export default function ChataigneReferral() {
                         )}
                         {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
-                          notes: chartNotes,
+                          notes: showChartNotes ? chartNotes : [],
                           rows: chartData,
                           granularity,
                           onMarkerClick: openExistingNote,
@@ -1238,6 +1242,7 @@ export default function ChataigneReferral() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                  <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
                 </Panel>
               </div>
 

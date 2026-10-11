@@ -48,6 +48,7 @@ import { cn } from "@/lib/utils";
 import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { ChartNoteLegend } from "@/components/charts/ChartNoteLegend";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
 
 
@@ -179,6 +180,7 @@ export default function ChataigneGrowth() {
   }>({ open: false, date: null, existing: null });
 
   const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
+  const [showChartNotes, setShowChartNotes] = useState(true);
   const openNoteForLabel = (label: string | undefined) => {
     if (!label) return;
     setNoteEndDate(null);
@@ -465,7 +467,7 @@ export default function ChataigneGrowth() {
                       />
                       {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
-                        notes: chartNotes,
+                        notes: showChartNotes ? chartNotes : [],
                         rows: chartData,
                         granularity,
                         onMarkerClick: openExistingNote,
@@ -474,6 +476,7 @@ export default function ChataigneGrowth() {
                   </ResponsiveContainer>
 
                 )}
+                <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
               </CardContent>
             </Card>
 
@@ -527,7 +530,7 @@ export default function ChataigneGrowth() {
                       />
                       {noteSelection.renderSelection()}
                       {renderChartNoteMarkers({
-                        notes: chartNotes,
+                        notes: showChartNotes ? chartNotes : [],
                         rows: recurrenceData,
                         granularity,
                         onMarkerClick: openExistingNote,
@@ -535,6 +538,7 @@ export default function ChataigneGrowth() {
                     </LineChart>
                   </ResponsiveContainer>
                 )}
+                <ChartNoteLegend notes={chartNotes} rows={recurrenceData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
               </CardContent>
             </Card>
 
