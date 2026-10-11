@@ -7,6 +7,7 @@ export interface ChartNote {
   chain_id: string;
   restaurant_ids: string[];
   note_date: string; // yyyy-MM-dd
+  end_date: string | null; // borne inclusive ; null = événement ponctuel
   title: string;
   description: string | null;
   color: string;
@@ -17,10 +18,10 @@ export interface ChartNote {
 export type ChartNoteColor = "amber" | "red" | "blue" | "green";
 
 export const CHART_NOTE_COLORS: Record<string, { dot: string; line: string; label: string }> = {
-  amber: { dot: "bg-amber-500", line: "hsl(38 92% 50%)", label: "Info" },
-  red: { dot: "bg-red-500", line: "hsl(0 84% 60%)", label: "Incident" },
-  blue: { dot: "bg-blue-500", line: "hsl(217 91% 60%)", label: "Note" },
-  green: { dot: "bg-emerald-500", line: "hsl(142 71% 45%)", label: "Positif" },
+  amber: { dot: "bg-warning", line: "hsl(var(--warning))", label: "Info" },
+  red: { dot: "bg-destructive", line: "hsl(var(--destructive))", label: "Incident" },
+  blue: { dot: "bg-primary", line: "hsl(var(--primary))", label: "Note" },
+  green: { dot: "bg-success", line: "hsl(var(--success))", label: "Positif" },
 };
 
 export function useChartNotes(start: string, end: string) {
@@ -34,8 +35,8 @@ export function useChartNotes(start: string, end: string) {
         .from("chart_notes")
         .select("*")
         .eq("chain_id", selectedChainId)
-        .gte("note_date", start)
         .lte("note_date", end)
+          .or(`end_date.gte.${start},and(end_date.is.null,note_date.gte.${start})`)
         .order("note_date", { ascending: true });
       if (error) throw error;
       return (data ?? []) as ChartNote[];
@@ -67,6 +68,7 @@ export function useChartNoteMutations() {
   const createNote = useMutation({
     mutationFn: async (note: {
       note_date: string;
+      end_date?: string | null;
       title: string;
       description?: string;
       color: ChartNoteColor;
@@ -77,6 +79,7 @@ export function useChartNoteMutations() {
       const { error } = await supabase.from("chart_notes").insert({
         chain_id: selectedChainId,
         note_date: note.note_date,
+        end_date: note.end_date ?? null,
         title: note.title,
         description: note.description || null,
         color: note.color,
@@ -92,6 +95,7 @@ export function useChartNoteMutations() {
     mutationFn: async (note: {
       id: string;
       note_date: string;
+      end_date?: string | null;
       title: string;
       description?: string;
       color: ChartNoteColor;
@@ -100,6 +104,7 @@ export function useChartNoteMutations() {
         .from("chart_notes")
         .update({
           note_date: note.note_date,
+          end_date: note.end_date ?? null,
           title: note.title,
           description: note.description || null,
           color: note.color,

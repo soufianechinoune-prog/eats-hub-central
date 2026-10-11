@@ -80,3 +80,4 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 ## Repères Châtaigne partagés
 - [x] Relier l’évolution CA/commandes aux repères partagés du Parrainage et de Croissance & Clients.
 - [x] Vérifier la visibilité réciproque, les granularités et la modification des repères.
+- [x] Ajouter les plages datées partagées et la sélection par glissement ; création, partage vers Parrainage, modification réciproque et suppression vérifiés en session connectée.

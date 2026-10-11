@@ -6972,6 +6972,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          end_date: string | null
           id: string
           note_date: string
           restaurant_ids: string[]
@@ -6984,6 +6985,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           note_date: string
           restaurant_ids?: string[]
@@ -6996,6 +6998,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          end_date?: string | null
           id?: string
           note_date?: string
           restaurant_ids?: string[]

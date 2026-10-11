@@ -1,5 +1,5 @@
 import { format, parseISO, startOfWeek, startOfMonth } from "date-fns";
-import { ReferenceLine } from "recharts";
+import { ReferenceArea, ReferenceLine } from "recharts";
 import { CHART_NOTE_COLORS, type ChartNote } from "@/hooks/useChartNotes";
 
 export type NoteGranularity = "day" | "week" | "month";
@@ -41,9 +41,11 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
     if (r.periode) labelByBucket.set(r.periode.slice(0, 10), r.label);
   }
 
+  const periods = notes.filter((note) => note.end_date);
   const byLabel = new Map<string, ChartNote[]>();
   for (const note of notes) {
-    const label = labelByBucket.get(noteBucketStart(note.note_date, granularity));
+    const startBucket = noteBucketStart(note.note_date, granularity);
+    const label = labelByBucket.get(startBucket) ?? (note.end_date ? rows.find((r) => r.periode >= startBucket && r.periode <= noteBucketStart(note.end_date ?? note.note_date, granularity))?.label : undefined);
     if (!label) continue;
     const arr = byLabel.get(label) ?? [];
     arr.push(note);
@@ -52,6 +54,14 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
 
   return (
     <>
+      {periods.map((note) => {
+        const start = noteBucketStart(note.note_date, granularity);
+        const end = noteBucketStart(note.end_date ?? note.note_date, granularity);
+        const visible = rows.filter((r) => r.periode.slice(0, 10) >= start && r.periode.slice(0, 10) <= end);
+        if (!visible.length) return null;
+        const color = CHART_NOTE_COLORS[note.color]?.line ?? CHART_NOTE_COLORS.amber.line;
+        return <ReferenceArea key={`period-${note.id}`} x1={visible[0].label} x2={visible[visible.length - 1].label} {...(yAxisId !== undefined ? { yAxisId } : {})} fill={color} fillOpacity={0.1} stroke={color} strokeOpacity={0.25} />;
+      })}
       {[...byLabel.entries()].map(([label, bucketNotes]) => {
         const color = CHART_NOTE_COLORS[bucketNotes[0].color]?.line ?? CHART_NOTE_COLORS.amber.line;
         return (
@@ -74,6 +84,8 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
                   role="button"
                   tabIndex={0}
                   aria-label={bucketNotes.map((note) => note.title).join(" · ")}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseUp={(e) => e.stopPropagation()}
                   style={{ cursor: "pointer" }}
                   onKeyDown={(e) => {
                     if (e.key !== "Enter" && e.key !== " ") return;
@@ -86,7 +98,7 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
                     onMarkerClick(bucketNotes);
                   }}
                 >
-                  <title>{bucketNotes.map((note) => note.title).join(" · ")}</title>
+                  <title>{bucketNotes.map((note) => `${note.title} · ${note.note_date}${note.end_date ? ` → ${note.end_date}` : ""}`).join(" · ")}</title>
                   <circle r={8} fill={color} stroke="hsl(var(--background))" strokeWidth={1.5} />
                   <text
                     textAnchor="middle"

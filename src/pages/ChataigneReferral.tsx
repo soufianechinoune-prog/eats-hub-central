@@ -58,6 +58,7 @@ import {
   useChataigneReferralRetention,
   useChataigneReferralSegments,
 } from "@/hooks/useChataigneReferral";
+import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
@@ -508,8 +509,10 @@ export default function ChataigneReferral() {
     date: null,
     existing: null,
   });
+  const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
   const openNoteForLabel = (label: string | undefined) => {
     if (!label) return;
+    setNoteEndDate(null);
     const row = chartData.find((r) => r.label === label);
     setNoteDialog({ open: true, date: row?.periode ? parseISO(row.periode) : null, existing: null });
   };
@@ -673,6 +676,11 @@ export default function ChataigneReferral() {
   const isLoading = restaurantFilter === undefined || acquisitionQ.isLoading;
   const isEmpty = !isLoading && rows.length === 0;
 
+  const noteSelection = useChartNoteSelection(chartData, granularity, (date, endDate) => {
+    setNoteEndDate(endDate);
+    setNoteDialog({ open: true, date, existing: null });
+  });
+
   return (
     <AppLayout>
       <ChannelNavShell>
@@ -808,7 +816,8 @@ export default function ChataigneReferral() {
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 8, bottom: 0, left: -8 }}
-                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        {...noteSelection.handlers}
+                        onClick={(s) => { if (!noteSelection.consumeClick()) openNoteForLabel(s?.activeLabel); }}
                         style={{ cursor: "pointer" }}
                         barCategoryGap="28%"
                       >
@@ -868,7 +877,8 @@ export default function ChataigneReferral() {
                             <Bar dataKey="parrains" name="Parrains" fill="hsl(142 71% 45%)" radius={[6, 6, 0, 0]} maxBarSize={26} />
                           </>
                         )}
-                        {renderChartNoteMarkers({
+                        {noteSelection.renderSelection()}
+                      {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
                           granularity,
@@ -890,7 +900,8 @@ export default function ChataigneReferral() {
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 4, bottom: 0, left: -4 }}
-                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        {...noteSelection.handlers}
+                        onClick={(s) => { if (!noteSelection.consumeClick()) openNoteForLabel(s?.activeLabel); }}
                         style={{ cursor: "pointer" }}
                       >
                         <defs>
@@ -946,7 +957,8 @@ export default function ChataigneReferral() {
                           dot={{ r: 3, strokeWidth: 2, fill: "hsl(var(--card))" }}
                           activeDot={{ r: 5 }}
                         />
-                        {renderChartNoteMarkers({
+                        {noteSelection.renderSelection("left")}
+                      {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
                           granularity,
@@ -1111,7 +1123,8 @@ export default function ChataigneReferral() {
                       <ComposedChart
                         data={chartData}
                         margin={{ top: 16, right: 8, bottom: 0, left: -8 }}
-                        onClick={(s: any) => openNoteForLabel(s?.activeLabel)}
+                        {...noteSelection.handlers}
+                        onClick={(s) => { if (!noteSelection.consumeClick()) openNoteForLabel(s?.activeLabel); }}
                         style={{ cursor: "pointer" }}
                       >
                         <defs>
@@ -1215,7 +1228,8 @@ export default function ChataigneReferral() {
                             />
                           </>
                         )}
-                        {renderChartNoteMarkers({
+                        {noteSelection.renderSelection()}
+                      {renderChartNoteMarkers({
                           notes: chartNotes,
                           rows: chartData,
                           granularity,
@@ -1660,6 +1674,7 @@ export default function ChataigneReferral() {
             open={noteDialog.open}
             onOpenChange={(o) => setNoteDialog((s) => ({ ...s, open: o }))}
             date={noteDialog.date}
+            endDate={noteEndDate}
             existingNote={noteDialog.existing}
             scopedRestaurantIds={Array.isArray(restaurantFilter) ? restaurantFilter : []}
           />

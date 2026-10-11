@@ -65,6 +65,7 @@ import { ChataigneServiceRecurrence } from "@/components/chataigne/ChataigneServ
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
+import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
@@ -326,6 +327,7 @@ export default function Chataigne() {
   const chartNotes = useMemo(() => filterNotesByScope(notesQ.data, restaurantFilter), [notesQ.data, restaurantFilter]);
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDate, setNoteDate] = useState<Date | null>(null);
+  const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
   const [existingNote, setExistingNote] = useState<ChartNote | null>(null);
   const [bucketNotes, setBucketNotes] = useState<ChartNote[]>([]);
   const editNote = (note: ChartNote) => {
@@ -518,10 +520,18 @@ export default function Chataigne() {
     const row = chartData.find((item) => item.label === label);
     if (!row) return;
     setExistingNote(null);
+    setNoteEndDate(null);
     const bucketDate = row.periode < start ? start : row.periode;
     setNoteDate(parseISO(bucketDate));
     setNoteOpen(true);
   };
+
+  const noteSelection = useChartNoteSelection(chartData, bucket, (date, endDate) => {
+    setExistingNote(null);
+    setNoteDate(date);
+    setNoteEndDate(endDate);
+    setNoteOpen(true);
+  });
 
   const chartLoading = bucket === "month" ? monthlyQ.isLoading : dailyQ.isLoading;
   const chartTitle =
@@ -772,7 +782,7 @@ export default function Chataigne() {
                     </p>
                   ) : chartType === "line" ? (
                     <ResponsiveContainer width="100%" height={380}>
-                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} onClick={(state) => openNoteForLabel(state?.activeLabel)}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} {...noteSelection.handlers} onClick={(state) => { if (!noteSelection.consumeClick()) openNoteForLabel(state?.activeLabel); }}>
                         <defs>
                           <linearGradient id="chataigneCaGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -840,12 +850,13 @@ export default function Chataigne() {
                           strokeDasharray="4 4"
                           dot={false}
                         />
+                        {noteSelection.renderSelection("left")}
                         {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
                     <ResponsiveContainer width="100%" height={380}>
-                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} onClick={(state) => openNoteForLabel(state?.activeLabel)}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} {...noteSelection.handlers} onClick={(state) => { if (!noteSelection.consumeClick()) openNoteForLabel(state?.activeLabel); }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                         <XAxis
                           dataKey="label"
@@ -901,6 +912,7 @@ export default function Chataigne() {
                           strokeWidth={2}
                           dot={{ r: 3 }}
                         />
+                        {noteSelection.renderSelection("left")}
                         {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
@@ -1027,14 +1039,14 @@ export default function Chataigne() {
           </Tabs>
         )}
       </div>
-      <ChartNoteDialog open={noteOpen} onOpenChange={setNoteOpen} date={noteDate} existingNote={existingNote} scopedRestaurantIds={selectedRestaurants.length > 0 ? restaurantFilter ?? [] : []} />
+      <ChartNoteDialog open={noteOpen} onOpenChange={setNoteOpen} date={noteDate} endDate={noteEndDate} existingNote={existingNote} scopedRestaurantIds={selectedRestaurants.length > 0 ? restaurantFilter ?? [] : []} />
       <Dialog open={bucketNotes.length > 0} onOpenChange={(open) => { if (!open) setBucketNotes([]); }}>
         <DialogContent className="sm:max-w-[440px]">
           <DialogHeader><DialogTitle>Événements de la période</DialogTitle></DialogHeader>
           <div className="flex flex-col gap-2">
             {bucketNotes.map((note) => (
               <Button key={note.id} variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={() => editNote(note)}>
-                {format(parseISO(note.note_date), "dd/MM/yyyy")} · {note.title}
+                {format(parseISO(note.note_date), "dd/MM/yyyy")}{note.end_date ? ` – ${format(parseISO(note.end_date), "dd/MM/yyyy")}` : ""} · {note.title}
               </Button>
             ))}
           </div>
