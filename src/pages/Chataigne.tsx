@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "react-router-dom";
-import { format, parseISO, startOfWeek } from "date-fns";
+import { format, parseISO, startOfWeek, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Area } from "recharts";
@@ -133,8 +133,57 @@ function FreshnessBadge({ value, isLoading }: { value: string | null; isLoading:
 
 const fmtPct = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
 
+function CardShell({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
+  return (
+    <Card className="h-full">
+      <CardContent className="flex h-full flex-col gap-2 p-6">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function CompareCard({
+  title, icon, value, cur, prev, periodDays, sub,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  value: string;
+  cur: number | null | undefined;
+  prev: number | null | undefined;
+  periodDays: number;
+  sub?: string;
+}) {
+  const c = Number(cur ?? 0);
+  const p = Number(prev ?? 0);
+  const delta = prev !== undefined && prev !== null && p > 0 ? ((c - p) / p) * 100 : null;
+  return (
+    <CardShell title={title} icon={icon}>
+      <p className="text-3xl font-bold tracking-tight">{value}</p>
+      <p className="text-xs text-muted-foreground">
+        {delta === null ? (
+          <span>— vs les {periodDays} j précédents</span>
+        ) : (
+          <>
+            <span className={cn("font-semibold", Math.abs(delta) < 0.05 ? "text-foreground" : delta > 0 ? "text-emerald-600" : "text-destructive")}>
+              {delta > 0 ? "+" : ""}
+              {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %
+            </span>{" "}
+            vs les {periodDays} j précédents
+          </>
+        )}
+      </p>
+      {sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
+    </CardShell>
+  );
+}
+
 function RateCard({
-  title, icon: Icon, loading, rate, prev, sub, lowerIsBetter, neutral,
+  title, icon, loading, rate, prev, sub, lowerIsBetter, neutral, periodDays,
 }: {
   title: string;
   icon: React.ComponentType<{ className?: string }>;
@@ -144,38 +193,34 @@ function RateCard({
   sub: string;
   lowerIsBetter?: boolean;
   neutral?: boolean;
+  periodDays: number;
 }) {
   const delta = rate !== null && prev !== null ? rate - prev : null;
   const good = delta !== null && (lowerIsBetter ? delta < 0 : delta > 0);
   return (
-    <Card className="h-full">
-      <CardContent className="flex h-full flex-col gap-2 p-6">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <Icon className="h-4 w-4 text-muted-foreground" />
-        </div>
-        {loading ? (
-          <Skeleton className="h-8 w-24" />
-        ) : (
-          <p className="text-3xl font-bold tracking-tight">{rate === null ? "—" : fmtPct(rate)}</p>
-        )}
-        {!loading && delta !== null && (
-          <p className="text-xs text-muted-foreground">
-            <span
-              className={cn(
-                "font-semibold",
-                Math.abs(delta) < 0.05 || neutral ? "text-foreground" : good ? "text-emerald-600" : "text-destructive"
-              )}
-            >
-              {delta > 0 ? "+" : ""}
-              {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pt
-            </span>{" "}
-            vs période précédente
-          </p>
-        )}
-        {!loading && sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
-      </CardContent>
-    </Card>
+    <CardShell title={title} icon={icon}>
+      {loading ? (
+        <Skeleton className="h-8 w-24" />
+      ) : (
+        <p className="text-3xl font-bold tracking-tight">{rate === null ? "—" : fmtPct(rate)}</p>
+      )}
+      {!loading && (
+        <p className="text-xs text-muted-foreground">
+          {delta === null ? (
+            <span>— vs les {periodDays} j précédents</span>
+          ) : (
+            <>
+              <span className={cn("font-semibold", Math.abs(delta) < 0.05 || neutral ? "text-foreground" : good ? "text-emerald-600" : "text-destructive")}>
+                {delta > 0 ? "+" : ""}
+                {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pt
+              </span>{" "}
+              vs les {periodDays} j précédents
+            </>
+          )}
+        </p>
+      )}
+      {!loading && sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
+    </CardShell>
   );
 }
 
@@ -207,6 +252,8 @@ export default function Chataigne() {
     selectedMonth,
     periodMode,
     dateRange,
+    setDateRange,
+    setPeriodMode,
   } = useAnalyticsContext();
 
   const { startDate, endDate, periodDays } = useDataGranularity({
@@ -218,6 +265,20 @@ export default function Chataigne() {
 
   const start = format(startDate, "yyyy-MM-dd");
   const end = format(endDate, "yyyy-MM-dd");
+  // Période précédente de même durée
+  const prevEndDate = subDays(startDate, 1);
+  const prevStartDate = subDays(prevEndDate, Math.max(periodDays, 1) - 1);
+  const prevStart = format(prevStartDate, "yyyy-MM-dd");
+  const prevEnd = format(prevEndDate, "yyyy-MM-dd");
+
+  // Raccourcis 7 / 30 / 90 jours (jusqu'à hier inclus)
+  const yesterdayKey = format(subDays(new Date(), 1), "yyyy-MM-dd");
+  const activeQuick = end === yesterdayKey && [7, 30, 90].includes(periodDays) ? periodDays : null;
+  const applyQuick = (n: number) => {
+    const to = subDays(new Date(), 1);
+    setDateRange({ from: subDays(to, n - 1), to });
+    setPeriodMode("range");
+  };
 
   // Mois affiché pour la vue quotidienne (dérivé de la fin de période sélectionnée)
   const dailyYear = endDate.getFullYear();
@@ -255,62 +316,73 @@ export default function Chataigne() {
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
   const overviewQ = useChataigneOverview(start, end, restaurantFilter);
+  const prevOverviewQ = useChataigneOverview(prevStart, prevEnd, restaurantFilter);
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
   const restaurantsQ = useChataigneByRestaurant(start, end, restaurantFilter);
   const serviceQ = useChataigneServiceComparison(start, end, restaurantFilter);
+  const prevServiceQ = useChataigneServiceComparison(prevStart, prevEnd, restaurantFilter);
 
-  const serviceBaskets = useMemo(() => {
-    const totals = (serviceQ.data ?? []).reduce(
+  const computeBaskets = (rows: { service_type: string | null; orders: number; revenue: number }[] | undefined) => {
+    const totals = (rows ?? []).reduce(
       (acc, row) => {
         const key = row.service_type === "delivery" ? "delivery" : row.service_type === "collection" ? "collection" : null;
         if (!key) return acc;
-        acc[key].orders += row.orders;
-        acc[key].revenue += row.revenue;
+        acc[key].orders += Number(row.orders) || 0;
+        acc[key].revenue += Number(row.revenue) || 0;
         return acc;
       },
-      {
-        delivery: { orders: 0, revenue: 0 },
-        collection: { orders: 0, revenue: 0 },
-      }
+      { delivery: { orders: 0, revenue: 0 }, collection: { orders: 0, revenue: 0 } }
     );
+    const all = totals.delivery.orders + totals.collection.orders;
     return {
       delivery: totals.delivery.orders > 0 ? totals.delivery.revenue / totals.delivery.orders : 0,
       collection: totals.collection.orders > 0 ? totals.collection.revenue / totals.collection.orders : 0,
+      deliveryShare: all > 0 ? (totals.delivery.orders / all) * 100 : null,
     };
-  }, [serviceQ.data]);
+  };
+  const serviceBaskets = useMemo(() => computeBaskets(serviceQ.data as any), [serviceQ.data]);
+  const prevBaskets = useMemo(() => computeBaskets(prevServiceQ.data as any), [prevServiceQ.data]);
+  const deliveryShare = serviceBaskets.deliveryShare;
 
   // Clients uniques & réguliers (≥2 commandes complétées sur la période, jours Paris)
-  const clientsQ = useQuery({
-    queryKey: ["chataigne-clients-kpi", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
-    enabled: restaurantFilter !== undefined,
-    queryFn: async () => {
-      const fromIso = new Date(`${start}T00:00:00`).toISOString();
-      const toIso = new Date(new Date(`${end}T00:00:00`).getTime() + 86400000).toISOString();
-      const counts = new Map<string, number>();
-      const PAGE = 1000;
-      for (let from = 0; ; from += PAGE) {
-        let q = supabase
-          .from("chataigne_orders")
-          .select("code_client")
-          .eq("status", "completed")
-          .gte("order_datetime", fromIso)
-          .lt("order_datetime", toIso)
-          .not("code_client", "is", null)
-          .order("id")
-          .range(from, from + PAGE - 1);
-        if (restaurantFilter) q = q.in("restaurant_id", restaurantFilter);
-        const { data, error } = await q;
-        if (error) throw error;
-        for (const r of data ?? []) {
-          const k = r.code_client as string;
-          counts.set(k, (counts.get(k) ?? 0) + 1);
-        }
-        if (!data || data.length < PAGE) break;
+  const scopeKey = restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",");
+  const fetchClients = async (s: string, e: string) => {
+    const fromIso = new Date(`${s}T00:00:00`).toISOString();
+    const toIso = new Date(new Date(`${e}T00:00:00`).getTime() + 86400000).toISOString();
+    const counts = new Map<string, number>();
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      let q = supabase
+        .from("chataigne_orders")
+        .select("code_client")
+        .eq("status", "completed")
+        .gte("order_datetime", fromIso)
+        .lt("order_datetime", toIso)
+        .not("code_client", "is", null)
+        .order("id")
+        .range(from, from + PAGE - 1);
+      if (restaurantFilter) q = q.in("restaurant_id", restaurantFilter);
+      const { data, error } = await q;
+      if (error) throw error;
+      for (const r of data ?? []) {
+        const k = r.code_client as string;
+        counts.set(k, (counts.get(k) ?? 0) + 1);
       }
-      let reguliers = 0;
-      counts.forEach((n) => { if (n >= 2) reguliers++; });
-      return { clients: counts.size, reguliers };
-    },
+      if (!data || data.length < PAGE) break;
+    }
+    let reguliers = 0;
+    counts.forEach((n) => { if (n >= 2) reguliers++; });
+    return { clients: counts.size, reguliers };
+  };
+  const clientsQ = useQuery({
+    queryKey: ["chataigne-clients-kpi", start, end, scopeKey],
+    enabled: restaurantFilter !== undefined,
+    queryFn: () => fetchClients(start, end),
+  });
+  const prevClientsQ = useQuery({
+    queryKey: ["chataigne-clients-kpi", prevStart, prevEnd, scopeKey],
+    enabled: restaurantFilter !== undefined,
+    queryFn: () => fetchClients(prevStart, prevEnd),
   });
 
   const ratesQ = useQuery({
@@ -467,6 +539,7 @@ export default function Chataigne() {
   );
 
   const o = overviewQ.data;
+  const po = prevOverviewQ.data;
   const isLoading =
     restaurantFilter === undefined ||
     overviewQ.isLoading ||
@@ -494,6 +567,25 @@ export default function Chataigne() {
           <AnalyticsHeader />
         </div>
 
+        {/* Raccourcis de période */}
+        <div className="flex flex-wrap items-center gap-3">
+          <ToggleGroup
+            type="single"
+            value={activeQuick ? String(activeQuick) : ""}
+            onValueChange={(v) => v && applyQuick(Number(v))}
+            className="rounded-lg border bg-card p-1"
+          >
+            {[7, 30, 90].map((n) => (
+              <ToggleGroupItem key={n} value={String(n)} className="h-8 px-4 text-sm">
+                {n} jours
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <span className="text-xs text-muted-foreground">
+            Comparé aux {periodDays} j précédents ({format(prevStartDate, "d MMM", { locale: fr })} – {format(prevEndDate, "d MMM", { locale: fr })})
+          </span>
+        </div>
+
         {/* KPI */}
         {isLoading ? (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -503,39 +595,33 @@ export default function Chataigne() {
           </div>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <KPICard title="Chiffre d'affaires brut" value={fmtEur(o?.ca_brut ?? 0)} icon={Euro} />
-            <KPICard title="Commandes" value={fmtInt(o?.commandes ?? 0)} icon={ShoppingBag} />
-            <KPICard
-              title="Panier moyen · Livraison"
+            <CompareCard title="Chiffre d'affaires brut" icon={Euro} value={fmtEur(o?.ca_brut ?? 0)}
+              cur={o?.ca_brut} prev={po?.ca_brut} periodDays={periodDays} sub="Commandes WhatsApp & Instagram" />
+            <CompareCard title="Commandes" icon={ShoppingBag} value={fmtInt(o?.commandes ?? 0)}
+              cur={o?.commandes} prev={po?.commandes} periodDays={periodDays}
+              sub={deliveryShare !== null ? `${Math.round(deliveryShare)} % en livraison` : ""} />
+            <CompareCard title="Panier moyen · Livraison" icon={Bike}
               value={serviceQ.isLoading ? "…" : fmtEur(serviceBaskets.delivery, 2)}
-              icon={Bike}
-            />
-            <KPICard
-              title="Panier moyen · Emport"
+              cur={serviceBaskets.delivery} prev={prevBaskets.delivery} periodDays={periodDays} sub="CA livraison ÷ commandes" />
+            <CompareCard title="Panier moyen · Emport" icon={Wallet}
               value={serviceQ.isLoading ? "…" : fmtEur(serviceBaskets.collection, 2)}
-              icon={Wallet}
-            />
-            <KPICard title="Restaurants actifs" value={fmtInt(o?.restos_actifs ?? 0)} icon={Store} />
-            <KPICard
-              title="Clients uniques"
+              cur={serviceBaskets.collection} prev={prevBaskets.collection} periodDays={periodDays} sub="CA emport ÷ commandes" />
+            <CompareCard title="Restaurants actifs" icon={Store} value={fmtInt(o?.restos_actifs ?? 0)}
+              cur={o?.restos_actifs} prev={po?.restos_actifs} periodDays={periodDays} sub="Au moins une commande" />
+            <CompareCard title="Clients uniques" icon={UsersIcon}
               value={clientsQ.data ? fmtInt(clientsQ.data.clients) : "…"}
-              icon={UsersIcon}
-            />
-            <KPICard
-              title="Clients réguliers (2+ commandes)"
-              value={
-                clientsQ.data
-                  ? `${fmtInt(clientsQ.data.reguliers)} · ${clientsQ.data.clients ? Math.round((clientsQ.data.reguliers / clientsQ.data.clients) * 100) : 0} %`
-                  : "…"
-              }
-              icon={RepeatIcon}
-            />
+              cur={clientsQ.data?.clients} prev={prevClientsQ.data?.clients} periodDays={periodDays} sub="Acheteurs distincts" />
+            <CompareCard title="Clients réguliers (2+ commandes)" icon={RepeatIcon}
+              value={clientsQ.data ? fmtInt(clientsQ.data.reguliers) : "…"}
+              cur={clientsQ.data?.reguliers} prev={prevClientsQ.data?.reguliers} periodDays={periodDays}
+              sub={clientsQ.data ? `${clientsQ.data.clients ? Math.round((clientsQ.data.reguliers / clientsQ.data.clients) * 100) : 0} % des clients` : ""} />
             <RateCard
               title="Taux de remise"
               icon={Percent}
               loading={ratesQ.isLoading}
               rate={rates?.discountRate ?? null}
               prev={rates?.prevDiscountRate ?? null}
+              periodDays={periodDays}
               lowerIsBetter
               neutral
               sub={rates ? `${fmtEur(rates.discounts)} de remises accordées` : ""}
@@ -546,11 +632,13 @@ export default function Chataigne() {
               loading={ratesQ.isLoading}
               rate={rates?.cancelRate ?? null}
               prev={rates?.prevCancelRate ?? null}
+              periodDays={periodDays}
               lowerIsBetter
               sub={rates ? `${fmtInt(rates.cancelled)} annulées ou non livrées` : ""}
             />
           </div>
         )}
+
 
         {dropQ.data && (
           <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4 text-sm">
