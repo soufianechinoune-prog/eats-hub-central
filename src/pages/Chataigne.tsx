@@ -135,11 +135,11 @@ const fmtPct = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigi
 
 function CardShell({ title, icon: Icon, children }: { title: string; icon: React.ComponentType<{ className?: string }>; children: React.ReactNode }) {
   return (
-    <Card className="h-full">
-      <CardContent className="flex h-full flex-col gap-2 p-6">
-        <div className="flex items-start justify-between gap-2">
-          <p className="text-sm font-medium text-muted-foreground">{title}</p>
-          <Icon className="h-4 w-4 text-muted-foreground" />
+    <Card className="h-full min-w-0 rounded-lg shadow-elegant">
+      <CardContent className="flex h-full flex-col gap-1.5 p-4">
+        <div className="flex min-h-8 items-start justify-between gap-2">
+          <p className="text-xs font-medium leading-4 text-muted-foreground">{title}</p>
+          <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
         </div>
         {children}
       </CardContent>
@@ -163,13 +163,13 @@ function CompareCard({
   const delta = prev !== undefined && prev !== null && p > 0 ? ((c - p) / p) * 100 : null;
   return (
     <CardShell title={title} icon={icon}>
-      <p className="text-3xl font-bold tracking-tight">{value}</p>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-2xl font-semibold tabular-nums leading-8">{value}</p>
+      <p className="text-[11px] leading-4 text-muted-foreground">
         {delta === null ? (
           <span>— vs les {periodDays} j précédents</span>
         ) : (
           <>
-            <span className={cn("font-semibold", Math.abs(delta) < 0.05 ? "text-foreground" : delta > 0 ? "text-emerald-600" : "text-destructive")}>
+            <span className={cn("font-semibold", Math.abs(delta) < 0.05 ? "text-foreground" : delta > 0 ? "text-success" : "text-destructive")}>
               {delta > 0 ? "+" : ""}
               {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %
             </span>{" "}
@@ -177,7 +177,7 @@ function CompareCard({
           </>
         )}
       </p>
-      {sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
+      {sub && <p className="mt-auto pt-1 text-[11px] leading-4 text-muted-foreground">{sub}</p>}
     </CardShell>
   );
 }
@@ -202,15 +202,15 @@ function RateCard({
       {loading ? (
         <Skeleton className="h-8 w-24" />
       ) : (
-        <p className="text-3xl font-bold tracking-tight">{rate === null ? "—" : fmtPct(rate)}</p>
+        <p className="text-2xl font-semibold tabular-nums leading-8">{rate === null ? "—" : fmtPct(rate)}</p>
       )}
       {!loading && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[11px] leading-4 text-muted-foreground">
           {delta === null ? (
             <span>— vs les {periodDays} j précédents</span>
           ) : (
             <>
-              <span className={cn("font-semibold", Math.abs(delta) < 0.05 || neutral ? "text-foreground" : good ? "text-emerald-600" : "text-destructive")}>
+              <span className={cn("font-semibold", Math.abs(delta) < 0.05 || neutral ? "text-foreground" : good ? "text-success" : "text-destructive")}>
                 {delta > 0 ? "+" : ""}
                 {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pt
               </span>{" "}
@@ -219,7 +219,7 @@ function RateCard({
           )}
         </p>
       )}
-      {!loading && sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
+      {!loading && sub && <p className="mt-auto pt-1 text-[11px] leading-4 text-muted-foreground">{sub}</p>}
     </CardShell>
   );
 }
@@ -588,13 +588,13 @@ export default function Chataigne() {
 
         {/* KPI */}
         {isLoading ? (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-32 rounded-xl" />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(20,minmax(0,1fr))] xl:[&>*]:col-span-4 xl:[&>*:nth-child(n+6)]:col-span-5" aria-label="Indicateurs Châtaigne">
+            {Array.from({ length: 9 }, (_, i) => (
+              <Skeleton key={i} className="h-36 rounded-lg" />
             ))}
           </div>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[repeat(20,minmax(0,1fr))] xl:[&>*]:col-span-4 xl:[&>*:nth-child(n+6)]:col-span-5" aria-label="Indicateurs Châtaigne">
             <CompareCard title="Chiffre d'affaires brut" icon={Euro} value={fmtEur(o?.ca_brut ?? 0)}
               cur={o?.ca_brut} prev={po?.ca_brut} periodDays={periodDays} sub="Commandes WhatsApp & Instagram" />
             <CompareCard title="Commandes" icon={ShoppingBag} value={fmtInt(o?.commandes ?? 0)}
