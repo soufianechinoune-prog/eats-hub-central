@@ -889,9 +889,9 @@ export default function ChataigneReferral() {
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                  <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
                 </Panel>
 
-                <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={granularity} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNote} />
                 <Panel
                   title="Viralité & poids dans l'acquisition"
                   subtitle="Filleuls par parrain · part du parrainage dans les nouveaux clients"
