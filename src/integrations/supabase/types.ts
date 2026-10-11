@@ -13419,6 +13419,16 @@ export type Database = {
           utilisations: number
         }[]
       }
+      get_chataigne_rates: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          cancelled: number
+          discounts: number
+          gross_before_discount: number
+          period: string
+          total_orders: number
+        }[]
+      }
       get_chataigne_referral_acquisition: {
         Args: {
           p_end: string
