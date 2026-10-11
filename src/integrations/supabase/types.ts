@@ -14776,6 +14776,15 @@ export type Database = {
           read_ct: number
         }[]
       }
+      rebuild_chataigne_daily_from_orders: {
+        Args: {
+          p_chain_id: string
+          p_end: string
+          p_location_ids?: string[]
+          p_start: string
+        }
+        Returns: number
+      }
       refresh_caisse_rollups: {
         Args: { p_from: string; p_restaurant_id: string; p_to: string }
         Returns: undefined
