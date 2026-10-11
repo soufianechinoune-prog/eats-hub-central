@@ -351,6 +351,13 @@
       "when": 1791737598478,
       "tag": "0049_chataigne_rebuild_complete_paris_days",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791737981108,
+      "tag": "0050_chataigne_restaurant_performance",
+      "breakpoints": true
     }
   ]
 }
