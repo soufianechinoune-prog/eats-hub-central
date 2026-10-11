@@ -41,6 +41,8 @@ import {
   ShoppingBag,
   Store,
   Wallet,
+  Percent,
+  XCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Users as UsersIcon, Repeat as RepeatIcon } from "lucide-react";
@@ -126,6 +128,54 @@ function FreshnessBadge({ value, isLoading }: { value: string | null; isLoading:
       <span className={cn("h-2 w-2 rounded-full", fresh ? "bg-emerald-500" : "bg-amber-500")} />
       {fresh ? "Données à jour" : "Données à rafraîchir"} · dernière synchro {label}
     </Badge>
+  );
+}
+
+const fmtPct = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+
+function RateCard({
+  title, icon: Icon, loading, rate, prev, sub, lowerIsBetter, neutral,
+}: {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  loading: boolean;
+  rate: number | null;
+  prev: number | null;
+  sub: string;
+  lowerIsBetter?: boolean;
+  neutral?: boolean;
+}) {
+  const delta = rate !== null && prev !== null ? rate - prev : null;
+  const good = delta !== null && (lowerIsBetter ? delta < 0 : delta > 0);
+  return (
+    <Card className="h-full">
+      <CardContent className="flex h-full flex-col gap-2 p-6">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <Icon className="h-4 w-4 text-muted-foreground" />
+        </div>
+        {loading ? (
+          <Skeleton className="h-8 w-24" />
+        ) : (
+          <p className="text-3xl font-bold tracking-tight">{rate === null ? "—" : fmtPct(rate)}</p>
+        )}
+        {!loading && delta !== null && (
+          <p className="text-xs text-muted-foreground">
+            <span
+              className={cn(
+                "font-semibold",
+                Math.abs(delta) < 0.05 || neutral ? "text-foreground" : good ? "text-emerald-600" : "text-destructive"
+              )}
+            >
+              {delta > 0 ? "+" : ""}
+              {delta.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pt
+            </span>{" "}
+            vs période précédente
+          </p>
+        )}
+        {!loading && sub && <p className="mt-auto text-xs text-muted-foreground">{sub}</p>}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -262,6 +312,37 @@ export default function Chataigne() {
       return { clients: counts.size, reguliers };
     },
   });
+
+  const ratesQ = useQuery({
+    queryKey: ["chataigne-rates", start, end, restaurantFilter === undefined ? "pending" : restaurantFilter === null ? "all" : [...restaurantFilter].sort().join(",")],
+    enabled: restaurantFilter !== undefined,
+    retry: false,
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)("get_chataigne_rates", {
+        p_start: start,
+        p_end: end,
+        p_restaurant_ids: restaurantFilter && restaurantFilter.length > 0 ? restaurantFilter : null,
+      });
+      if (error) throw error;
+      return (data ?? []) as { period: string; total_orders: number; cancelled: number; discounts: number; gross_before_discount: number }[];
+    },
+  });
+  const rates = useMemo(() => {
+    const rows = ratesQ.data;
+    if (!rows) return null;
+    const cur = rows.find((r) => r.period === "current");
+    const prev = rows.find((r) => r.period === "previous");
+    const cancel = (r?: typeof cur) => (r && Number(r.total_orders) > 0 ? (Number(r.cancelled) / Number(r.total_orders)) * 100 : null);
+    const disc = (r?: typeof cur) => (r && Number(r.gross_before_discount) > 0 ? (Number(r.discounts) / Number(r.gross_before_discount)) * 100 : null);
+    return {
+      cancelRate: cancel(cur),
+      prevCancelRate: cancel(prev),
+      discountRate: disc(cur),
+      prevDiscountRate: disc(prev),
+      cancelled: Number(cur?.cancelled ?? 0),
+      discounts: Number(cur?.discounts ?? 0),
+    };
+  }, [ratesQ.data]);
 
   // Granularité du graphique d'évolution : auto selon la période, surchargeable
   const autoBucket: Bucket = periodDays <= 31 ? "day" : periodDays <= 93 ? "week" : "month";
@@ -448,6 +529,25 @@ export default function Chataigne() {
                   : "…"
               }
               icon={RepeatIcon}
+            />
+            <RateCard
+              title="Taux de remise"
+              icon={Percent}
+              loading={ratesQ.isLoading}
+              rate={rates?.discountRate ?? null}
+              prev={rates?.prevDiscountRate ?? null}
+              lowerIsBetter
+              neutral
+              sub={rates ? `${fmtEur(rates.discounts)} de remises accordées` : ""}
+            />
+            <RateCard
+              title="Taux d'annulation"
+              icon={XCircle}
+              loading={ratesQ.isLoading}
+              rate={rates?.cancelRate ?? null}
+              prev={rates?.prevCancelRate ?? null}
+              lowerIsBetter
+              sub={rates ? `${fmtInt(rates.cancelled)} annulées ou non livrées` : ""}
             />
           </div>
         )}
