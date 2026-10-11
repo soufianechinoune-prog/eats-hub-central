@@ -68,6 +68,7 @@ import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekday
 import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
 import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { ChartNoteLegend } from "@/components/charts/ChartNoteLegend";
 import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -328,6 +329,7 @@ export default function Chataigne() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteDate, setNoteDate] = useState<Date | null>(null);
   const [noteEndDate, setNoteEndDate] = useState<Date | null>(null);
+  const [showChartNotes, setShowChartNotes] = useState(true);
   const [existingNote, setExistingNote] = useState<ChartNote | null>(null);
   const [bucketNotes, setBucketNotes] = useState<ChartNote[]>([]);
   const editNote = (note: ChartNote) => {
@@ -851,7 +853,7 @@ export default function Chataigne() {
                           dot={false}
                         />
                         {noteSelection.renderSelection("left")}
-                        {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
+                        {renderChartNoteMarkers({ notes: showChartNotes ? chartNotes : [], rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
@@ -913,10 +915,11 @@ export default function Chataigne() {
                           dot={{ r: 3 }}
                         />
                         {noteSelection.renderSelection("left")}
-                        {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
+                        {renderChartNoteMarkers({ notes: showChartNotes ? chartNotes : [], rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
+                  <ChartNoteLegend notes={chartNotes} rows={chartData} granularity={bucket} visible={showChartNotes} onVisibleChange={setShowChartNotes} onSelect={openExistingNotes} />
                 </CardContent>
               </Card>
 
