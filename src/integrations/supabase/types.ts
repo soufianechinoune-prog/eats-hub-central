@@ -13527,6 +13527,22 @@ export type Database = {
           taux_reachat: number
         }[]
       }
+      get_chataigne_restaurant_performance: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          ca_brut: number
+          cancellation_rate: number
+          city: string
+          clients: number
+          commandes: number
+          delivery_rate: number
+          discount_rate: number
+          evolution: number
+          panier_moyen: number
+          restaurant_id: string
+          restaurant_name: string
+        }[]
+      }
       get_chataigne_retention_by_acquisition: {
         Args: { p_restaurant_ids?: string[] }
         Returns: {

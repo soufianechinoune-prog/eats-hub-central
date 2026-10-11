@@ -24,6 +24,11 @@ export interface ChataigneRestaurant {
   ca_brut: number;
   panier_moyen: number;
   dernier_jour: string | null;
+  evolution: number | null;
+  delivery_rate: number | null;
+  clients: number;
+  discount_rate: number | null;
+  cancellation_rate: number | null;
 }
 
 const num = (v: unknown) => (v === null || v === undefined ? 0 : Number(v));
@@ -80,9 +85,9 @@ export function useChataigneMonthly(start: string, end: string, restaurantIds: R
 
 export function useChataigneByRestaurant(start: string, end: string, restaurantIds: RestaurantScope = null) {
   return useQuery({
-    queryKey: ["chataigne-by-restaurant", start, end, scopeKey(restaurantIds)],
+    queryKey: ["chataigne-restaurant-performance", start, end, scopeKey(restaurantIds)],
     queryFn: async (): Promise<ChataigneRestaurant[]> => {
-      const { data, error } = await supabase.rpc("get_chataigne_by_restaurant" as never, {
+      const { data, error } = await supabase.rpc("get_chataigne_restaurant_performance" as never, {
         p_start: start,
         p_end: end,
         p_restaurant_ids: restaurantIds ?? null,
@@ -96,6 +101,11 @@ export function useChataigneByRestaurant(start: string, end: string, restaurantI
         ca_brut: num(r.ca_brut),
         panier_moyen: num(r.panier_moyen),
         dernier_jour: r.dernier_jour ?? null,
+        evolution: r.evolution == null ? null : num(r.evolution),
+        delivery_rate: r.delivery_rate == null ? null : num(r.delivery_rate),
+        clients: num(r.clients),
+        discount_rate: r.discount_rate == null ? null : num(r.discount_rate),
+        cancellation_rate: r.cancellation_rate == null ? null : num(r.cancellation_rate),
       }));
     },
     enabled: restaurantIds !== undefined,

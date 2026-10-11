@@ -12,3 +12,4 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 - Vue d'ensemble : CA Uber/Deliveroo lu dans la caisse Splash (référence réseau) ; repli API par canal si Splash remonte 0 € (badge « API »), la caisse reprend la main dès que le flux remonte. Onglets canal : API pour la rentabilité.
 
 - Chataigne daily analytics are rebuilt server-side from completed orders over complete Paris calendar days via a service-only RPC; never overwrite a day from a rolling partial timestamp window, so nightly refreshes preserve early orders.
+ - Restaurant performance uses one scoped server-side RPC over orders for current and previous Paris periods, so revenue, clients, delivery, discounts and cancellations share consistent boundaries without browser pagination.
