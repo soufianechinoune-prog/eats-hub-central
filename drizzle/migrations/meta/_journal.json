@@ -330,6 +330,13 @@
       "when": 1791459468627,
       "tag": "0046_create_webhook_capture_log",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791710477503,
+      "tag": "0047_chataigne_rates_kpi",
+      "breakpoints": true
     }
   ]
 }
