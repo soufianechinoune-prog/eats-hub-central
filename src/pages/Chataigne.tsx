@@ -65,6 +65,10 @@ import { ChataigneServiceRecurrence } from "@/components/chataigne/ChataigneServ
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
 import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
+import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
+import { renderChartNoteMarkers } from "@/components/charts/ChartNoteMarkers";
+import { filterNotesByScope, useChartNotes, type ChartNote } from "@/hooks/useChartNotes";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 import {
   useChataigneByRestaurant,
@@ -318,6 +322,23 @@ export default function Chataigne() {
     return resolved;
   }, [restaurants, selectedRestaurants, selectedChainId, chainRestaurantIds]);
 
+  const notesQ = useChartNotes(start, end);
+  const chartNotes = useMemo(() => filterNotesByScope(notesQ.data, restaurantFilter), [notesQ.data, restaurantFilter]);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteDate, setNoteDate] = useState<Date | null>(null);
+  const [existingNote, setExistingNote] = useState<ChartNote | null>(null);
+  const [bucketNotes, setBucketNotes] = useState<ChartNote[]>([]);
+  const editNote = (note: ChartNote) => {
+    setBucketNotes([]);
+    setExistingNote(note);
+    setNoteDate(parseISO(note.note_date));
+    setNoteOpen(true);
+  };
+  const openExistingNotes = (notes: ChartNote[]) => {
+    if (notes.length === 1) editNote(notes[0]);
+    else setBucketNotes(notes);
+  };
+
   const overviewQ = useChataigneOverview(start, end, restaurantFilter);
   const prevOverviewQ = useChataigneOverview(prevStart, prevEnd, restaurantFilter);
   const monthlyQ = useChataigneMonthly(start, end, restaurantFilter);
@@ -467,6 +488,7 @@ export default function Chataigne() {
   const chartData = useMemo(() => {
     if (bucket === "month") {
       return (monthlyQ.data ?? []).map((m) => ({
+        periode: `${m.mois.slice(0, 7)}-01`,
         label: monthLabel(m.mois),
         ca: m.ca_brut,
         commandes: m.commandes,
@@ -488,8 +510,18 @@ export default function Chataigne() {
       cur.commandes += Number(r.order_count) || 0;
       agg.set(key, cur);
     }
-    return [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([, v]) => v);
+    return [...agg.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([periode, v]) => ({ ...v, periode }));
   }, [bucket, monthlyQ.data, dailyQ.data]);
+
+  const openNoteForLabel = (label: unknown) => {
+    if (typeof label !== "string") return;
+    const row = chartData.find((item) => item.label === label);
+    if (!row) return;
+    setExistingNote(null);
+    const bucketDate = row.periode < start ? start : row.periode;
+    setNoteDate(parseISO(bucketDate));
+    setNoteOpen(true);
+  };
 
   const chartLoading = bucket === "month" ? monthlyQ.isLoading : dailyQ.isLoading;
   const chartTitle =
@@ -740,7 +772,7 @@ export default function Chataigne() {
                     </p>
                   ) : chartType === "line" ? (
                     <ResponsiveContainer width="100%" height={380}>
-                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} onClick={(state) => openNoteForLabel(state?.activeLabel)}>
                         <defs>
                           <linearGradient id="chataigneCaGradient" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.35} />
@@ -808,11 +840,12 @@ export default function Chataigne() {
                           strokeDasharray="4 4"
                           dot={false}
                         />
+                        {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
                   ) : (
                     <ResponsiveContainer width="100%" height={380}>
-                      <ComposedChart data={chartData} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
+                      <ComposedChart data={chartData} margin={{ top: 24, right: 16, bottom: 0, left: 0 }} onClick={(state) => openNoteForLabel(state?.activeLabel)}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                         <XAxis
                           dataKey="label"
@@ -868,6 +901,7 @@ export default function Chataigne() {
                           strokeWidth={2}
                           dot={{ r: 3 }}
                         />
+                        {renderChartNoteMarkers({ notes: chartNotes, rows: chartData, granularity: bucket, onMarkerClick: openExistingNotes, yAxisId: "left" })}
                       </ComposedChart>
                     </ResponsiveContainer>
                   )}
@@ -993,6 +1027,19 @@ export default function Chataigne() {
           </Tabs>
         )}
       </div>
+      <ChartNoteDialog open={noteOpen} onOpenChange={setNoteOpen} date={noteDate} existingNote={existingNote} scopedRestaurantIds={selectedRestaurants.length > 0 ? restaurantFilter ?? [] : []} />
+      <Dialog open={bucketNotes.length > 0} onOpenChange={(open) => { if (!open) setBucketNotes([]); }}>
+        <DialogContent className="sm:max-w-[440px]">
+          <DialogHeader><DialogTitle>Événements de la période</DialogTitle></DialogHeader>
+          <div className="flex flex-col gap-2">
+            {bucketNotes.map((note) => (
+              <Button key={note.id} variant="outline" className="h-auto justify-start whitespace-normal py-3 text-left" onClick={() => editNote(note)}>
+                {format(parseISO(note.note_date), "dd/MM/yyyy")} · {note.title}
+              </Button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
       </ChannelNavShell>
     </AppLayout>
   );

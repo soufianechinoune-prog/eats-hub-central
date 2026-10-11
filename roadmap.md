@@ -76,3 +76,7 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 ## Tableau Performance par restaurant
 - [x] Ajouter les neuf colonnes demandées, la recherche et le tri avec agrégation serveur cohérente.
 - [x] Vérifier le tableau en session connectée : neuf colonnes, recherche Angers/Argenteuil et tri CA TTC.
+
+## Repères Châtaigne partagés
+- [x] Relier l’évolution CA/commandes aux repères partagés du Parrainage et de Croissance & Clients.
+- [x] Vérifier la visibilité réciproque, les granularités et la modification des repères.

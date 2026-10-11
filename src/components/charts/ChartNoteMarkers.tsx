@@ -71,12 +71,22 @@ export function renderChartNoteMarkers({ notes, rows, granularity, onMarkerClick
               return (
                 <g
                   transform={`translate(${x}, ${y - 10})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={bucketNotes.map((note) => note.title).join(" · ")}
                   style={{ cursor: "pointer" }}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter" && e.key !== " ") return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onMarkerClick(bucketNotes);
+                  }}
                   onClick={(e) => {
                     e.stopPropagation();
                     onMarkerClick(bucketNotes);
                   }}
                 >
+                  <title>{bucketNotes.map((note) => note.title).join(" · ")}</title>
                   <circle r={8} fill={color} stroke="hsl(var(--background))" strokeWidth={1.5} />
                   <text
                     textAnchor="middle"
