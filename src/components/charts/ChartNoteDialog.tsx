@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
 import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { MessageSquarePlus, Trash2 } from "lucide-react";
+import { CalendarIcon, MessageSquarePlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,7 @@ interface ChartNoteDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Date présélectionnée (clic sur le graphique) */
   date: Date | null;
+  endDate?: Date | null;
   /** Note existante à consulter / modifier / supprimer */
   existingNote?: ChartNote | null;
   /** Restaurants du scope courant (vide = note réseau) */
@@ -38,6 +42,7 @@ export function ChartNoteDialog({
   open,
   onOpenChange,
   date,
+  endDate,
   existingNote,
   scopedRestaurantIds,
 }: ChartNoteDialogProps) {
@@ -48,6 +53,8 @@ export function ChartNoteDialog({
   const [description, setDescription] = useState("");
   const [color, setColor] = useState<ChartNoteColor>("amber");
   const [noteDate, setNoteDate] = useState("");
+  const [noteEndDate, setNoteEndDate] = useState("");
+  const [isPeriod, setIsPeriod] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -57,17 +64,25 @@ export function ChartNoteDialog({
       setDescription(existingNote.description ?? "");
       setColor((existingNote.color as ChartNoteColor) || "amber");
       setNoteDate(existingNote.note_date);
+      setNoteEndDate(existingNote.end_date ?? existingNote.note_date);
+      setIsPeriod(Boolean(existingNote.end_date));
     } else {
       setTitle("");
       setDescription("");
       setColor("amber");
       setNoteDate(date ? format(date, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
+      setNoteEndDate(format(endDate ?? date ?? new Date(), "yyyy-MM-dd"));
+      setIsPeriod(Boolean(endDate));
     }
-  }, [open, existingNote, date]);
+  }, [open, existingNote, date, endDate]);
 
   const handleSave = async () => {
     if (!title.trim() || !noteDate) {
       toast({ title: "Titre et date requis", variant: "destructive" });
+      return;
+    }
+    if (isPeriod && (!noteEndDate || noteEndDate < noteDate)) {
+      toast({ title: "La fin doit être égale ou postérieure au début", variant: "destructive" });
       return;
     }
     setSaving(true);
@@ -76,6 +91,7 @@ export function ChartNoteDialog({
         await updateNote.mutateAsync({
           id: existingNote.id,
           note_date: noteDate,
+          end_date: isPeriod ? noteEndDate : null,
           title: title.trim(),
           description: description.trim(),
           color,
@@ -83,6 +99,7 @@ export function ChartNoteDialog({
       } else {
         await createNote.mutateAsync({
           note_date: noteDate,
+          end_date: isPeriod ? noteEndDate : null,
           title: title.trim(),
           description: description.trim(),
           color,
@@ -125,7 +142,7 @@ export function ChartNoteDialog({
             <div>
               <DialogTitle>{existingNote ? "Note du graphique" : "Ajouter une note"}</DialogTitle>
               <DialogDescription>
-                {displayDate && `Pour le ${displayDate}`}
+                {displayDate && (isPeriod ? `Du ${displayDate}${noteEndDate ? ` au ${format(parseISO(noteEndDate), "d MMMM yyyy", { locale: fr })}` : ""}` : `Pour le ${displayDate}`)}
                 {scopedRestaurantIds.length === 0
                   ? " · visible sur tout le réseau"
                   : scopedRestaurantIds.length === 1
@@ -137,6 +154,10 @@ export function ChartNoteDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-2">
+          <ToggleGroup type="single" value={isPeriod ? "period" : "event"} onValueChange={(value) => { if (value) setIsPeriod(value === "period"); }} variant="outline" className="justify-start">
+            <ToggleGroupItem value="event">Événement</ToggleGroupItem>
+            <ToggleGroupItem value="period">Période</ToggleGroupItem>
+          </ToggleGroup>
           <div className="space-y-1.5">
             <Label htmlFor="note-title">Titre *</Label>
             <Input
@@ -157,27 +178,30 @@ export function ChartNoteDialog({
               rows={3}
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className={cn("grid gap-3", isPeriod ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
             <div className="space-y-1.5">
-              <Label htmlFor="note-date">Date</Label>
-              <Input
-                id="note-date"
-                type="date"
-                value={noteDate}
-                onChange={(e) => setNoteDate(e.target.value)}
-              />
+              <Label>{isPeriod ? "Début" : "Date"}</Label>
+              <NoteDatePicker label={isPeriod ? "Début" : "Date"} value={noteDate} onChange={setNoteDate} />
             </div>
+            {isPeriod && <div className="space-y-1.5">
+              <Label>Fin incluse</Label>
+              <NoteDatePicker label="Fin incluse" value={noteEndDate} onChange={setNoteEndDate} fromDate={noteDate ? parseISO(noteDate) : undefined} />
+            </div>}
+          </div>
             <div className="space-y-1.5">
               <Label>Type</Label>
               <div className="flex gap-2 pt-1.5">
                 {(Object.keys(CHART_NOTE_COLORS) as ChartNoteColor[]).map((c) => (
-                  <button
+                  <Button
                     key={c}
+                    variant="ghost"
                     type="button"
                     title={CHART_NOTE_COLORS[c].label}
+                    aria-label={CHART_NOTE_COLORS[c].label}
+                    aria-pressed={color === c}
                     onClick={() => setColor(c)}
                     className={cn(
-                      "h-7 w-7 rounded-full transition-all",
+                      "h-7 w-7 p-0 rounded-full transition-all",
                       CHART_NOTE_COLORS[c].dot,
                       color === c
                         ? "ring-2 ring-offset-2 ring-foreground/60 scale-110"
@@ -187,7 +211,6 @@ export function ChartNoteDialog({
                 ))}
               </div>
             </div>
-          </div>
         </div>
 
         <DialogFooter className="flex items-center justify-between sm:justify-between">
@@ -217,4 +240,19 @@ export function ChartNoteDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function NoteDatePicker({ label, value, onChange, fromDate }: { label: string; value: string; onChange: (value: string) => void; fromDate?: Date }) {
+  const [open, setOpen] = useState(false);
+  return <Popover open={open} onOpenChange={setOpen}>
+    <PopoverTrigger asChild>
+      <Button variant="outline" aria-label={label} className="w-full justify-start font-normal">
+        <CalendarIcon className="mr-2 h-4 w-4" />
+        {value ? format(parseISO(value), "dd MMM yyyy", { locale: fr }) : "Choisir une date"}
+      </Button>
+    </PopoverTrigger>
+    <PopoverContent className="w-auto p-0" align="start">
+      <Calendar mode="single" locale={fr} selected={value ? parseISO(value) : undefined} defaultMonth={value ? parseISO(value) : undefined} disabled={fromDate ? { before: fromDate } : undefined} onSelect={(date) => { if (date) { onChange(format(date, "yyyy-MM-dd")); setOpen(false); } }} initialFocus className="p-3 pointer-events-auto" />
+    </PopoverContent>
+  </Popover>;
 }
