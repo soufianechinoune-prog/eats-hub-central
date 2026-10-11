@@ -75,4 +75,4 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 
 ## Tableau Performance par restaurant
 - [x] Ajouter les neuf colonnes demandées, la recherche et le tri avec agrégation serveur cohérente.
-- [ ] Vérifier le tableau en session connectée.
+- [x] Vérifier le tableau en session connectée : neuf colonnes, recherche Angers/Argenteuil et tri CA TTC.
