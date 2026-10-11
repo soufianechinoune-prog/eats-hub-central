@@ -539,6 +539,7 @@ export default function Chataigne() {
   );
 
   const o = overviewQ.data;
+  const po = prevOverviewQ.data;
   const isLoading =
     restaurantFilter === undefined ||
     overviewQ.isLoading ||
