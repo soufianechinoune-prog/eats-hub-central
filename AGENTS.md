@@ -16,3 +16,4 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 - Chataigne revenue, growth and referral calendar charts share chart_notes and scope filtering; retain ISO bucket dates and named Y axes when rendering markers so events remain reciprocal across day/week/month views.
 
 - Calendar event ranges use an inclusive nullable chart_notes.end_date, overlap-aware queries, and a shared drag-selection hook so all annotated Chataigne charts stay reciprocal across granularities.
+- Annotated Chataigne charts use ChartNoteLegend for visible titles, dates and presentation-only visibility controls; hiding annotations must never change stored notes or analytics.
