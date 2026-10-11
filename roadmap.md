@@ -78,5 +78,5 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Vérifier le tableau en session connectée : neuf colonnes, recherche Angers/Argenteuil et tri CA TTC.
 
 ## Repères Châtaigne partagés
-- [ ] Relier l’évolution CA/commandes aux repères partagés du Parrainage et de Croissance & Clients.
-- [ ] Vérifier la visibilité réciproque, les granularités et la modification des repères.
+- [x] Relier l’évolution CA/commandes aux repères partagés du Parrainage et de Croissance & Clients.
+- [x] Vérifier la visibilité réciproque, les granularités et la modification des repères.
