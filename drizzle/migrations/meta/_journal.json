@@ -344,6 +344,13 @@
       "when": 1791717999742,
       "tag": "0048_chataigne_overview_from_orders",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1791737598478,
+      "tag": "0049_chataigne_rebuild_complete_paris_days",
+      "breakpoints": true
     }
   ]
 }
