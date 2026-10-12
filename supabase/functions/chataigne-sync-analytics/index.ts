@@ -1,11 +1,11 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-const CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
 })
 const parisDay = (date: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(date)
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -27,48 +27,47 @@ Deno.serve(async (req) => {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return json({ ok: false, error: 'Invalid body' }, 400)
   const mode = body.mode === 'backfill' ? 'backfill' : 'incremental'
   const days = body.days ?? (mode === 'backfill' ? 90 : 3)
-  const offset = body.offset ?? 0
-  const limit = body.limit ?? null
-  if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > 3660 ||
-      typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0 ||
-      (limit !== null && (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1))) {
-    return json({ ok: false, error: 'Invalid days, offset or limit' }, 400)
+  if (typeof days !== 'number' || !Number.isInteger(days) || days < 1 || days > 3660) {
+    return json({ ok: false, error: 'Invalid days' }, 400)
   }
-  // Preserve the rolling window's touched dates, but rebuild each entire Paris day.
+  if (body.chain_id !== undefined && (typeof body.chain_id !== 'string' || !UUID_RE.test(body.chain_id))) {
+    return json({ ok: false, error: 'Invalid chain_id' }, 400)
+  }
+  // Rebuild every entire Paris day touched by the window, from completed orders.
   const now = new Date()
   const start = parisDay(new Date(now.getTime() - days * 86400000))
   const end = parisDay(now)
-  const t0 = Date.now()
-  const { data: run, error: runError } = await supabase.from('chataigne_sync_runs').insert({
-    chain_id: CHAIN_ID, status: 'running', period_from: start, period_to: end, started_at: now.toISOString(),
-  }).select('id').single()
-  if (runError) return json({ ok: false, error: runError.message }, 500)
-  const finish = async (status: string, rows: number, locations: number, error: string | null) => {
-    if (!run?.id) return
-    await supabase.from('chataigne_sync_runs').update({
-      status, rows_upserted: rows, locations_synced: locations, error_message: error,
-      finished_at: new Date().toISOString(), duration_ms: Date.now() - t0,
-    }).eq('id', run.id)
+
+  const { data: mappings, error: mappingError } = await supabase
+    .from('chataigne_location_mapping').select('chain_id, chataigne_location_id')
+  if (mappingError) return json({ ok: false, error: mappingError.message }, 500)
+  const byChain = new Map<string, string[]>()
+  for (const m of mappings ?? []) {
+    if (!m.chain_id || (body.chain_id && m.chain_id !== body.chain_id)) continue
+    const list = byChain.get(m.chain_id) ?? []
+    list.push(m.chataigne_location_id)
+    byChain.set(m.chain_id, list)
   }
-  try {
-    let query = supabase.from('chataigne_location_mapping').select('chataigne_location_id')
-      .eq('chain_id', CHAIN_ID).order('chataigne_location_id')
-    if (limit !== null) query = query.range(offset, offset + limit - 1)
-    else if (offset) query = query.range(offset, offset + 9999)
-    const { data: mappings, error: mappingError } = await query
-    if (mappingError) throw mappingError
-    const locations = (mappings ?? []).map((m) => m.chataigne_location_id)
+
+  const results: Record<string, unknown>[] = []
+  for (const [chainId, locations] of byChain) {
+    const t0 = Date.now()
+    const { data: run } = await supabase.from('chataigne_sync_runs').insert({
+      chain_id: chainId, status: 'running', period_from: start, period_to: end, started_at: new Date().toISOString(),
+    }).select('id').single()
     const { data: rows, error } = await supabase.rpc('rebuild_chataigne_daily_from_orders', {
-      p_chain_id: CHAIN_ID, p_start: start, p_end: end, p_location_ids: locations,
+      p_chain_id: chainId, p_start: start, p_end: end, p_location_ids: locations,
     })
-    if (error) throw error
-    await finish('done', rows ?? 0, locations.length, null)
-    return json({ ok: true, mode, days, period: { from: start, to: end },
-      locations_total: locations.length, locations_processed: locations.length,
-      locations_failed: 0, rows_upserted: rows ?? 0, source: 'completed_orders_paris_days' })
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error)
-    await finish('failed', 0, 0, message)
-    return json({ ok: false, error: message }, 500)
+    if (run?.id) {
+      await supabase.from('chataigne_sync_runs').update({
+        status: error ? 'failed' : 'done', rows_upserted: error ? 0 : rows ?? 0,
+        locations_synced: error ? 0 : locations.length, error_message: error?.message ?? null,
+        finished_at: new Date().toISOString(), duration_ms: Date.now() - t0,
+      }).eq('id', run.id)
+    }
+    results.push({ chain_id: chainId, ok: !error, locations: locations.length, rows_upserted: rows ?? 0, error: error?.message ?? null })
   }
+  const allOk = results.every((r) => r.ok)
+  return json({ ok: allOk, mode, days, period: { from: start, to: end }, chains: results,
+    source: 'completed_orders_paris_days' }, allOk ? 200 : 500)
 })
