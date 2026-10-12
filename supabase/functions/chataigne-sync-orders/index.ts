@@ -335,7 +335,9 @@ Deno.serve(async (req) => {
     let itemRowsInserted = 0
     const errors: { location: string; error: string }[] = []
 
+    let skippedUnchanged = 0
     for (const m of mappings ?? []) {
+      if (errors.some((e) => e.error.startsWith('RATE_LIMITED'))) break
       const locId = m.chataigne_location_id as string
       try {
         let cursor: string | null = null
@@ -542,13 +544,46 @@ Deno.serve(async (req) => {
     }
 
     const total = (mappings ?? []).length
-    const status = total > 0 && processed === 0 ? 'failed' : 'done'
-    await finish(status, processed, ordersUpserted, failed ? `${failed} location(s) en erreur` : null)
+    const rateLimited = errors.some((e) => e.error.startsWith('RATE_LIMITED'))
+
+    // refresh today's (Paris) daily analytics for the scanned locations
+    let rebuildRows: number | null = null
+    if (mode === 'incremental' && total > 0) {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date())
+      const startDay = hours
+        ? today
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(from)
+      const { data: rb, error: rbErr } = await supabase.rpc('rebuild_chataigne_daily_from_orders', {
+        p_chain_id: CHAIN_ID,
+        p_start: startDay,
+        p_end: today,
+        p_location_ids: (mappings ?? []).map((x) => x.chataigne_location_id as string),
+      })
+      if (rbErr) console.error('rebuild daily failed:', rbErr.message)
+      else rebuildRows = rb as number
+    }
+
+    const status = rateLimited ? 'rate_limited' : total > 0 && processed === 0 ? 'failed' : 'done'
+    await finish(
+      status,
+      processed,
+      ordersUpserted,
+      rateLimited
+        ? `API Châtaigne 429 (trop de requêtes) — ${rateLimitHits} rejet(s), espacer à 30 min`
+        : failed
+          ? `${failed} location(s) en erreur`
+          : null,
+    )
 
     return json({
       ok: status === 'done',
       mode,
+      sync_type: syncType,
+      hours,
       days,
+      skipped_unchanged: skippedUnchanged,
+      rate_limit_hits: rateLimitHits,
+      daily_rows_rebuilt: rebuildRows,
       date_filter_supported: dateFilterSupported,
       period: { from: from.toISOString(), to: to.toISOString() },
       locations_total: total,
