@@ -285,10 +285,20 @@ Deno.serve(async (req) => {
   }
 
   const headers = { 'x-api-key': key.trim(), Accept: 'application/json' }
-  const call = async (path: string) => {
-    const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(30000) })
-    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path.split('?')[0]}`)
-    return await r.json()
+  let rateLimitHits = 0
+  const call = async (path: string): Promise<any> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(30000) })
+      if (r.status === 429) {
+        rateLimitHits++
+        await r.body?.cancel()
+        await sleep(2000 * (attempt + 1))
+        continue
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status} on ${path.split('?')[0]}`)
+      return await r.json()
+    }
+    throw new Error(`RATE_LIMITED on ${path.split('?')[0]}`)
   }
 
   try {
