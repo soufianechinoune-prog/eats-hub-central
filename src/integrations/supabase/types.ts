@@ -7439,6 +7439,7 @@ export type Database = {
           rows_upserted: number | null
           started_at: string
           status: string
+          sync_type: string | null
           triggered_by: string | null
         }
         Insert: {
@@ -7454,6 +7455,7 @@ export type Database = {
           rows_upserted?: number | null
           started_at?: string
           status?: string
+          sync_type?: string | null
           triggered_by?: string | null
         }
         Update: {
@@ -7469,6 +7471,7 @@ export type Database = {
           rows_upserted?: number | null
           started_at?: string
           status?: string
+          sync_type?: string | null
           triggered_by?: string | null
         }
         Relationships: [

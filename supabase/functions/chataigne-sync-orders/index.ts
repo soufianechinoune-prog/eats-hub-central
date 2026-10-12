@@ -232,11 +232,13 @@ Deno.serve(async (req) => {
 
   const mode: 'test' | 'backfill' | 'incremental' | 'rehash' =
     body?.mode === 'test' || body?.mode === 'backfill' || body?.mode === 'rehash' ? body.mode : 'incremental'
+  const hours = Number.isFinite(body?.hours) ? Math.max(1, Math.min(48, Math.floor(body.hours))) : null
   const days = Number.isFinite(body?.days)
     ? Math.max(1, Math.floor(body.days))
     : mode === 'backfill'
       ? 90
       : 3
+  const syncType: string = hours ? 'intraday' : mode === 'backfill' ? 'backfill' : 'night'
   const locationFilter: string | null =
     typeof body?.location_id === 'string' && body.location_id.trim() ? body.location_id.trim() : null
   // optional batching over the mapping list (keeps long backfills under the exec limit)
@@ -249,7 +251,7 @@ Deno.serve(async (req) => {
   )
 
   const to = new Date()
-  const from = new Date(to.getTime() - days * 86400000)
+  const from = new Date(to.getTime() - (hours ? hours * 3600000 : days * 86400000))
   const t0 = Date.now()
   const startedAt = new Date()
 
@@ -258,6 +260,7 @@ Deno.serve(async (req) => {
     .insert({
       chain_id: CHAIN_ID,
       status: 'running',
+      sync_type: syncType,
       period_from: from.toISOString(),
       period_to: to.toISOString(),
       started_at: startedAt.toISOString(),
@@ -282,10 +285,20 @@ Deno.serve(async (req) => {
   }
 
   const headers = { 'x-api-key': key.trim(), Accept: 'application/json' }
-  const call = async (path: string) => {
-    const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(30000) })
-    if (!r.ok) throw new Error(`HTTP ${r.status} on ${path.split('?')[0]}`)
-    return await r.json()
+  let rateLimitHits = 0
+  const call = async (path: string): Promise<any> => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await fetch(`${BASE}${path}`, { headers, signal: AbortSignal.timeout(30000) })
+      if (r.status === 429) {
+        rateLimitHits++
+        await r.body?.cancel()
+        await sleep(2000 * (attempt + 1))
+        continue
+      }
+      if (!r.ok) throw new Error(`HTTP ${r.status} on ${path.split('?')[0]}`)
+      return await r.json()
+    }
+    throw new Error(`RATE_LIMITED on ${path.split('?')[0]}`)
   }
 
   try {
@@ -322,7 +335,9 @@ Deno.serve(async (req) => {
     let itemRowsInserted = 0
     const errors: { location: string; error: string }[] = []
 
+    let skippedUnchanged = 0
     for (const m of mappings ?? []) {
+      if (errors.some((e) => e.error.startsWith('RATE_LIMITED'))) break
       const locId = m.chataigne_location_id as string
       try {
         let cursor: string | null = null
@@ -349,10 +364,32 @@ Deno.serve(async (req) => {
                   : []
           if (arr.length === 0) break
 
+          // skip unchanged orders (same source_updated_at) to avoid rewriting items every pass
+          const known = new Map<string, number>()
+          if (mode === 'incremental') {
+            const ids = arr.map((o) => String(o?.id ?? o?.order_id ?? '')).filter(Boolean)
+            if (ids.length) {
+              const { data: ex } = await supabase
+                .from('chataigne_orders')
+                .select('chataigne_order_id, source_updated_at')
+                .in('chataigne_order_id', ids)
+              for (const e of ex ?? []) {
+                if (e.source_updated_at) known.set(e.chataigne_order_id as string, new Date(e.source_updated_at as string).getTime())
+              }
+            }
+          }
+
           for (const listOrder of arr) {
             const createdAt = ts(listOrder?.created_at ?? listOrder?.createdAt)
             if (createdAt && new Date(createdAt).getTime() < from.getTime()) {
               stop = true
+              continue
+            }
+
+            const listId = String(listOrder?.id ?? listOrder?.order_id ?? '')
+            const listUpd = ts(listOrder?.updated_at)
+            if (listId && listUpd && known.get(listId) === new Date(listUpd).getTime()) {
+              skippedUnchanged++
               continue
             }
 
@@ -507,13 +544,46 @@ Deno.serve(async (req) => {
     }
 
     const total = (mappings ?? []).length
-    const status = total > 0 && processed === 0 ? 'failed' : 'done'
-    await finish(status, processed, ordersUpserted, failed ? `${failed} location(s) en erreur` : null)
+    const rateLimited = errors.some((e) => e.error.startsWith('RATE_LIMITED'))
+
+    // refresh today's (Paris) daily analytics for the scanned locations
+    let rebuildRows: number | null = null
+    if (mode === 'incremental' && total > 0) {
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(new Date())
+      const startDay = hours
+        ? today
+        : new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris' }).format(from)
+      const { data: rb, error: rbErr } = await supabase.rpc('rebuild_chataigne_daily_from_orders', {
+        p_chain_id: CHAIN_ID,
+        p_start: startDay,
+        p_end: today,
+        p_location_ids: (mappings ?? []).map((x) => x.chataigne_location_id as string),
+      })
+      if (rbErr) console.error('rebuild daily failed:', rbErr.message)
+      else rebuildRows = rb as number
+    }
+
+    const status = rateLimited ? 'rate_limited' : total > 0 && processed === 0 ? 'failed' : 'done'
+    await finish(
+      status,
+      processed,
+      ordersUpserted,
+      rateLimited
+        ? `API Châtaigne 429 (trop de requêtes) — ${rateLimitHits} rejet(s), espacer à 30 min`
+        : failed
+          ? `${failed} location(s) en erreur`
+          : null,
+    )
 
     return json({
       ok: status === 'done',
       mode,
+      sync_type: syncType,
+      hours,
       days,
+      skipped_unchanged: skippedUnchanged,
+      rate_limit_hits: rateLimitHits,
+      daily_rows_rebuilt: rebuildRows,
       date_filter_supported: dateFilterSupported,
       period: { from: from.toISOString(), to: to.toISOString() },
       locations_total: total,
