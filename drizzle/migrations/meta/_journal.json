@@ -365,6 +365,13 @@
       "when": 1791738707196,
       "tag": "0051_chart_notes_date_ranges",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1791833740501,
+      "tag": "0052_chataigne_intraday_sync",
+      "breakpoints": true
     }
   ]
 }
