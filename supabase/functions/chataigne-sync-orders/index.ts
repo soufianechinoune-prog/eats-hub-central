@@ -232,11 +232,13 @@ Deno.serve(async (req) => {
 
   const mode: 'test' | 'backfill' | 'incremental' | 'rehash' =
     body?.mode === 'test' || body?.mode === 'backfill' || body?.mode === 'rehash' ? body.mode : 'incremental'
+  const hours = Number.isFinite(body?.hours) ? Math.max(1, Math.min(48, Math.floor(body.hours))) : null
   const days = Number.isFinite(body?.days)
     ? Math.max(1, Math.floor(body.days))
     : mode === 'backfill'
       ? 90
       : 3
+  const syncType: string = hours ? 'intraday' : mode === 'backfill' ? 'backfill' : 'night'
   const locationFilter: string | null =
     typeof body?.location_id === 'string' && body.location_id.trim() ? body.location_id.trim() : null
   // optional batching over the mapping list (keeps long backfills under the exec limit)
@@ -249,7 +251,7 @@ Deno.serve(async (req) => {
   )
 
   const to = new Date()
-  const from = new Date(to.getTime() - days * 86400000)
+  const from = new Date(to.getTime() - (hours ? hours * 3600000 : days * 86400000))
   const t0 = Date.now()
   const startedAt = new Date()
 
@@ -258,6 +260,7 @@ Deno.serve(async (req) => {
     .insert({
       chain_id: CHAIN_ID,
       status: 'running',
+      sync_type: syncType,
       period_from: from.toISOString(),
       period_to: to.toISOString(),
       started_at: startedAt.toISOString(),
