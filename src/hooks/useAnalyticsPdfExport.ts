@@ -134,7 +134,7 @@ export function useAnalyticsPdfExport() {
         pdf.setFontSize(9);
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(156, 163, 175);
-        pdf.text("CS Delivery Performance - Rapport Analytics", margin, pageHeight - 4);
+        pdf.text("Mijotek - Rapport Analytics", margin, pageHeight - 4);
         const pageText = `Page ${page}/${totalPages}`;
         pdf.text(pageText, pageWidth - margin - pdf.getTextWidth(pageText), pageHeight - 4);
       };

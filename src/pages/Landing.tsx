@@ -57,7 +57,7 @@ export default function Landing() {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <BarChart3 className="h-4 w-4 text-primary-foreground" />
             </div>
-            <span className="font-bold tracking-tight">Delivery Performance</span>
+            <span className="font-bold tracking-tight">Mijotek</span>
           </div>
 
           <nav className="hidden md:flex items-center gap-8 text-sm text-muted-foreground">
@@ -67,7 +67,7 @@ export default function Landing() {
           </nav>
 
           <div className="hidden md:flex items-center gap-3">
-            <a href="mailto:api@opineo.io?subject=Demande de démo">
+            <a href="mailto:contact@mijotek.fr?subject=Demande de démo">
               <Button variant="ghost" size="sm">Demander une démo</Button>
             </a>
             <Link to="/login">
@@ -142,7 +142,7 @@ export default function Landing() {
               </motion.p>
 
               <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mb-10">
-                <a href="mailto:api@opineo.io?subject=Demande de démo">
+                <a href="mailto:contact@mijotek.fr?subject=Demande de démo">
                   <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-shadow">
                     Demander une démo <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -180,7 +180,7 @@ export default function Landing() {
                     <div className="h-3 w-3 rounded-full bg-warning/60" />
                     <div className="h-3 w-3 rounded-full bg-accent/60" />
                   </div>
-                  <span className="text-xs text-muted-foreground ml-2">Delivery Performance — Vue réseau</span>
+                  <span className="text-xs text-muted-foreground ml-2">Mijotek — Vue réseau</span>
                 </div>
 
                 <div className="p-4 space-y-4">
@@ -313,7 +313,7 @@ export default function Landing() {
             viewport={{ once: true }}
             className="text-center text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-10"
           >
-            Ils font confiance à Delivery Performance
+            Ils font confiance à Mijotek
           </motion.p>
           <motion.div
             variants={stagger}
@@ -512,7 +512,7 @@ export default function Landing() {
                 Rejoignez Chicken Street et Tasty Crousty. Demandez une démo, on vous montre la plateforme sur vos propres données.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="mailto:api@opineo.io?subject=Demande de démo">
+                <a href="mailto:contact@mijotek.fr?subject=Demande de démo">
                   <Button size="lg" variant="secondary" className="h-12 px-8 text-base font-semibold w-full sm:w-auto">
                     Demander une démo <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
@@ -535,12 +535,12 @@ export default function Landing() {
             <div className="h-6 w-6 rounded bg-primary flex items-center justify-center">
               <BarChart3 className="h-3.5 w-3.5 text-primary-foreground" />
             </div>
-            <span className="font-semibold text-foreground">Delivery Performance</span>
-            <span>© 2026 Opineo</span>
+            <span className="font-semibold text-foreground">Mijotek</span>
+            <span>© 2026 Mijotek</span>
           </div>
           <div className="flex gap-6">
-            <a href="mailto:api@opineo.io" className="hover:text-foreground transition-colors">
-              api@opineo.io
+            <a href="mailto:contact@mijotek.fr" className="hover:text-foreground transition-colors">
+              contact@mijotek.fr
             </a>
           </div>
         </div>

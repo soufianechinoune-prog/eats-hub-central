@@ -32,7 +32,7 @@ const Login = () => {
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: "https://cs-delivery-performance.com/reset-password",
+        redirectTo: `${window.location.origin}/reset-password`,
       });
       if (error) throw error;
       toast({
@@ -64,7 +64,7 @@ const Login = () => {
 
       toast({
         title: "Connexion réussie",
-        description: "Bienvenue sur CS Performance",
+        description: "Bienvenue sur Mijotek",
       });
       navigate(nextPath ?? "/overview");
     } catch (error: any) {
@@ -89,7 +89,7 @@ const Login = () => {
           <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
             <Lock className="h-6 w-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-foreground">CS Performance</CardTitle>
+          <CardTitle className="text-2xl text-foreground">Mijotek</CardTitle>
           <CardDescription>
             Connectez-vous pour accéder au tableau de bord
           </CardDescription>

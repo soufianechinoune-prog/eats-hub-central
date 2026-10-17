@@ -112,7 +112,7 @@ export function RestaurantComparisonPanel({
       // Footer
       pdf.setFontSize(8);
       pdf.setTextColor(150);
-      pdf.text("CS Delivery Performance", margin, pageHeight - 10);
+      pdf.text("Mijotek", margin, pageHeight - 10);
 
       pdf.save(`comparaison-restaurants-${new Date().toISOString().split("T")[0]}.pdf`);
     } catch (error) {

@@ -180,7 +180,7 @@ export function useChataigneTarifExport() {
         doc.setFontSize(7);
         doc.setTextColor(150, 150, 150);
         doc.text(
-          `CS Delivery Performance — Page ${p}/${totalPages}`,
+          `Mijotek — Page ${p}/${totalPages}`,
           pageW - margin,
           pageH - 6,
           { align: "right" }

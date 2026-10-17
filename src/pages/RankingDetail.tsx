@@ -575,7 +575,7 @@ export default function RankingDetail() {
       
       pdf.setFontSize(8);
       pdf.setTextColor(156, 163, 175);
-      pdf.text("CS Delivery Performance - Classement", margin, pageHeight - 4);
+      pdf.text("Mijotek - Classement", margin, pageHeight - 4);
       pdf.text("Page 1/1", pageWidth - margin - pdf.getTextWidth("Page 1/1"), pageHeight - 4);
 
       const filename = `classement_${metricType}_${selectedPlatform}_${selectedYear}.pdf`;

@@ -172,7 +172,7 @@ export function useMenuComparisonExport() {
       const drawFooter = (pageNum: number, totalPages: number) => {
         pdf.setFontSize(7);
         pdf.setTextColor(156, 163, 175);
-        pdf.text("CS Delivery - Comparaison des prix", margin, pageHeight - 4);
+        pdf.text("Mijotek - Comparaison des prix", margin, pageHeight - 4);
         pdf.text(`Page ${pageNum}/${totalPages}`, pageWidth - margin - 15, pageHeight - 4);
       };
 

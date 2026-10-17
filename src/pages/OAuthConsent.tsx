@@ -80,7 +80,7 @@ export default function OAuthConsent() {
           </div>
           <CardTitle className="text-2xl">Autoriser la connexion</CardTitle>
           <CardDescription>
-            Une application externe (via MCP) demande l'accès à votre compte CS Delivery Performance.
+            Une application externe (via MCP) demande l'accès à votre compte Mijotek.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
