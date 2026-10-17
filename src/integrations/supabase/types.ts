@@ -85,6 +85,122 @@ export type Database = {
           },
         ]
       }
+      ai_quotas: {
+        Row: {
+          budget_cap_usd: number | null
+          chain_id: string
+          created_at: string
+          id: string
+          month: string
+          monthly_limit_questions: number
+          updated_at: string
+          used_cost_usd: number
+          used_questions: number
+        }
+        Insert: {
+          budget_cap_usd?: number | null
+          chain_id: string
+          created_at?: string
+          id?: string
+          month: string
+          monthly_limit_questions?: number
+          updated_at?: string
+          used_cost_usd?: number
+          used_questions?: number
+        }
+        Update: {
+          budget_cap_usd?: number | null
+          chain_id?: string
+          created_at?: string
+          id?: string
+          month?: string
+          monthly_limit_questions?: number
+          updated_at?: string
+          used_cost_usd?: number
+          used_questions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_quotas_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_usage_log: {
+        Row: {
+          cache_creation_input_tokens: number
+          cache_read_input_tokens: number
+          chain_id: string
+          conversation_id: string | null
+          cost_usd: number
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          id: string
+          input_tokens: number
+          model: string
+          output_tokens: number
+          page_route: string | null
+          status: string
+          total_tokens: number
+          user_id: string | null
+        }
+        Insert: {
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
+          chain_id: string
+          conversation_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          page_route?: string | null
+          status?: string
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Update: {
+          cache_creation_input_tokens?: number
+          cache_read_input_tokens?: number
+          chain_id?: string
+          conversation_id?: string | null
+          cost_usd?: number
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          id?: string
+          input_tokens?: number
+          model?: string
+          output_tokens?: number
+          page_route?: string | null
+          status?: string
+          total_tokens?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_log_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_usage_log_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "ai_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       api_keys: {
         Row: {
           chain_id: string
@@ -14125,6 +14241,10 @@ export type Database = {
           total_promo_amount: number
         }[]
       }
+      get_or_create_monthly_ai_quota: {
+        Args: { p_chain_id: string; p_default_limit?: number }
+        Returns: Json
+      }
       get_order_counts_for_accuracy: {
         Args: {
           p_end_date: string
@@ -14757,6 +14877,10 @@ export type Database = {
       import_instore_restaurant_prices: {
         Args: { p_chain_id: string; p_rows: Json }
         Returns: number
+      }
+      increment_ai_quota: {
+        Args: { p_chain_id: string; p_cost_usd?: number }
+        Returns: Json
       }
       is_super_admin: { Args: never; Returns: boolean }
       mark_uber_live_orders_consolidated: {

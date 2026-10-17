@@ -1,5 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useAnalyticsContext } from '@/contexts/AnalyticsContext';
+
+export interface AIQuota {
+  used_questions: number;
+  monthly_limit_questions: number;
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -18,6 +25,17 @@ export const useAIAdvisor = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [quota, setQuota] = useState<AIQuota | null>(null);
+  const { selectedChainId } = useAnalyticsContext();
+  const location = useLocation();
+
+  const loadQuota = useCallback(async () => {
+    if (!selectedChainId) return;
+    const { data } = await supabase.rpc('get_or_create_monthly_ai_quota', { p_chain_id: selectedChainId });
+    if (data) setQuota(data as unknown as AIQuota);
+  }, [selectedChainId]);
+
+  useEffect(() => { loadQuota(); }, [loadQuota]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -131,16 +149,23 @@ export const useAIAdvisor = () => {
         payloadMessagesCount: payloadMessages.length,
       });
 
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Session expirée, reconnectez-vous');
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-advisor`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+            Authorization: `Bearer ${session.access_token}`,
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
           },
           body: JSON.stringify({
             messages: payloadMessages,
+            chainId: selectedChainId,
+            pageContext: location.pathname,
+            conversationId,
           }),
         }
       );
@@ -153,6 +178,7 @@ export const useAIAdvisor = () => {
 
       if (!response.ok || !response.body) {
         const error = await response.json().catch(() => ({}));
+        if ((error as any).quota) setQuota((error as any).quota);
         throw new Error((error as any).error || 'Erreur de connexion');
       }
 
@@ -199,6 +225,10 @@ export const useAIAdvisor = () => {
 
           try {
             const parsed = JSON.parse(jsonStr);
+            if (parsed.quota) {
+              setQuota(parsed.quota as AIQuota);
+              continue;
+            }
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (content) {
               deltas += 1;
@@ -258,6 +288,7 @@ export const useAIAdvisor = () => {
   return {
     messages,
     isLoading,
+    quota,
     sendMessage,
     currentConversationId,
     conversations,

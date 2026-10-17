@@ -99,7 +99,9 @@ export const AIAdvisorChat = () => {
     startNewConversation,
     deleteConversation,
     renameConversation,
+    quota,
   } = useAIAdvisor();
+  const quotaRatio = quota && quota.monthly_limit_questions > 0 ? quota.used_questions / quota.monthly_limit_questions : 0;
 
   const pageContext = usePageContext();
   const { queuedVersion, consumeQueuedMessage } = useAIAdvisorContext();
@@ -489,6 +491,14 @@ export const AIAdvisorChat = () => {
         </ScrollArea>
 
         <div className="border-t border-border/50 p-4 bg-gradient-to-t from-ai-surface/20 to-transparent">
+          {quota && quotaRatio >= 0.8 && (
+            <div role="status" className={`mb-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ${quotaRatio >= 1 ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-warning/40 bg-warning/10 text-foreground"}`}>
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+              {quotaRatio >= 1
+                ? "Quota mensuel atteint : de nouvelles questions seront possibles le mois prochain."
+                : `Vous avez utilisé ${Math.round(quotaRatio * 100)} % de vos questions ce mois-ci.`}
+            </div>
+          )}
           <div className="flex gap-3 items-end">
             <div className="flex-1 relative">
               <Textarea
@@ -511,6 +521,11 @@ export const AIAdvisorChat = () => {
               </Button>
             </motion.div>
           </div>
+          {quota && (
+            <p className="mt-2 text-right text-[11px] text-muted-foreground tabular-nums">
+              {quota.used_questions} / {quota.monthly_limit_questions} questions ce mois
+            </p>
+          )}
         </div>
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
