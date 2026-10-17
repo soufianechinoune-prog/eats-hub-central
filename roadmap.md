@@ -82,3 +82,9 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Relier l’évolution CA/commandes aux repères partagés du Parrainage et de Croissance & Clients.
 - [x] Vérifier la visibilité réciproque, les granularités et la modification des repères.
 - [x] Ajouter les plages datées partagées et la sélection par glissement ; création, partage vers Parrainage, modification réciproque et suppression vérifiés en session connectée.
+
+## Samir Vision (Claude Sonnet 5.5)
+- [x] Tables quotas + journal d'usage, incrément atomique réservé au serveur
+- [x] Fonction réécrite : deux clients, quota fail-closed, cache stable, page + KPIs hors cache
+- [x] Compteur « X / 500 questions ce mois » + bannière à 80 %
+- [ ] Activer : clé Claude (ANTHROPIC_API_KEY) — bloqué : compte Console à créer

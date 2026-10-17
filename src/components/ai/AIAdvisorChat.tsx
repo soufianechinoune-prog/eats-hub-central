@@ -521,6 +521,11 @@ export const AIAdvisorChat = () => {
               </Button>
             </motion.div>
           </div>
+          {quota && (
+            <p className="mt-2 text-right text-[11px] text-muted-foreground tabular-nums">
+              {quota.used_questions} / {quota.monthly_limit_questions} questions ce mois
+            </p>
+          )}
         </div>
 
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
