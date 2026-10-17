@@ -297,7 +297,7 @@ export function useEcoContributionExport() {
       doc.setPage(p);
       doc.setFontSize(7);
       doc.setTextColor(150, 150, 150);
-      doc.text(`CS Delivery Performance - Page ${p}/${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
+      doc.text(`Mijotek - Page ${p}/${totalPages}`, pageW - margin, pageH - 6, { align: "right" });
     }
 
     doc.save(`eco-contribution_${yearLabel}_${new Date().toISOString().slice(0, 10)}.pdf`);

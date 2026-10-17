@@ -130,7 +130,7 @@ var get_restaurant_default = defineTool3({
 var projectRef = "akcicojkrzeirffefdet";
 var mcp_default = defineMcp({
   name: "cs-delivery-performance-mcp",
-  title: "CS Delivery Performance",
+  title: "Mijotek",
   version: "0.1.0",
   instructions: "Multi-tenant analytics for delivery brands (Uber Eats, Deliveroo, POS). Use `list_chains` to discover brands the user can access, `list_restaurants` to list their restaurants (optionally filtered by chain_id), and `get_restaurant` for full details on one restaurant. All tools respect the signed-in user's brand access.",
   auth: auth.oauth.issuer({

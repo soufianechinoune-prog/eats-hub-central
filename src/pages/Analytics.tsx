@@ -1213,7 +1213,7 @@ export default function Analytics() {
   const handleExportPdf = () => {
     exportToPdf(chartsRef.current, {
       title: "Rapport Analytics",
-      subtitle: "CS Delivery Performance",
+      subtitle: "Mijotek",
       period: getPeriodDisplay(),
       restaurants: getRestaurantsDisplay(),
       platform: getPlatformDisplay(),

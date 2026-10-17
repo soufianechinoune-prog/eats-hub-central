@@ -65,18 +65,18 @@ export async function loadChainLogoBase64(chainId: string | null): Promise<strin
 }
 
 /**
- * Get the chain name for PDF titles. Falls back to "CS Delivery Performance".
+ * Get the chain name for PDF titles. Falls back to "Mijotek".
  */
 export async function getChainName(chainId: string | null): Promise<string> {
-  if (!chainId) return "CS Delivery Performance";
+  if (!chainId) return "Mijotek";
   try {
     const { data } = await supabase
       .from("chains")
       .select("name")
       .eq("id", chainId)
       .single();
-    return data?.name || "CS Delivery Performance";
+    return data?.name || "Mijotek";
   } catch {
-    return "CS Delivery Performance";
+    return "Mijotek";
   }
 }

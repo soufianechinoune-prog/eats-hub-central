@@ -276,7 +276,7 @@ export function AppSidebar() {
                   </AvatarFallback>
                 </Avatar>
               ) : (
-                <img src={csLogo} alt="CS Delivery Performance" className="mx-auto h-8 w-8 rounded-full object-cover" />
+                <img src={csLogo} alt="Mijotek" className="mx-auto h-8 w-8 rounded-full object-cover" />
               )}
             </SidebarGroupLabel>
           )}

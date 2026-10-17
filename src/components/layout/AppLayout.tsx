@@ -37,7 +37,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     enabled: !!selectedChainId,
   });
 
-  const displayName = chainData?.name || "CS Delivery Performance";
+  const displayName = chainData?.name || "Mijotek";
   const chainLogoUrl = chainData?.logo_url;
 
   return (
@@ -52,7 +52,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
                 {chainLogoUrl ? (
                   <img src={chainLogoUrl} alt={displayName} className="h-9 w-9 rounded-md object-cover" />
                 ) : !selectedChainId ? (
-                  <img src={csLogo} alt="CS Delivery Performance" className="h-10 w-10 rounded-full object-cover" />
+                  <img src={csLogo} alt="Mijotek" className="h-10 w-10 rounded-full object-cover" />
                 ) : null}
                 <h1 className="text-xl font-semibold text-foreground">{displayName}</h1>
               </div>

@@ -897,7 +897,7 @@ export function useOverviewExport() {
 
       // Create sheet data with proper structure
       const sheetData = [
-        [{ v: "CS Delivery Performance - Tableau Comparatif", s: titleStyle }],
+        [{ v: "Mijotek - Tableau Comparatif", s: titleStyle }],
         [{ v: `Période: ${data.period}`, s: subtitleStyle }],
         [{ v: `Généré le: ${new Date().toLocaleString("fr-FR")}`, s: subtitleStyle }],
         [],
@@ -946,7 +946,7 @@ export function useOverviewExport() {
 
       // Sheet 2: KPIs Platform
       const kpiData = [
-        ["CS Delivery Performance - KPIs Plateforme"],
+        ["Mijotek - KPIs Plateforme"],
         [`Periode: ${data.period}`],
         [],
         ["", "Global", "Uber Eats", "Deliveroo"],
@@ -974,7 +974,7 @@ export function useOverviewExport() {
       const workbook = XLSX.utils.book_new();
 
       const globalData = [
-        ["CS Delivery Performance - Vue d'ensemble"],
+        ["Mijotek - Vue d'ensemble"],
         ["Periode", data.period],
         ["Genere le", new Date().toLocaleString("fr-FR")],
         [],
