@@ -20,6 +20,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AIPromptsTab } from "@/components/admin/AIPromptsTab";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const USD_TO_EUR = 0.92;
 const usd = (n: number | null | undefined, d = 2) => `${Number(n ?? 0).toFixed(d)} $`;
@@ -27,6 +28,7 @@ const dt = (s: string | null) => (s ? format(new Date(s), "dd/MM/yyyy HH:mm") : 
 
 interface Kpis { cost_usd: number; questions: number; active_users: number; avg_latency_s: number | null; errors: number }
 interface ConvMsg { role: string; content: string; at: string }
+interface UsageError { created_at: string; status: string; chain_name: string | null; email: string | null; error_message: string | null; duration_ms: number | null }
 
 const rpc = async <T,>(fn: string, args?: Record<string, unknown>): Promise<T> => {
   const { data, error } = await (supabase.rpc as any)(fn, args);
@@ -38,6 +40,7 @@ export default function AdminAIUsage() {
   const { data: isSuperAdmin, isLoading: checking } = useIsSuperAdmin();
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [user, setUser] = useState<{ id: string; email: string | null } | null>(null);
+  const [selectedError, setSelectedError] = useState<UsageError | null>(null);
   const m = format(month, "yyyy-MM-dd");
   const enabled = isSuperAdmin === true;
 
@@ -45,10 +48,13 @@ export default function AdminAIUsage() {
   const chains = useQuery({ queryKey: ["ai-usage-chains", m], enabled, queryFn: () => rpc<any[]>("admin_ai_usage_by_chain", { p_month: m }) });
   const users = useQuery({ queryKey: ["ai-usage-users", m], enabled, queryFn: () => rpc<any[]>("admin_ai_usage_top_users", { p_month: m }) });
   const daily = useQuery({ queryKey: ["ai-usage-daily", m], enabled, queryFn: () => rpc<any[]>("admin_ai_usage_daily", { p_month: m }) });
-  const errors = useQuery({ queryKey: ["ai-usage-errors"], enabled, queryFn: () => rpc<any[]>("admin_ai_usage_errors") });
+  const errors = useQuery({ queryKey: ["ai-usage-errors"], enabled, queryFn: () => rpc<UsageError[]>("admin_ai_usage_errors") });
   const convs = useQuery({
     queryKey: ["ai-usage-convs", user?.id], enabled: enabled && !!user,
-    queryFn: () => rpc<any[]>("admin_ai_user_conversations", { p_user_id: user!.id }),
+    queryFn: () => {
+      if (!user) return Promise.resolve([]);
+      return rpc<any[]>("admin_ai_user_conversations", { p_user_id: user.id });
+    },
   });
 
   if (checking) return <div className="p-8"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -136,12 +142,14 @@ export default function AdminAIUsage() {
             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Type</TableHead><TableHead>Enseigne</TableHead><TableHead>Utilisateur</TableHead><TableHead>Message</TableHead><TableHead className="text-right">Durée</TableHead></TableRow></TableHeader>
             <TableBody>
               {(errors.data ?? []).map((e, i) => (
-                <TableRow key={i}>
+                <TableRow key={i} className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" tabIndex={0} onClick={() => setSelectedError(e)} onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedError(e); }
+                }}>
                   <TableCell className="whitespace-nowrap">{dt(e.created_at)}</TableCell>
                   <TableCell><Badge variant={e.status === "error" ? "destructive" : "secondary"}>{e.status === "error" ? "Erreur" : "Quota atteint"}</Badge></TableCell>
                   <TableCell>{e.chain_name ?? "—"}</TableCell>
                   <TableCell>{e.email ?? "—"}</TableCell>
-                  <TableCell className="max-w-md truncate" title={e.error_message ?? ""}>{e.error_message ?? "—"}</TableCell>
+                  <TableCell className="max-w-md truncate"><Button variant="link" className="h-auto max-w-full justify-start p-0 text-left" onClick={() => setSelectedError(e)}><span className="truncate">{e.error_message ?? "—"}</span></Button></TableCell>
                   <TableCell className="text-right tabular-nums">{e.duration_ms != null ? `${(e.duration_ms / 1000).toFixed(1)} s` : "—"}</TableCell>
                 </TableRow>
               ))}
@@ -153,6 +161,20 @@ export default function AdminAIUsage() {
       </TabsContent>
       <TabsContent value="prompts"><AIPromptsTab /></TabsContent>
       </Tabs>
+
+      <Dialog open={selectedError !== null} onOpenChange={(open) => { if (!open) setSelectedError(null); }}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Détail de l’erreur Mijo</DialogTitle>
+            <DialogDescription>{dt(selectedError?.created_at ?? null)} · {selectedError?.chain_name ?? "—"} · {selectedError?.email ?? "—"}</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center gap-3 text-sm">
+            <Badge variant={selectedError?.status === "error" ? "destructive" : "secondary"}>{selectedError?.status === "error" ? "Erreur" : "Quota atteint"}</Badge>
+            {selectedError?.duration_ms != null && <span className="text-muted-foreground">{(selectedError.duration_ms / 1000).toFixed(1)} s</span>}
+          </div>
+          <pre className="select-text whitespace-pre-wrap break-words rounded-md border bg-muted/50 p-4 font-mono text-xs leading-relaxed">{selectedError?.error_message ?? "Aucun message enregistré."}</pre>
+        </DialogContent>
+      </Dialog>
 
       <Sheet open={!!user} onOpenChange={(o) => !o && setUser(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
