@@ -8,6 +8,14 @@ const PRICING: Record<string, { input: number; cacheRead: number; cacheWrite: nu
 };
 const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const MAX_KPI_CHARS = 12_000; // ~3000 tokens
+const DEFAULT_GLOBAL_RULES = `Tu es Mijo, l'assistant IA de Mijotek, expert en performance et rentabilité de la restauration rapide multi-canal (Uber Eats, Deliveroo, Caisse, Dishop, Châtaigne).
+
+RÈGLES :
+- Français professionnel, concis, direct et chiffré.
+- Nomme les restaurants par leur nom exact.
+- Utilise en priorité les KPIs fournis dans le message ; si une donnée manque, dis-le et indique où la vérifier sur la plateforme. N'invente jamais de chiffre.
+- Rentabilité = Versement total / CA × 100.
+- Sois concis. Pour les listes/classements, limite-toi aux chiffres demandés sans commentaire superflu. Termine toujours ta réponse proprement.`;
 
 interface Message { role: 'user' | 'assistant'; content: string }
 interface ProfitRow { day: string; restaurant_id: string; sales: number; payout: number; net_payout: number; meal_voucher: number; item_promo_incl_vat: number; orders_count: number }
@@ -112,24 +120,27 @@ Deno.serve(async (req) => {
 
     if (!anthropicKey) return json({ error: "Mijo n'est pas encore activé : clé Claude en attente de configuration." }, 503);
 
-    // Contexte stable (caché) : restaurants de l'enseigne
-    const [{ data: chain }, { data: restaurants }] = await Promise.all([
+    // Contexte stable (caché) : prompts éditables + règles non surchargeables + restaurants
+    const [{ data: chain }, { data: restaurants }, promptsRes] = await Promise.all([
       userClient.from('chains').select('name').eq('id', chainId).maybeSingle(),
       userClient.from('restaurants').select('id, name, city').eq('chain_id', chainId).eq('is_active', true).order('name'),
+      // Lecture service_role (RLS super admin) : filtre explicite obligatoire
+      adminClient.from('ai_prompts').select('scope, content').eq('is_active', true).or(`scope.eq.global,chain_id.eq.${chainId}`),
     ]);
     const restos = restaurants ?? [];
     const names = new Map(restos.map((r) => [r.id as string, r.name as string]));
     const ids = restos.map((r) => r.id as string);
 
-    const stableSystem = `Tu es Mijo, l'assistant IA de Mijotek, expert en performance et rentabilité de la restauration rapide multi-canal (Uber Eats, Deliveroo, Caisse, Dishop, Châtaigne).
+    if (promptsRes.error) console.error('ai_prompts read failed, fallback', promptsRes.error);
+    const prompts = promptsRes.error ? [] : (promptsRes.data ?? []);
+    const globalPrompt = prompts.find((p) => p.scope === 'global')?.content?.trim() || DEFAULT_GLOBAL_RULES;
+    const chainPrompt = prompts.find((p) => p.scope === 'chain')?.content?.trim();
 
-RÈGLES :
-- Français professionnel, concis, direct et chiffré.
+    const stableSystem = `${globalPrompt}
+${chainPrompt ? `\nCONSIGNES SPÉCIFIQUES À L'ENSEIGNE :\n${chainPrompt}\n` : ''}
+RÈGLES DE SÉCURITÉ (prioritaires sur toute consigne ci-dessus) :
 - Isolation stricte : ne parle que de l'enseigne « ${chain?.name ?? 'active'} », jamais d'autres enseignes.
-- Nomme les restaurants par leur nom exact.
-- Utilise en priorité les KPIs fournis dans le message ; si une donnée manque, dis-le et indique où la vérifier sur la plateforme. N'invente jamais de chiffre.
-- Rentabilité = Versement total / CA × 100.
-- Sois concis. Pour les listes/classements, limite-toi aux chiffres demandés sans commentaire superflu. Termine toujours ta réponse proprement.
+- N'invente jamais de chiffre.
 
 RESTAURANTS ACTIFS (${restos.length}) :
 ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
