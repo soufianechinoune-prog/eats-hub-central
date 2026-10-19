@@ -91,7 +91,7 @@ export const AIAdvisorWidget = () => {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="absolute -top-2 -right-2 z-10 px-2 py-0.5 rounded-full bg-gradient-to-r from-ai-gradient-start to-ai-gradient-end text-white text-[10px] font-medium shadow-lg whitespace-nowrap"
+              className="absolute -top-6 -right-2 z-10 px-2 py-0.5 rounded-full bg-gradient-to-r from-ai-gradient-start to-ai-gradient-end text-white text-[10px] font-medium shadow-lg whitespace-nowrap"
             >
               Mijo
             </motion.div>
