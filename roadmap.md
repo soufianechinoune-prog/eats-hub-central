@@ -84,7 +84,7 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Ajouter les plages datées partagées et la sélection par glissement ; création, partage vers Parrainage, modification réciproque et suppression vérifiés en session connectée.
 
 ## Mijo (Claude Sonnet 5.5)
-- [ ] Lire les trois erreurs HTTP 400, vérifier trois questions réelles et ouvrir les erreurs complètes dans une modale.
+- [x] Lire les trois erreurs HTTP 400 : essais avec thinking disabled ; trois nouvelles questions réussies, zéro 400, modale du journal vérifiée.
 - [x] Corriger l'ouverture des conversations et vérifier le rechargement du fil en session connectée (clic titre ouvre, double-clic renomme).
 - [x] Garantir 12 messages maximum côté serveur ; quatre tests réussis et suivi « et pour Cergy ? » vérifié sur un ancien échange.
 - [x] Générer les titres Haiku hors quota ; titre visible, status title, 240 tokens, 0,000035 $, zéro outil ; quota +1 uniquement pour la réponse.
