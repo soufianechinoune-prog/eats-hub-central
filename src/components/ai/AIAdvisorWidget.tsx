@@ -3,9 +3,26 @@ import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIAdvisorChat } from './AIAdvisorChat';
 import { useAIAdvisorContext } from '@/contexts/AIAdvisorContext';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAnalyticsContext } from '@/contexts/AnalyticsContext';
+import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 
 export const AIAdvisorWidget = () => {
   const { isOpen, setIsOpen } = useAIAdvisorContext();
+  const { selectedChainId } = useAnalyticsContext();
+  const { data: isSuperAdmin } = useIsSuperAdmin();
+  const { data: aiEnabled } = useQuery({
+    queryKey: ['ai-option-enabled', selectedChainId],
+    enabled: !!selectedChainId,
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data } = await supabase.rpc('get_or_create_monthly_ai_quota', { p_chain_id: selectedChainId! });
+      return (data as { enabled?: boolean } | null)?.enabled !== false;
+    },
+  });
+
+  if (aiEnabled === false && !isSuperAdmin) return null;
 
   return (
     <>
