@@ -288,7 +288,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
             const results = [];
             for (const b of toolUses) {
               toolCalls++;
-              const out = await runTool(b.name, b.input, userClient, chainId!);
+              const out = await runTool(b.name ?? "", b.input, userClient, chainId!);
               results.push({ type: 'tool_result', tool_use_id: b.id, content: truncateResult(out), ...(out?.erreur ? { is_error: true } : {}) });
             }
             convo = [...convo, { role: 'assistant', content: turnResult.content }, { role: 'user', content: results }];
