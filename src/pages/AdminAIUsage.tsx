@@ -18,6 +18,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AIPromptsTab } from "@/components/admin/AIPromptsTab";
 
 const USD_TO_EUR = 0.92;
 const usd = (n: number | null | undefined, d = 2) => `${Number(n ?? 0).toFixed(d)} $`;
@@ -65,6 +67,9 @@ export default function AdminAIUsage() {
           <Button variant="outline" size="icon" disabled={isCurrent} onClick={() => setMonth(addMonths(month, 1))}><ChevronRight className="h-4 w-4" /></Button>
         </div>
       </div>
+      <Tabs defaultValue="usage">
+      <TabsList><TabsTrigger value="usage">Usage</TabsTrigger><TabsTrigger value="prompts">Prompts</TabsTrigger></TabsList>
+      <TabsContent value="usage" className="space-y-6">
 
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-5">
         <Kpi label="Coût du mois" value={usd(k?.cost_usd)} sub={`≈ ${(Number(k?.cost_usd ?? 0) * USD_TO_EUR).toFixed(2)} € (indicatif)`} />
@@ -145,6 +150,9 @@ export default function AdminAIUsage() {
           </Table>
         </CardContent>
       </Card>
+      </TabsContent>
+      <TabsContent value="prompts"><AIPromptsTab /></TabsContent>
+      </Tabs>
 
       <Sheet open={!!user} onOpenChange={(o) => !o && setUser(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-2xl">
