@@ -240,6 +240,18 @@ export const useAIAdvisor = () => {
               setQuota(parsed.quota as AIQuota);
               continue;
             }
+            if (typeof parsed.status === 'string') {
+              // Statut temporaire (appel d'outils), affiché en italique, jamais enregistré
+              const base = assistantContent;
+              const sep = base ? '\n\n' : '';
+              setMessages((prev) => {
+                const lastMsg = prev[prev.length - 1];
+                const content = `${base}${sep}*${parsed.status}*`;
+                if (lastMsg?.role === 'assistant') return prev.map((m, i) => (i === prev.length - 1 ? { ...m, content } : m));
+                return [...prev, { role: 'assistant', content }];
+              });
+              continue;
+            }
             const content = parsed.choices?.[0]?.delta?.content as string | undefined;
             if (content) {
               deltas += 1;

@@ -457,7 +457,11 @@ export const AIAdvisorChat = () => {
                         : "bg-ai-bubble-assistant text-foreground border border-border/50 rounded-bl-md"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                    <p className="text-sm whitespace-pre-wrap leading-relaxed">
+                      {msg.content.split(/(\*🔍[^*]*\*)/).map((part, i) =>
+                        part.startsWith("*🔍") ? <em key={i} className="text-muted-foreground">{part.slice(1, -1)}</em> : part,
+                      )}
+                    </p>
                   </motion.div>
                 </motion.div>
               ))}

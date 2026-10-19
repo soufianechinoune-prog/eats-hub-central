@@ -206,6 +206,7 @@ export type Database = {
           output_tokens: number
           page_route: string | null
           status: string
+          tool_calls_count: number
           total_tokens: number
           user_id: string | null
         }
@@ -224,6 +225,7 @@ export type Database = {
           output_tokens?: number
           page_route?: string | null
           status?: string
+          tool_calls_count?: number
           total_tokens?: number
           user_id?: string | null
         }
@@ -242,6 +244,7 @@ export type Database = {
           output_tokens?: number
           page_route?: string | null
           status?: string
+          tool_calls_count?: number
           total_tokens?: number
           user_id?: string | null
         }
@@ -15033,6 +15036,80 @@ export type Database = {
       mark_uber_live_orders_consolidated: {
         Args: { _date_paris: string; _restaurant_id: string }
         Returns: number
+      }
+      mijo_classement: {
+        Args: {
+          p_chain_id: string
+          p_end: string
+          p_limite?: number
+          p_metrique: string
+          p_ordre?: string
+          p_start: string
+        }
+        Returns: {
+          ca: number
+          commandes: number
+          rentabilite_pct: number
+          restaurant: string
+          versement: number
+        }[]
+      }
+      mijo_daily_base: {
+        Args: {
+          p_canal: string
+          p_chain_id: string
+          p_end: string
+          p_restaurant_ids: string[]
+          p_start: string
+        }
+        Returns: {
+          ca: number
+          canal: string
+          commandes: number
+          day: string
+          restaurant_id: string
+          versement: number
+        }[]
+      }
+      mijo_evolution_mensuelle: {
+        Args: {
+          p_canal?: string
+          p_chain_id: string
+          p_end: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          ca: number
+          canal: string
+          commandes: number
+          mois: string
+          rentabilite_pct: number
+          versement: number
+        }[]
+      }
+      mijo_kpis_periode: {
+        Args: {
+          p_canal?: string
+          p_chain_id: string
+          p_end: string
+          p_restaurant_ids?: string[]
+          p_start: string
+        }
+        Returns: {
+          ca: number
+          canal: string
+          commandes: number
+          rentabilite_pct: number
+          versement: number
+        }[]
+      }
+      mijo_resolve_restaurants: {
+        Args: { p_chain_id: string; p_name: string }
+        Returns: {
+          id: string
+          name: string
+        }[]
       }
       move_to_dlq: {
         Args: {
