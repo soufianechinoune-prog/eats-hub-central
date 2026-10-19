@@ -99,6 +99,12 @@ Deno.serve(async (req) => {
     ]);
     if (!hasAccess && !isSuperAdmin) return json({ error: 'Accès non autorisé à cette enseigne' }, 403);
 
+    // La conversation doit appartenir à l'utilisateur ET à l'enseigne demandée
+    if (conversationId) {
+      const { data: conv } = await userClient.from('ai_conversations').select('chain_id').eq('id', conversationId).maybeSingle();
+      if (!conv || conv.chain_id !== chainId) return json({ error: "Conversation d'une autre enseigne. Ouvrez une nouvelle conversation." }, 409);
+    }
+
     // Quota — fail closed
     const { data: quota, error: quotaErr } = await userClient.rpc('get_or_create_monthly_ai_quota', { p_chain_id: chainId });
     if (quotaErr || !quota) {
