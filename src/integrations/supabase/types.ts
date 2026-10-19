@@ -90,7 +90,9 @@ export type Database = {
           budget_cap_usd: number | null
           chain_id: string
           created_at: string
+          enabled: boolean
           id: string
+          model: string
           month: string
           monthly_limit_questions: number
           updated_at: string
@@ -101,7 +103,9 @@ export type Database = {
           budget_cap_usd?: number | null
           chain_id: string
           created_at?: string
+          enabled?: boolean
           id?: string
+          model?: string
           month: string
           monthly_limit_questions?: number
           updated_at?: string
@@ -112,7 +116,9 @@ export type Database = {
           budget_cap_usd?: number | null
           chain_id?: string
           created_at?: string
+          enabled?: boolean
           id?: string
+          model?: string
           month?: string
           monthly_limit_questions?: number
           updated_at?: string
@@ -12973,6 +12979,7 @@ export type Database = {
       }
     }
     Functions: {
+      _ensure_ai_quota_row: { Args: { p_chain_id: string }; Returns: string }
       admin_ai_usage_by_chain: {
         Args: { p_month: string }
         Returns: {
@@ -12980,7 +12987,9 @@ export type Database = {
           chain_id: string
           chain_name: string
           cost_usd: number
+          enabled: boolean
           last_activity: string
+          model: string
           monthly_limit: number
           used_questions: number
         }[]
@@ -13037,6 +13046,15 @@ export type Database = {
           last_runs_7d: number
           schedule: string
         }[]
+      }
+      admin_set_ai_quota: {
+        Args: {
+          p_chain_id: string
+          p_enabled: boolean
+          p_model: string
+          p_monthly_limit: number
+        }
+        Returns: Json
       }
       backfill_orders_data_source_for_restaurant: {
         Args: { p_restaurant_id: string }
