@@ -85,6 +85,47 @@ export type Database = {
           },
         ]
       }
+      ai_prompts: {
+        Row: {
+          chain_id: string | null
+          content: string
+          created_at: string
+          id: string
+          is_active: boolean
+          scope: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          chain_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          scope: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          chain_id?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          scope?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_prompts_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_quotas: {
         Row: {
           budget_cap_usd: number | null
@@ -13035,6 +13076,18 @@ export type Database = {
           updated_at: string
         }[]
       }
+      admin_get_ai_prompts: {
+        Args: never
+        Returns: {
+          chain_id: string
+          chain_name: string
+          content: string
+          is_active: boolean
+          scope: string
+          updated_at: string
+          updated_by_email: string
+        }[]
+      }
       admin_list_cron_jobs: {
         Args: never
         Returns: {
@@ -13046,6 +13099,15 @@ export type Database = {
           last_runs_7d: number
           schedule: string
         }[]
+      }
+      admin_set_ai_prompt: {
+        Args: {
+          p_chain_id: string
+          p_content: string
+          p_is_active: boolean
+          p_scope: string
+        }
+        Returns: undefined
       }
       admin_set_ai_quota: {
         Args: {
