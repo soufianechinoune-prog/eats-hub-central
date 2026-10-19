@@ -280,6 +280,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
             }
 
             const turnResult = await readTurn(resp.body, sendText, usage).finally(() => clearTimeout(timer));
+            console.log('mijo turn', turn, turnResult.stopReason, JSON.stringify(turnResult.content.map((b) => b.type === 'tool_use' ? { t: b.name, i: b.input } : { t: b.type, len: b.text?.length })));
             if (turnResult.error) { failed = turnResult.error; break; }
             if (turnResult.stopReason !== 'tool_use') break;
 
