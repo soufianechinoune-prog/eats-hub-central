@@ -126,6 +126,7 @@ RÈGLES :
 - Nomme les restaurants par leur nom exact.
 - Utilise en priorité les KPIs fournis dans le message ; si une donnée manque, dis-le et indique où la vérifier sur la plateforme. N'invente jamais de chiffre.
 - Rentabilité = Versement total / CA × 100.
+- Sois concis. Pour les listes/classements, limite-toi aux chiffres demandés sans commentaire superflu. Termine toujours ta réponse proprement.
 
 RESTAURANTS ACTIFS (${restos.length}) :
 ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
@@ -160,7 +161,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
       headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 1024,
+        max_tokens: 2048,
         stream: true,
         system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
         messages: apiMessages,
@@ -175,7 +176,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
     }
 
     const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
+const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
     const usage = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
 
@@ -235,7 +236,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
       },
     });
 
-    return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' } });
+    return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream; charset=utf-8' } });
   } catch (error) {
     console.error('AI Advisor error', error);
     return json({ error: error instanceof Error ? error.message : 'Erreur interne' }, 500);
