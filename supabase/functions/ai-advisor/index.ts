@@ -215,16 +215,18 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
     let kpiText = 'KPIs indisponibles.';
     if (ids.length) {
       const cur = parisMonthBounds(0), prev = parisMonthBounds(-1);
-      const base = (b: { start: string; end: string }) =>
-        userClient.rpc('mijo_daily_base', { p_chain_id: chainId, p_start: b.start, p_end: b.end, p_canal: 'uber_eats', p_restaurant_ids: null });
-      const [c, p] = await Promise.all([base(cur), base(prev)]);
-      if (c.error || p.error) console.error('kpi rpc error', c.error ?? p.error);
-      const toRows = (d: unknown) => ((d ?? []) as { restaurant_id: string; day: string; ca: number; versement: number; commandes: number }[])
-        .map((r) => ({ day: r.day, restaurant_id: r.restaurant_id, sales: r.ca, payout: r.versement, net_payout: r.versement, meal_voucher: 0, item_promo_incl_vat: 0, orders_count: r.commandes }));
+      const kp = (b: { start: string; end: string }) =>
+        userClient.rpc('mijo_kpis_periode', { p_chain_id: chainId, p_start: b.start, p_end: b.end, p_canal: 'uber_eats', p_restaurant_ids: null });
+      const cl = (b: { start: string; end: string }, ordre: string) =>
+        userClient.rpc('mijo_classement', { p_chain_id: chainId, p_start: b.start, p_end: b.end, p_metrique: 'ca', p_ordre: ordre, p_limite: 5 });
+      const [c, p, top, flop] = await Promise.all([kp(cur), kp(prev), cl(cur, 'top'), cl(cur, 'flop')]);
+      if (c.error || p.error || top.error) console.error('kpi rpc error', c.error ?? p.error ?? top.error);
+      // deno-lint-ignore no-explicit-any
+      const tot = (d: any) => (d ?? []).find((r: { canal: string }) => r.canal === 'uber_eats') ?? null;
       const kpis = {
-        source: 'Uber Eats (commandes + versements), heure de Paris',
-        mois_en_cours: { periode: `${cur.start} → ${cur.end}`, ...summarize(toRows(c.data), names) },
-        mois_precedent: { periode: `${prev.start} → ${prev.end}`, total: summarize(toRows(p.data), names).total },
+        source: 'Uber Eats (commandes + versements), heure de Paris — mêmes calculs que les outils',
+        mois_en_cours: { periode: `${cur.start} → ${cur.end}`, total: tot(c.data), top5: top.data ?? [], flop5: flop.data ?? [] },
+        mois_precedent: { periode: `${prev.start} → ${prev.end}`, total: tot(p.data) },
       };
       kpiText = JSON.stringify(kpis);
       if (kpiText.length > MAX_KPI_CHARS) kpiText = kpiText.slice(0, MAX_KPI_CHARS) + '…';
@@ -264,6 +266,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
               headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
               body: JSON.stringify({
                 model, max_tokens: 2048, stream: true,
+                thinking: { type: 'disabled' },
                 system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
                 tools: TOOLS,
                 ...(finalTurn ? { tool_choice: { type: 'none' } } : {}),
@@ -282,6 +285,11 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
             const turnResult = await readTurn(resp.body, sendText, usage).finally(() => clearTimeout(timer));
             console.log('mijo turn', turn, turnResult.stopReason, JSON.stringify(turnResult.content.map((b) => b.type === 'tool_use' ? { t: b.name, i: b.input } : { t: b.type, len: b.text?.length })));
             if (turnResult.error) { failed = turnResult.error; break; }
+            if (turnResult.stopReason === 'max_tokens' && !turnResult.content.some((b) => b.type === 'text')) {
+              sendText('La question demande trop de calculs, précisez la période.');
+              failed = 'max_tokens sans réponse';
+              break;
+            }
             if (turnResult.stopReason !== 'tool_use') break;
 
             send({ status: '🔍 Mijo consulte les données...' });
