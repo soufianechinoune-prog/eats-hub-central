@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
       return json({ error: `Quota mensuel atteint (${q.used_questions}/${q.monthly_limit_questions} questions).`, quota: q }, 429);
     }
 
-    if (!anthropicKey) return json({ error: "Samir Vision n'est pas encore activé : clé Claude en attente de configuration." }, 503);
+    if (!anthropicKey) return json({ error: "Mijo n'est pas encore activé : clé Claude en attente de configuration." }, 503);
 
     // Contexte stable (caché) : restaurants de l'enseigne
     const [{ data: chain }, { data: restaurants }] = await Promise.all([
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
     const names = new Map(restos.map((r) => [r.id as string, r.name as string]));
     const ids = restos.map((r) => r.id as string);
 
-    const stableSystem = `Tu es Samir Vision, conseiller expert en performance et rentabilité pour la restauration rapide multi-canal (Uber Eats, Deliveroo, Caisse, Dishop, Châtaigne).
+    const stableSystem = `Tu es Mijo, l'assistant IA de Mijotek, expert en performance et rentabilité de la restauration rapide multi-canal (Uber Eats, Deliveroo, Caisse, Dishop, Châtaigne).
 
 RÈGLES :
 - Français professionnel, concis, direct et chiffré.

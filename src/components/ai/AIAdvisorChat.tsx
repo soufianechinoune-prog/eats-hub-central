@@ -505,7 +505,7 @@ export const AIAdvisorChat = () => {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Posez votre question..."
+                placeholder="Posez votre question à Mijo..."
                 className="resize-none min-h-[52px] max-h-[120px] rounded-2xl border-border/50 focus:border-ai-gradient-start/50 focus:ring-2 focus:ring-ai-gradient-start/20 pr-12 bg-background/50 backdrop-blur-sm transition-all"
                 rows={1}
               />
