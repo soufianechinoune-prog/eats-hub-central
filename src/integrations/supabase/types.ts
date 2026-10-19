@@ -34,24 +34,38 @@ export type Database = {
       }
       ai_conversations: {
         Row: {
+          chain_id: string | null
           created_at: string
           id: string
           title: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
+          chain_id?: string | null
           created_at?: string
           id?: string
           title?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
+          chain_id?: string | null
           created_at?: string
           id?: string
           title?: string | null
           updated_at?: string
+          user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "ai_conversations_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ai_messages: {
         Row: {
