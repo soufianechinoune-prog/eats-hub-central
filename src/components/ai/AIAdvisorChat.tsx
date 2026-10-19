@@ -368,7 +368,7 @@ export const AIAdvisorChat = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
               >
-                Samir Vision
+                Mijo
               </motion.h4>
 
               <motion.p

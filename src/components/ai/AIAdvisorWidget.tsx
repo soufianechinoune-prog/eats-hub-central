@@ -38,7 +38,7 @@ export const AIAdvisorWidget = () => {
                   <Sparkles className="h-5 w-5 text-white" />
                 </motion.div>
                 <div>
-                  <h3 className="font-semibold text-foreground">Samir Vision</h3>
+                  <h3 className="font-semibold text-foreground">Mijo</h3>
                   <motion.p 
                     className="text-xs text-muted-foreground"
                     animate={{ opacity: [0.5, 1, 0.5] }}
@@ -93,7 +93,7 @@ export const AIAdvisorWidget = () => {
               exit={{ opacity: 0, y: -10 }}
               className="absolute -top-2 -right-2 px-2 py-0.5 rounded-full bg-gradient-to-r from-ai-gradient-start to-ai-gradient-end text-white text-[10px] font-medium shadow-lg whitespace-nowrap"
             >
-              Samir Vision
+              Mijo
             </motion.div>
           )}
         </AnimatePresence>
