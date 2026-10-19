@@ -325,7 +325,6 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
     });
 
     return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream; charset=utf-8' } });
-    return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream; charset=utf-8' } });
   } catch (error) {
     console.error('AI Advisor error', error);
     return json({ error: error instanceof Error ? error.message : 'Erreur interne' }, 500);
