@@ -70,6 +70,7 @@ const InstorePrices = React.lazy(() => import("./pages/InstorePrices"));
 const SuccessScore = React.lazy(() => import("./pages/SuccessScore"));
 const Reviews = React.lazy(() => import("./pages/Reviews"));
 const Admin = React.lazy(() => import("./pages/Admin"));
+const AdminAIUsage = React.lazy(() => import("./pages/AdminAIUsage"));
 const Account = React.lazy(() => import("./pages/Account"));
 const Integrations = React.lazy(() => import("./pages/Integrations"));
 const UberBackfill = React.lazy(() => import("./pages/UberBackfill"));
@@ -243,6 +244,7 @@ const App = () => {
                     <Route path="/uber-mapping" element={<P><ImportRoute><AppLayout><UberStoreMapping /></AppLayout></ImportRoute></P>} />
                     <Route path="/deliveroo-matching" element={<P><ImportRoute><AppLayout><DeliverooMatching /></AppLayout></ImportRoute></P>} />
                     <Route path="/admin" element={<P><AppLayout><Admin /></AppLayout></P>} />
+                    <Route path="/admin/ai-usage" element={<P><AppLayout><AdminAIUsage /></AppLayout></P>} />
                     <Route path="/account" element={<P><AppLayout><Account /></AppLayout></P>} />
                     <Route path="/reviews" element={<P><AppLayout><Reviews /></AppLayout></P>} />
                     <Route path="/settings/integrations" element={<P><AppLayout><Integrations /></AppLayout></P>} />

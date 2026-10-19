@@ -12973,6 +12973,59 @@ export type Database = {
       }
     }
     Functions: {
+      admin_ai_usage_by_chain: {
+        Args: { p_month: string }
+        Returns: {
+          avg_cost_per_question: number
+          chain_id: string
+          chain_name: string
+          cost_usd: number
+          last_activity: string
+          monthly_limit: number
+          used_questions: number
+        }[]
+      }
+      admin_ai_usage_daily: {
+        Args: { p_month: string }
+        Returns: {
+          cost_usd: number
+          day: string
+          questions: number
+        }[]
+      }
+      admin_ai_usage_errors: {
+        Args: never
+        Returns: {
+          chain_name: string
+          created_at: string
+          duration_ms: number
+          email: string
+          error_message: string
+          status: string
+        }[]
+      }
+      admin_ai_usage_kpis: { Args: { p_month: string }; Returns: Json }
+      admin_ai_usage_top_users: {
+        Args: { p_month: string }
+        Returns: {
+          avg_latency_s: number
+          chain_id: string
+          chain_name: string
+          cost_usd: number
+          email: string
+          questions: number
+          user_id: string
+        }[]
+      }
+      admin_ai_user_conversations: {
+        Args: { p_user_id: string }
+        Returns: {
+          conversation_id: string
+          messages: Json
+          title: string
+          updated_at: string
+        }[]
+      }
       admin_list_cron_jobs: {
         Args: never
         Returns: {

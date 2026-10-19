@@ -7,6 +7,7 @@ import {
   Store,
   LogOut,
   Shield,
+  Sparkles,
   BarChart3,
   Zap,
   MessageSquare,
@@ -450,6 +451,19 @@ export function AppSidebar() {
                     <NavLink to="/admin">
                       <Shield className="h-4 w-4" />
                       {!collapsed && <span>Admin</span>}
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isSuperAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    asChild
+                    className={location.pathname === "/admin/ai-usage" ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                  >
+                    <NavLink to="/admin/ai-usage">
+                      <Sparkles className="h-4 w-4" />
+                      {!collapsed && <span>Usage IA</span>}
                     </NavLink>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
