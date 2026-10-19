@@ -32,7 +32,7 @@ import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { MijoSplitView } from "./MijoSplitView";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -213,9 +213,7 @@ export const AIAdvisorChat = () => {
   };
 
   return (
-    <ResizablePanelGroup direction="horizontal" autoSaveId="mijo-conversation-layout" className="h-auto min-h-0 flex-1">
-      {/* Sidebar des conversations */}
-      <ResizablePanel defaultSize={29} minSize={22} maxSize={55}>
+    <MijoSplitView sidebar={
       <div className="h-full min-w-0 flex flex-col bg-gradient-to-b from-ai-surface/30 to-transparent">
         <div className="p-3 border-b border-border/50 space-y-2">
           <Button
@@ -335,11 +333,9 @@ export const AIAdvisorChat = () => {
           </div>
         </ScrollArea>
       </div>
-      </ResizablePanel>
-      <ResizableHandle withHandle aria-label="Largeur de la liste des conversations" title="Redimensionner la liste des conversations" />
+      }>
 
       {/* Zone de chat principale */}
-      <ResizablePanel minSize={45}>
       <div className="h-full min-w-0 flex flex-col bg-gradient-to-b from-transparent to-ai-surface/20">
         <ScrollArea className="flex-1 min-h-0 p-3 sm:p-6">
           {isConversationLoading ? <div className="flex justify-center p-6"><Loader2 className="h-5 w-5 animate-spin" aria-label="Chargement de la conversation" /></div> : messages.length === 0 ? (
@@ -555,7 +551,6 @@ export const AIAdvisorChat = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+    </MijoSplitView>
   );
 };
