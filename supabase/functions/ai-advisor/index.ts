@@ -17,6 +17,12 @@ async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) =>
   let stopReason: string | null = null;
   let error: string | null = null;
   let buffer = '';
+  // L'annonce pré-outil (« je récupère le CA... ») ne doit jamais s'afficher : on retient le début du
+  // texte tant qu'aucun tool_use n'est apparu. Au-delà de HOLD_CHARS, c'est la vraie réponse : on diffuse.
+  const HOLD_CHARS = 240;
+  let pending = '';
+  let flushed = false;
+  let sawTool = false;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -35,13 +41,20 @@ async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) =>
         usage.cacheWrite += ev.message.usage.cache_creation_input_tokens ?? 0;
       } else if (ev.type === 'content_block_start') {
         const b = ev.content_block;
-        if (b.type === 'tool_use') content[ev.index] = { type: 'tool_use', id: b.id, name: b.name, input: {} };
+        if (b.type === 'tool_use') { sawTool = true; pending = ''; content[ev.index] = { type: 'tool_use', id: b.id, name: b.name, input: {} }; }
         else if (b.type === 'thinking') content[ev.index] = { type: 'thinking', thinking: b.thinking ?? '', signature: b.signature ?? '' };
         else if (b.type === 'text') content[ev.index] = { type: 'text', text: b.text ?? '' };
         else content[ev.index] = { ...b }; // redacted_thinking & co : renvoyés tels quels
         partial[ev.index] = '';
       } else if (ev.type === 'content_block_delta') {
-        if (ev.delta?.type === 'text_delta') { content[ev.index].text += ev.delta.text; onText(ev.delta.text); }
+        if (ev.delta?.type === 'text_delta') {
+          content[ev.index].text += ev.delta.text;
+          if (flushed) onText(ev.delta.text);
+          else {
+            pending += ev.delta.text;
+            if (pending.length >= HOLD_CHARS) { onText(pending); pending = ''; flushed = true; }
+          }
+        }
         else if (ev.delta?.type === 'input_json_delta') partial[ev.index] += ev.delta.partial_json ?? '';
         else if (ev.delta?.type === 'thinking_delta') content[ev.index].thinking += ev.delta.thinking ?? '';
         else if (ev.delta?.type === 'signature_delta') content[ev.index].signature = (content[ev.index].signature ?? '') + (ev.delta.signature ?? '');
@@ -56,6 +69,7 @@ async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) =>
       }
     }
   }
+  if (!sawTool && pending) onText(pending);
   return { content: content.filter((b) => b && !(b.type === 'text' && !b.text)), stopReason, error };
 }
 
@@ -206,6 +220,10 @@ RÈGLES DE SÉCURITÉ (prioritaires sur toute consigne ci-dessus) :
 - Isolation stricte : ne parle que de l'enseigne « ${chain?.name ?? 'active'} », jamais d'autres enseignes.
 - N'invente jamais de chiffre.
 
+RÈGLES DE RÉPONSE (codées en dur, non modifiables depuis l'onglet Prompts) :
+- Ne commence jamais ta réponse en annonçant que tu vas consulter les données. Réponds directement avec les résultats.
+- L'indicateur « 🔍 Mijo consulte... » affiché pendant les calculs suffit à signaler le travail en cours.
+
 OUTILS DE DONNÉES :
 - Tu disposes d'outils pour interroger les données historiques (depuis 2024). Utilise-les dès que la question porte sur une période, un canal ou un restaurant non couverts par le contexte fourni.
 - N'estime jamais un chiffre toi-même : si un outil ne renvoie pas la donnée, dis qu'elle n'est pas disponible.
@@ -241,7 +259,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
     // deno-lint-ignore no-explicit-any
     let convo: any[] = [
       ...messages.slice(0, -1),
-      { role: 'user', content: `[Page actuelle : ${pageRoute ?? '/'}]\n[KPIs enseigne]\n${kpiText}\n\n${last.content}` },
+      { role: 'user', content: `[Page actuelle : ${pageRoute ?? '/'}]\n[KPIs enseigne]\n${kpiText}\n\n${last.content}\n\n[Rappel : réponds directement par les résultats, sans annoncer que tu vas consulter les données.]` },
     ];
 
     const encoder = new TextEncoder();
