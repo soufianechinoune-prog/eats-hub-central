@@ -92,6 +92,7 @@ export const AIAdvisorChat = () => {
   const {
     messages,
     isLoading,
+    isConversationLoading,
     sendMessage,
     conversations,
     currentConversationId,
@@ -283,7 +284,7 @@ export const AIAdvisorChat = () => {
                         ? "bg-gradient-to-r from-ai-gradient-start/20 to-ai-gradient-end/10 border border-ai-gradient-start/30"
                         : "hover:bg-muted/50"
                     }`}
-                    onClick={() => loadConversation(conv.id)}
+                    onClick={() => { if (!isLoading) loadConversation(conv.id); }}
                   >
                     <MessageSquare className="h-4 w-4 mt-0.5 shrink-0" />
                     <div className="flex-1 min-w-0">
@@ -301,7 +302,7 @@ export const AIAdvisorChat = () => {
                       ) : (
                         <p
                           className="text-sm font-medium truncate cursor-text hover:text-ai-gradient-start transition-colors"
-                          onClick={(e) => {
+                          onDoubleClick={(e) => {
                             e.stopPropagation();
                             startEditingTitle(conv);
                           }}
@@ -335,7 +336,7 @@ export const AIAdvisorChat = () => {
       {/* Zone de chat principale */}
       <div className="flex-1 flex flex-col bg-gradient-to-b from-transparent to-ai-surface/20">
         <ScrollArea className="flex-1 p-6">
-          {messages.length === 0 ? (
+          {isConversationLoading ? <div className="flex justify-center p-6"><Loader2 className="h-5 w-5 animate-spin" aria-label="Chargement de la conversation" /></div> : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <motion.div
                 initial={{ scale: 0, rotate: -180 }}

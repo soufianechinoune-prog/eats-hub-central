@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAnalyticsContext } from '@/contexts/AnalyticsContext';
@@ -23,6 +24,8 @@ interface Conversation {
 export const useAIAdvisor = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isConversationLoading, setIsConversationLoading] = useState(false);
+  const conversationLoadVersion = useRef(0);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [quota, setQuota] = useState<AIQuota | null>(null);
@@ -41,6 +44,8 @@ export const useAIAdvisor = () => {
 
   // Changement d'enseigne : réinitialise le panneau et recharge l'historique de l'enseigne active
   useEffect(() => {
+    conversationLoadVersion.current += 1;
+    setIsConversationLoading(false);
     setMessages([]);
     setCurrentConversationId(null);
     setConversations([]);
@@ -65,12 +70,25 @@ export const useAIAdvisor = () => {
   };
 
   const loadConversation = async (conversationId: string) => {
-    const { data } = await supabase
+    const version = ++conversationLoadVersion.current;
+    setIsConversationLoading(true);
+    const { data: conversation, error: conversationError } = await supabase.from('ai_conversations')
+      .select('id').eq('id', conversationId).eq('chain_id', selectedChainId ?? '').maybeSingle();
+    if (version !== conversationLoadVersion.current) return;
+    if (conversationError || !conversation) {
+      setIsConversationLoading(false);
+      toast.error('Impossible d’ouvrir cette conversation.');
+      return;
+    }
+    const { data, error } = await supabase
       .from('ai_messages')
       .select('*')
       .eq('conversation_id', conversationId)
       .order('created_at', { ascending: true });
     
+    if (version !== conversationLoadVersion.current) return;
+    setIsConversationLoading(false);
+    if (error) { toast.error('Impossible de charger les messages.'); return; }
     if (data) {
       setMessages(data.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content })));
       setCurrentConversationId(conversationId);
@@ -78,6 +96,8 @@ export const useAIAdvisor = () => {
   };
 
   const startNewConversation = () => {
+    conversationLoadVersion.current += 1;
+    setIsConversationLoading(false);
     setMessages([]);
     setCurrentConversationId(null);
   };
@@ -106,7 +126,7 @@ export const useAIAdvisor = () => {
   };
 
   const sendMessage = async (userMessage: string) => {
-    if (!userMessage.trim()) return;
+    if (!userMessage.trim() || isLoading || isConversationLoading) return;
 
     console.log('[useAIAdvisor.sendMessage] start', {
       userMessageLen: userMessage.length,
@@ -123,11 +143,12 @@ export const useAIAdvisor = () => {
       let conversationId = currentConversationId;
       if (!conversationId) {
         const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '');
-        const { data: newConv } = await supabase
+        const { data: newConv, error: createError } = await supabase
           .from('ai_conversations')
           .insert({ title, chain_id: selectedChainId })
           .select()
           .single();
+        if (createError) throw createError;
 
         if (newConv) {
           conversationId = newConv.id;
@@ -140,13 +161,14 @@ export const useAIAdvisor = () => {
 
       // Save user message
       if (conversationId) {
-        await supabase
+        const { error: userSaveError } = await supabase
           .from('ai_messages')
           .insert({
             conversation_id: conversationId,
             role: 'user',
             content: userMessage,
           });
+        if (userSaveError) throw userSaveError;
 
         // Update conversation timestamp
         await supabase
@@ -273,13 +295,14 @@ export const useAIAdvisor = () => {
 
       // Save assistant message
       if (conversationId && assistantContent) {
-        await supabase
+        const { error: assistantSaveError } = await supabase
           .from('ai_messages')
           .insert({
             conversation_id: conversationId,
             role: 'assistant',
             content: assistantContent,
           });
+        if (assistantSaveError) throw assistantSaveError;
 
         // Update conversation timestamp
         await supabase
@@ -314,6 +337,7 @@ export const useAIAdvisor = () => {
     chainName,
     messages,
     isLoading,
+    isConversationLoading,
     quota,
     sendMessage,
     currentConversationId,

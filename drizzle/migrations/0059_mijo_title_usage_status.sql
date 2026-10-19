@@ -1,0 +1,2 @@
+ALTER TABLE public.ai_usage_log DROP CONSTRAINT ai_usage_log_status_check;
+ALTER TABLE public.ai_usage_log ADD CONSTRAINT ai_usage_log_status_check CHECK (status IN ('success', 'error', 'quota_exceeded', 'title'));
