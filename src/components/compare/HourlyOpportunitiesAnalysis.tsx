@@ -353,7 +353,7 @@ export const HourlyOpportunitiesAnalysis = ({
                 setIsAnalyzing(true);
 
                 try {
-                  console.log('[HourlyOpportunitiesAnalysis] Samir Vision click', {
+                  console.log('[HourlyOpportunitiesAnalysis] Mijo click', {
                     restaurants: restaurants.length,
                     startDate,
                     endDate,
@@ -424,7 +424,7 @@ Format court et direct, max 150 mots.`;
               ) : (
                 <Eye className="h-4 w-4 text-violet-600" />
               )}
-              <span className="text-violet-700 dark:text-violet-400">Samir Vision</span>
+              <span className="text-violet-700 dark:text-violet-400">Mijo</span>
               <Badge variant="outline" className="ml-1 text-[10px] px-1.5 py-0 bg-violet-500/20 text-violet-600 border-violet-500/30">
                 IA
               </Badge>
