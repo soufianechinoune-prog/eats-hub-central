@@ -179,7 +179,7 @@ export const useAIAdvisor = () => {
       if (!response.ok || !response.body) {
         const error = await response.json().catch(() => ({}));
         if ((error as any).quota) setQuota((error as any).quota);
-        throw new Error((error as any).error || 'Erreur de connexion');
+        throw Object.assign(new Error((error as any).error || 'Erreur de connexion'), { code: (error as any).code });
       }
 
       const reader = response.body.getReader();
@@ -278,7 +278,9 @@ export const useAIAdvisor = () => {
         ...prev,
         {
           role: 'assistant',
-          content: `Désolé, une erreur s'est produite: ${error.message}`,
+          content: error?.code === 'option_disabled'
+            ? "L'option Mijo n'est pas activée pour votre compte."
+            : `Désolé, une erreur s'est produite: ${error.message}`,
         },
       ]);
       setIsLoading(false);
