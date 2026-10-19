@@ -7,6 +7,7 @@ import {
   Store,
   LogOut,
   Shield,
+  Sparkles,
   BarChart3,
   Zap,
   MessageSquare,
