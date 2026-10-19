@@ -1,6 +1,11 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { format, addMonths, startOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -73,23 +78,10 @@ export default function AdminAIUsage() {
         <CardHeader><CardTitle className="text-base">Par enseigne</CardTitle></CardHeader>
         <CardContent>
           <Table>
-            <TableHeader><TableRow><TableHead>Enseigne</TableHead><TableHead className="w-64">Questions / limite</TableHead><TableHead className="text-right">Coût</TableHead><TableHead className="text-right">Coût / question</TableHead><TableHead>Dernière activité</TableHead></TableRow></TableHeader>
+            <TableHeader><TableRow><TableHead>Enseigne</TableHead><TableHead className="w-64">Questions / limite</TableHead><TableHead className="text-right">Coût</TableHead><TableHead className="text-right">Coût / question</TableHead><TableHead>Dernière activité</TableHead><TableHead>Option IA</TableHead><TableHead>Limite</TableHead><TableHead>Modèle</TableHead><TableHead /></TableRow></TableHeader>
             <TableBody>
-              {(chains.data ?? []).map((c) => (
-                <TableRow key={c.chain_id}>
-                  <TableCell className="font-medium">{c.chain_name}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Progress value={Math.min(100, (c.used_questions / Math.max(1, c.monthly_limit)) * 100)} className="h-2" />
-                      <span className="whitespace-nowrap text-sm tabular-nums">{c.used_questions}/{c.monthly_limit}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">{usd(c.cost_usd)}</TableCell>
-                  <TableCell className="text-right tabular-nums">{c.avg_cost_per_question != null ? usd(c.avg_cost_per_question, 4) : "—"}</TableCell>
-                  <TableCell>{dt(c.last_activity)}</TableCell>
-                </TableRow>
-              ))}
-              {chains.data?.length === 0 && <Empty cols={5} />}
+              {(chains.data ?? []).map((c) => <ChainRow key={c.chain_id} c={c} month={m} />)}
+              {chains.data?.length === 0 && <Empty cols={9} />}
             </TableBody>
           </Table>
         </CardContent>
@@ -192,3 +184,68 @@ function Kpi({ label, value, sub }: { label: string; value: React.ReactNode; sub
 const Empty = ({ cols }: { cols: number }) => (
   <TableRow><TableCell colSpan={cols} className="text-center text-sm text-muted-foreground">Aucune donnée</TableCell></TableRow>
 );
+
+const MODELS: Record<string, string> = { "claude-sonnet-5-5": "Sonnet 5.5 (qualité)", "claude-haiku-5-5": "Haiku 5.5 (éco)" };
+
+function ChainRow({ c, month }: { c: any; month: string }) {
+  const qc = useQueryClient();
+  const [enabled, setEnabled] = useState<boolean>(c.enabled);
+  const [limit, setLimit] = useState<number>(c.monthly_limit);
+  const [model, setModel] = useState<string>(c.model);
+  const [confirm, setConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const dirty = enabled !== c.enabled || limit !== c.monthly_limit || model !== c.model;
+  const valid = Number.isInteger(limit) && limit >= 100 && limit <= 10000;
+  const isCurrent = month === format(startOfMonth(new Date()), "yyyy-MM-dd");
+
+  const save = async () => {
+    setSaving(true);
+    const { error } = await (supabase.rpc as any)("admin_set_ai_quota", { p_chain_id: c.chain_id, p_enabled: enabled, p_monthly_limit: limit, p_model: model });
+    setSaving(false); setConfirm(false);
+    if (error) return toast.error(error.message);
+    toast.success(`${c.chain_name} : réglages enregistrés`);
+    qc.invalidateQueries({ queryKey: ["ai-usage-chains"] });
+    qc.invalidateQueries({ queryKey: ["ai-option-enabled"] });
+  };
+
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{c.chain_name}</TableCell>
+      <TableCell>
+        <div className="flex items-center gap-2">
+          <Progress value={Math.min(100, (c.used_questions / Math.max(1, c.monthly_limit)) * 100)} className="h-2" />
+          <span className="whitespace-nowrap text-sm tabular-nums">{c.used_questions}/{c.monthly_limit}</span>
+        </div>
+      </TableCell>
+      <TableCell className="text-right tabular-nums">{usd(c.cost_usd)}</TableCell>
+      <TableCell className="text-right tabular-nums">{c.avg_cost_per_question != null ? usd(c.avg_cost_per_question, 4) : "—"}</TableCell>
+      <TableCell className="whitespace-nowrap">{dt(c.last_activity)}</TableCell>
+      <TableCell><Switch checked={enabled} onCheckedChange={setEnabled} disabled={!isCurrent} aria-label={`Option IA ${c.chain_name}`} /></TableCell>
+      <TableCell><Input type="number" min={100} max={10000} step={50} value={limit} disabled={!isCurrent} onChange={(e) => setLimit(Number(e.target.value))} className={`h-8 w-24 ${valid ? "" : "border-destructive"}`} /></TableCell>
+      <TableCell>
+        <Select value={model} onValueChange={setModel} disabled={!isCurrent}>
+          <SelectTrigger className="h-8 w-44"><SelectValue /></SelectTrigger>
+          <SelectContent>{Object.entries(MODELS).map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent>
+        </Select>
+      </TableCell>
+      <TableCell>
+        <Button size="sm" disabled={!dirty || !valid || !isCurrent} onClick={() => setConfirm(true)}>Enregistrer</Button>
+        <AlertDialog open={confirm} onOpenChange={setConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Modifier l'option IA — {c.chain_name}</AlertDialogTitle>
+              <AlertDialogDescription>
+                Option {enabled ? "active" : "désactivée"} · limite {limit} questions/mois · {MODELS[model]}.
+                S'applique au mois en cours et aux mois suivants.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction onClick={(e) => { e.preventDefault(); save(); }} disabled={saving}>{saving ? "Enregistrement…" : "Confirmer"}</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </TableCell>
+    </TableRow>
+  );
+}
