@@ -32,6 +32,7 @@ import { fr } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { MijoSplitView } from "./MijoSplitView";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -212,9 +213,8 @@ export const AIAdvisorChat = () => {
   };
 
   return (
-    <div className="flex h-[536px]">
-      {/* Sidebar des conversations */}
-      <div className="w-64 border-r border-border/50 flex flex-col bg-gradient-to-b from-ai-surface/30 to-transparent">
+    <MijoSplitView sidebar={
+      <div className="h-full min-w-0 flex flex-col bg-gradient-to-b from-ai-surface/30 to-transparent">
         <div className="p-3 border-b border-border/50 space-y-2">
           <Button
             onClick={startNewConversation}
@@ -252,7 +252,7 @@ export const AIAdvisorChat = () => {
           )}
         </div>
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           <div className="p-2 space-y-1">
             {filteredConversations.length === 0 && searchQuery ? (
               <div className="text-center py-8 px-4">
@@ -301,7 +301,8 @@ export const AIAdvisorChat = () => {
                         />
                       ) : (
                         <p
-                          className="text-sm font-medium truncate cursor-text hover:text-ai-gradient-start transition-colors"
+                          className="text-sm font-medium line-clamp-2 break-words cursor-text hover:text-ai-gradient-start transition-colors"
+                          title={conv.title || "Sans titre"}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
                             startEditingTitle(conv);
@@ -332,10 +333,11 @@ export const AIAdvisorChat = () => {
           </div>
         </ScrollArea>
       </div>
+      }>
 
       {/* Zone de chat principale */}
-      <div className="flex-1 flex flex-col bg-gradient-to-b from-transparent to-ai-surface/20">
-        <ScrollArea className="flex-1 p-6">
+      <div className="h-full min-w-0 flex flex-col bg-gradient-to-b from-transparent to-ai-surface/20">
+        <ScrollArea className="flex-1 min-h-0 p-3 sm:p-6">
           {isConversationLoading ? <div className="flex justify-center p-6"><Loader2 className="h-5 w-5 animate-spin" aria-label="Chargement de la conversation" /></div> : messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <motion.div
@@ -408,7 +410,7 @@ export const AIAdvisorChat = () => {
                 Ou posez une question :
               </motion.p>
 
-              <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
                 {displayedQuestions.map((item, idx) => {
                   const Icon = item.icon;
                   return (
@@ -496,7 +498,7 @@ export const AIAdvisorChat = () => {
           <div ref={bottomRef} />
         </ScrollArea>
 
-        <div className="border-t border-border/50 p-4 bg-gradient-to-t from-ai-surface/20 to-transparent">
+        <div className="shrink-0 border-t border-border/50 p-4 bg-gradient-to-t from-ai-surface/20 to-transparent">
           {quota && quotaRatio >= 0.8 && (
             <div role="status" className={`mb-3 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs ${quotaRatio >= 1 ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-warning/40 bg-warning/10 text-foreground"}`}>
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
@@ -549,6 +551,6 @@ export const AIAdvisorChat = () => {
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </div>
+    </MijoSplitView>
   );
 };

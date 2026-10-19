@@ -1,4 +1,5 @@
-import { Sparkles, X, Minimize2 } from 'lucide-react';
+import { Sparkles, X, Minimize2, Maximize2 } from 'lucide-react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AIAdvisorChat } from './AIAdvisorChat';
@@ -9,6 +10,7 @@ import { useAnalyticsContext } from '@/contexts/AnalyticsContext';
 import { useIsSuperAdmin } from '@/hooks/useIsSuperAdmin';
 
 export const AIAdvisorWidget = () => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const { isOpen, setIsOpen } = useAIAdvisorContext();
   const { selectedChainId } = useAnalyticsContext();
   const { data: isSuperAdmin } = useIsSuperAdmin();
@@ -17,7 +19,8 @@ export const AIAdvisorWidget = () => {
     enabled: !!selectedChainId,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data } = await supabase.rpc('get_or_create_monthly_ai_quota', { p_chain_id: selectedChainId! });
+      if (!selectedChainId) return false;
+      const { data } = await supabase.rpc('get_or_create_monthly_ai_quota', { p_chain_id: selectedChainId });
       return (data as { enabled?: boolean } | null)?.enabled !== false;
     },
   });
@@ -37,9 +40,13 @@ export const AIAdvisorWidget = () => {
             }}
             exit={{ opacity: 0, scale: 0.9, y: 20 }}
             transition={{ type: "spring", bounce: 0.3, duration: 0.5 }}
-            className="fixed bottom-24 right-6 z-50 w-[900px] h-[600px] bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden"
+            role="region"
+            aria-label="Conversation Mijo"
+            className={`fixed z-50 flex flex-col bg-card/95 backdrop-blur-xl border border-border/50 rounded-3xl shadow-2xl overflow-hidden ${isExpanded
+              ? "inset-x-3 top-3 bottom-24 sm:inset-x-6 sm:top-6"
+              : "bottom-24 right-3 sm:right-6 w-[900px] max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-3rem)] h-[600px] max-h-[calc(100dvh-7rem)]"}`}
           >
-            <div className="relative flex items-center justify-between px-6 py-4 bg-gradient-to-r from-ai-gradient-start/10 via-ai-gradient-end/5 to-transparent border-b border-border/50">
+            <div className="relative shrink-0 flex items-center justify-between px-6 py-4 bg-gradient-to-r from-ai-gradient-start/10 via-ai-gradient-end/5 to-transparent border-b border-border/50">
               <div className="flex items-center gap-3">
                 <motion.div 
                   className="relative w-10 h-10 rounded-full bg-gradient-to-br from-ai-gradient-start to-ai-gradient-end flex items-center justify-center shadow-lg"
@@ -68,8 +75,19 @@ export const AIAdvisorWidget = () => {
               <div className="flex items-center gap-1">
                 <Button
                   variant="ghost"
+                  size="icon"
+                  onClick={() => setIsExpanded((expanded) => !expanded)}
+                  aria-label={isExpanded ? "Réduire Mijo" : "Agrandir Mijo"}
+                  title={isExpanded ? "Réduire Mijo" : "Agrandir Mijo"}
+                  className="h-8 w-8 hover:bg-muted/50"
+                >
+                  {isExpanded ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                </Button>
+                <Button
+                  variant="ghost"
                   size="sm"
                   onClick={() => setIsOpen(false)}
+                  aria-label="Fermer Mijo"
                   className="h-8 w-8 p-0 hover:bg-muted/50"
                 >
                   <X className="h-4 w-4" />
@@ -117,6 +135,7 @@ export const AIAdvisorWidget = () => {
 
         <Button
           onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Fermer Mijo" : "Ouvrir Mijo"}
           className="relative h-16 w-16 rounded-full shadow-2xl bg-gradient-to-br from-ai-gradient-start via-ai-gradient-end to-ai-gradient-start hover:shadow-[0_0_40px_rgba(147,51,234,0.6)] transition-all duration-300 backdrop-blur-sm border-2 border-white/20"
           size="icon"
         >
