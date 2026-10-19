@@ -1,14 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 
-// Tarifs Claude Sonnet 5.5 ($ par token)
-const MODEL = 'claude-sonnet-5-5';
-const PRICING = {
-  input: 2 / 1_000_000,
-  cacheRead: 0.10 / 1_000_000,
-  cacheWrite: 2.50 / 1_000_000,
-  output: 10 / 1_000_000,
+// Tarifs par modèle ($ par token)
+const PRICING: Record<string, { input: number; cacheRead: number; cacheWrite: number; output: number }> = {
+  'claude-sonnet-5-5': { input: 2 / 1e6, cacheRead: 0.10 / 1e6, cacheWrite: 2.50 / 1e6, output: 10 / 1e6 },
+  'claude-haiku-5-5': { input: 0.10 / 1e6, cacheRead: 0.01 / 1e6, cacheWrite: 0.125 / 1e6, output: 0.50 / 1e6 },
 };
+const DEFAULT_MODEL = 'claude-sonnet-5-5';
 const MAX_KPI_CHARS = 12_000; // ~3000 tokens
 
 interface Message { role: 'user' | 'assistant'; content: string }
@@ -93,15 +91,20 @@ Deno.serve(async (req) => {
     ]);
     if (!hasAccess && !isSuperAdmin) return json({ error: 'Accès non autorisé à cette enseigne' }, 403);
 
-    const logBase = { chain_id: chainId, user_id: user.id, conversation_id: conversationId, model: MODEL, page_route: pageRoute };
-
     // Quota — fail closed
     const { data: quota, error: quotaErr } = await userClient.rpc('get_or_create_monthly_ai_quota', { p_chain_id: chainId });
     if (quotaErr || !quota) {
       console.error('quota check failed', quotaErr);
       return json({ error: 'Impossible de vérifier le quota. Requête interrompue par sécurité.' }, 500);
     }
-    const q = quota as { used_questions: number; monthly_limit_questions: number; is_exceeded: boolean };
+    const q = quota as { used_questions: number; monthly_limit_questions: number; is_exceeded: boolean; enabled?: boolean; model?: string };
+    const model = q.model && q.model in PRICING ? q.model : DEFAULT_MODEL;
+    const price = PRICING[model];
+    const logBase = { chain_id: chainId, user_id: user.id, conversation_id: conversationId, model, page_route: pageRoute };
+    if (q.enabled === false) {
+      await adminClient.from('ai_usage_log').insert({ ...logBase, status: 'quota_exceeded', error_message: 'option_disabled', duration_ms: Date.now() - startTime });
+      return json({ error: "L'option IA n'est pas activée pour votre compte. Contactez Mijotek.", code: 'option_disabled', quota: q }, 403);
+    }
     if (q.is_exceeded) {
       await adminClient.from('ai_usage_log').insert({ ...logBase, status: 'quota_exceeded', duration_ms: Date.now() - startTime, error_message: `Quota atteint (${q.used_questions}/${q.monthly_limit_questions})` });
       return json({ error: `Quota mensuel atteint (${q.used_questions}/${q.monthly_limit_questions} questions).`, quota: q }, 429);
@@ -160,7 +163,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
       method: 'POST',
       headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: MODEL,
+        model,
         max_tokens: 2048,
         stream: true,
         system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
@@ -215,7 +218,7 @@ const decoder = new TextDecoder('utf-8');
           failed = e instanceof Error ? e.message : String(e);
         }
 
-        const cost = usage.input * PRICING.input + usage.cacheRead * PRICING.cacheRead + usage.cacheWrite * PRICING.cacheWrite + usage.output * PRICING.output;
+        const cost = usage.input * price.input + usage.cacheRead * price.cacheRead + usage.cacheWrite * price.cacheWrite + usage.output * price.output;
         const costUsd = Number(cost.toFixed(6));
         await adminClient.from('ai_usage_log').insert({
           ...logBase,
