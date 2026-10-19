@@ -20,3 +20,4 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 
 - Mijo (ai-advisor) answers history questions via Anthropic tool use backed by mijo_* SQL functions; chain_id is injected server-side, never a tool parameter, and context KPIs use the same functions so numbers match.
 - Mijo conversation policy is shared with regression tests; automatic titles use a separate audited server request without quota increments, so title costs cannot count as user questions.
+- Mijo uses a flex-height floating window and the shared resizable panels for its conversation list; expanding the window must preserve the mounted chat and its state.
