@@ -6,7 +6,7 @@ const MAX_TURNS = 5;
 const GLOBAL_TIMEOUT_MS = 60_000;
 
 // deno-lint-ignore no-explicit-any
-type Block = { type: string; id?: string; name?: string; input?: any; text?: string };
+type Block = { type: string; id?: string; name?: string; input?: any; text?: string; thinking?: string; signature?: string; data?: string };
 
 // Lit un tour SSE Anthropic : relaie le texte, reconstruit les blocs (text/tool_use), cumule l'usage.
 async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) => void, usage: { input: number; cacheRead: number; cacheWrite: number; output: number }) {
@@ -35,11 +35,16 @@ async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) =>
         usage.cacheWrite += ev.message.usage.cache_creation_input_tokens ?? 0;
       } else if (ev.type === 'content_block_start') {
         const b = ev.content_block;
-        content[ev.index] = b.type === 'tool_use' ? { type: 'tool_use', id: b.id, name: b.name, input: {} } : { type: 'text', text: '' };
+        if (b.type === 'tool_use') content[ev.index] = { type: 'tool_use', id: b.id, name: b.name, input: {} };
+        else if (b.type === 'thinking') content[ev.index] = { type: 'thinking', thinking: b.thinking ?? '', signature: b.signature ?? '' };
+        else if (b.type === 'text') content[ev.index] = { type: 'text', text: b.text ?? '' };
+        else content[ev.index] = { ...b }; // redacted_thinking & co : renvoyés tels quels
         partial[ev.index] = '';
       } else if (ev.type === 'content_block_delta') {
         if (ev.delta?.type === 'text_delta') { content[ev.index].text += ev.delta.text; onText(ev.delta.text); }
         else if (ev.delta?.type === 'input_json_delta') partial[ev.index] += ev.delta.partial_json ?? '';
+        else if (ev.delta?.type === 'thinking_delta') content[ev.index].thinking += ev.delta.thinking ?? '';
+        else if (ev.delta?.type === 'signature_delta') content[ev.index].signature = (content[ev.index].signature ?? '') + (ev.delta.signature ?? '');
       } else if (ev.type === 'content_block_stop') {
         const b = content[ev.index];
         if (b?.type === 'tool_use') { try { b.input = partial[ev.index] ? JSON.parse(partial[ev.index]) : {}; } catch { b.input = {}; } }
@@ -266,7 +271,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
               headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
               body: JSON.stringify({
                 model, max_tokens: 2048, stream: true,
-                thinking: { type: 'disabled' },
+                thinking: { type: 'between_tools' },
                 system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
                 tools: TOOLS,
                 ...(finalTurn ? { tool_choice: { type: 'none' } } : {}),
