@@ -100,6 +100,7 @@ export const AIAdvisorChat = () => {
     deleteConversation,
     renameConversation,
     quota,
+    chainName,
   } = useAIAdvisor();
   const quotaRatio = quota && quota.monthly_limit_questions > 0 ? quota.used_questions / quota.monthly_limit_questions : 0;
 
@@ -377,7 +378,7 @@ export const AIAdvisorChat = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
               >
-                L'IA qui voit tout pour Chicken Street
+                L'IA qui voit tout pour {chainName ?? "votre enseigne"}
               </motion.p>
 
               <motion.div

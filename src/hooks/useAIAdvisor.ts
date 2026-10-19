@@ -37,20 +37,31 @@ export const useAIAdvisor = () => {
 
   useEffect(() => { loadQuota(); }, [loadQuota]);
 
-  // Load conversations on mount
-  useEffect(() => {
-    loadConversations();
-  }, []);
+  const [chainName, setChainName] = useState<string | null>(null);
 
-  const loadConversations = async () => {
+  // Changement d'enseigne : réinitialise le panneau et recharge l'historique de l'enseigne active
+  useEffect(() => {
+    setMessages([]);
+    setCurrentConversationId(null);
+    setConversations([]);
+    setChainName(null);
+    if (!selectedChainId) return;
+    let cancelled = false;
+    supabase.from('chains').select('name').eq('id', selectedChainId).maybeSingle()
+      .then(({ data }) => { if (!cancelled) setChainName(data?.name ?? null); });
+    loadConversations(selectedChainId).then((rows) => { if (!cancelled && rows) setConversations(rows); });
+    return () => { cancelled = true; };
+  }, [selectedChainId]);
+
+  const loadConversations = async (chainId: string | null = selectedChainId) => {
+    if (!chainId) return [];
     const { data } = await supabase
       .from('ai_conversations')
       .select('*')
+      .eq('chain_id', chainId)
       .order('updated_at', { ascending: false });
-    
-    if (data) {
-      setConversations(data);
-    }
+    if (data && chainId === selectedChainId) setConversations(data);
+    return data ?? [];
   };
 
   const loadConversation = async (conversationId: string) => {
@@ -114,7 +125,7 @@ export const useAIAdvisor = () => {
         const title = userMessage.slice(0, 50) + (userMessage.length > 50 ? '...' : '');
         const { data: newConv } = await supabase
           .from('ai_conversations')
-          .insert({ title })
+          .insert({ title, chain_id: selectedChainId })
           .select()
           .single();
 
@@ -288,6 +299,7 @@ export const useAIAdvisor = () => {
   };
 
   return {
+    chainName,
     messages,
     isLoading,
     quota,
