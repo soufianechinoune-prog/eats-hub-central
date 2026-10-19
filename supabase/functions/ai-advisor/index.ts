@@ -1,5 +1,58 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { TOOLS, runTool, truncateResult } from './tools.ts';
+
+const MAX_TURNS = 5;
+const GLOBAL_TIMEOUT_MS = 60_000;
+
+// deno-lint-ignore no-explicit-any
+type Block = { type: string; id?: string; name?: string; input?: any; text?: string };
+
+// Lit un tour SSE Anthropic : relaie le texte, reconstruit les blocs (text/tool_use), cumule l'usage.
+async function readTurn(body: ReadableStream<Uint8Array>, onText: (t: string) => void, usage: { input: number; cacheRead: number; cacheWrite: number; output: number }) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder('utf-8');
+  const content: Block[] = [];
+  const partial: Record<number, string> = {};
+  let stopReason: string | null = null;
+  let error: string | null = null;
+  let buffer = '';
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const s = line.slice(6).trim();
+      if (!s) continue;
+      let ev;
+      try { ev = JSON.parse(s); } catch { continue; }
+      if (ev.type === 'message_start' && ev.message?.usage) {
+        usage.input += ev.message.usage.input_tokens ?? 0;
+        usage.cacheRead += ev.message.usage.cache_read_input_tokens ?? 0;
+        usage.cacheWrite += ev.message.usage.cache_creation_input_tokens ?? 0;
+      } else if (ev.type === 'content_block_start') {
+        const b = ev.content_block;
+        content[ev.index] = b.type === 'tool_use' ? { type: 'tool_use', id: b.id, name: b.name, input: {} } : { type: 'text', text: '' };
+        partial[ev.index] = '';
+      } else if (ev.type === 'content_block_delta') {
+        if (ev.delta?.type === 'text_delta') { content[ev.index].text += ev.delta.text; onText(ev.delta.text); }
+        else if (ev.delta?.type === 'input_json_delta') partial[ev.index] += ev.delta.partial_json ?? '';
+      } else if (ev.type === 'content_block_stop') {
+        const b = content[ev.index];
+        if (b?.type === 'tool_use') { try { b.input = partial[ev.index] ? JSON.parse(partial[ev.index]) : {}; } catch { b.input = {}; } }
+      } else if (ev.type === 'message_delta') {
+        if (ev.usage?.output_tokens) usage.output += ev.usage.output_tokens;
+        if (ev.delta?.stop_reason) stopReason = ev.delta.stop_reason;
+      } else if (ev.type === 'error') {
+        error = ev.error?.message ?? 'stream error';
+      }
+    }
+  }
+  return { content: content.filter((b) => b && !(b.type === 'text' && !b.text)), stopReason, error };
+}
 
 // Tarifs par modèle ($ par token)
 const PRICING: Record<string, { input: number; cacheRead: number; cacheWrite: number; output: number }> = {
@@ -148,91 +201,105 @@ RÈGLES DE SÉCURITÉ (prioritaires sur toute consigne ci-dessus) :
 - Isolation stricte : ne parle que de l'enseigne « ${chain?.name ?? 'active'} », jamais d'autres enseignes.
 - N'invente jamais de chiffre.
 
+OUTILS DE DONNÉES :
+- Tu disposes d'outils pour interroger les données historiques (depuis 2024). Utilise-les dès que la question porte sur une période, un canal ou un restaurant non couverts par le contexte fourni.
+- N'estime jamais un chiffre toi-même : si un outil ne renvoie pas la donnée, dis qu'elle n'est pas disponible.
+- La rentabilité n'existe que sur Uber Eats. Le CA caisse s'entend hors Châtaigne.
+- Si un outil renvoie plusieurs restaurants candidats, demande à l'utilisateur lequel il vise.
+- Date du jour (Paris) : ${parisMonthBounds(0).end}.
+
 RESTAURANTS ACTIFS (${restos.length}) :
 ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
 
-    // Contexte volatil (non caché) : KPIs mois en cours + mois précédent
+    // Contexte volatil (non caché) : KPIs Uber Eats mois en cours + précédent, même source et heure de Paris que les outils
     let kpiText = 'KPIs indisponibles.';
     if (ids.length) {
       const cur = parisMonthBounds(0), prev = parisMonthBounds(-1);
-      const [c, p] = await Promise.all([
-        userClient.rpc('get_profitability_monthly', { p_start_date: cur.start, p_end_date: cur.end, p_restaurant_ids: ids }),
-        userClient.rpc('get_profitability_monthly', { p_start_date: prev.start, p_end_date: prev.end, p_restaurant_ids: ids }),
-      ]);
+      const base = (b: { start: string; end: string }) =>
+        userClient.rpc('mijo_daily_base', { p_chain_id: chainId, p_start: b.start, p_end: b.end, p_canal: 'uber_eats', p_restaurant_ids: null });
+      const [c, p] = await Promise.all([base(cur), base(prev)]);
       if (c.error || p.error) console.error('kpi rpc error', c.error ?? p.error);
+      const toRows = (d: unknown) => ((d ?? []) as { restaurant_id: string; day: string; ca: number; versement: number; commandes: number }[])
+        .map((r) => ({ day: r.day, restaurant_id: r.restaurant_id, sales: r.ca, payout: r.versement, net_payout: r.versement, meal_voucher: 0, item_promo_incl_vat: 0, orders_count: r.commandes }));
       const kpis = {
-        source: 'Uber Eats (commandes + versements)',
-        mois_en_cours: { periode: `${cur.start} → ${cur.end}`, ...summarize((c.data ?? []) as ProfitRow[], names) },
-        mois_precedent: { periode: `${prev.start} → ${prev.end}`, total: summarize((p.data ?? []) as ProfitRow[], names).total },
+        source: 'Uber Eats (commandes + versements), heure de Paris',
+        mois_en_cours: { periode: `${cur.start} → ${cur.end}`, ...summarize(toRows(c.data), names) },
+        mois_precedent: { periode: `${prev.start} → ${prev.end}`, total: summarize(toRows(p.data), names).total },
       };
       kpiText = JSON.stringify(kpis);
       if (kpiText.length > MAX_KPI_CHARS) kpiText = kpiText.slice(0, MAX_KPI_CHARS) + '…';
     }
 
-    // Page + KPIs injectés dans le dernier message utilisateur (hors cache)
     const last = messages[messages.length - 1];
-    const apiMessages = [
+    // deno-lint-ignore no-explicit-any
+    let convo: any[] = [
       ...messages.slice(0, -1),
-      { role: 'user' as const, content: `[Page actuelle : ${pageRoute ?? '/'}]\n[KPIs enseigne]\n${kpiText}\n\n${last.content}` },
+      { role: 'user', content: `[Page actuelle : ${pageRoute ?? '/'}]\n[KPIs enseigne]\n${kpiText}\n\n${last.content}` },
     ];
 
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model,
-        max_tokens: 2048,
-        stream: true,
-        system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
-        messages: apiMessages,
-      }),
-    });
-
-    if (!resp.ok || !resp.body) {
-      const errText = await resp.text();
-      console.error('Anthropic error', resp.status, errText);
-      await adminClient.from('ai_usage_log').insert({ ...logBase, status: 'error', duration_ms: Date.now() - startTime, error_message: `HTTP ${resp.status}: ${errText.slice(0, 500)}` });
-      return json({ error: resp.status === 429 ? 'Trop de requêtes, réessayez dans un instant.' : `Erreur du service IA (${resp.status})` }, resp.status === 429 ? 429 : 502);
-    }
-
-    const reader = resp.body.getReader();
-const decoder = new TextDecoder('utf-8');
     const encoder = new TextEncoder();
     const usage = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 };
+    const deadline = startTime + GLOBAL_TIMEOUT_MS;
 
     const stream = new ReadableStream({
       async start(controller) {
-        let buffer = '';
+        const send = (o: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(o)}\n\n`));
+        const sendText = (t: string) => send({ choices: [{ delta: { content: t } }] });
         let failed: string | null = null;
+        let toolCalls = 0;
+        let turns = 0;
+        let timedOut = false;
+
         try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() ?? '';
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-              const s = line.slice(6).trim();
-              if (!s) continue;
-              try {
-                const ev = JSON.parse(s);
-                if (ev.type === 'message_start' && ev.message?.usage) {
-                  usage.input = ev.message.usage.input_tokens ?? 0;
-                  usage.cacheRead = ev.message.usage.cache_read_input_tokens ?? 0;
-                  usage.cacheWrite = ev.message.usage.cache_creation_input_tokens ?? 0;
-                } else if (ev.type === 'content_block_delta' && ev.delta?.text) {
-                  controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: ev.delta.text } }] })}\n\n`));
-                } else if (ev.type === 'message_delta' && ev.usage) {
-                  usage.output = ev.usage.output_tokens ?? usage.output;
-                } else if (ev.type === 'error') {
-                  failed = ev.error?.message ?? 'stream error';
-                }
-              } catch { /* fragment */ }
+          for (let turn = 1; turn <= MAX_TURNS; turn++) {
+            turns = turn;
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) { timedOut = true; break; }
+            const ac = new AbortController();
+            const timer = setTimeout(() => ac.abort(), remaining);
+            const finalTurn = turn === MAX_TURNS;
+            const resp = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              signal: ac.signal,
+              headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+              body: JSON.stringify({
+                model, max_tokens: 2048, stream: true,
+                system: [{ type: 'text', text: stableSystem, cache_control: { type: 'ephemeral' } }],
+                tools: TOOLS,
+                ...(finalTurn ? { tool_choice: { type: 'none' } } : {}),
+                messages: convo,
+              }),
+            }).catch((e) => { clearTimeout(timer); throw e; });
+
+            if (!resp.ok || !resp.body) {
+              clearTimeout(timer);
+              const t = await resp.text();
+              failed = `HTTP ${resp.status}: ${t.slice(0, 500)}`;
+              sendText(resp.status === 429 ? 'Trop de requêtes, réessayez dans un instant.' : `Erreur du service IA (${resp.status}).`);
+              break;
             }
+
+            const turnResult = await readTurn(resp.body, sendText, usage).finally(() => clearTimeout(timer));
+            if (turnResult.error) { failed = turnResult.error; break; }
+            if (turnResult.stopReason !== 'tool_use') break;
+
+            send({ status: '🔍 Mijo consulte les données...' });
+            const toolUses = turnResult.content.filter((b) => b.type === 'tool_use');
+            const results = [];
+            for (const b of toolUses) {
+              toolCalls++;
+              const out = await runTool(b.name, b.input, userClient, chainId!);
+              results.push({ type: 'tool_result', tool_use_id: b.id, content: truncateResult(out), ...(out?.erreur ? { is_error: true } : {}) });
+            }
+            convo = [...convo, { role: 'assistant', content: turnResult.content }, { role: 'user', content: results }];
           }
         } catch (e) {
-          failed = e instanceof Error ? e.message : String(e);
+          if (e instanceof DOMException && e.name === 'AbortError') timedOut = true;
+          else failed = e instanceof Error ? e.message : String(e);
+        }
+        if (timedOut) {
+          sendText('\n\nLa question demande trop de calculs, précisez la période.');
+          failed = failed ?? 'timeout 60s';
         }
 
         const cost = usage.input * price.input + usage.cacheRead * price.cacheRead + usage.cacheWrite * price.cacheWrite + usage.output * price.output;
@@ -240,22 +307,24 @@ const decoder = new TextDecoder('utf-8');
         await adminClient.from('ai_usage_log').insert({
           ...logBase,
           status: failed ? 'error' : 'success',
-          error_message: failed,
+          error_message: failed ? `${failed} (tours: ${turns})` : null,
           input_tokens: usage.input,
           cache_read_input_tokens: usage.cacheRead,
           cache_creation_input_tokens: usage.cacheWrite,
           output_tokens: usage.output,
           total_tokens: usage.input + usage.cacheRead + usage.cacheWrite + usage.output,
           cost_usd: costUsd,
+          tool_calls_count: toolCalls,
           duration_ms: Date.now() - startTime,
         });
         const { data: updated } = await adminClient.rpc('increment_ai_quota', { p_chain_id: chainId, p_cost_usd: costUsd });
-        if (updated) controller.enqueue(encoder.encode(`data: ${JSON.stringify({ quota: updated })}\n\n`));
+        if (updated) send({ quota: updated });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
         controller.close();
       },
     });
 
+    return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream; charset=utf-8' } });
     return new Response(stream, { headers: { ...corsHeaders, 'Content-Type': 'text/event-stream; charset=utf-8' } });
   } catch (error) {
     console.error('AI Advisor error', error);
