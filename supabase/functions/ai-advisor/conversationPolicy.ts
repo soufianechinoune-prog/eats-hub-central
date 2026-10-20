@@ -13,3 +13,12 @@ export function normalizeTitle(value: string) {
 export function shouldGenerateTitle(hasAssistant: boolean, failed: boolean, answer: string) {
   return !hasAssistant && !failed && Boolean(answer.trim());
 }
+export function fallbackTitle(question: string) {
+  const q = question.trim().replace(/\s+/g, ' ');
+  if (!q) return 'Nouvelle conversation';
+  return q.length > 50 ? `${q.slice(0, 50)}...` : q;
+}
+export function resolveTitle(generated: string | null | undefined, question: string) {
+  const t = (generated ?? '').trim();
+  return t || fallbackTitle(question);
+}

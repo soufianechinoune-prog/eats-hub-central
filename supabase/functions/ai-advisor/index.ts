@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { TOOLS, runTool, truncateResult } from './tools.ts';
-import { recentMessages, TITLE_REQUEST, normalizeTitle, shouldGenerateTitle } from './conversationPolicy.ts';
+import { recentMessages, TITLE_REQUEST, normalizeTitle, shouldGenerateTitle, resolveTitle } from './conversationPolicy.ts';
 
 const MAX_TURNS = 5;
 const GLOBAL_TIMEOUT_MS = 60_000;
@@ -365,6 +365,7 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
           const titleStart = Date.now();
           let titleUsage = { input_tokens: 0, output_tokens: 0 };
           let titleError: string | null = null;
+          let title = '';
           try {
             const titleResponse = await fetch('https://api.anthropic.com/v1/messages', {
               method: 'POST', signal: AbortSignal.timeout(10_000),
@@ -377,13 +378,14 @@ ${restos.map((r) => `- ${r.name}${r.city ? ` (${r.city})` : ''}`).join('\n')}`;
             const titleData = await titleResponse.json();
             if (!titleResponse.ok) throw new Error(`Titre HTTP ${titleResponse.status}`);
             titleUsage = { input_tokens: titleData.usage?.input_tokens ?? 0, output_tokens: titleData.usage?.output_tokens ?? 0 };
-            const title = normalizeTitle((titleData.content ?? []).filter((b: Block) => b.type === 'text').map((b: Block) => b.text ?? '').join(''));
+            title = normalizeTitle((titleData.content ?? []).filter((b: Block) => b.type === 'text').map((b: Block) => b.text ?? '').join(''));
             if (!title) throw new Error('Titre vide');
-            let updateTitle = adminClient.from('ai_conversations').update({ title }).eq('id', conversationId).eq('chain_id', chainId).eq('user_id', user.id);
-            updateTitle = initialTitle === null ? updateTitle.is('title', null) : updateTitle.eq('title', initialTitle);
-            const { error } = await updateTitle;
-            if (error) throw error;
-          } catch (e) { titleError = e instanceof Error ? e.message : String(e); }
+          } catch (e) { titleError = `${e instanceof Error ? e.message : String(e)} (repli première question)`; }
+          const finalTitle = resolveTitle(title, last.content);
+          let updateTitle = adminClient.from('ai_conversations').update({ title: finalTitle }).eq('id', conversationId).eq('chain_id', chainId).eq('user_id', user.id);
+          updateTitle = initialTitle === null ? updateTitle.is('title', null) : updateTitle.eq('title', initialTitle);
+          const { error: updErr } = await updateTitle;
+          if (updErr) titleError = `${titleError ? titleError + ' ; ' : ''}update: ${updErr.message}`;
           const titlePrice = PRICING[TITLE_REQUEST.model];
           const { error: titleLogError } = await adminClient.from('ai_usage_log').insert({
             ...logBase, model: TITLE_REQUEST.model, status: 'title', error_message: titleError,
