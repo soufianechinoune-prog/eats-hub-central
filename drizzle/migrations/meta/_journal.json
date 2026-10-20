@@ -421,6 +421,13 @@
       "when": 1792445065568,
       "tag": "0059_mijo_title_usage_status",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1792481932876,
+      "tag": "0060_caisse_deleted_orders_tracking",
+      "breakpoints": true
     }
   ]
 }

@@ -614,6 +614,63 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_deleted_orders: {
+        Row: {
+          chain_id: string
+          created_at: string
+          id: string
+          items_count: number | null
+          restaurant_id: string
+          revenue_center: string | null
+          service_type: string | null
+          splash_ticket_id: string
+          station: string
+          status: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount: number | null
+          total_ht: number | null
+          total_vat: number | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          id?: string
+          items_count?: number | null
+          restaurant_id: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id: string
+          station?: string
+          status?: string | null
+          ticket_date: string
+          ticket_datetime: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          id?: string
+          items_count?: number | null
+          restaurant_id?: string
+          revenue_center?: string | null
+          service_type?: string | null
+          splash_ticket_id?: string
+          station?: string
+          status?: string | null
+          ticket_date?: string
+          ticket_datetime?: string
+          total_amount?: number | null
+          total_ht?: number | null
+          total_vat?: number | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       caisse_ticket_integrity: {
         Row: {
           chain_id: string | null
@@ -11661,6 +11718,69 @@ export type Database = {
           restaurant_splash_id?: number
           rows_upserted?: number | null
           started_at?: string | null
+          status?: string
+          updated_at?: string
+          year?: number
+        }
+        Relationships: []
+      }
+      splash_deleted_backfill_jobs: {
+        Row: {
+          attempts: number
+          chain_id: string
+          completed_at: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_until: string | null
+          month: number
+          next_attempt_at: string
+          orders_upserted: number
+          page_cursor: number
+          priority: number
+          restaurant_id: string
+          started_at: string | null
+          station: string
+          status: string
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          attempts?: number
+          chain_id: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_until?: string | null
+          month: number
+          next_attempt_at?: string
+          orders_upserted?: number
+          page_cursor?: number
+          priority?: number
+          restaurant_id: string
+          started_at?: string | null
+          station?: string
+          status?: string
+          updated_at?: string
+          year: number
+        }
+        Update: {
+          attempts?: number
+          chain_id?: string
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_until?: string | null
+          month?: number
+          next_attempt_at?: string
+          orders_upserted?: number
+          page_cursor?: number
+          priority?: number
+          restaurant_id?: string
+          started_at?: string | null
+          station?: string
           status?: string
           updated_at?: string
           year?: number
