@@ -92,3 +92,6 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Fonction réécrite : deux clients, quota fail-closed, cache stable, page + KPIs hors cache
 - [x] Compteur « X / 500 questions ce mois » + bannière à 80 %
 - [x] Activer Mijo : appels Claude réels et journalisation vérifiés.
+
+## Performance restaurant multi-canal
+- [x] Page /restaurants/:id/performance (Voir réseau + liste Restaurants), semaines partielles signalées

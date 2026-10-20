@@ -40,6 +40,7 @@ const MenuEditor = React.lazy(() => import("./pages/MenuEditor"));
 const Analytics = React.lazy(() => import("./pages/Analytics"));
 const RankingDetail = React.lazy(() => import("./pages/RankingDetail"));
 const RestaurantDetail = React.lazy(() => import("./pages/RestaurantDetail"));
+const RestaurantPerformance = React.lazy(() => import("./pages/RestaurantPerformance"));
 const Messaging = React.lazy(() => import("./pages/Messaging"));
 const ReportImport = React.lazy(() => import("./pages/ReportImport"));
 const ImportGuide = React.lazy(() => import("./pages/ImportGuide"));
@@ -203,6 +204,7 @@ const App = () => {
                     <Route path="/restaurants" element={<P><AppLayout><Restaurants /></AppLayout></P>} />
                     <Route path="/messaging" element={<P><AppLayout><Messaging /></AppLayout></P>} />
                     <Route path="/restaurants/:id" element={<P><AppLayout><RestaurantDetail /></AppLayout></P>} />
+                    <Route path="/restaurants/:id/performance" element={<P><AppLayout><RestaurantPerformance /></AppLayout></P>} />
                     <Route path="/restaurants/:restaurantId/menu" element={<P><RestaurantMenu /></P>} />
                     <Route path="/uber-connections" element={<P><AppLayout><UberConnections /></AppLayout></P>} />
                     <Route path="/uber-naming" element={<P><AppLayout><UberNaming /></AppLayout></P>} />

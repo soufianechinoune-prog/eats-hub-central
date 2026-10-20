@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check, Sparkles } from "lucide-react";
+import { BarChart3, ChevronRight, MapPin, Phone, Filter, Search, Mail, ArrowUpDown, ArrowUp, ArrowDown, Star, CheckCircle2, Download, FileText, ShieldAlert, AlertTriangle, Loader2, Copy, Check, Sparkles } from "lucide-react";
 import { getEffectiveOpeningDate } from "@/lib/restaurantActivityFilter";
 
 import { BodaccScanButton, loadCachedBodaccResults, type BodaccResults, type BodaccAnnonce, type ScanStatus } from "@/components/restaurants/BodaccScanButton";
@@ -767,8 +767,25 @@ const Restaurants = () => {
                         <span className="text-muted-foreground text-sm">Franchise</span>
                       )}
                     </TableCell>
-                    <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    <TableCell>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 gap-1 px-2 text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/restaurants/${restaurant.id}/performance?return=${encodeURIComponent("/restaurants")}`);
+                          }}
+                        >
+                          <BarChart3 className="h-3.5 w-3.5" />
+                          Performance
+                        </Button>
+                        <ChevronRight
+                          className="h-4 w-4 cursor-pointer text-muted-foreground"
+                          onClick={() => navigate(`/restaurants/${restaurant.id}`)}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
