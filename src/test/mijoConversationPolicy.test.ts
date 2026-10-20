@@ -23,3 +23,12 @@ describe('Mijo conversation rules', () => {
     expect(normalizeTitle('Un deux trois quatre cinq six sept')).toBe('Un deux trois quatre cinq six');
   });
 });
+import { resolveTitle } from '../../supabase/functions/ai-advisor/conversationPolicy';
+describe('Mijo title fallback', () => {
+  it('uses the first 50 chars of the question when the generated title is empty', () => {
+    const q = 'Quel est le chiffre d affaires de Cergy sur septembre 2026 ?';
+    expect(resolveTitle('  ', q)).toBe(q.slice(0, 50) + '...');
+    expect(resolveTitle(null, 'Top 5 ?')).toBe('Top 5 ?');
+    expect(resolveTitle('CA Cergy septembre', q)).toBe('CA Cergy septembre');
+  });
+});
