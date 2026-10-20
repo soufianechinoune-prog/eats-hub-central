@@ -428,6 +428,13 @@
       "when": 1792481932876,
       "tag": "0060_caisse_deleted_orders_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1792482036804,
+      "tag": "0061_splash_deleted_backfill_cron",
+      "breakpoints": true
     }
   ]
 }

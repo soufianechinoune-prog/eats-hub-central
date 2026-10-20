@@ -15295,6 +15295,7 @@ export type Database = {
         Args: { p_restaurant_ids?: string[] }
         Returns: number
       }
+      requeue_current_month_splash_deleted: { Args: never; Returns: undefined }
       requeue_incomplete_caisse_months: {
         Args: { p_lookback_days?: number; p_threshold?: number }
         Returns: number
