@@ -112,7 +112,16 @@ const Overview = () => {
   // We intentionally ignore localStorage/context for periodMode at boot so users
   // always land on the most operationally useful view. Manual changes are still
   // persisted for the rest of the session.
-  const defaultPeriodMode: OverviewPeriodMode = "previous_week";
+  // Retour depuis la page Performance restaurant : on restaure la période du tableau réseau.
+  const returnState = (() => {
+    try {
+      const raw = sessionStorage.getItem("overview-return-state");
+      return raw ? (JSON.parse(raw) as { periodMode?: OverviewPeriodMode; scrollY?: number }) : null;
+    } catch {
+      return null;
+    }
+  })();
+  const defaultPeriodMode: OverviewPeriodMode = returnState?.periodMode || "previous_week";
   const [periodMode, setPeriodMode] = useState<OverviewPeriodMode>(defaultPeriodMode);
   const [selectedYear, setSelectedYear] = useState(
     () => storedState?.selectedYear || analyticsCtx.selectedYear || new Date().getFullYear()
@@ -269,6 +278,35 @@ const Overview = () => {
     // Navigate to Finances tab
     navigate("/analytics/finances");
   };
+
+  // Bouton « Voir » du comparatif réseau → page Performance multi-canal du restaurant
+  const navigateToRestaurantPerformance = (restaurantId: string) => {
+    sessionStorage.setItem(
+      "overview-return-state",
+      JSON.stringify({ periodMode, scrollY: window.scrollY }),
+    );
+    const ret = window.location.pathname + window.location.search;
+    navigate(
+      `/restaurants/${restaurantId}/performance?from=${startDateStr}&to=${endDateStr}&return=${encodeURIComponent(ret)}`,
+    );
+  };
+
+  // Restaure la position de scroll au retour (après chargement du tableau)
+  useEffect(() => {
+    const y = returnState?.scrollY;
+    sessionStorage.removeItem("overview-return-state");
+    if (!y) return;
+    let tries = 0;
+    const id = window.setInterval(() => {
+      tries++;
+      if (document.body.scrollHeight >= y + window.innerHeight || tries > 40) {
+        window.scrollTo(0, y);
+        window.clearInterval(id);
+      }
+    }, 150);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const navigateToChannelRestaurant = (restaurantId: string) => {
     if (activeChannel !== "chataigne") {
@@ -1596,7 +1634,7 @@ const Overview = () => {
                 stats={scopedStats}
                 networkTotals={networkTotals}
                 isLoading={statsLoading || cashLoading}
-                onRestaurantClick={navigateToChannelRestaurant}
+                onRestaurantClick={navigateToRestaurantPerformance}
                 cashByRestaurant={cashNetByRestaurant}
                 chataigneByRestaurant={chataigneByRestaurant}
                 dishopByRestaurant={dishopByRestaurant}

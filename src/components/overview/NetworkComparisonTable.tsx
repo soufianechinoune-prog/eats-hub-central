@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, SlidersHorizontal, Store, TrendingUp, TrendingDown, MoreHorizontal, Eye } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -139,10 +139,23 @@ export function NetworkComparisonTable({
   onToggleN1,
   previousByRestaurant,
 }: NetworkComparisonTableProps) {
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("revenue");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  // Filtres conservés le temps de la session (retour depuis la page Performance)
+  const saved = (() => {
+    try {
+      return JSON.parse(sessionStorage.getItem("network-table-filters") || "null") as
+        | { statusFilter: StatusFilter; searchQuery: string; sortKey: SortKey; sortDir: "asc" | "desc" }
+        | null;
+    } catch {
+      return null;
+    }
+  })();
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(saved?.statusFilter ?? "all");
+  const [searchQuery, setSearchQuery] = useState(saved?.searchQuery ?? "");
+  const [sortKey, setSortKey] = useState<SortKey>(saved?.sortKey ?? "revenue");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">(saved?.sortDir ?? "desc");
+  useEffect(() => {
+    sessionStorage.setItem("network-table-filters", JSON.stringify({ statusFilter, searchQuery, sortKey, sortDir }));
+  }, [statusFilter, searchQuery, sortKey, sortDir]);
   const analyticsCtx = useAnalyticsContext();
 
   // Lignes enrichies : CA tous canaux + répartition
@@ -491,7 +504,7 @@ export function NetworkComparisonTable({
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem onClick={() => onRestaurantClick?.(resto.id)} className="gap-2">
                             <Eye className="h-4 w-4" />
-                            Voir le détail
+                            Performance multi-canal
                           </DropdownMenuItem>
                           {onOpenRestaurantFile && (
                             <DropdownMenuItem onClick={() => onOpenRestaurantFile(resto.id)} className="gap-2">
