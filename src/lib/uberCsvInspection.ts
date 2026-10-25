@@ -89,6 +89,7 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
   const lowerHeader = headerLine.toLowerCase();
   
   if (lowerHeader.includes("operational excellence") && lowerHeader.includes("store name") && lowerHeader.includes("status")) return "success_score";
+  if (lowerHeader.includes("problème avec la commande") && lowerHeader.includes("client remboursé")) return "inaccurate_orders";
   // Helper: Check if this looks like item-level data (article/item columns present)
   const hasItemColumns = 
     lowerHeader.includes("nom du plat") || 
@@ -140,7 +141,7 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
                             lowerHeader.includes("catégorie du menu") || lowerHeader.includes("id. externe de l'article");
   if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article") ||
        lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article") ||
-       hasSkuItemColumns) && 
+       hasSkuItemColumns) && !lowerHeader.includes("problème avec la commande") &&
       (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid") ||
        lowerHeader.includes("note de l'article") || lowerHeader.includes("titre de l'article"))) {
     return "reviews_item";

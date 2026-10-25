@@ -22,3 +22,4 @@ Date d'ouverture effective centralisée dans src/lib/restaurantActivityFilter.ts
 - Mijo conversation policy is shared with regression tests; automatic titles use a separate audited server request without quota increments, so title costs cannot count as user questions.
 - Mijo uses a flex-height floating window and a native pointer/keyboard split view to avoid the resizable-panel dependency's React dispatcher crash; expanding the window preserves the mounted chat and its state.
 - Restaurant multi-channel performance page (/restaurants/:id/performance) reads only mijo_kpis_periode / mijo_daily_base / mijo_evolution_mensuelle; week/month buckets are display sums with partial buckets flagged, so it never diverges from Mijo.
+- Uber CSV uploads use UberImportWorkspace and shared uberCsvInspection for the network-first file queue; each file goes through ReportImport's existing validation and parser dispatch before writing, preserving mapping and chunked imports.
