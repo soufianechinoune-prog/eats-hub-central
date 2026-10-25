@@ -1,8 +1,10 @@
 import { REPORT_TYPE_CONFIG } from "./reportImportConfig";
 
+const normalizeHeader = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[’‘]/g, "'").replace(/\u00a0/g, ' ').toLowerCase().trim();
+
 // Detect report type from filename (very reliable for Uber files)
 export const detectReportTypeFromFilename = (filename: string): string | null => {
-  const name = filename.toLowerCase();
+  const name = filename.toLowerCase().replace(/-/g, '_');
   
   // Sales Over Time
   if (name.includes("sales_over_time") || name.includes("sales-over-time") || name.includes("ventes_sur")) {
@@ -86,7 +88,9 @@ export const detectReportTypeFromFilename = (filename: string): string | null =>
 // CRITICAL: Order of detection matters! Item-level MUST be checked BEFORE payout_summary
 // because item-level files also contain "Id. de référence du versement" column
 export const detectReportTypeFromContent = (headerLine: string): string | null => {
-  const lowerHeader = headerLine.toLowerCase();
+  // Normalize accents, smart apostrophes and spaces before matching FR/EN exports.
+  const lowerHeader = normalizeHeader(headerLine);
+  const matches = (value: string) => lowerHeader.includes(normalizeHeader(value));
   
   if (lowerHeader.includes("operational excellence") && lowerHeader.includes("store name") && lowerHeader.includes("status")) return "success_score";
   if (lowerHeader.includes("problème avec la commande") && lowerHeader.includes("client remboursé")) return "inaccurate_orders";
@@ -219,6 +223,7 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
 
 export interface UberCsvInspection {
   type: string | null;
+  formatLabel: string | null;
   headers: string[];
   records: string[];
   headerIndex: number;
@@ -264,34 +269,54 @@ export function csvFields(record: string): string[] {
 
 export function inspectUberCsv(content: string, filename: string): UberCsvInspection {
   const records = csvRecords(content);
-  let headerIndex = records.slice(0, 20).findIndex(r => {
-    const h = csvFields(r).map(x => x.toLowerCase());
-    return h.some(x => ['id. de la commande', 'id. du flux', 'uuid de la commande', 'nom du restaurant', 'restaurant', 'store name', 'période', 'jour', 'mois', 'date du versement', "type d'offre"].includes(x));
+  const headerNames = ['id. de la commande', 'id. du flux', 'uuid de la commande', 'nom du restaurant', 'restaurant', 'restaurant name', 'store name', 'store id', 'store_id', 'id. externe du restaurant', 'période', 'period', 'jour', 'mois', 'date du versement', "type d'offre", 'ouverture du restaurant à', 'restaurant open at'].map(normalizeHeader);
+  // Score candidates so a metadata line mentioning a restaurant cannot hide the real header.
+  let headerIndex = -1, bestScore = 0;
+  records.slice(0, 20).forEach((record, index) => {
+    const fields = csvFields(record).map(normalizeHeader);
+    const score = fields.filter(field => headerNames.includes(field)).length;
+    if (fields.length > 1 && score > bestScore) { bestScore = score; headerIndex = index; }
   });
   if (headerIndex < 0) headerIndex = 0;
   const headers = csvFields(records[headerIndex] || '');
   const header = headers.join(',');
-  const unsupported = /store_availability/i.test(filename) || header.includes("Récapitulatif de l'événement")
-    ? 'Disponibilité des stations : format non pris en charge' : /items_with_errors/i.test(filename)
-    ? 'Erreurs par article : format non pris en charge' : null;
-  const type = unsupported ? null : detectReportTypeFromContent(header) || detectReportTypeFromFilename(filename);
-  const lower = headers.map(h => h.toLowerCase());
-  const idIndex = lower.findIndex(h => ['id. du restaurant', "uuid de l'établissement", 'restaurant id', 'store id', 'store_id'].includes(h));
-  const nameIndex = lower.findIndex(h => ['nom du restaurant', 'restaurant', 'store name'].includes(h));
-  const dateIndex = lower.findIndex(h => ['date de la commande', 'heure de la commande', 'date de la note', 'date', 'jour', 'date du versement', 'date de début', 'période'].includes(h));
+  const lower = headers.map(normalizeHeader);
+  const has = (names: string[]) => names.some(name => lower.includes(normalizeHeader(name)));
+  const hourlyAvailability = has(['Ouverture du restaurant à', 'Restaurant Open At']) && has(['Disponibilité du menu', 'Menu Availability']);
+  const pause = /store[_-]pause|pause[_-]history/i.test(filename) || has(['Pause start', 'Début de la pause', 'Pause reason', 'Motif de la pause']);
+  const availability = /store[_-]availability/i.test(filename) || has(["Récapitulatif de l'événement", 'Event summary']);
+  const itemErrors = /items[_-]with[_-]errors/i.test(filename) || (has(['Nom du plat', "Nom de l'article", 'Item title']) && has(['Problème avec la commande', 'Order issue']) && !has(['Client remboursé', 'Customer refund']));
+  const formatLabel = hourlyAvailability ? REPORT_TYPE_CONFIG.downtime_report.label : pause ? 'Pauses des restaurants' : availability ? 'Disponibilité des restaurants' : itemErrors ? 'Erreurs par article' : null;
+  // Event logs are not hourly totals: never route them to hourly_availability by filename alone.
+  const unsupported = !hourlyAvailability && (pause || availability || itemErrors)
+    ? 'Format reconnu ; import de ce rapport pas encore disponible' : null;
+  const type = unsupported ? null : hourlyAvailability ? 'downtime_report' : detectReportTypeFromContent(header) || detectReportTypeFromFilename(filename);
+  const findColumn = (names: string[]) => lower.findIndex(h => names.map(normalizeHeader).includes(h));
+  const idIndex = findColumn(['id. du restaurant', 'id. externe du restaurant', "uuid de l'établissement", 'restaurant id', 'store id', 'store_id', 'external store id']);
+  const nameIndex = findColumn(['nom du restaurant', 'restaurant', 'store name', 'restaurant name']);
+  const dateIndices = lower.flatMap((h, index) => /date|heure de la commande|ouverture du restaurant|restaurant open|pause start|pause end|debut de la pause|fin de la pause|^jour$|^periode$|^period$/.test(h) ? [index] : []);
   const stores = new Map<string, { id: string; name: string }>();
   let start: string | null = null, end: string | null = null;
   for (const record of records.slice(headerIndex + 1)) {
     const values = csvFields(record);
     const id = values[idIndex] || '', name = values[nameIndex] || '';
     if (id || name) stores.set(id || name, { id, name });
+    for (const dateIndex of dateIndices) {
     const raw = values[dateIndex] || '';
     const iso = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
     const fr = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     const date = iso || (fr ? `${fr[3]}-${fr[2].padStart(2, '0')}-${fr[1].padStart(2, '0')}` : null);
     if (date && (!start || date < start)) start = date;
     if (date && (!end || date > end)) end = date;
+    }
   }
-  return { type: type && REPORT_TYPE_CONFIG[type] ? type : null, headers, records, headerIndex,
+  if (!start && !end) {
+    const filenameDates = filename.match(/\d{4}-\d{2}-\d{2}/g) || [];
+    if (filenameDates.length >= 2) {
+      const sorted = filenameDates.sort();
+      start = sorted[0]; end = sorted[sorted.length - 1];
+    }
+  }
+  return { type: type && REPORT_TYPE_CONFIG[type] ? type : null, formatLabel, headers, records, headerIndex,
     rowCount: Math.max(0, records.length - headerIndex - 1), stores: [...stores.values()], dateRange: { start, end }, unsupported };
 }
