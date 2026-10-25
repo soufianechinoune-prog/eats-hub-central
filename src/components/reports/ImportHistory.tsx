@@ -159,6 +159,7 @@ export default function ImportHistory() {
   };
 
   const getStatusBadge = (status: string, errorCount: number) => {
+    if (status === "reconstructed") return <Badge variant="outline">Reconstitué</Badge>;
     if (status === "failed") {
       return <Badge variant="destructive">Échoué</Badge>;
     }
@@ -262,10 +263,10 @@ export default function ImportHistory() {
                     <TableCell className="whitespace-nowrap">
                       <div>
                         <p className="font-medium">
-                          {format(new Date(imp.imported_at), "dd MMM yyyy", { locale: fr })}
+                           {imp.status === "reconstructed" ? "Date d’import inconnue" : format(new Date(imp.imported_at), "dd MMM yyyy", { locale: fr })}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {format(new Date(imp.imported_at), "HH:mm")}
+                           {imp.status === "reconstructed" ? `Reconstitué le ${format(new Date(imp.imported_at), "dd/MM/yyyy")}` : format(new Date(imp.imported_at), "HH:mm")}
                         </p>
                       </div>
                     </TableCell>
@@ -295,10 +296,10 @@ export default function ImportHistory() {
                       {imp.total_rows.toLocaleString("fr-FR")}
                     </TableCell>
                     <TableCell className="text-center text-green-600 font-medium">
-                      {imp.inserted_count.toLocaleString("fr-FR")}
+                       {imp.status === "reconstructed" ? "—" : imp.inserted_count.toLocaleString("fr-FR")}
                     </TableCell>
                     <TableCell className="text-center text-blue-600 font-medium">
-                      {imp.updated_count.toLocaleString("fr-FR")}
+                       {imp.status === "reconstructed" ? "—" : imp.updated_count.toLocaleString("fr-FR")}
                     </TableCell>
                     <TableCell className="text-center text-red-600 font-medium">
                       {imp.error_count > 0 ? imp.error_count.toLocaleString("fr-FR") : "-"}
