@@ -85,7 +85,7 @@ export default function UberImportWorkspace({ restaurants, currentFile, busy, co
             <TableCell className="whitespace-nowrap text-xs">{dateLabel(e.inspection.dateRange.start)} → {dateLabel(e.inspection.dateRange.end)}</TableCell>
             <TableCell>{e.inspection.stores.length || '—'}</TableCell>
             <TableCell className="text-right tabular-nums">{e.inspection.rowCount.toLocaleString('fr-FR')}</TableCell>
-            <TableCell><Badge variant={blocked ? 'outline' : 'secondary'}>{active && completed ? 'Terminé' : active ? 'En cours' : e.inspection.unsupported ? 'Reconnu · non importable' : blocked ? 'À vérifier' : 'À analyser'}</Badge>
+            <TableCell className="min-w-52"><Badge className="whitespace-nowrap" variant={blocked ? 'outline' : 'secondary'}>{active && completed ? 'Terminé' : active ? 'En cours' : e.inspection.unsupported ? 'Reconnu · non importable' : blocked ? 'À vérifier' : 'À analyser'}</Badge>
               {blocked && <p className="mt-1 max-w-48 text-xs text-destructive">{e.inspection.unsupported || (!e.inspection.rowCount ? 'Fichier vide' : needsRestaurant ? 'Restaurant requis pour ce rapport' : 'Choisir un type de rapport')}</p>}
             </TableCell>
             <TableCell><div className="flex justify-end gap-1"><Button size="sm" variant="outline" disabled={busy || blocked} onClick={() => onOpen(e.file, e.content, e.type, scope === 'network' ? '' : scope)}>
