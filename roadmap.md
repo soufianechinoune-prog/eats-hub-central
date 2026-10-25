@@ -95,3 +95,8 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 
 ## Performance restaurant multi-canal
 - [x] Page /restaurants/:id/performance (Voir réseau + liste Restaurants), semaines partielles signalées
+
+## Import Uber Eats réseau
+- [ ] Refaire le dépôt réseau avec détection, file de fichiers et périmètre restaurant optionnel.
+- [ ] Réutiliser la validation et les imports existants avec historique enrichi.
+- [ ] Tester les familles de rapports et le parcours connecté avec les CSV disponibles.
