@@ -77,15 +77,15 @@ export default function UberImportWorkspace({ restaurants, currentFile, busy, co
           const blocked = !e.type || !e.inspection.rowCount || !!e.inspection.unsupported || needsRestaurant;
           return <TableRow key={e.id} className={active ? 'bg-primary/5' : undefined}>
             <TableCell className="min-w-64 max-w-96"><p className="truncate text-sm font-medium" title={e.file.name}>{e.file.name}</p>
-              <Select value={e.type} disabled={busy || !!e.inspection.unsupported} onValueChange={type => setEntries(old => old.map(x => x.id === e.id ? { ...x, type } : x))}>
+              {e.inspection.unsupported ? <p className="mt-2 text-xs font-medium text-muted-foreground">{e.inspection.formatLabel}</p> : <Select value={e.type} disabled={busy} onValueChange={type => setEntries(old => old.map(x => x.id === e.id ? { ...x, type } : x))}>
                 <SelectTrigger className="mt-2 h-8 text-xs"><SelectValue placeholder="Rapport non reconnu" /></SelectTrigger>
                 <SelectContent>{Object.entries(categories).map(([label, types]) => <SelectGroup key={label}><SelectLabel>{label}</SelectLabel>{types.map(key => <SelectItem key={key} value={key}>{REPORT_TYPE_CONFIG[key].label}</SelectItem>)}</SelectGroup>)}</SelectContent>
-              </Select>
+              </Select>}
             </TableCell>
             <TableCell className="whitespace-nowrap text-xs">{dateLabel(e.inspection.dateRange.start)} → {dateLabel(e.inspection.dateRange.end)}</TableCell>
             <TableCell>{e.inspection.stores.length || '—'}</TableCell>
             <TableCell className="text-right tabular-nums">{e.inspection.rowCount.toLocaleString('fr-FR')}</TableCell>
-            <TableCell><Badge variant={blocked ? 'outline' : 'secondary'}>{active && completed ? 'Terminé' : active ? 'En cours' : blocked ? 'À vérifier' : 'À analyser'}</Badge>
+            <TableCell className="min-w-52"><Badge className="whitespace-nowrap" variant={blocked ? 'outline' : 'secondary'}>{active && completed ? 'Terminé' : active ? 'En cours' : e.inspection.unsupported ? 'Reconnu · non importable' : blocked ? 'À vérifier' : 'À analyser'}</Badge>
               {blocked && <p className="mt-1 max-w-48 text-xs text-destructive">{e.inspection.unsupported || (!e.inspection.rowCount ? 'Fichier vide' : needsRestaurant ? 'Restaurant requis pour ce rapport' : 'Choisir un type de rapport')}</p>}
             </TableCell>
             <TableCell><div className="flex justify-end gap-1"><Button size="sm" variant="outline" disabled={busy || blocked} onClick={() => onOpen(e.file, e.content, e.type, scope === 'network' ? '' : scope)}>
