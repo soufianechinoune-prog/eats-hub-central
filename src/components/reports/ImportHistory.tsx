@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Download, FileSpreadsheet, CheckCircle, XCircle, AlertTriangle, RefreshCw, Trash2 } from "lucide-react";
@@ -24,6 +25,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { REPORT_TYPE_CONFIG } from "@/lib/reportImportConfig";
 import ImportCoverageMatrix from "@/components/reports/ImportCoverageMatrix";
+import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
+import { belongsToImportScope } from "@/lib/importHistoryScope";
 
 interface CsvImport {
   id: string;
@@ -55,89 +58,40 @@ const REPORT_TYPE_LABELS: Record<string, string> = {
 export default function ImportHistory() {
   const { toast } = useToast();
   const { selectedChainId } = useAnalyticsContext();
-  const [imports, setImports] = useState<CsvImport[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [filterType, setFilterType] = useState<string>("all");
-  const [hasError, setHasError] = useState(false);
-  const [brandRestaurantIds, setBrandRestaurantIds] = useState<string[] | null>(null);
+  const { data: restaurants = [], isLoading: restaurantsLoading } = useActiveRestaurants();
+  const brandRestaurantIds = restaurants.map((restaurant) => restaurant.id);
   const [viewMode, setViewMode] = useState<"matrix" | "list">("matrix");
   const [matrixYear, setMatrixYear] = useState<number>(new Date().getFullYear());
 
-  // Load brand restaurant IDs when chain changes
-  useEffect(() => {
-    if (!selectedChainId) {
-      setBrandRestaurantIds(null);
-      return;
-    }
-    const loadBrandRestaurants = async () => {
-      const { data } = await supabase
-        .from("restaurants")
-        .select("id")
-        .eq("chain_id", selectedChainId)
-        .eq("is_active", true);
-      setBrandRestaurantIds((data ?? []).map(r => r.id));
-    };
-    loadBrandRestaurants();
-  }, [selectedChainId]);
-
-  const fetchImports = async () => {
-    setIsLoading(true);
-    setHasError(false);
-    try {
-      // If brand selected with 0 restaurants → empty
-      if (brandRestaurantIds !== null && brandRestaurantIds.length === 0) {
-        setImports([]);
-        setIsLoading(false);
-        return;
+  const scopeReady = Boolean(selectedChainId && selectedChainId !== "00000000-0000-0000-0000-000000000000");
+  const { data: imports = [], isLoading: importsLoading, isError: hasError, refetch } = useQuery({
+    queryKey: ["csv-import-history", selectedChainId, brandRestaurantIds, filterType],
+    enabled: scopeReady && !restaurantsLoading,
+    queryFn: async (): Promise<CsvImport[]> => {
+      if (brandRestaurantIds.length === 0) return [];
+      const records: CsvImport[] = [];
+      const pageSize = 1000;
+      let offset = 0;
+      while (true) {
+        let query = supabase.from("csv_imports").select("*")
+          .overlaps("restaurant_ids", brandRestaurantIds)
+          .order("imported_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(offset, offset + pageSize - 1);
+        if (filterType !== "all") query = query.eq("report_type", filterType);
+        const { data, error } = await query;
+        if (error) throw error;
+        const page = data ?? [];
+        records.push(...page.filter((imp) => belongsToImportScope(imp.restaurant_ids, brandRestaurantIds)));
+        if (page.length < pageSize) break;
+        offset += pageSize;
       }
-
-      let query = supabase
-        .from("csv_imports")
-        .select("*")
-        .order("imported_at", { ascending: false })
-        .limit(100);
-
-      if (filterType !== "all") {
-        query = query.eq("report_type", filterType);
-      }
-
-      let { data, error } = await query;
-      
-      if (error) {
-        console.warn("Initial fetch failed, retrying in 2s...", error);
-        await new Promise(r => setTimeout(r, 2000));
-        const { data: retryData, error: retryError } = await query;
-        if (retryError) throw retryError;
-        data = retryData;
-      }
-
-      let filtered = data || [];
-
-      // Filter by brand restaurant IDs if a chain is selected
-      if (brandRestaurantIds !== null && brandRestaurantIds.length > 0) {
-        filtered = filtered.filter(imp => {
-          if (!imp.restaurant_ids || imp.restaurant_ids.length === 0) return true;
-          return imp.restaurant_ids.some((rid: string) => brandRestaurantIds.includes(rid));
-        });
-      }
-      
-      setImports(filtered);
-    } catch (error: any) {
-      console.error("Error fetching imports:", error);
-      setHasError(true);
-      toast({
-        title: "Erreur",
-        description: "Impossible de charger l'historique. La base de données est peut-être surchargée.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchImports();
-  }, [filterType, brandRestaurantIds]);
+      return records;
+    },
+  });
+  const isLoading = !scopeReady || restaurantsLoading || importsLoading;
+  const fetchImports = () => { void refetch(); };
 
   const handleDownload = async (fileUrl: string, fileName: string) => {
     try {
