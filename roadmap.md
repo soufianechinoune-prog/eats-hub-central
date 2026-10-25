@@ -97,6 +97,7 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Page /restaurants/:id/performance (Voir réseau + liste Restaurants), semaines partielles signalées
 
 ## Import Uber Eats réseau
+- [ ] Améliorer la reconnaissance automatique des variantes Uber (store_pause, disponibilité et erreurs articles) sans envoyer un format incompatible au mauvais importeur.
 - [x] Corriger l’isolation de l’historique et reconstituer huit familles Bangkok septembre depuis les données vérifiées ; matrice et changement d’enseigne testés en session connectée.
 - [x] Refaire le dépôt réseau avec détection, file de fichiers et périmètre restaurant optionnel.
 - [x] Réutiliser la validation et les imports existants avec historique enrichi.
