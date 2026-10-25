@@ -240,7 +240,7 @@ export default function ImportHistory() {
           </div>
         ) : (
           <div className="border rounded-lg overflow-auto">
-            <Table>
+             <Table className="min-w-[1400px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Date</TableHead>
@@ -271,7 +271,7 @@ export default function ImportHistory() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm font-medium">{imp.label || "—"}</span>
+                       <span className="text-sm font-medium" title={imp.label ?? undefined}>{imp.status === "reconstructed" ? "Historique reconstitué" : imp.label || "—"}</span>
                     </TableCell>
                     <TableCell>
                       <div className="max-w-[200px]">

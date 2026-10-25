@@ -97,7 +97,7 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 - [x] Page /restaurants/:id/performance (Voir réseau + liste Restaurants), semaines partielles signalées
 
 ## Import Uber Eats réseau
-- [ ] Corriger l’isolation de l’historique et reconstituer les imports Bangkok septembre depuis les données vérifiées.
+- [x] Corriger l’isolation de l’historique et reconstituer huit familles Bangkok septembre depuis les données vérifiées ; matrice et changement d’enseigne testés en session connectée.
 - [x] Refaire le dépôt réseau avec détection, file de fichiers et périmètre restaurant optionnel.
 - [x] Réutiliser la validation et les imports existants avec historique enrichi.
 - [x] Tester la détection des 14 familles (19 tests) et la validation connectée du CSV avis Bangkok Factory (35 restaurants).
