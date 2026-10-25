@@ -92,31 +92,31 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
   const lowerHeader = normalizeHeader(headerLine);
   const matches = (value: string) => lowerHeader.includes(normalizeHeader(value));
   
-  if (lowerHeader.includes("operational excellence") && lowerHeader.includes("store name") && lowerHeader.includes("status")) return "success_score";
-  if (lowerHeader.includes("problème avec la commande") && lowerHeader.includes("client remboursé")) return "inaccurate_orders";
+  if (matches("operational excellence") && matches("store name") && matches("status")) return "success_score";
+  if (matches("problème avec la commande") && matches("client remboursé")) return "inaccurate_orders";
   // Helper: Check if this looks like item-level data (article/item columns present)
   const hasItemColumns = 
-    lowerHeader.includes("nom du plat") || 
-    lowerHeader.includes("titre de l'article") || 
-    lowerHeader.includes("item title") ||
-    lowerHeader.includes("nom du plat/de l'article") ||
-    lowerHeader.includes("nom de l'article");
+    matches("nom du plat") || 
+    matches("titre de l'article") || 
+    matches("item title") ||
+    matches("nom du plat/de l'article") ||
+    matches("nom de l'article");
   
   // Helper: Check if this has order-level identifiers
   const hasOrderId = 
-    lowerHeader.includes("id. de la commande") || 
-    lowerHeader.includes("id de la commande") ||
-    lowerHeader.includes("order id");
+    matches("id. de la commande") || 
+    matches("id de la commande") ||
+    matches("order id");
   
   const hasFlowId = 
-    lowerHeader.includes("id. du flux") || 
-    lowerHeader.includes("flow id");
+    matches("id. du flux") || 
+    matches("flow id");
   
   // =========================================================
   // PRIORITY 1: ITEM-LEVEL PAYMENT REPORTS (most specific)
   // These have order/flow IDs AND item columns
   // =========================================================
-  if ((hasOrderId || hasFlowId) && hasItemColumns && !lowerHeader.includes("valeur de la note") && !lowerHeader.includes("problème avec la commande")) {
+  if ((hasOrderId || hasFlowId) && hasItemColumns && !matches("valeur de la note") && !matches("problème avec la commande")) {
     return "payment_item_level";
   }
   
@@ -125,67 +125,67 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
   // =========================================================
   
   // Marketing campaigns - Offers
-  if ((lowerHeader.includes("type d'offre") || lowerHeader.includes("offer type")) && 
-      (lowerHeader.includes("audience") || lowerHeader.includes("budget"))) {
+  if ((matches("type d'offre") || matches("offer type")) && 
+      (matches("audience") || matches("budget"))) {
     return "marketing_campaigns";
   }
   // Marketing campaigns - Ads
-  if ((lowerHeader.includes("nom de la campagne") || lowerHeader.includes("campaign name")) && 
-      (lowerHeader.includes("impressions") || lowerHeader.includes("clics") || lowerHeader.includes("clicks"))) {
+  if ((matches("nom de la campagne") || matches("campaign name")) && 
+      (matches("impressions") || matches("clics") || matches("clicks"))) {
     return "marketing_campaigns";
   }
   // Sales Over Time
-  if ((lowerHeader.includes("période") || lowerHeader.includes("period")) && 
-      (lowerHeader.includes("ventes") || lowerHeader.includes("sales"))) {
+  if ((matches("période") || matches("period")) && 
+      (matches("ventes") || matches("sales"))) {
     return "sales_over_time";
   }
   // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
   // SKU files have: "nom du plat", "prix du plat", "catégorie du menu" + "uuid de la commande" + "valeur de la note"
-  const hasSkuItemColumns = lowerHeader.includes("nom du plat") || lowerHeader.includes("prix du plat") || 
-                            lowerHeader.includes("catégorie du menu") || lowerHeader.includes("id. externe de l'article");
-  if ((lowerHeader.includes("note de l'article") || lowerHeader.includes("item rating") || lowerHeader.includes("note article") ||
-       lowerHeader.includes("titre de l'article") || lowerHeader.includes("item title") || lowerHeader.includes("titre article") ||
-       hasSkuItemColumns) && !lowerHeader.includes("problème avec la commande") &&
-      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid") ||
-       lowerHeader.includes("note de l'article") || lowerHeader.includes("titre de l'article"))) {
+  const hasSkuItemColumns = matches("nom du plat") || matches("prix du plat") || 
+                            matches("catégorie du menu") || matches("id. externe de l'article");
+  if ((matches("note de l'article") || matches("item rating") || matches("note article") ||
+       matches("titre de l'article") || matches("item title") || matches("titre article") ||
+       hasSkuItemColumns) && !matches("problème avec la commande") &&
+      (matches("uuid de la commande") || matches("order uuid") ||
+       matches("note de l'article") || matches("titre de l'article"))) {
     return "reviews_item";
   }
   // Reviews Order Level - MUST be checked AFTER reviews_item
-  if ((lowerHeader.includes("note du restaurant") || lowerHeader.includes("restaurant rating") || 
-       lowerHeader.includes("valeur de la note")) && 
-      (lowerHeader.includes("uuid de la commande") || lowerHeader.includes("order uuid")) &&
+  if ((matches("note du restaurant") || matches("restaurant rating") || 
+       matches("valeur de la note")) && 
+      (matches("uuid de la commande") || matches("order uuid")) &&
       !hasSkuItemColumns) {
     return "reviews_order";
   }
   // Downtime Report
-  if ((lowerHeader.includes("ouverture du restaurant") || lowerHeader.includes("restaurant open")) && 
-      (lowerHeader.includes("disponibilité du menu") || lowerHeader.includes("menu availability"))) {
+  if ((matches("ouverture du restaurant") || matches("restaurant open")) && 
+      (matches("disponibilité du menu") || matches("menu availability"))) {
     return "downtime_report";
   }
   // Order History - has order ID + specific time columns (NOT item columns)
   if (hasOrderId && !hasItemColumns &&
-      (lowerHeader.includes("temps d'attente du coursier") || lowerHeader.includes("heure de la commande") || lowerHeader.includes("courier wait time"))) {
+      (matches("temps d'attente du coursier") || matches("heure de la commande") || matches("courier wait time"))) {
     return "order_history";
   }
   // Inaccurate Orders (detail)
-  if ((lowerHeader.includes("problème avec la commande") || lowerHeader.includes("articles incorrects") || lowerHeader.includes("order issue")) &&
-      (lowerHeader.includes("client remboursé") || lowerHeader.includes("customer refund"))) {
+  if ((matches("problème avec la commande") || matches("articles incorrects") || matches("order issue")) &&
+      (matches("client remboursé") || matches("customer refund"))) {
     return "inaccurate_orders";
   }
   // Item Issues Leaderboard
-  if ((lowerHeader.includes("articles incorrects") || lowerHeader.includes("incorrect items")) && 
-      lowerHeader.includes("nombre") &&
-      (lowerHeader.includes("problème avec le plat") || lowerHeader.includes("dish issue"))) {
+  if ((matches("articles incorrects") || matches("incorrect items")) && 
+      matches("nombre") &&
+      (matches("problème avec le plat") || matches("dish issue"))) {
     return "item_issues_leaderboard";
   }
   // Order Accuracy Summary
-  if ((lowerHeader.includes("jour") || lowerHeader.includes("mois") || lowerHeader.includes("day") || lowerHeader.includes("month")) && 
-      (lowerHeader.includes("commandes incorrectes") || lowerHeader.includes("articles manquants") || lowerHeader.includes("inaccurate orders"))) {
+  if ((matches("jour") || matches("mois") || matches("day") || matches("month")) && 
+      (matches("commandes incorrectes") || matches("articles manquants") || matches("inaccurate orders"))) {
     return "order_accuracy_summary";
   }
   // Conversion Funnel
-  if ((lowerHeader.includes("utilisateurs ayant visité") || lowerHeader.includes("utilisateurs ayant visite") || lowerHeader.includes("users who visited")) &&
-      (lowerHeader.includes("menu a été consulté") || lowerHeader.includes("menu consulté") || lowerHeader.includes("plat ajouté") || lowerHeader.includes("item added"))) {
+  if ((matches("utilisateurs ayant visité") || matches("utilisateurs ayant visite") || matches("users who visited")) &&
+      (matches("menu a été consulté") || matches("menu consulté") || matches("plat ajouté") || matches("item added"))) {
     return "conversion_funnel";
   }
   
@@ -195,16 +195,16 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
   // =========================================================
   if (!hasOrderId && !hasFlowId) {
     // Has order count + total amount = aggregated payout summary
-    if ((lowerHeader.includes("nombre de commandes") || lowerHeader.includes("order count")) &&
-        (lowerHeader.includes("montant total") || lowerHeader.includes("total amount") || lowerHeader.includes("order total"))) {
+    if ((matches("nombre de commandes") || matches("order count")) &&
+        (matches("montant total") || matches("total amount") || matches("order total"))) {
       return "payout_summary";
     }
     // Has payout-specific identifiers
-    if ((lowerHeader.includes("identifiant de versement") || lowerHeader.includes("payout id") ||
-         lowerHeader.includes("id. de référence du versement") || lowerHeader.includes("payout reference"))) {
+    if ((matches("identifiant de versement") || matches("payout id") ||
+         matches("id. de référence du versement") || matches("payout reference"))) {
       return "payout_summary";
     }
-    if ((lowerHeader.includes("date du versement") || lowerHeader.includes("date de versement") || lowerHeader.includes("payout date"))) {
+    if ((matches("date du versement") || matches("date de versement") || matches("payout date"))) {
       return "payout_summary";
     }
   }
