@@ -12,7 +12,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import ImportHistory from "@/components/reports/ImportHistory";
-import BulkImportTab from "@/components/reports/BulkImportTab";
+import UberImportWorkspace from "@/components/reports/UberImportWorkspace";
+import { inspectUberCsv, csvFields, csvRecords, detectReportTypeFromContent } from "@/lib/uberCsvInspection";
+import { getEdgeFunctionName, requiresRestaurant } from "@/lib/reportImportConfig";
 import UnknownStoreMapping from "@/components/reports/UnknownStoreMapping";
 import DeliverooImportTab from "@/components/reports/DeliverooImportTab";
 import DeliverooOrdersImportTab from "@/components/reports/DeliverooOrdersImportTab";
@@ -168,10 +170,10 @@ async function clientSideRestaurantScan(
 ): Promise<{ unknownStoreIds: string[]; unknownStoreDetails: Record<string, { name: string; type?: 'store_id' | 'restaurant_name' }>; skippedCount: number }> {
   // Find restaurant name and store ID column indices
   const nameColIdx = headerFields.findIndex(h =>
-    h.toLowerCase().includes("nom du restaurant") || h.toLowerCase() === "store name"
+    h.toLowerCase().includes("nom du restaurant") || h.toLowerCase() === "store name" || h.toLowerCase() === "restaurant"
   );
   const idColIdx = headerFields.findIndex(h =>
-    h.toLowerCase().includes("id. du restaurant") || h.toLowerCase() === "restaurant id"
+    h.toLowerCase().includes("id. du restaurant") || h.toLowerCase() === "restaurant id" || h.toLowerCase() === "uuid de l'établissement"
   );
 
   if (nameColIdx < 0 && idColIdx < 0) {
@@ -195,7 +197,7 @@ async function clientSideRestaurantScan(
     // Track which storeIds are associated with each name
     if (name && storeId) {
       if (!nameToStoreIds.has(name)) nameToStoreIds.set(name, new Set());
-      nameToStoreIds.get(name)!.add(storeId);
+      nameToStoreIds.get(name)?.add(storeId);
     }
   }
 
@@ -214,17 +216,19 @@ async function clientSideRestaurantScan(
     knownNormalizedNames.add(normalizeForAlias(r.name));
   }
 
+  const scopedIds = new Set(knownRestaurants.map(r => r.id));
+
   // From restaurant_uber_ids table
   if (uberIds) {
     for (const m of uberIds) {
-      if (m.uber_store_id) knownUberStoreIds.add(m.uber_store_id);
+      if (m.uber_store_id && scopedIds.has(m.restaurant_id)) knownUberStoreIds.add(m.uber_store_id);
     }
   }
 
   // From restaurant_name_aliases table
   if (aliases) {
     for (const a of aliases) {
-      if (a.normalized_name) knownNormalizedNames.add(a.normalized_name);
+      if (a.normalized_name && scopedIds.has(a.restaurant_id)) knownNormalizedNames.add(a.normalized_name);
     }
   }
 
@@ -430,7 +434,7 @@ export default function ReportImport() {
   const [activeTab, setActiveTab] = useState("import");
   const [file, setFile] = useState<File | null>(null);
   const [csvContent, setCsvContent] = useState<string>("");
-  const [reportType, setReportType] = useState<string>("sales_over_time");
+  const [reportType, setReportType] = useState<string>("payment_order_level");
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<string>("");
   const [previewData, setPreviewData] = useState<ParsedRow[]>([]);
   const [headers, setHeaders] = useState<string[]>([]);
@@ -469,6 +473,17 @@ export default function ReportImport() {
     queryKey: ["all-restaurants-for-mapping", selectedChainId],
     queryFn: () => fetchAccessibleRestaurants({ selectedChainId, includeAllChains: true }),
   });
+
+  useEffect(() => { resetImport(); }, [selectedChainId]);
+
+  const openWorkspaceFile = (nextFile: File, content: string, type: string, restaurantId: string) => {
+    resetImport();
+    setFile(nextFile);
+    setCsvContent(content);
+    setReportType(type);
+    setSelectedRestaurantId(restaurantId);
+    parsePreview(content);
+  };
 
   // Extract date range from conversion CSV content
   const extractConversionDateRange = (content: string): { start: string | null; end: string | null; daysCount: number } => {
@@ -687,109 +702,7 @@ export default function ReportImport() {
     reader.readAsText(selectedFile);
   };
 
-  // Auto-detect report type based on CSV headers
-  const detectReportType = (headerLine: string): string | null => {
-    // Marketing campaigns - Offers
-    if (headerLine.includes("Type d'offre") && headerLine.includes("Audience")) {
-      return "marketing_campaigns";
-    }
-    // Marketing campaigns - Ads
-    if (headerLine.includes("Nom de la campagne") && headerLine.includes("Impressions")) {
-      return "marketing_campaigns";
-    }
-    // Sales Over Time
-    if (headerLine.includes("Période") && headerLine.includes("Ventes")) {
-      return "sales_over_time";
-    }
-    // Reviews Item Level - MUST be checked BEFORE reviews_order because SKU files contain BOTH sets of headers
-    // SKU files have: "Nom du plat", "Prix du plat", "Catégorie du menu" + "UUID de la commande" + "Valeur de la note"
-    const hasSkuItemColumns = headerLine.includes("Nom du plat") || headerLine.includes("Prix du plat") || 
-                              headerLine.includes("Catégorie du menu") || headerLine.includes("Id. externe de l'article");
-    if ((headerLine.includes("Note de l'article") || headerLine.includes("Item rating") || 
-         headerLine.includes("Titre de l'article") || headerLine.includes("Item title") ||
-         hasSkuItemColumns) && 
-        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID") ||
-         headerLine.includes("Note de l'article") || headerLine.includes("Titre de l'article"))) {
-      return "reviews_item";
-    }
-    // Reviews Order Level - MUST be checked AFTER reviews_item
-    if ((headerLine.includes("Note du restaurant") || headerLine.includes("Valeur de la note") || headerLine.includes("restaurant rating") || headerLine.includes("rating value")) && 
-        (headerLine.includes("UUID de la commande") || headerLine.includes("Order UUID")) &&
-        !hasSkuItemColumns) {
-      return "reviews_order";
-    }
-    // Downtime Report
-    if (headerLine.includes("Ouverture du restaurant à") && headerLine.includes("Disponibilité du menu")) {
-      return "downtime_report";
-    }
-    // Inaccurate Orders (detail) — tested BEFORE order_history (shares common headers)
-    if ((headerLine.includes("Problème avec la commande") || headerLine.includes("Articles incorrects")) &&
-        headerLine.includes("Client remboursé")) {
-      return "inaccurate_orders";
-    }
-    // Order History
-    if ((headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande")) && 
-        (headerLine.includes("Temps d'attente du coursier") || headerLine.includes("Heure de la commande"))) {
-      return "order_history";
-    }
-    // Item Issues Leaderboard
-    if (headerLine.includes("Articles incorrects") && headerLine.includes("Nombre") &&
-        headerLine.includes("Problème avec le plat")) {
-      return "item_issues_leaderboard";
-    }
-    // Order Accuracy Summary
-    if ((headerLine.includes("Jour") || headerLine.includes("Mois")) && 
-        (headerLine.includes("Commandes incorrectes") || headerLine.includes("Articles manquants"))) {
-      return "order_accuracy_summary";
-    }
-    // Conversion Funnel
-    if ((headerLine.includes("Utilisateurs ayant visité") || headerLine.includes("Utilisateurs ayant visite")) &&
-        (headerLine.includes("menu a été consulté") || headerLine.includes("menu consulté") || headerLine.includes("Plat ajouté"))) {
-      return "conversion_funnel";
-    }
-    // Success Score
-    if (headerLine.includes("Store name") && 
-        headerLine.includes("Operational excellence") && 
-        headerLine.includes("Status")) {
-      return "success_score";
-    }
-    // Helper: Check for item-level columns
-    const hasItemColumns = 
-      headerLine.includes("Titre de l'article") || 
-      headerLine.includes("Item title") ||
-      headerLine.includes("Nom du plat") ||
-      headerLine.includes("Nom de l'article") ||
-      headerLine.includes("Nom du plat/de l'article");
-    
-    // Helper: Check for order identifiers
-    const hasOrderId = headerLine.includes("Id. de la commande") || headerLine.includes("Id de la commande");
-    const hasFlowId = headerLine.includes("Id. du flux");
-    
-    // PRIORITY 1: ITEM-LEVEL PAYMENT (most specific - has order/flow ID AND item columns)
-    if ((hasOrderId || hasFlowId) && hasItemColumns) {
-      return "payment_item_level";
-    }
-    
-    // PRIORITY 2: PAYOUT SUMMARY (aggregated - NO order IDs)
-    if (!hasOrderId && !hasFlowId) {
-      if (
-        headerLine.includes("Identifiant de versement") || 
-        headerLine.includes("Id. de référence du versement") ||
-        headerLine.includes("Date de versement") ||
-        headerLine.includes("Date du versement") ||
-        (headerLine.includes("Montant total") && headerLine.includes("Nombre de commandes"))
-      ) {
-        return "payout_summary";
-      }
-    }
-    
-    // PRIORITY 3: ORDER-LEVEL PAYMENT (has order/flow ID, no item columns)
-    if (hasOrderId || hasFlowId) {
-      return "payment_order_level";
-    }
-    
-    return null;
-  };
+  const detectReportType = detectReportTypeFromContent;
 
   const parsePreview = (content: string) => {
     // Remove BOM if present
@@ -804,110 +717,11 @@ export default function ReportImport() {
       return;
     }
 
-    let headerRowIndex = -1;
-    for (let i = 0; i < Math.min(10, lines.length); i++) {
-      // Check for Sales Over Time headers
-      if (lines[i].includes("Période") && lines[i].includes("Ventes")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for payment report headers
-      if (
-        lines[i].includes("Id. de la commande") ||
-        lines[i].includes("Id. du flux") ||
-        lines[i].includes("Nom du restaurant")
-      ) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for marketing campaign headers (offers)
-      if (lines[i].includes("Type d'offre") && lines[i].includes("Audience")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for marketing campaign headers (ads)
-      if (lines[i].includes("Nom de la campagne") && lines[i].includes("Impressions")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for reviews order-level headers
-      if ((lines[i].includes("Note du restaurant") || lines[i].includes("restaurant rating")) && 
-          (lines[i].includes("UUID de la commande") || lines[i].includes("Order UUID"))) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for reviews item-level headers (includes SKU variants: "Nom du plat", "Prix du plat", "Catégorie du menu")
-      if ((lines[i].includes("Note de l'article") || lines[i].includes("Item rating") ||
-           lines[i].includes("Nom du plat") || lines[i].includes("Prix du plat") || 
-           lines[i].includes("Catégorie du menu") || lines[i].includes("Id. externe de l'article")) && 
-          (lines[i].includes("Titre de l'article") || lines[i].includes("Item title") ||
-           lines[i].includes("UUID de la commande") || lines[i].includes("Nom du plat"))) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for downtime report headers
-      if (lines[i].includes("Ouverture du restaurant à") && 
-          lines[i].includes("Disponibilité du menu") &&
-          lines[i].includes("Restaurant en ligne")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for order history headers
-      if ((lines[i].includes("Id. de la commande") || lines[i].includes("Id de la commande")) && 
-          (lines[i].includes("Temps d'attente du coursier") || lines[i].includes("Heure de la commande"))) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for inaccurate orders headers
-      if ((lines[i].includes("Problème avec la commande") || lines[i].includes("Articles incorrects")) &&
-          lines[i].includes("Client remboursé")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for item issues leaderboard v3 headers (new format)
-      if (lines[i].includes("Articles incorrects") && lines[i].includes("Nombre") &&
-          lines[i].includes("Problème avec le plat")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for order accuracy summary headers (daily or monthly)
-      if ((lines[i].includes("Jour") || lines[i].includes("Mois")) && 
-          (lines[i].includes("Commandes incorrectes") || lines[i].includes("Articles manquants"))) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for conversion funnel headers
-      if ((lines[i].includes("Utilisateurs ayant visité") || lines[i].includes("Utilisateurs ayant visite")) &&
-          (lines[i].includes("menu a été consulté") || lines[i].includes("menu consulté") || lines[i].includes("Plat ajouté"))) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for payout summary headers
-      if (lines[i].includes("Identifiant de versement") || lines[i].includes("Date de versement")) {
-        headerRowIndex = i;
-        break;
-      }
-      // Check for Success Score headers
-      if (lines[i].includes("Store name") && 
-          lines[i].includes("Operational excellence") && 
-          lines[i].includes("Status")) {
-        headerRowIndex = i;
-        break;
-      }
-    }
-
-    if (headerRowIndex === -1) {
-      toast({
-        title: "Format non reconnu",
-        description: "Impossible de trouver les en-têtes du rapport",
-        variant: "destructive",
-      });
-      return;
-    }
+    const headerRowIndex = inspectUberCsv(content, file?.name || "").headerIndex;
 
     const headerLine = lines[headerRowIndex];
     const parsedHeaders = parseCSVLine(headerLine);
-    setHeaders(parsedHeaders.slice(0, 15));
+    setHeaders(parsedHeaders);
 
     // Auto-detect report type from headers
     const detectedType = detectReportType(headerLine);
@@ -938,76 +752,10 @@ export default function ReportImport() {
     setStep("preview");
   };
 
-  const parseCSVLine = (line: string): string[] => {
-    const result: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < line.length; i++) {
-      const char = line[i];
-      if (char === '"') {
-        if (inQuotes && line[i + 1] === '"') {
-          current += '"';
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (char === "," && !inQuotes) {
-        result.push(current.trim());
-        current = "";
-      } else {
-        current += char;
-      }
-    }
-    result.push(current.trim());
-    return result;
-  };
-
-  /**
-   * CSV-aware record counting and extraction.
-   * Properly handles newlines inside quoted fields (e.g. invoice URLs).
-   * Returns: { records: array of raw CSV lines (one per record), headerIndex }
-   */
-  const parseCSVRecords = (content: string): { records: string[]; headerIndex: number } => {
-    const records: string[] = [];
-    let currentRecord = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < content.length; i++) {
-      const char = content[i];
-      const nextChar = content[i + 1];
-
-      if (inQuotes) {
-        if (char === '"' && nextChar === '"') {
-          currentRecord += '""';
-          i++;
-        } else if (char === '"') {
-          currentRecord += char;
-          inQuotes = false;
-        } else {
-          currentRecord += char;
-        }
-      } else {
-        if (char === '"') {
-          currentRecord += char;
-          inQuotes = true;
-        } else if (char === '\n' || (char === '\r' && nextChar === '\n')) {
-          if (currentRecord.trim()) {
-            records.push(currentRecord);
-          }
-          currentRecord = '';
-          if (char === '\r') i++;
-        } else if (char !== '\r') {
-          currentRecord += char;
-        }
-      }
-    }
-    if (currentRecord.trim()) {
-      records.push(currentRecord);
-    }
-
-    const headerIndex = findHeaderLineIndex(records);
-    return { records, headerIndex };
+  const parseCSVLine = csvFields;
+  const parseCSVRecords = (content: string) => {
+    const records = csvRecords(content);
+    return { records, headerIndex: inspectUberCsv(content, "").headerIndex };
   };
 
   const handleValidate = async () => {
@@ -1021,7 +769,7 @@ export default function ReportImport() {
     }
 
     // For sales_over_time, marketing_campaigns, order_accuracy_summary, item_issues_leaderboard, and conversion_funnel, restaurant selection is required
-    const requiresRestaurantSelection = ["sales_over_time", "marketing_campaigns", "order_accuracy_summary", "item_issues_leaderboard", "conversion_funnel"].includes(reportType);
+    const requiresRestaurantSelection = requiresRestaurant(reportType);
     if (requiresRestaurantSelection && !selectedRestaurantId) {
       toast({
         title: "Restaurant requis",
@@ -1034,22 +782,7 @@ export default function ReportImport() {
     setIsLoading(true);
 
     try {
-      const functionMap: Record<string, string> = {
-        sales_over_time: "parse-sales-over-time",
-        payment_item_level: "parse-item-report",
-        payout_summary: "parse-payout-summary",
-        marketing_campaigns: "parse-marketing-campaigns",
-        reviews_order: "parse-reviews-order",
-        reviews_item: "parse-reviews-item",
-        downtime_report: "parse-downtime-report",
-        order_history: "parse-order-history",
-        inaccurate_orders: "parse-inaccurate-orders",
-        order_accuracy_summary: "parse-order-accuracy-summary",
-        item_issues_leaderboard: "parse-item-issues-leaderboard",
-        conversion_funnel: "parse-conversion-report",
-        success_score: "parse-success-score",
-      };
-      const functionName = functionMap[reportType] || "parse-payment-report";
+      const functionName = getEdgeFunctionName(reportType);
       
       // For large order_history files, send only a sample for validation
       let contentToValidate = csvContent;
@@ -1190,7 +923,7 @@ export default function ReportImport() {
           const clientScan = await clientSideRestaurantScan(
             fullDataRecords,
             fullHeaderFields,
-            allRestaurants,
+            restaurants,
             parseCSVLine,
           );
           
@@ -1199,8 +932,8 @@ export default function ReportImport() {
             
             // Merge: use client results as the authoritative source for unknown detection
             // (server only sees a sample, client scans ALL rows)
-            const mergedUnknowns = [...clientScan.unknownStoreIds];
-            const mergedDetails = { ...clientScan.unknownStoreDetails };
+            const mergedUnknowns = [...new Set([...(validationData.validation?.unknownStoreIds || []), ...clientScan.unknownStoreIds])];
+            const mergedDetails = { ...validationData.validation?.unknownStoreDetails, ...clientScan.unknownStoreDetails };
             
             validationData = {
               ...validationData,
@@ -1209,25 +942,17 @@ export default function ReportImport() {
                 skipped: clientScan.skippedCount,
               },
               validation: {
-                ...validationData.validation!,
+                dateRange: validationData.validation?.dateRange || { start: null, end: null },
+                restaurants: validationData.validation?.restaurants || [],
+                skippedDetails: validationData.validation?.skippedDetails || [],
+                ...validationData.validation,
                 unknownStoreIds: mergedUnknowns,
                 unknownStoreDetails: mergedDetails,
               },
             };
-          } else if ((validationData.validation?.unknownStoreIds?.length || 0) > 0) {
-            // Client found 0 unknowns but server found some from sampling — clear server false positives
-            console.log(`[Client scan] Full scan found 0 unknowns, clearing server-side false positives`);
-            validationData = {
-              ...validationData,
-              validation: {
-                ...validationData.validation!,
-                unknownStoreIds: [],
-                unknownStoreDetails: {},
-              },
-            };
           }
         } catch (scanError) {
-          console.warn('[Client scan] Failed:', scanError);
+          throw scanError;
         }
       }
 
@@ -1322,22 +1047,7 @@ export default function ReportImport() {
     try {
       const fileUrl = await uploadFileToStorage();
 
-      const functionMap: Record<string, string> = {
-        sales_over_time: "parse-sales-over-time",
-        payment_item_level: "parse-item-report",
-        payout_summary: "parse-payout-summary",
-        marketing_campaigns: "parse-marketing-campaigns",
-        reviews_order: "parse-reviews-order",
-        reviews_item: "parse-reviews-item",
-        downtime_report: "parse-downtime-report",
-        order_history: "parse-order-history",
-        inaccurate_orders: "parse-inaccurate-orders",
-        order_accuracy_summary: "parse-order-accuracy-summary",
-        item_issues_leaderboard: "parse-item-issues-leaderboard",
-        conversion_funnel: "parse-conversion-report",
-        success_score: "parse-success-score",
-      };
-      const functionName = functionMap[reportType] || "parse-payment-report";
+      const functionName = getEdgeFunctionName(reportType);
       
       // Check if file needs chunking (for order_history with large files)
       const { records: allRecords, headerIndex } = parseCSVRecords(csvContent);
@@ -1484,7 +1194,7 @@ export default function ReportImport() {
               } else {
                 aggregatedOrphanInfo.count += chunkResult.orphanInfo.count;
                 aggregatedOrphanInfo.totalMissingFlowIds = (aggregatedOrphanInfo.totalMissingFlowIds || 0) + (chunkResult.orphanInfo.totalMissingFlowIds || 0);
-                // Merge unique missing flow IDs (keep max 10 samples)
+                // Merge unique missing flow IDs (keep sans limite de nombre samples)
                 const existingIds = new Set(aggregatedOrphanInfo.missingFlowIds);
                 for (const fid of chunkResult.orphanInfo.missingFlowIds || []) {
                   if (aggregatedOrphanInfo.missingFlowIds.length < 10 && !existingIds.has(fid)) {
@@ -1718,9 +1428,9 @@ export default function ReportImport() {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Import des rapports</h1>
+          <h1 className="text-3xl font-bold">Import des rapports</h1>
           <p className="text-muted-foreground mt-1">
-            Importez vos rapports CSV pour alimenter automatiquement la base de données
+            Uber Eats & Deliveroo
           </p>
         </div>
         <Button 
@@ -1735,7 +1445,7 @@ export default function ReportImport() {
 
       {/* Platform-level tabs */}
       <div className="flex gap-2 border-b">
-        <button
+        <Button variant="ghost"
           onClick={() => setPlatform("uber")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             platform === "uber"
@@ -1745,8 +1455,8 @@ export default function ReportImport() {
         >
           <img src={uberEatsLogo} alt="Uber Eats" className="h-5 w-5 object-contain" />
           Uber Eats
-        </button>
-        <button
+        </Button>
+        <Button variant="ghost"
           onClick={() => setPlatform("deliveroo")}
           className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
             platform === "deliveroo"
@@ -1756,7 +1466,7 @@ export default function ReportImport() {
         >
           <img src={deliverooLogo} alt="Deliveroo" className="h-5 w-5 object-contain" />
           Deliveroo
-        </button>
+        </Button>
       </div>
 
       {platform === "deliveroo" ? (
@@ -1786,10 +1496,6 @@ export default function ReportImport() {
             <Upload className="h-4 w-4" />
             Importer
           </TabsTrigger>
-          <TabsTrigger value="bulk" className="gap-2">
-            <Layers className="h-4 w-4" />
-            Import groupé
-          </TabsTrigger>
           <TabsTrigger value="history" className="gap-2">
             <History className="h-4 w-4" />
             Historique
@@ -1805,300 +1511,12 @@ export default function ReportImport() {
             </div>
           )}
 
-          {/* Step indicator */}
-          <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 ${step === "upload" ? "text-primary" : "text-muted-foreground"}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "upload" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                1
-              </div>
-              <span className="font-medium">Upload</span>
-            </div>
-            <div className="h-px w-8 bg-border" />
-            <div className={`flex items-center gap-2 ${step === "preview" ? "text-primary" : "text-muted-foreground"}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "preview" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                2
-              </div>
-              <span className="font-medium">Aperçu</span>
-            </div>
-            <div className="h-px w-8 bg-border" />
-            <div className={`flex items-center gap-2 ${step === "validation" ? "text-primary" : "text-muted-foreground"}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "validation" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                3
-              </div>
-              <span className="font-medium">Validation</span>
-            </div>
-            <div className="h-px w-8 bg-border" />
-            <div className={`flex items-center gap-2 ${step === "importing" || step === "complete" ? "text-primary" : "text-muted-foreground"}`}>
-              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${step === "importing" || step === "complete" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                4
-              </div>
-              <span className="font-medium">Import</span>
-            </div>
-          </div>
-
-          {step === "upload" && (
-            <div className="grid gap-6 md:grid-cols-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5" />
-                    Type de rapport
-                  </CardTitle>
-                  <CardDescription>Sélectionnez le type de rapport que vous importez</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex gap-2">
-                    <Select value={reportType} onValueChange={(value) => {
-                      setReportType(value);
-                      setSelectedRestaurantId("");
-                    }}>
-                      <SelectTrigger className="flex-1">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {REPORT_THEMES.map((theme) => (
-                          <div key={theme.id}>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground bg-muted/50 flex items-center gap-2">
-                              <theme.icon className="h-3.5 w-3.5" />
-                              {theme.label}
-                            </div>
-                            {theme.types.map((type) => (
-                              <SelectItem key={type.value} value={type.value} className="pl-6">
-                                <div className="flex flex-col">
-                                  <span className="flex items-center gap-2">
-                                    {type.icon && <type.icon className="h-4 w-4 text-primary" />}
-                                    {type.label}
-                                  </span>
-                                  <span className="text-xs text-muted-foreground">{type.description}</span>
-                                </div>
-                              </SelectItem>
-                            ))}
-                          </div>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => {
-                        // Map report type to guide section ID
-                        const guideMap: Record<string, string> = {
-                          sales_over_time: "sales-over-time",
-                          payment_order_level: "payment-orders",
-                          payment_item_level: "payment-items",
-                          payout_summary: "payout-summary",
-                          marketing_campaigns: "marketing-campaigns",
-                          reviews_order: "reviews-order",
-                          reviews_item: "reviews-item",
-                          downtime_report: "downtime-report",
-                          order_history: "order-history",
-                          order_accuracy_summary: "order-accuracy-summary",
-                          item_issues_leaderboard: "item-issues-leaderboard",
-                        };
-                        const sectionId = guideMap[reportType] || "";
-                        navigate(`/import-guide#${sectionId}`);
-                      }}
-                      title="Voir le tutoriel pour ce type de rapport"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  {/* Restaurant selector for specific report types */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns" || reportType === "order_accuracy_summary" || reportType === "item_issues_leaderboard" || reportType === "conversion_funnel") && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Restaurant concerné *</label>
-                      <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner un restaurant" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {restaurants.map((r) => (
-                            <SelectItem key={r.id} value={r.id}>
-                              <span>{r.name}</span>
-                              {r.city && <span className="text-muted-foreground ml-1">({r.city})</span>}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        {reportType === "marketing_campaigns" 
-                          ? "Les fichiers d'offres ne contiennent pas d'identifiant restaurant. Pour les annonces, le restaurant sera auto-détecté si possible."
-                          : reportType === "conversion_funnel"
-                          ? "Le tunnel de conversion ne contient pas d'identifiant restaurant. Sélectionnez celui concerné."
-                          : "Ce rapport ne contient pas d'identifiant restaurant, sélectionnez celui concerné."}
-                      </p>
-                      
-                      {/* Delete existing data option for order_accuracy_summary */}
-                      {reportType === "order_accuracy_summary" && selectedRestaurantId && (
-                        <div className="flex items-center gap-3 p-3 bg-destructive/5 border border-destructive/20 rounded-lg mt-3">
-                          <input
-                            type="checkbox"
-                            id="deleteExisting"
-                            checked={deleteExisting}
-                            onChange={(e) => setDeleteExisting(e.target.checked)}
-                            className="h-4 w-4 rounded border-destructive/50 text-destructive focus:ring-destructive"
-                          />
-                          <label htmlFor="deleteExisting" className="flex-1 cursor-pointer">
-                            <div className="flex items-center gap-2 text-sm font-medium text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                              Supprimer les données existantes
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              Efface les données de la période avant d'importer pour éviter les doublons
-                            </p>
-                          </label>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Month selector for success_score */}
-                  {reportType === "success_score" && (
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium">Mois du score *</label>
-                      <Select 
-                        value={scoreMonth.slice(0, 7)} 
-                        onValueChange={(value) => setScoreMonth(value + '-01')}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Sélectionner le mois" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(() => {
-                            const months = [];
-                            const now = new Date();
-                            for (let i = 0; i < 12; i++) {
-                              const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                              const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                              const label = d.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
-                              months.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) });
-                            }
-                            return months.map((m) => (
-                              <SelectItem key={m.value} value={m.value}>
-                                {m.label}
-                              </SelectItem>
-                            ));
-                          })()}
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">
-                        Le fichier CSV ne contient pas de date. Sélectionnez le mois du score à importer.
-                      </p>
-                    </div>
-                  )}
-
-                  {reportType === "sales_over_time" ? (
-                    <Alert className="bg-primary/5 border-primary/20">
-                      <TrendingUp className="h-4 w-4 text-primary" />
-                      <AlertTitle className="text-primary">Source de vérité KPIs</AlertTitle>
-                      <AlertDescription>
-                        Ce rapport contient les données officielles Uber Eats : CA, Commandes et Panier moyen.
-                        Il sert de référence pour tous les KPIs agrégés.
-                      </AlertDescription>
-                    </Alert>
-                  ) : reportType === "marketing_campaigns" ? (
-                    <Alert className="bg-primary/5 border-primary/20">
-                      <Megaphone className="h-4 w-4 text-primary" />
-                      <AlertTitle className="text-primary">Campagnes Marketing</AlertTitle>
-                      <AlertDescription>
-                        Importez vos offres promotionnelles ou annonces publicitaires depuis Uber Manager &gt; Marketing &gt; Historique des campagnes.
-                        Les campagnes seront ajoutées aux actions et visibles sur les graphiques Analytics.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (reportType === "reviews_order" || reportType === "reviews_item") ? (
-                    <Alert className="bg-amber-500/10 border-amber-500/20">
-                      <Star className="h-4 w-4 text-amber-500" />
-                      <AlertTitle className="text-amber-600">Avis Clients</AlertTitle>
-                      <AlertDescription>
-                        {reportType === "reviews_order" 
-                          ? "Fichier restaurant_rating_local.csv - Contient les notes globales (1-5 étoiles) et tags par commande."
-                      : "Fichier restaurant_rating_sku_local.csv - Contient les notes par article (pouce haut/bas) et tags produits."}
-                      </AlertDescription>
-                    </Alert>
-                  ) : reportType === "conversion_funnel" ? (
-                    <Alert className="bg-emerald-500/10 border-emerald-500/20">
-                      <TrendingUp className="h-4 w-4 text-emerald-500" />
-                      <AlertTitle className="text-emerald-600">Tunnel de conversion</AlertTitle>
-                      <AlertDescription>
-                        Fichier user-conversion*.csv - Visites, vues menu, ajouts panier et commandes. 
-                        Importez plusieurs fichiers (max 10) en une seule fois pour gagner du temps.
-                      </AlertDescription>
-                    </Alert>
-                  ) : reportType === "success_score" ? (
-                    <Alert className="bg-amber-500/10 border-amber-500/20">
-                      <Award className="h-4 w-4 text-amber-500" />
-                      <AlertTitle className="text-amber-600">Score de Réussite</AlertTitle>
-                      <AlertDescription>
-                        Fichier quality-score-stores*.csv - Indicateurs mensuels Uber Eats : Excellence opérationnelle, Notes, Détails menu et Emballages durables.
-                      </AlertDescription>
-                    </Alert>
-                  ) : (
-                    <Alert className="mt-4">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertTitle>Types supportés</AlertTitle>
-                      <AlertDescription>
-                        Les rapports "niveau commande" et "niveau articles" sont supportés.
-                        Importez d'abord les commandes avant les articles pour permettre la liaison.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Upload className="h-5 w-5" />
-                    {reportType === "conversion_funnel" ? "Fichiers CSV (max 10)" : "Fichier CSV"}
-                  </CardTitle>
-                  <CardDescription>
-                    {reportType === "conversion_funnel" 
-                      ? "Sélectionnez plusieurs fichiers de conversion pour les importer en une fois"
-                      : "Glissez-déposez ou sélectionnez votre fichier"}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <label
-                    htmlFor="csv-upload"
-                    className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                      <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        <span className="font-semibold">Cliquez pour sélectionner</span> ou glissez-déposez
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {reportType === "conversion_funnel" 
-                          ? "Fichiers CSV (jusqu'à 10 fichiers)" 
-                          : "Fichier CSV uniquement"}
-                      </p>
-                    </div>
-                    <input
-                      id="csv-upload"
-                      type="file"
-                      className="hidden"
-                      accept=".csv"
-                      multiple={reportType === "conversion_funnel"}
-                      onChange={reportType === "conversion_funnel" ? handleMultiFileChange : handleFileChange}
-                    />
-                  </label>
-
-                  {file && reportType !== "conversion_funnel" && (
-                    <div className="mt-4 p-3 bg-muted rounded-lg flex items-center gap-3">
-                      <FileSpreadsheet className="h-5 w-5 text-primary" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{file.name}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {(file.size / 1024).toFixed(1)} Ko
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          )}
+          <UberImportWorkspace key={selectedChainId} restaurants={restaurants} currentFile={file}
+            busy={isLoading} completed={step === "complete"} onOpen={openWorkspaceFile} />
+          {step !== "upload" && <div className="flex flex-wrap items-center gap-3 border-b pb-4 text-sm">
+            <Badge variant="outline">{REPORT_TYPES.find(t => t.value === reportType)?.label}</Badge>
+            <span className="text-muted-foreground break-all">{file?.name}</span>
+          </div>}
 
           {step === "preview" && (
             <Card>
@@ -2115,7 +1533,7 @@ export default function ReportImport() {
                   </div>
                   
                   {/* Sélecteur de restaurant pour les types qui le nécessitent (reviews sont multi-restaurant) */}
-                  {(reportType === "sales_over_time" || reportType === "marketing_campaigns") && (
+                  {requiresRestaurant(reportType) && (
                     <div className="flex items-center gap-3">
                       <span className="text-sm font-medium text-muted-foreground">Restaurant :</span>
                       <Select value={selectedRestaurantId} onValueChange={setSelectedRestaurantId}>
@@ -2379,7 +1797,7 @@ export default function ReportImport() {
                       <UnknownStoreMapping
                         unknownStoreIds={validationResult.validation.unknownStoreIds}
                         unknownStoreDetails={validationResult.validation.unknownStoreDetails}
-                        restaurants={allRestaurants}
+                        restaurants={restaurants}
                         selectedRestaurantId={selectedRestaurantId}
                         onMappingComplete={handleRevalidateAfterMapping}
                       />
@@ -2491,7 +1909,7 @@ export default function ReportImport() {
                           <Alert variant="destructive" className="border-red-500 bg-red-500/10">
                             <AlertTriangle className="h-4 w-4" />
                             <AlertDescription className="text-sm">
-                              <strong>Import bloqué :</strong> {validationResult.validation!.unknownStoreIds!.length} restaurant(s) non reconnu(s). 
+                              <strong>Import bloqué :</strong> {validationResult.validation?.unknownStoreIds?.length} restaurant(s) non reconnu(s). 
                               Mappez-les ci-dessus puis revalidez, ou les <strong>{validationResult.stats.skipped.toLocaleString()} lignes</strong> correspondantes seront définitivement perdues.
                             </AlertDescription>
                           </Alert>
@@ -2505,7 +1923,7 @@ export default function ReportImport() {
                           </Button>
                           <Button onClick={handleImport} disabled={isLoading || hasUnknownStores}>
                             <Send className="h-4 w-4 mr-2" />
-                            Confirmer l'import
+                            Lancer l’importation
                           </Button>
                         </div>
                       </div>
@@ -2709,7 +2127,7 @@ export default function ReportImport() {
                   <UnknownStoreMapping
                     unknownStoreIds={importResult.validation.unknownStoreIds}
                     unknownStoreDetails={importResult.validation.unknownStoreDetails}
-                    restaurants={allRestaurants}
+                    restaurants={restaurants}
                     selectedRestaurantId={selectedRestaurantId}
                     onMappingComplete={handleRevalidateAfterMapping}
                   />
@@ -2923,11 +2341,7 @@ export default function ReportImport() {
           )}
         </TabsContent>
 
-        <TabsContent value="bulk" className="mt-6">
-          <BulkImportTab restaurants={restaurants} />
-        </TabsContent>
-
-        <TabsContent value="history" className="mt-6">
+<TabsContent value="history" className="mt-6">
           <ImportHistory />
         </TabsContent>
       </Tabs>
