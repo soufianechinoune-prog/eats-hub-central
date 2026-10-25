@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
+import { REPORT_TYPE_CONFIG } from "@/lib/reportImportConfig";
 
 interface CsvImport {
   id: string;
@@ -43,6 +44,7 @@ interface CsvImport {
 }
 
 const REPORT_TYPE_LABELS: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(REPORT_TYPE_CONFIG).map(([key, config]) => [key, config.label])),
   payment_order_level: "Niveau commande",
   payment_item_level: "Niveau articles",
   payout_summary: "Versements",
@@ -244,9 +246,7 @@ export default function ImportHistory() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les types</SelectItem>
-                <SelectItem value="payment_order_level">Niveau commande</SelectItem>
-                <SelectItem value="payment_item_level">Niveau articles</SelectItem>
-                <SelectItem value="payout_summary">Versements</SelectItem>
+                {Object.entries(REPORT_TYPE_CONFIG).map(([key, config]) => <SelectItem key={key} value={key}>{config.label}</SelectItem>)}
                 <SelectItem value="deliveroo_statement">Relevé Deliveroo</SelectItem>
               </SelectContent>
             </Select>
@@ -282,6 +282,8 @@ export default function ImportHistory() {
                   <TableHead>Nom</TableHead>
                   <TableHead>Fichier</TableHead>
                   <TableHead>Type</TableHead>
+                  <TableHead>Période</TableHead>
+                  <TableHead className="text-center">Restaurants</TableHead>
                   <TableHead className="text-center">Lignes</TableHead>
                   <TableHead className="text-center">Insérées</TableHead>
                   <TableHead className="text-center">MAJ</TableHead>
@@ -322,6 +324,10 @@ export default function ImportHistory() {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center font-medium">
+                      {imp.date_range_start ? `${format(new Date(imp.date_range_start), "dd/MM/yyyy")} → ${imp.date_range_end ? format(new Date(imp.date_range_end), "dd/MM/yyyy") : "—"}` : "—"}
+                    </TableCell>
+                    <TableCell className="text-center">{imp.restaurants_count}</TableCell>
+                    <TableCell className="text-center font-medium">
                       {imp.total_rows.toLocaleString("fr-FR")}
                     </TableCell>
                     <TableCell className="text-center text-green-600 font-medium">
@@ -342,7 +348,7 @@ export default function ImportHistory() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDownload(imp.file_url!, imp.file_name)}
+                            onClick={() => { if (imp.file_url) void handleDownload(imp.file_url, imp.file_name); }}
                             title="Télécharger le fichier original"
                           >
                             <Download className="h-4 w-4" />

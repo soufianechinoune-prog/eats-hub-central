@@ -95,3 +95,9 @@ Règles transverses : code_client haché (CHATAIGNE_HASH_SALT), isolation chain_
 
 ## Performance restaurant multi-canal
 - [x] Page /restaurants/:id/performance (Voir réseau + liste Restaurants), semaines partielles signalées
+
+## Import Uber Eats réseau
+- [x] Refaire le dépôt réseau avec détection, file de fichiers et périmètre restaurant optionnel.
+- [x] Réutiliser la validation et les imports existants avec historique enrichi.
+- [x] Tester la détection des 14 familles (19 tests) et la validation connectée du CSV avis Bangkok Factory (35 restaurants).
+- [ ] Valider les écritures de chaque famille en bout en bout : rapports réseau items_with_errors et store_availability non pris en charge ; pas de réimport destructif des avis pour le test.
