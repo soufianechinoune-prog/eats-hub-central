@@ -74,7 +74,7 @@ export default function ImportCoverageMatrix({
       result[type] = months.map((m) => ({ imports: [], coveredDays: 0, monthDays: m.days }));
     }
     for (const imp of imports) {
-      const cells = matrix[imp.report_type];
+      const cells = result[imp.report_type];
       if (!cells) continue;
       // Covered period: explicit date range, fallback to import date
       const start = imp.date_range_start ? new Date(imp.date_range_start) : new Date(imp.imported_at);
