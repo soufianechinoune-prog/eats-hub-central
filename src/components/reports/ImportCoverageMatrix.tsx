@@ -100,6 +100,7 @@ export default function ImportCoverageMatrix({
     if (cell.imports.length === 0) {
       return "bg-destructive/10 text-destructive";
     }
+    if (cell.imports.every((imp) => imp.status === "reconstructed")) return "bg-muted text-muted-foreground border border-border";
     const ratio = cell.coveredDays / cell.monthDays;
     if (ratio >= 0.8) {
       return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
@@ -109,6 +110,7 @@ export default function ImportCoverageMatrix({
 
   const getCellLabel = (cell: CellData): string => {
     if (cell.imports.length === 0) return "—";
+    if (cell.imports.every((imp) => imp.status === "reconstructed")) return "Présent*";
     return `${cell.coveredDays}j`;
   };
 
@@ -116,6 +118,9 @@ export default function ImportCoverageMatrix({
     const typeLabel = REPORT_TYPE_CONFIG[type]?.label ?? type;
     if (cell.imports.length === 0) {
       return `${typeLabel} — ${monthLabel} ${year} : aucun import`;
+    }
+    if (cell.imports.every((imp) => imp.status === "reconstructed")) {
+      return `${typeLabel} — ${monthLabel} ${year} : données présentes ; historique reconstitué, complétude du fichier original non vérifiable`;
     }
     const files = cell.imports.map((i) => `• ${format(new Date(i.imported_at), "dd/MM/yyyy HH:mm")}`).join("\n");
     return `${typeLabel} — ${monthLabel} ${year} : ${cell.coveredDays}/${cell.monthDays} jours couverts (${cell.imports.length} import${cell.imports.length > 1 ? "s" : ""})\n${files}`;
@@ -131,7 +136,7 @@ export default function ImportCoverageMatrix({
       const cells = matrix[type];
       return [
         label,
-        ...cells.map((c) => (c.imports.length === 0 ? "Manquant" : `${c.coveredDays}/${c.monthDays} jours`)),
+        ...cells.map((c) => (c.imports.length === 0 ? "Manquant" : c.imports.every((imp) => imp.status === "reconstructed") ? "Présent (reconstitué)" : `${c.coveredDays}/${c.monthDays} jours`)),
       ];
     });
     const wsMatrix = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -144,7 +149,7 @@ export default function ImportCoverageMatrix({
       REPORT_TYPE_CONFIG[imp.report_type]?.label ?? imp.report_type,
       imp.date_range_start ?? "",
       imp.date_range_end ?? "",
-      format(new Date(imp.imported_at), "dd/MM/yyyy HH:mm"),
+      imp.status === "reconstructed" ? "Date inconnue" : format(new Date(imp.imported_at), "dd/MM/yyyy HH:mm"),
       imp.status,
     ]);
     const wsDetail = XLSX.utils.aoa_to_sheet([detailHeader, ...detailRows]);
@@ -268,6 +273,7 @@ export default function ImportCoverageMatrix({
               <span className="inline-block w-3 h-3 rounded bg-destructive/10 border border-destructive/30" />
               Manquant
             </span>
+            <span>* Présent : données vérifiées, historique reconstitué</span>
             <Badge variant="outline" className="ml-auto">
               Survolez une cellule pour le détail des imports
             </Badge>
