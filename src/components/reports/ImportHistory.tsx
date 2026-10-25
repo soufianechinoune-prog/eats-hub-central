@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { REPORT_TYPE_CONFIG } from "@/lib/reportImportConfig";
+import ImportCoverageMatrix from "@/components/reports/ImportCoverageMatrix";
 
 interface CsvImport {
   id: string;
@@ -59,6 +60,8 @@ export default function ImportHistory() {
   const [filterType, setFilterType] = useState<string>("all");
   const [hasError, setHasError] = useState(false);
   const [brandRestaurantIds, setBrandRestaurantIds] = useState<string[] | null>(null);
+  const [viewMode, setViewMode] = useState<"matrix" | "list">("matrix");
+  const [matrixYear, setMatrixYear] = useState<number>(new Date().getFullYear());
 
   // Load brand restaurant IDs when chain changes
   useEffect(() => {
@@ -257,7 +260,14 @@ export default function ImportHistory() {
         </div>
       </CardHeader>
       <CardContent>
-        {hasError ? (
+        <ImportCoverageMatrix
+          imports={imports}
+          year={matrixYear}
+          onYearChange={setMatrixYear}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+        {viewMode === "matrix" ? null : hasError ? (
           <div className="text-center py-12 text-muted-foreground">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
             <p className="font-medium text-foreground">Impossible de charger l'historique</p>
