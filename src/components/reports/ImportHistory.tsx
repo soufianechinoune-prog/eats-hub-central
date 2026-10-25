@@ -260,7 +260,14 @@ export default function ImportHistory() {
         </div>
       </CardHeader>
       <CardContent>
-        {hasError ? (
+        <ImportCoverageMatrix
+          imports={imports}
+          year={matrixYear}
+          onYearChange={setMatrixYear}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+        />
+        {viewMode === "matrix" ? null : hasError ? (
           <div className="text-center py-12 text-muted-foreground">
             <AlertTriangle className="h-12 w-12 mx-auto mb-4 text-amber-500" />
             <p className="font-medium text-foreground">Impossible de charger l'historique</p>
