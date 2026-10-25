@@ -40,4 +40,36 @@ describe('Uber report families', () => {
   it('does not count an empty financial export as data', () => {
     expect(inspectUberCsv('Id. de la commande,Id. du flux\n', 'common_template.csv').rowCount).toBe(0);
   });
+  it('recognizes pause logs without converting events into hourly totals', () => {
+    const data = inspectUberCsv('Store name,Store ID,Pause start,Pause end,Pause reason\nA,aaa,2026-09-01 12:00,2026-09-02 13:00,Busy', 'uuid_store_pause.csv');
+    expect(data.formatLabel).toBe('Pauses des restaurants');
+    expect(data.type).toBeNull();
+    expect(data.unsupported).toBeTruthy();
+    expect(data.stores).toEqual([{ id: 'aaa', name: 'A' }]);
+    expect(data.dateRange).toEqual({ start: '2026-09-01', end: '2026-09-02' });
+  });
+  it('accepts genuine hourly availability regardless of filename', () => {
+    const data = inspectUberCsv('Restaurant,Id. externe du restaurant,Ouverture du restaurant à,Disponibilité du menu\nA,aaa,2026-09-01 12:00,60', 'store_availability.csv');
+    expect(data.type).toBe('downtime_report');
+    expect(data.unsupported).toBeNull();
+    expect(data.dateRange.start).toBe('2026-09-01');
+  });
+  it('recognizes availability event headers even after renaming', () => {
+    const data = inspectUberCsv('Restaurant,Event summary,Date\nA,Offline,2026-09-01', 'renamed.csv');
+    expect(data.formatLabel).toBe('Disponibilité des restaurants');
+    expect(data.type).toBeNull();
+  });
+  it('reads filename periods when the report has no dated rows', () => {
+    const data = inspectUberCsv('Restaurant,Récapitulatif de l’événement\nA,Offline', 'store_availability_2026-09-01_2026-09-30.csv');
+    expect(data.dateRange).toEqual({ start: '2026-09-01', end: '2026-09-30' });
+  });
+  it('selects the real header after metadata and normalizes smart apostrophes', () => {
+    const data = inspectUberCsv('Restaurant,Bangkok\nGenerated,2026\nRestaurant,UUID de l’établissement,Date de la commande,Id. de la commande,Problème avec la commande,Client remboursé\nA,aaa,2026-09-01,1,Missing,Yes', 'renamed.csv');
+    expect(data.headerIndex).toBe(2);
+    expect(data.type).toBe('inaccurate_orders');
+    expect(data.stores[0].id).toBe('aaa');
+  });
+  it('detects unaccented downtime headers', () => {
+    expect(detectReportTypeFromContent('Ouverture du restaurant a,Disponibilite du menu')).toBe('downtime_report');
+  });
 });
