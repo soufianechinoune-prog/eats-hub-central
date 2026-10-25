@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Upload, FileSpreadsheet, Trash2, Loader2, ShieldCheck, CheckCircle2, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { REPORT_TYPE_CONFIG } from '@/lib/reportImportConfig';
@@ -17,6 +17,12 @@ interface Props {
   onOpen: (file: File, content: string, type: string, restaurantId: string) => void;
 }
 const dateLabel = (date: string | null) => date ? date.split('-').reverse().join('/') : '—';
+const categories = {
+  Paiements: ['payment_order_level', 'payment_item_level', 'payout_summary'],
+  Opérations: ['sales_over_time', 'downtime_report', 'order_history', 'inaccurate_orders', 'order_accuracy_summary', 'item_issues_leaderboard', 'success_score', 'conversion_funnel'],
+  Avis: ['reviews_order', 'reviews_item'],
+  Marketing: ['marketing_campaigns'],
+};
 export default function UberImportWorkspace({ restaurants, currentFile, busy, completed, onOpen }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [scope, setScope] = useState('network');
@@ -60,7 +66,7 @@ export default function UberImportWorkspace({ restaurants, currentFile, busy, co
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {entries.length > 0 && <>
       <div className="flex flex-wrap gap-5 text-sm text-muted-foreground">
-        <span><strong className="text-foreground">{entries.length}</strong> fichiers</span>
+        <span><strong className="text-foreground">{entries.length}</strong> {entries.length === 1 ? 'fichier' : 'fichiers'}</span>
         <span><strong className="text-foreground">{entries.reduce((s, e) => s + e.inspection.rowCount, 0).toLocaleString('fr-FR')}</strong> lignes</span>
       </div>
       <div className="overflow-x-auto rounded-lg border bg-card"><Table>
@@ -73,7 +79,7 @@ export default function UberImportWorkspace({ restaurants, currentFile, busy, co
             <TableCell className="min-w-64 max-w-96"><p className="truncate text-sm font-medium" title={e.file.name}>{e.file.name}</p>
               <Select value={e.type} disabled={busy || !!e.inspection.unsupported} onValueChange={type => setEntries(old => old.map(x => x.id === e.id ? { ...x, type } : x))}>
                 <SelectTrigger className="mt-2 h-8 text-xs"><SelectValue placeholder="Rapport non reconnu" /></SelectTrigger>
-                <SelectContent>{Object.entries(REPORT_TYPE_CONFIG).map(([key, c]) => <SelectItem key={key} value={key}>{c.label}</SelectItem>)}</SelectContent>
+                <SelectContent>{Object.entries(categories).map(([label, types]) => <SelectGroup key={label}><SelectLabel>{label}</SelectLabel>{types.map(key => <SelectItem key={key} value={key}>{REPORT_TYPE_CONFIG[key].label}</SelectItem>)}</SelectGroup>)}</SelectContent>
               </Select>
             </TableCell>
             <TableCell className="whitespace-nowrap text-xs">{dateLabel(e.inspection.dateRange.start)} → {dateLabel(e.inspection.dateRange.end)}</TableCell>
