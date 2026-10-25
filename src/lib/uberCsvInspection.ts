@@ -215,3 +215,82 @@ export const detectReportTypeFromContent = (headerLine: string): string | null =
   return null;
 };
 
+
+export interface UberCsvInspection {
+  type: string | null;
+  headers: string[];
+  records: string[];
+  headerIndex: number;
+  rowCount: number;
+  stores: { id: string; name: string }[];
+  dateRange: { start: string | null; end: string | null };
+  unsupported: string | null;
+}
+
+export function csvRecords(content: string): string[] {
+  const records: string[] = [];
+  let quoted = false, start = 0;
+  const clean = content.replace(/^\uFEFF/, '');
+  for (let i = 0; i < clean.length; i++) {
+    if (clean[i] === '"') {
+      if (quoted && clean[i + 1] === '"') { i++; continue; }
+      quoted = !quoted;
+    }
+    if (!quoted && clean[i] === '\n') {
+      const row = clean.slice(start, i).replace(/\r$/, '');
+      if (row.trim()) records.push(row);
+      start = i + 1;
+    }
+  }
+  const last = clean.slice(start).trim();
+  if (last) records.push(last);
+  return records;
+}
+
+export function csvFields(record: string): string[] {
+  const values: string[] = [];
+  let value = '', quoted = false;
+  for (let i = 0; i < record.length; i++) {
+    const c = record[i];
+    if (c === '"') {
+      if (quoted && record[i + 1] === '"') { value += '"'; i++; } else quoted = !quoted;
+    } else if (c === ',' && !quoted) { values.push(value.trim()); value = ''; }
+    else value += c;
+  }
+  values.push(value.trim());
+  return values;
+}
+
+export function inspectUberCsv(content: string, filename: string): UberCsvInspection {
+  const records = csvRecords(content);
+  let headerIndex = records.slice(0, 20).findIndex(r => {
+    const h = csvFields(r).map(x => x.toLowerCase());
+    return h.some(x => ['id. de la commande', 'id. du flux', 'uuid de la commande', 'nom du restaurant', 'restaurant', 'store name', 'période', 'jour', 'mois', 'date du versement', "type d'offre"].includes(x));
+  });
+  if (headerIndex < 0) headerIndex = 0;
+  const headers = csvFields(records[headerIndex] || '');
+  const header = headers.join(',');
+  const unsupported = /store_availability/i.test(filename) || header.includes("Récapitulatif de l'événement")
+    ? 'Disponibilité des stations : format non pris en charge' : /items_with_errors/i.test(filename)
+    ? 'Erreurs par article : format non pris en charge' : null;
+  const type = unsupported ? null : detectReportTypeFromContent(header) || detectReportTypeFromFilename(filename);
+  const lower = headers.map(h => h.toLowerCase());
+  const idIndex = lower.findIndex(h => ['id. du restaurant', "uuid de l'établissement", 'restaurant id', 'store id', 'store_id'].includes(h));
+  const nameIndex = lower.findIndex(h => ['nom du restaurant', 'restaurant', 'store name'].includes(h));
+  const dateIndex = lower.findIndex(h => ['date de la commande', 'heure de la commande', 'date de la note', 'date', 'jour', 'date du versement', 'date de début', 'période'].includes(h));
+  const stores = new Map<string, { id: string; name: string }>();
+  let start: string | null = null, end: string | null = null;
+  for (const record of records.slice(headerIndex + 1)) {
+    const values = csvFields(record);
+    const id = values[idIndex] || '', name = values[nameIndex] || '';
+    if (id || name) stores.set(id || name, { id, name });
+    const raw = values[dateIndex] || '';
+    const iso = raw.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+    const fr = raw.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    const date = iso || (fr ? `${fr[3]}-${fr[2].padStart(2, '0')}-${fr[1].padStart(2, '0')}` : null);
+    if (date && (!start || date < start)) start = date;
+    if (date && (!end || date > end)) end = date;
+  }
+  return { type: type && REPORT_TYPE_CONFIG[type] ? type : null, headers, records, headerIndex,
+    rowCount: Math.max(0, records.length - headerIndex - 1), stores: [...stores.values()], dateRange: { start, end }, unsupported };
+}
