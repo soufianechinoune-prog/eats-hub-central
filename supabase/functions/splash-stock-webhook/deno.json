@@ -1,0 +1,6 @@
+{
+  "imports": {
+    "standardwebhooks": "npm:standardwebhooks@1.0.0",
+    "zod": "npm:zod@3"
+  }
+}

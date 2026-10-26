@@ -1,60 +1,36 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { z } from "npm:zod@3";
+import { createHandler } from "../_shared/splashWebhookProtocol.ts";
 
-const Item = z.object({ item_id: z.string().min(1).max(200), status: z.string().min(1).max(50) }).passthrough();
-const Body = z.array(Item).max(5000);
-
-const json = (b: unknown, status = 200) =>
-  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
-
-  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
-
-  // 1) Capture brute AVANT tout contrôle : on veut voir le tout premier appel
-  //    de Splash quoi qu'il arrive (mauvaise clé, header avalé, JSON invalide…).
-  const rawBody = await req.text();
-  const headers: Record<string, string> = {};
-  req.headers.forEach((v, k) => { headers[k] = v; });
-  const { error: logError } = await supabase.from("webhook_capture_log").insert({
-    source: "splash-stock-webhook",
-    method: req.method,
-    url: req.url,
-    headers,
-    body: rawBody.slice(0, 50000),
-  });
-  if (logError) console.error("capture log failed", logError);
-
-  if (req.method !== "POST") return json({ error: "method not allowed" }, 405);
-
-  // 2) Contrôle de la clé partenaire (le log ci-dessus reste même en cas de rejet).
-  const expected = Deno.env.get("SPLASH_STOCK_PARTNER_KEY");
-  const provided = req.headers.get("Api-Key");
-  if (!expected || provided !== expected) return json({ error: "unauthorized" }, 401);
-
-  // URL: .../splash-stock-webhook/<splash_api_key>
-  const parts = new URL(req.url).pathname.split("/").filter(Boolean);
-  const idx = parts.indexOf("splash-stock-webhook");
-  const splashKey = idx >= 0 && parts[idx + 1] ? decodeURIComponent(parts[idx + 1]).slice(0, 200) : null;
-
-  let payload: unknown;
-  try { payload = JSON.parse(rawBody); } catch { return json({ error: "invalid json" }, 400); }
-  const parsed = Body.safeParse(Array.isArray(payload) ? payload : [payload]);
-  if (!parsed.success) return json({ error: parsed.error.flatten() }, 400);
-
-  const rows = parsed.data.map((it) => ({
-    splash_api_key: splashKey,
-    item_id: it.item_id,
-    item_kind: it.item_id.startsWith("ing") ? "ingredient" : it.item_id.startsWith("prd") ? "product" : null,
-    status: it.status,
-    raw: it,
-  }));
-
-  if (rows.length) {
-    const { error } = await supabase.from("splash_stock_events").insert(rows);
-    if (error) { console.error(error); return json({ error: "storage failed" }, 500); }
-  }
-  return json({ success: true, received: rows.length });
-});
+Deno.serve(createHandler({
+  secret: () => Deno.env.get("SPLASH_WEBHOOK_SECRET"),
+  corsHeaders,
+  persist: async (event) => {
+    const url = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (!url || !serviceKey) throw new Error("Service configuration missing");
+    const admin = createClient(url, serviceKey);
+    const { data: candidates, error: mappingError } = await admin
+      .from("splash_restaurant_credentials")
+      .select("id, restaurant_id, chain_id")
+      .eq("client_id", event.clientId).eq("is_active", true).limit(2);
+    if (mappingError) throw new Error("Mapping unavailable");
+    const candidate = candidates?.length === 1 ? candidates[0] : null;
+    let mapped = false;
+    if (candidate) {
+      const { data: restaurant, error } = await admin.from("restaurants").select("chain_id").eq("id", candidate.restaurant_id).maybeSingle();
+      if (error) throw new Error("Restaurant unavailable");
+      mapped = restaurant?.chain_id === candidate.chain_id;
+    }
+    const { error } = await admin.from("splash_webhook_events").upsert({
+      webhook_id: event.webhookId,
+      event_type: event.eventType,
+      station_credentials_id: mapped && candidate ? candidate.id : null,
+      restaurant_id: mapped && candidate ? candidate.restaurant_id : null,
+      chain_id: mapped && candidate ? candidate.chain_id : null,
+      payload: event.payload,
+      status: mapped ? "pending" : "unmapped",
+    }, { onConflict: "webhook_id", ignoreDuplicates: true });
+    if (error) throw new Error("Event storage unavailable");
+  },
+}));
