@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Tag, Upload } from "lucide-react";
+import { Download, RefreshCw, Search, Tag, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -216,8 +216,8 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
 }
 
 export default function InstorePrices() {
-  const { data, isLoading } = useInstoreMatrix();
-  const { data: channelData = [], isLoading: channelLoading } = useChannelPriceMatrix();
+  const { data, isLoading, isFetching, refetch } = useInstoreMatrix();
+  const { data: channelData = [], isLoading: channelLoading, isFetching: channelFetching, refetch: refetchChannels } = useChannelPriceMatrix();
   const { data: restaurants = [] } = useActiveRestaurants();
   const { selectedRestaurants } = useAnalyticsContext();
   const setPrice = useSetRestaurantPrice();
@@ -278,6 +278,31 @@ export default function InstorePrices() {
     return [...combined.values()].filter((p) => p.label.toLowerCase().includes(q)).sort((a, b) => a.label.localeCompare(b.label, "fr"));
   }, [data, channelData, search]);
 
+  const [matrixChannel, setMatrixChannel] = useState<PriceChannel | "caisse">("caisse");
+  const matrixChannelLabel = matrixChannel === "caisse" ? "Caisse" : CHANNELS.find((c) => c.key === matrixChannel)?.label ?? "";
+  const matrixRestaurants = useMemo(() => {
+    const list = selectedIds.length ? restaurants.filter((r) => selectedIds.includes(r.id)) : restaurants;
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [restaurants, selectedIds]);
+  const matrixRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const src = matrixChannel === "caisse" ? (data ?? []) : channelData.filter((p) => p.channel === matrixChannel);
+    const ids = matrixRestaurants.map((r) => r.id);
+    return src
+      .filter((p) => p.label.toLowerCase().includes(q) && ids.some((id) => p.prices[id] !== undefined))
+      .map((p) => ({ key: p.key, label: p.label, prices: p.prices, med: median(ids.flatMap((id) => p.prices[id] === undefined ? [] : [p.prices[id]])) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  }, [data, channelData, matrixChannel, matrixRestaurants, search]);
+  const exportXlsx = () => {
+    const header = ["Produit", "Médiane", ...matrixRestaurants.map((r) => r.name)];
+    const body = matrixRows.map((p) => [p.label, p.med ?? "", ...matrixRestaurants.map((r) => p.prices[r.id] ?? "")]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws["!cols"] = [{ wch: 36 }, ...header.slice(1).map(() => ({ wch: 14 }))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, matrixChannelLabel.slice(0, 31));
+    XLSX.writeFile(wb, `prix_${matrixChannelLabel.toLowerCase().replace(/\s+/g, "_")}_${new Date().toLocaleDateString("fr-CA")}.xlsx`);
+  };
+
   const save = (product_key: string, product_label: string, price: number) =>
     setPrice.mutate(
       { restaurant_id: singleId ?? "", product_key, product_label, price },
@@ -306,7 +331,15 @@ export default function InstorePrices() {
                  Prix par produit et par canal, avec la caisse comme référence.
               </p>
             </div>
-            <ImportButton restaurants={restaurants} />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => { void refetch(); void refetchChannels(); }} disabled={isFetching || channelFetching}>
+                <RefreshCw className={cn("mr-2 h-4 w-4", (isFetching || channelFetching) && "animate-spin")} />Actualiser
+              </Button>
+              <Button variant="outline" onClick={exportXlsx} disabled={!matrixRows.length}>
+                <Download className="mr-2 h-4 w-4" />Exporter Excel
+              </Button>
+              <ImportButton restaurants={restaurants} />
+            </div>
           </div>
 
           <AnalyticsHeader hidePeriodSelector />
@@ -314,8 +347,58 @@ export default function InstorePrices() {
           <Tabs value={tab} onValueChange={setTab} className="space-y-4">
             <TabsList className="h-auto flex-wrap justify-start">
               <TabsTrigger value="caisse">Caisse · référence</TabsTrigger>
+              <TabsTrigger value="matrice">Grille par restaurant</TabsTrigger>
               <TabsTrigger value="canaux">Comparatif des canaux</TabsTrigger>
             </TabsList>
+            <TabsContent value="matrice">
+              <Card>
+                <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5 text-primary" />Grille des prix · {matrixChannelLabel}</CardTitle>
+                    <CardDescription>{matrixRows.length} produits · {matrixRestaurants.length} restaurants · écarts à la médiane surlignés</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex rounded-md border p-0.5">
+                      {([{ key: "caisse", label: "Caisse" }, ...CHANNELS] as const).map((c) => (
+                        <Button key={c.key} size="sm" variant={matrixChannel === c.key ? "secondary" : "ghost"} className="h-7" onClick={() => setMatrixChannel(c.key)}>{c.label}</Button>
+                      ))}
+                    </div>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input className="w-56 pl-8" placeholder="Rechercher un produit…" value={search} onChange={(e) => setSearch(e.target.value)} />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {isLoading || channelLoading ? <Skeleton className="h-48 w-full" /> : !matrixRows.length ? <p className="py-10 text-center text-muted-foreground">Aucun tarif {matrixChannelLabel} pour cette sélection.</p> : (
+                    <div className="max-h-[70vh] overflow-auto rounded-md border">
+                      <table className="w-full border-collapse text-sm">
+                        <thead className="sticky top-0 z-20 bg-muted">
+                          <tr>
+                            <th className="sticky left-0 z-30 min-w-[220px] border-b bg-muted px-3 py-2 text-left font-medium">Produit</th>
+                            <th className="min-w-[100px] border-b px-3 py-2 text-right font-medium">Médiane</th>
+                            {matrixRestaurants.map((r) => <th key={r.id} className="min-w-[110px] whitespace-nowrap border-b px-3 py-2 text-right font-medium">{r.name.replace(/chicken\s*street\s*/i, "")}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {matrixRows.map((p) => (
+                            <tr key={p.key} className="border-b hover:bg-muted/40">
+                              <td className="sticky left-0 z-10 bg-background px-3 py-1.5 font-medium">{p.label}</td>
+                              <td className="px-3 py-1.5 text-right font-semibold tabular-nums">{fmtEur(p.med)}</td>
+                              {matrixRestaurants.map((r) => {
+                                const v = p.prices[r.id];
+                                const d = v !== undefined && p.med !== null ? v - p.med : null;
+                                return <td key={r.id} className={cn("px-3 py-1.5 text-right tabular-nums", v === undefined && "text-muted-foreground", d !== null && d > 0.005 && "bg-success/10 text-success", d !== null && d < -0.005 && "bg-destructive/10 text-destructive")}>{v === undefined ? "—" : fmtEur(v)}</td>;
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
             <TabsContent value="canaux">
               <Card>
                 <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
