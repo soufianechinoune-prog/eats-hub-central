@@ -22,7 +22,8 @@ const schemas = { stock: Stock, prices: Prices, catalog: Catalog, orders: Orders
 export function resolveTarget(url: string): { eventType: EventType; clientId: string } | null {
   try {
     const parts = new URL(url).pathname.split("/").filter(Boolean);
-    const index = parts.indexOf("splash-webhook");
+    // Legacy activation URL (splash-stock-webhook) shares the same protocol.
+    const index = parts.findIndex((p) => p === "splash-webhook" || p === "splash-stock-webhook");
     if (index < 0) return null;
     const tail = parts.slice(index + 1);
     let eventType: EventType = "stock";
