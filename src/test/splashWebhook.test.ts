@@ -1,4 +1,3 @@
-// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Webhook } from "standardwebhooks";
 import { createHandler, resolveTarget, type VerifiedEvent } from "../../supabase/functions/splash-webhook/protocol";
