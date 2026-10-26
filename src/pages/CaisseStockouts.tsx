@@ -42,8 +42,13 @@ const fmtDt = (s: string) => format(new Date(s), "dd MMM HH:mm", { locale: fr })
 export default function CaisseStockouts() {
   const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } = useAnalyticsContext();
   const { startDate, endDate } = useDataGranularity({ periodMode, selectedYear, selectedMonth, dateRange });
-  const start = format(startDate, "yyyy-MM-dd");
-  const end = format(endDate, "yyyy-MM-dd");
+  const [liveMode, setLiveMode] = useState(true);
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const start = liveMode ? format(new Date(Date.now() - 30 * 86400000), "yyyy-MM-dd") : format(startDate, "yyyy-MM-dd");
+  // Toujours inclure aujourd'hui quand la période se termine hier (ruptures du jour / en cours)
+  const periodEnd = format(endDate, "yyyy-MM-dd");
+  const yesterdayStr = format(new Date(Date.now() - 86400000), "yyyy-MM-dd");
+  const end = liveMode || periodEnd >= yesterdayStr ? todayStr : periodEnd;
   const [search, setSearch] = useState("");
   const [onlyOngoing, setOnlyOngoing] = useState(false);
 
@@ -74,20 +79,21 @@ export default function CaisseStockouts() {
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return (q.data ?? []).filter((r) =>
+    const base = (q.data ?? []).filter((r) => !liveMode || r.is_ongoing || format(new Date(r.started_at), "yyyy-MM-dd") === todayStr);
+    return base.filter((r) =>
       (!onlyOngoing || r.is_ongoing) &&
       (!s || r.product_name.toLowerCase().includes(s) || r.restaurant_name.toLowerCase().includes(s)));
-  }, [q.data, search, onlyOngoing]);
+  }, [q.data, search, onlyOngoing, liveMode, todayStr]);
 
   const kpis = useMemo(() => {
-    const all = q.data ?? [];
+    const all = (q.data ?? []).filter((r) => !liveMode || r.is_ongoing || format(new Date(r.started_at), "yyyy-MM-dd") === todayStr);
     return {
       total: all.length,
       ongoing: all.filter((r) => r.is_ongoing).length,
       restos: new Set(all.map((r) => r.restaurant_id)).size,
       avg: all.length ? all.reduce((a, r) => a + Number(r.duration_minutes), 0) / all.length : 0,
     };
-  }, [q.data]);
+  }, [q.data, liveMode, todayStr]);
 
   const topProducts = useMemo(() => {
     const m = new Map<string, { name: string; n: number; min: number }>();
@@ -126,10 +132,15 @@ export default function CaisseStockouts() {
             <h1 className="text-2xl font-semibold tracking-tight">Ruptures & Disponibilité</h1>
             <p className="text-sm text-muted-foreground">Produits passés hors stock en caisse, remontés en direct par Splash. Historique à partir de l'activation du flux.</p>
           </div>
-          <AnalyticsHeader />
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant={liveMode ? "default" : "outline"} size="sm" onClick={() => setLiveMode(true)}><Radio className="mr-1.5 h-4 w-4" />État actuel</Button>
+            <Button variant={!liveMode ? "default" : "outline"} size="sm" onClick={() => setLiveMode(false)}>Historique sur la période</Button>
+            {liveMode && <span className="text-xs text-muted-foreground">Ruptures en cours et ruptures d'aujourd'hui</span>}
+          </div>
+          {!liveMode && <AnalyticsHeader />}
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi icon={PackageX} label="Ruptures sur la période" value={String(kpis.total)} />
+            <Kpi icon={PackageX} label={liveMode ? "Ruptures aujourd'hui" : "Ruptures sur la période"} value={String(kpis.total)} />
             <Kpi icon={Radio} label="En cours" value={String(kpis.ongoing)} />
             <Kpi icon={Store} label="Restaurants concernés" value={String(kpis.restos)} />
             <Kpi icon={Clock} label="Durée moyenne" value={kpis.total ? fmtDur(kpis.avg) : "—"} />
