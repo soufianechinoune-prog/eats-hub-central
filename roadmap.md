@@ -1,5 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Réception webhooks Splash
+- [ ] Implémenter la vérification de signature, le challenge et la réception idempotente selon le guide Splash.
+- [ ] Déployer et tester le récepteur ; activation et événement réel à confirmer par Splash.
+
 ## Prix & Tarifs
 - [x] Ajouter la saisie par restaurant et par canal (Uber Eats, Deliveroo, Dishop, Châtaigne) avec comparatif caisse et médianes réseau.
 - [x] Permettre l'import Excel ciblé sur un ou plusieurs canaux, avec aperçu des restaurants reconnus avant confirmation.
