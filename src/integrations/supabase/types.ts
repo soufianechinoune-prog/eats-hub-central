@@ -15089,6 +15089,20 @@ export type Database = {
           uber_revenue: number
         }[]
       }
+      get_splash_stockouts: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          category: string
+          duration_minutes: number
+          ended_at: string
+          is_ongoing: boolean
+          item_id: string
+          product_name: string
+          restaurant_id: string
+          restaurant_name: string
+          started_at: string
+        }[]
+      }
       get_total_delivery_time_daily: {
         Args: {
           p_end_date: string
