@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createHandler } from "./protocol.ts";
+import { createHandler } from "../_shared/splashWebhookProtocol.ts";
 
 Deno.serve(createHandler({
   secret: () => Deno.env.get("SPLASH_WEBHOOK_SECRET"),

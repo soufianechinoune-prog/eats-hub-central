@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Webhook } from "standardwebhooks";
-import { createHandler, resolveTarget, type VerifiedEvent } from "../../supabase/functions/splash-webhook/protocol";
+import { createHandler, resolveTarget, type VerifiedEvent } from "../../supabase/functions/_shared/splashWebhookProtocol";
 
 // Public fixture from Splash's integration guide, never a project credential.
 const fixture = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw";
