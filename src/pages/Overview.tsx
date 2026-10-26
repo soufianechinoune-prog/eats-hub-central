@@ -32,6 +32,7 @@ import { useRestaurantCashRevenue } from "@/hooks/useRestaurantCashRevenue";
 import { useActiveChainPOSConnection } from "@/hooks/usePOSConnectors";
 import { useAdsRevenueRatio } from "@/hooks/useAdsRevenueRatio";
 import { AdsRevenueRatioCard } from "@/components/analytics/AdsRevenueRatioCard";
+import type { AdsRatioMode } from "@/lib/adsRatioModes";
 import { useDishopOverview } from "@/hooks/useDishopOverview";
 import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdown";
 import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
@@ -810,7 +811,9 @@ const Overview = () => {
   const hasSplashData = (cashRevenueData?.daysWithData ?? 0) > 0;
   const cashConnected = (!!activePosConnection && activePosConnection.is_active) || hasSplashData;
 
+  const [adsRatioMode, setAdsRatioMode] = useState<AdsRatioMode>("uber");
   const adsRatio = useAdsRevenueRatio({
+    mode: adsRatioMode,
     restaurantIds: activeIds,
     startDate,
     endDate,
@@ -1295,6 +1298,8 @@ const Overview = () => {
                   pct={adsRatio.networkPct}
                   isLoading={adsRatio.isLoading}
                   periodLabel={getPeriodLabel()}
+                  mode={adsRatioMode}
+                  onModeChange={setAdsRatioMode}
                 />
               </div>
             )}
