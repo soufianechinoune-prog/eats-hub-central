@@ -12292,6 +12292,64 @@ export type Database = {
           },
         ]
       }
+      splash_webhook_events: {
+        Row: {
+          chain_id: string | null
+          event_type: string
+          id: string
+          payload: Json
+          received_at: string
+          restaurant_id: string | null
+          station_credentials_id: string | null
+          status: string
+          webhook_id: string
+        }
+        Insert: {
+          chain_id?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          received_at?: string
+          restaurant_id?: string | null
+          station_credentials_id?: string | null
+          status?: string
+          webhook_id: string
+        }
+        Update: {
+          chain_id?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          received_at?: string
+          restaurant_id?: string | null
+          station_credentials_id?: string | null
+          status?: string
+          webhook_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_webhook_events_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_webhook_events_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_webhook_events_station_credentials_id_fkey"
+            columns: ["station_credentials_id"]
+            isOneToOne: false
+            referencedRelation: "splash_restaurant_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       splash360_daily_sales: {
         Row: {
           average_basket: number

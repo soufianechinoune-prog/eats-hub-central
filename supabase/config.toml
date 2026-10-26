@@ -173,3 +173,6 @@ verify_jwt = false
 
 [functions.splash-stock-webhook]
 verify_jwt = false
+
+[functions.splash-webhook]
+import_map = "./functions/splash-webhook/deno.json"
