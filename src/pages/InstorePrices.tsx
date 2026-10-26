@@ -278,6 +278,31 @@ export default function InstorePrices() {
     return [...combined.values()].filter((p) => p.label.toLowerCase().includes(q)).sort((a, b) => a.label.localeCompare(b.label, "fr"));
   }, [data, channelData, search]);
 
+  const [matrixChannel, setMatrixChannel] = useState<PriceChannel | "caisse">("caisse");
+  const matrixChannelLabel = matrixChannel === "caisse" ? "Caisse" : CHANNELS.find((c) => c.key === matrixChannel)?.label ?? "";
+  const matrixRestaurants = useMemo(() => {
+    const list = selectedIds.length ? restaurants.filter((r) => selectedIds.includes(r.id)) : restaurants;
+    return [...list].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  }, [restaurants, selectedIds]);
+  const matrixRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const src = matrixChannel === "caisse" ? (data ?? []) : channelData.filter((p) => p.channel === matrixChannel);
+    const ids = matrixRestaurants.map((r) => r.id);
+    return src
+      .filter((p) => p.label.toLowerCase().includes(q) && ids.some((id) => p.prices[id] !== undefined))
+      .map((p) => ({ key: p.key, label: p.label, prices: p.prices, med: median(ids.flatMap((id) => p.prices[id] === undefined ? [] : [p.prices[id]])) }))
+      .sort((a, b) => a.label.localeCompare(b.label, "fr"));
+  }, [data, channelData, matrixChannel, matrixRestaurants, search]);
+  const exportXlsx = () => {
+    const header = ["Produit", "Médiane", ...matrixRestaurants.map((r) => r.name)];
+    const body = matrixRows.map((p) => [p.label, p.med ?? "", ...matrixRestaurants.map((r) => p.prices[r.id] ?? "")]);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    ws["!cols"] = [{ wch: 36 }, ...header.slice(1).map(() => ({ wch: 14 }))];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, matrixChannelLabel.slice(0, 31));
+    XLSX.writeFile(wb, `prix_${matrixChannelLabel.toLowerCase().replace(/\s+/g, "_")}_${new Date().toLocaleDateString("fr-CA")}.xlsx`);
+  };
+
   const save = (product_key: string, product_label: string, price: number) =>
     setPrice.mutate(
       { restaurant_id: singleId ?? "", product_key, product_label, price },
