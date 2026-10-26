@@ -11787,6 +11787,45 @@ export type Database = {
         }
         Relationships: []
       }
+      splash_notification_stations: {
+        Row: {
+          chain_id: string
+          client_id: string
+          created_at: string
+          restaurant_id: string
+          station_credentials_id: string
+        }
+        Insert: {
+          chain_id: string
+          client_id: string
+          created_at?: string
+          restaurant_id: string
+          station_credentials_id: string
+        }
+        Update: {
+          chain_id?: string
+          client_id?: string
+          created_at?: string
+          restaurant_id?: string
+          station_credentials_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "splash_notification_stations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "splash_notification_stations_station_credentials_id_fkey"
+            columns: ["station_credentials_id"]
+            isOneToOne: false
+            referencedRelation: "splash_restaurant_credentials"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       splash_payment_label_map: {
         Row: {
           brand: string | null
@@ -12300,6 +12339,7 @@ export type Database = {
           payload: Json
           received_at: string
           restaurant_id: string | null
+          splash_client_id: string | null
           station_credentials_id: string | null
           status: string
           webhook_id: string
@@ -12311,6 +12351,7 @@ export type Database = {
           payload: Json
           received_at?: string
           restaurant_id?: string | null
+          splash_client_id?: string | null
           station_credentials_id?: string | null
           status?: string
           webhook_id: string
@@ -12322,6 +12363,7 @@ export type Database = {
           payload?: Json
           received_at?: string
           restaurant_id?: string | null
+          splash_client_id?: string | null
           station_credentials_id?: string | null
           status?: string
           webhook_id?: string
