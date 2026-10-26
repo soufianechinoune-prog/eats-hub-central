@@ -108,6 +108,7 @@ const CASH_SUB_ITEMS: SubNavItem[] = [
   { id: "volume", label: "Volume de commandes", icon: BarChart3, route: "/caisse/volume" },
   { id: "avg-basket", label: "Panier moyen", icon: ShoppingBag, route: "/caisse/panier-moyen" },
   { id: "product-sales", label: "Volume par produit", icon: Package, route: "/caisse/produits" },
+  { id: "stockouts", label: "Ruptures & Disponibilité", icon: PackageX, route: "/caisse/ruptures" },
 ];
 
 // Sous-onglets Chataigne — vues internes et écrans dédiés du canal
@@ -149,6 +150,7 @@ function channelFromPath(
   if (pathname.startsWith("/caisse/paiements")) return { channel: "cash", subId: "payments" };
   if (pathname.startsWith("/caisse/volume")) return { channel: "cash", subId: "volume" };
   if (pathname.startsWith("/caisse/panier-moyen")) return { channel: "cash", subId: "avg-basket" };
+  if (pathname.startsWith("/caisse/ruptures")) return { channel: "cash", subId: "stockouts" };
   if (pathname.startsWith("/caisse/produits")) return { channel: "cash", subId: "product-sales" };
   if (pathname.startsWith("/chataigne/croissance")) return { channel: "chataigne", subId: "growth" };
   if (pathname.startsWith("/chataigne/clients")) return { channel: "chataigne", subId: "clients" };

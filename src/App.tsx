@@ -58,6 +58,7 @@ const CaissePayments = React.lazy(() => import("./pages/CaissePayments"));
 const CaisseAvgBasket = React.lazy(() => import("./pages/CaisseAvgBasket"));
 const CaisseOrderVolume = React.lazy(() => import("./pages/CaisseOrderVolume"));
 const ProductMix = React.lazy(() => import("./pages/ProductMix"));
+const CaisseStockouts = React.lazy(() => import("./pages/CaisseStockouts"));
 const CaisseProductSales = React.lazy(() => import("./pages/CaisseProductSales"));
 const Chataigne = React.lazy(() => import("./pages/Chataigne"));
 const ChataigneTarification = React.lazy(() => import("./pages/ChataigneTarification"));
@@ -232,6 +233,7 @@ const App = () => {
                     <Route path="/caisse/volume" element={<P><CaisseOrderVolume /></P>} />
                     <Route path="/caisse/panier-moyen" element={<P><CaisseAvgBasket /></P>} />
                     <Route path="/mix-produit" element={<P><ProductMix /></P>} />
+                    <Route path="/caisse/ruptures" element={<P><CaisseStockouts /></P>} />
                     <Route path="/caisse/produits" element={<P><CaisseProductSales /></P>} />
                     <Route path="/chataigne" element={<P><Chataigne /></P>} />
                     <Route path="/chataigne/tarification" element={<P><ChataigneTarification /></P>} />
