@@ -92,9 +92,16 @@ Deno.serve(async (req) => {
         break;
       }
       
-      case 'DOWNTIME_REPORT':
-        await parseDowntime(supabase, restaurantId, rows);
+      case 'DOWNTIME_REPORT': {
+        // Uber's real downtime CSV is hourly slots (Restaurant Open At / Online / Offline):
+        // delegate to the proven hourly parser that feeds hourly_availability.
+        const { data, error } = await supabase.functions.invoke('parse-downtime-report', {
+          body: { csvContent: csvText, restaurantId, dryRun: false },
+        });
+        if (error) console.error('parse-downtime-report invoke error:', error);
+        else console.log('parse-downtime-report result:', JSON.stringify(data)?.substring(0, 400));
         break;
+      }
       
       default:
         console.log('Report type not configured for parsing:', reportType);
