@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Tag, Upload } from "lucide-react";
+import { Download, RefreshCw, Search, Tag, Upload } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -216,8 +216,8 @@ function ImportButton({ restaurants }: { restaurants: { id: string; name: string
 }
 
 export default function InstorePrices() {
-  const { data, isLoading } = useInstoreMatrix();
-  const { data: channelData = [], isLoading: channelLoading } = useChannelPriceMatrix();
+  const { data, isLoading, isFetching, refetch } = useInstoreMatrix();
+  const { data: channelData = [], isLoading: channelLoading, isFetching: channelFetching, refetch: refetchChannels } = useChannelPriceMatrix();
   const { data: restaurants = [] } = useActiveRestaurants();
   const { selectedRestaurants } = useAnalyticsContext();
   const setPrice = useSetRestaurantPrice();
