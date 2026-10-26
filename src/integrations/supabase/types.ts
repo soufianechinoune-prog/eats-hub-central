@@ -13450,6 +13450,19 @@ export type Database = {
           revenue_ttc: number
         }[]
       }
+      get_ads_revenue_ratio_modes: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          ads_spend_ht: number
+          restaurant_id: string
+          revenue_net_ht: number
+          revenue_net_ttc: number
+        }[]
+      }
       get_availability_by_restaurant: {
         Args: {
           p_end_date: string
