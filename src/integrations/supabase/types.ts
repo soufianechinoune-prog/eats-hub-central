@@ -10440,6 +10440,63 @@ export type Database = {
           },
         ]
       }
+      orders_daily_summary: {
+        Row: {
+          day: string
+          item_promo_incl_vat_abs: number
+          meal_voucher: number
+          net_payout: number
+          order_count: number
+          refreshed_at: string
+          restaurant_id: string
+          sales_incl_vat: number
+          sales_incl_vat_pos: number
+        }
+        Insert: {
+          day: string
+          item_promo_incl_vat_abs?: number
+          meal_voucher?: number
+          net_payout?: number
+          order_count?: number
+          refreshed_at?: string
+          restaurant_id: string
+          sales_incl_vat?: number
+          sales_incl_vat_pos?: number
+        }
+        Update: {
+          day?: string
+          item_promo_incl_vat_abs?: number
+          meal_voucher?: number
+          net_payout?: number
+          order_count?: number
+          refreshed_at?: string
+          restaurant_id?: string
+          sales_incl_vat?: number
+          sales_incl_vat_pos?: number
+        }
+        Relationships: []
+      }
+      orders_daily_summary_state: {
+        Row: {
+          backfill_cursor: string
+          backfill_done: boolean
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          backfill_cursor?: string
+          backfill_done?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          backfill_cursor?: string
+          backfill_done?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       payout_adjustments: {
         Row: {
           amount: number
@@ -15446,6 +15503,14 @@ export type Database = {
       }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
+      ods_backfill_step: { Args: never; Returns: string }
+      ods_business_day: { Args: { ts: string }; Returns: string }
+      ods_nightly: { Args: never; Returns: undefined }
+      ods_recompute_pairs: { Args: { p_pairs: Json }; Returns: undefined }
+      ods_recompute_range: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: undefined
+      }
       parse_uber_csv_date: { Args: { _value: string }; Returns: string }
       parse_uber_csv_numeric: { Args: { _value: string }; Returns: number }
       pick_next_backfill_job: {

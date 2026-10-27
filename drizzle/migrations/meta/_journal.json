@@ -477,6 +477,13 @@
       "when": 1793101703561,
       "tag": "0067_idx_orders_restaurant_payout_date",
       "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1793103205728,
+      "tag": "0068_orders_daily_summary",
+      "breakpoints": true
     }
   ]
 }
