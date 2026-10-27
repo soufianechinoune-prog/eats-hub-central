@@ -1,22 +1,19 @@
-export type AdsRatioMode = "uber" | "comptable" | "tresorerie";
+export type AdsRatioMode = "uber" | "comptable";
 
-export const ADS_VAT_RATE = 0.2;
-
-export const ADS_RATIO_MODES: Record<AdsRatioMode, { label: string; short: string; hint: string }> = {
+export const ADS_RATIO_MODES: Record<AdsRatioMode, { label: string; short: string; formula: string; what: string; note: string }> = {
   uber: {
     label: "Uber officiel",
-    short: "Pub HT / CA TTC",
-    hint: "Méthode Uber Eats : dépenses pub hors taxes rapportées au CA net TTC (ventes moins promos articles).",
+    short: "méthode Uber",
+    formula: "Pub HT ÷ CA net TTC",
+    what: "Le ratio tel qu'Uber le communique dans ses bilans : pub hors taxes rapportée aux ventes TTC moins les promos.",
+    note: "Uber ajoute aussi à son CA les frais de livraison et de service payés par les clients. Ces frais sont encaissés directement par Uber et ne nous sont pas transmis : notre chiffre est donc légèrement au-dessus du sien (environ 0,5 à 1 % d'écart).",
   },
   comptable: {
     label: "Comptable réel",
-    short: "Pub HT / CA HT",
-    hint: "Ratio économique : dépenses pub HT rapportées au CA net HT. Base cohérente pour la rentabilité.",
-  },
-  tresorerie: {
-    label: "Trésorerie",
-    short: "Pub TTC / CA TTC",
-    hint: "Ratio de trésorerie : dépenses pub TTC (TVA 20 %) rapportées au CA net TTC.",
+    short: "rentabilité réelle",
+    formula: "Pub HT ÷ ventes HT",
+    what: "Le vrai poids de la pub pour le restaurant : pub hors taxes rapportée aux ventes d'articles hors taxes (promos déduites).",
+    note: "Sans TVA et sans les frais encaissés par Uber. C'est la référence pour piloter la marge.",
   },
 };
 
@@ -28,7 +25,6 @@ export interface AdsRatioInputs {
 
 /** Numérateur / dénominateur selon le mode. Réseau = somme num/denom, jamais moyenne de %. */
 export function computeAdsRatio(mode: AdsRatioMode, i: AdsRatioInputs) {
-  const ads = mode === "tresorerie" ? i.adsHt * (1 + ADS_VAT_RATE) : i.adsHt;
   const revenue = mode === "comptable" ? i.revenueHt : i.revenueTtc;
-  return { ads, revenue, pct: revenue > 0 ? (ads / revenue) * 100 : null };
+  return { ads: i.adsHt, revenue, pct: revenue > 0 ? (i.adsHt / revenue) * 100 : null };
 }
