@@ -1278,7 +1278,7 @@ const Overview = () => {
               </CardHeader>
               <CardContent className="space-y-4">
                 <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating != null ? networkData.uber.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={navigateToRatingsComparison} />
-                <MetricRow icon={Timer} label="Attente coursier" value={formatMinutesToTime(networkData?.uber.courierWaitTime)} color="text-amber-500" onClick={() => navigate('/analytics/operations?tab=waitTime')} />
+                <MetricRow icon={Timer} label="Attente coursier évitable" value={formatMinutesToTime(networkData?.uber.courierWaitTime)} color="text-amber-500" onClick={() => navigate('/analytics/operations?tab=waitTime')} />
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
                 <MetricRow icon={Percent} label="Rentabilité" value={networkData?.uber.profitability != null ? networkData.uber.profitability.toFixed(1) : null} unit="%" color="text-emerald-500" onClick={() => navigateToFinancesGlobal("uber_eats")} />
