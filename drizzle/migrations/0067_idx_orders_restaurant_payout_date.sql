@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS idx_orders_restaurant_payout_date ON public.orders (restaurant_id, payout_date) WHERE payout_date IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_payout_adjustments_restaurant_payout_date ON public.payout_adjustments (restaurant_id, payout_date);

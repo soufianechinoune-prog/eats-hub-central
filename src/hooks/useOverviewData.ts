@@ -8,6 +8,17 @@ const RETRY_CONFIG = {
   retryDelay: (attempt: number) => Math.min(1000 * 2 ** attempt, 5000),
 };
 
+// Période close (fin avant aujourd'hui) : données figées → cache 30 min, pas de recalcul.
+// Période en cours : 2 min, elle bouge encore dans la journée.
+function pastPeriodCache(endDateStr: string) {
+  const today = format(new Date(), "yyyy-MM-dd");
+  const closed = endDateStr < today;
+  return {
+    staleTime: closed ? 30 * 60 * 1000 : 2 * 60 * 1000,
+    gcTime: closed ? 60 * 60 * 1000 : 10 * 60 * 1000,
+  };
+}
+
 // Helper: paginated fetch
 async function fetchAllPages<T>(
   buildQuery: (offset: number) => any,
@@ -79,6 +90,7 @@ function useOverviewSales(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -93,41 +105,24 @@ function useOverviewPayouts(
     queryKey: ["overview-payouts", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
       if (restaurantIds.length === 0) return [];
-      // Option B : les versements sont recalculés depuis orders + payout_adjustments
-      // (la table `payouts` est dépréciée et vide). La RPC est annuelle, on interroge
-      // chaque année couverte par la période puis on filtre sur les bornes exactes.
-      const startYear = Number(startDateStr.slice(0, 4));
-      const endYear = Number(endDateStr.slice(0, 4));
-      const years: number[] = [];
-      for (let y = startYear; y <= endYear; y++) years.push(y);
-
-      const results = await Promise.all(
-        years.map((year) =>
-          supabase.rpc("get_yearly_payouts_detail", {
-            p_year: year,
-            p_restaurant_ids: restaurantIds,
-          }),
-        ),
-      );
-
-      const rows: any[] = [];
-      for (const { data, error } of results) {
-        if (error) throw error;
-        for (const row of (data as any[]) || []) {
-          if (row.payout_date >= startDateStr && row.payout_date <= endDateStr) {
-            rows.push({
-              restaurant_id: row.restaurant_id,
-              payout_date: row.payout_date,
-              sales_incl_vat: Number(row.sales_incl_vat) || 0,
-              net_payout: Number(row.net_payout) || 0,
-              order_count: Number(row.order_count) || 0,
-            });
-          }
-        }
-      }
-      return rows;
+      // Versements recalculés depuis orders + payout_adjustments, bornés à la période
+      // demandée côté base (plus de scan de l'année entière).
+      const { data, error } = await supabase.rpc("get_payouts_summary_range", {
+        p_restaurant_ids: restaurantIds,
+        p_start_date: startDateStr,
+        p_end_date: endDateStr,
+      });
+      if (error) throw error;
+      return ((data as any[]) || []).map((row) => ({
+        restaurant_id: row.restaurant_id,
+        payout_date: row.payout_date,
+        sales_incl_vat: Number(row.sales_incl_vat) || 0,
+        net_payout: Number(row.net_payout) || 0,
+        order_count: Number(row.order_count) || 0,
+      }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 
@@ -157,6 +152,7 @@ function useOverviewReviews(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -211,6 +207,7 @@ function useOverviewPrepTimes(
       }));
     },
     enabled,
+    ...pastPeriodCache(format(endDate, "yyyy-MM-dd")),
     ...RETRY_CONFIG,
   });
 }
@@ -240,6 +237,7 @@ function useOverviewAvailability(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -315,6 +313,7 @@ function useOverviewDeliverooSales(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
