@@ -78,6 +78,8 @@ export default function CaisseStockouts() {
     queryKey: ["splash-stockouts", start, end, ids],
     enabled: !!ids && ids.length > 0,
     retry: false,
+    staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
     queryFn: async () => {
       const { data, error } = await (supabase as any).rpc("get_splash_stockouts", { p_restaurant_ids: ids, p_start: start, p_end: end });
       if (error) throw error;

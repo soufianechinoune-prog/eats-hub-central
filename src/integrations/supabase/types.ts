@@ -671,6 +671,65 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_stockouts: {
+        Row: {
+          category: string | null
+          chain_id: string
+          close_event_id: string | null
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          id: string
+          item_id: string
+          open_event_id: string | null
+          product_name: string
+          restaurant_id: string
+          started_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          chain_id: string
+          close_event_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          item_id: string
+          open_event_id?: string | null
+          product_name: string
+          restaurant_id: string
+          started_at: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          chain_id?: string
+          close_event_id?: string | null
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          item_id?: string
+          open_event_id?: string | null
+          product_name?: string
+          restaurant_id?: string
+          started_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "caisse_stockouts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       caisse_ticket_integrity: {
         Row: {
           chain_id: string | null
@@ -13354,6 +13413,10 @@ export type Database = {
           p_monthly_limit: number
         }
         Returns: Json
+      }
+      apply_splash_stock_event: {
+        Args: { p_event_id: string }
+        Returns: undefined
       }
       backfill_orders_data_source_for_restaurant: {
         Args: { p_restaurant_id: string }
