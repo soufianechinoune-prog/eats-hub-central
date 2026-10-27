@@ -1291,7 +1291,7 @@ const Overview = () => {
 
             {/* Dépenses pub / CA — inline beside Uber card in Uber view */}
             {activeChannel === "uber" && (
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-1 cursor-pointer transition-transform hover:-translate-y-0.5" onClick={(e) => { if ((e.target as HTMLElement).closest('[role="group"],button')) return; navigate('/analytics/ads-spend'); }}>
                 <AdsRevenueRatioCard
                   adsSpend={adsRatio.networkAdsSpend}
                   revenue={adsRatio.networkRevenue}

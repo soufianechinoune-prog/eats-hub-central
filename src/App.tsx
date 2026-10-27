@@ -48,6 +48,7 @@ const DowntimeComparison = React.lazy(() => import("./pages/DowntimeComparison")
 const RatingsComparison = React.lazy(() => import("./pages/RatingsComparison"));
 const OpeningHoursComparison = React.lazy(() => import("./pages/OpeningHoursComparison"));
 const PrepTimeComparison = React.lazy(() => import("./pages/PrepTimeComparison"));
+const AdsSpendAnalysis = React.lazy(() => import("./pages/AdsSpendAnalysis"));
 const TotalDeliveryTimeComparison = React.lazy(() => import("./pages/TotalDeliveryTimeComparison"));
 const InaccurateOrdersComparison = React.lazy(() => import("./pages/InaccurateOrdersComparison"));
 const UberStoreMapping = React.lazy(() => import("./pages/UberStoreMapping"));
@@ -224,6 +225,7 @@ const App = () => {
                     <Route path="/compare/ratings" element={<P><AppLayout><RatingsComparison /></AppLayout></P>} />
                     <Route path="/compare/opening-hours" element={<P><AppLayout><OpeningHoursComparison /></AppLayout></P>} />
                     <Route path="/compare/prep-time" element={<P><AppLayout><PrepTimeComparison /></AppLayout></P>} />
+                    <Route path="/analytics/ads-spend" element={<P><AppLayout><AdsSpendAnalysis /></AppLayout></P>} />
                     <Route path="/compare/total-delivery-time" element={<P><AppLayout><TotalDeliveryTimeComparison /></AppLayout></P>} />
                     <Route path="/compare/inaccurate-orders" element={<P><AppLayout><InaccurateOrdersComparison /></AppLayout></P>} />
                     <Route path="/compare/profitability" element={<Navigate to="/analytics/finances" replace />} />
