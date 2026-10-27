@@ -90,6 +90,7 @@ function useOverviewSales(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -151,6 +152,7 @@ function useOverviewReviews(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -205,6 +207,7 @@ function useOverviewPrepTimes(
       }));
     },
     enabled,
+    ...pastPeriodCache(format(endDate, "yyyy-MM-dd")),
     ...RETRY_CONFIG,
   });
 }
@@ -234,6 +237,7 @@ function useOverviewAvailability(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -309,6 +313,7 @@ function useOverviewDeliverooSales(
       }));
     },
     enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
