@@ -23,8 +23,9 @@ export function AdsRevenueRatioCard({
   adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange,
 }: AdsRevenueRatioCardProps) {
   const meta = ADS_RATIO_MODES[mode];
-  const adsTax = mode === "tresorerie" ? "TTC" : "HT";
+  const adsTax = "HT";
   const revTax = mode === "comptable" ? "HT" : "TTC";
+  const revLabel = mode === "comptable" ? "de ventes HT" : "de CA net TTC";
   return (
     <Card className="border-2 border-uber/30 shadow-lg bg-gradient-to-br from-card via-card to-uber/5">
       <CardHeader className="pb-3">
@@ -40,8 +41,17 @@ export function AdsRevenueRatioCard({
                   <TooltipTrigger asChild>
                     <Info className="h-3.5 w-3.5 text-muted-foreground" />
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-xs text-xs">
-                    {meta.hint} CA net = ventes moins promotions articles.
+                  <TooltipContent side="bottom" className="max-w-sm text-xs space-y-3 p-3">
+                    {(Object.keys(ADS_RATIO_MODES) as AdsRatioMode[]).map((k) => (
+                      <div key={k} className="space-y-1">
+                        <div className="font-semibold">{ADS_RATIO_MODES[k].label}</div>
+                        <div className="inline-block rounded bg-uber/10 px-1.5 py-0.5 font-mono text-[11px] text-uber">
+                          {ADS_RATIO_MODES[k].formula}
+                        </div>
+                        <p>{ADS_RATIO_MODES[k].what}</p>
+                        <p className="text-muted-foreground">{ADS_RATIO_MODES[k].note}</p>
+                      </div>
+                    ))}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -88,11 +98,17 @@ export function AdsRevenueRatioCard({
                   <span className="font-semibold text-foreground">{formatEuro(adsSpend)}</span> de pub {adsTax}
                 </div>
                 <div>
-                  sur <span className="font-semibold text-foreground">{formatEuro(revenue)}</span> de CA net {revTax}
+                  sur <span className="font-semibold text-foreground">{formatEuro(revenue)}</span> {revLabel}
                 </div>
               </div>
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">{meta.short}</p>
+            <div className="mt-3 rounded-lg border border-uber/20 bg-uber/5 p-2.5 text-[11px] leading-snug">
+              <div className="flex items-center gap-2 font-medium text-foreground">
+                <span className="rounded bg-uber/15 px-1.5 py-0.5 font-mono text-uber">{meta.formula}</span>
+                <span className="text-muted-foreground">· {meta.short}</span>
+              </div>
+              <p className="mt-1.5 text-muted-foreground">{meta.note}</p>
+            </div>
           </>
         )}
       </CardContent>

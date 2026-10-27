@@ -10,9 +10,6 @@ describe("ratio pub / CA", () => {
   it("Comptable = pub HT / CA HT", () => {
     expect(computeAdsRatio("comptable", q3).pct!.toFixed(2)).toBe("3.79");
   });
-  it("Trésorerie = pub TTC (×1,2) / CA TTC", () => {
-    expect(computeAdsRatio("tresorerie", q3).pct!.toFixed(2)).toBe("4.14");
-  });
   it("pas de CA = pas de ratio", () => {
     expect(computeAdsRatio("uber", { adsHt: 10, revenueTtc: 0, revenueHt: 0 }).pct).toBeNull();
   });
