@@ -660,6 +660,7 @@ export function useOverviewData(
       global: {
         rating: avgRating,
         prepTime: avgPrepTime != null ? Math.round(avgPrepTime) : null,
+        courierWaitTime: avgCourierWait,
         errorRate,
         incorrectOrderRate,
         profitability: globalProfitability,
@@ -670,6 +671,7 @@ export function useOverviewData(
       uber: {
         rating: uberRating,
         prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
+        courierWaitTime: avgCourierWait,
         errorRate: uberOrders > 0 ? (errorsData.length / uberOrders) * 100 : null,
         incorrectOrderRate,
         profitability: uberProfitability,
@@ -679,6 +681,7 @@ export function useOverviewData(
       deliveroo: {
         rating: deliverooRating,
         prepTime: null,
+        courierWaitTime: null,
         errorRate: null,
         incorrectOrderRate: null,
         profitability: deliverooProfitability,
