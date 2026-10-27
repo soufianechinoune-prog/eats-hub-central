@@ -138,7 +138,8 @@ export function WaitTimeAnalytics() {
     const totalWithCourier = dailyRows.reduce((s, r) => s + r.orders_with_courier_wait, 0);
 
     const weightedAvoidable = dailyRows.reduce((s, r) => s + (r.avg_avoidable_wait || 0) * r.orders_with_avoidable, 0);
-    const avgAvoidableWait = totalWithAvoidable > 0 ? weightedAvoidable / totalWithAvoidable : 0;
+    // Aligné Uber Manager : moyenne sur toutes les commandes (0 min si pas d'attente évitable)
+    const avgAvoidableWait = totalOrders > 0 ? weightedAvoidable / totalOrders : 0;
 
     const weightedCourier = dailyRows.reduce((s, r) => s + (r.avg_courier_wait || 0) * r.orders_with_courier_wait, 0);
     const avgTotalWait = totalWithCourier > 0 ? weightedCourier / totalWithCourier : 0;
@@ -194,7 +195,7 @@ export function WaitTimeAnalytics() {
       if (data && data.totalOrders > 0) {
         return {
           ...month,
-          avgAvoidableWait: data.totalWithAvoidable > 0 ? data.weightedSum / data.totalWithAvoidable : 0,
+          avgAvoidableWait: data.weightedSum / data.totalOrders,
           percentWithAvoidable: (data.totalWithAvoidable / data.totalOrders) * 100,
         };
       }
@@ -219,7 +220,7 @@ export function WaitTimeAnalytics() {
       .map(([date, values]) => ({
         date,
         displayDate: format(parseISO(date), "d", { locale: fr }),
-        avgAvoidableWait: values.totalWithAvoidable > 0 ? values.weightedSum / values.totalWithAvoidable : 0,
+        avgAvoidableWait: values.totalOrders > 0 ? values.weightedSum / values.totalOrders : 0,
         percentWithAvoidable: values.totalOrders > 0 ? (values.totalWithAvoidable / values.totalOrders) * 100 : 0,
         ordersWithAvoidable: values.totalWithAvoidable,
         totalOrders: values.totalOrders,
@@ -241,7 +242,7 @@ export function WaitTimeAnalytics() {
       return {
         hour: `${hour}h`,
         hourIndex: hour,
-        avgAvoidableWait: totalWithAvoidable > 0 ? weightedSum / totalWithAvoidable : null,
+        avgAvoidableWait: totalOrders > 0 ? weightedSum / totalOrders : null,
         percentWithAvoidable: totalOrders > 0 ? (totalWithAvoidable / totalOrders) * 100 : null,
         ordersWithAvoidable: totalWithAvoidable,
         totalOrders,
@@ -252,7 +253,7 @@ export function WaitTimeAnalytics() {
   const hourlyHeatmap = useMemo(() => {
     if (!hourlyRows.length) return [];
 
-    const heatmap: Record<string, { weightedSum: number; totalWithAvoidable: number }> = {};
+    const heatmap: Record<string, { weightedSum: number; totalWithAvoidable: number; totalOrders: number }> = {};
 
     hourlyRows.forEach((r) => {
       const dateObj = parseISO(String(r.day));
@@ -260,10 +261,11 @@ export function WaitTimeAnalytics() {
       const key = `${dayOfWeek}-${r.hour}`;
 
       if (!heatmap[key]) {
-        heatmap[key] = { weightedSum: 0, totalWithAvoidable: 0 };
+        heatmap[key] = { weightedSum: 0, totalWithAvoidable: 0, totalOrders: 0 };
       }
       heatmap[key].weightedSum += (r.avg_avoidable_wait || 0) * r.orders_with_avoidable;
       heatmap[key].totalWithAvoidable += r.orders_with_avoidable;
+      heatmap[key].totalOrders += r.total_orders;
     });
 
     const days = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
@@ -276,7 +278,7 @@ export function WaitTimeAnalytics() {
         result.push({
           day: days[day],
           hour,
-          avgWait: data && data.totalWithAvoidable > 0 ? data.weightedSum / data.totalWithAvoidable : 0,
+          avgWait: data && data.totalOrders > 0 ? data.weightedSum / data.totalOrders : 0,
           dayIndex: day,
         });
       }
@@ -302,7 +304,7 @@ export function WaitTimeAnalytics() {
       .map(([id, stats]) => ({
         id,
         name: restaurantMap.get(id) || id.slice(0, 8),
-        avgAvoidableWait: stats.totalWithAvoidable > 0 ? stats.weightedSum / stats.totalWithAvoidable : 0,
+        avgAvoidableWait: stats.totalOrders > 0 ? stats.weightedSum / stats.totalOrders : 0,
         percentWithAvoidable: stats.totalOrders > 0 ? (stats.totalWithAvoidable / stats.totalOrders) * 100 : 0,
         totalOrders: stats.totalOrders,
       }))
