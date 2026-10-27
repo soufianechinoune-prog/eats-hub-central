@@ -23,8 +23,9 @@ export function AdsRevenueRatioCard({
   adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange,
 }: AdsRevenueRatioCardProps) {
   const meta = ADS_RATIO_MODES[mode];
-  const adsTax = mode === "tresorerie" ? "TTC" : "HT";
+  const adsTax = "HT";
   const revTax = mode === "comptable" ? "HT" : "TTC";
+  const revLabel = mode === "comptable" ? "de ventes HT" : "de CA net TTC";
   return (
     <Card className="border-2 border-uber/30 shadow-lg bg-gradient-to-br from-card via-card to-uber/5">
       <CardHeader className="pb-3">
