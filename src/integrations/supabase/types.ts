@@ -14842,6 +14842,20 @@ export type Database = {
           year: number
         }[]
       }
+      get_payouts_summary_range: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          net_payout: number
+          order_count: number
+          payout_date: string
+          restaurant_id: string
+          sales_incl_vat: number
+        }[]
+      }
       get_prep_time_daily:
         | {
             Args: {
