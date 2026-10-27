@@ -484,6 +484,13 @@
       "when": 1793103205728,
       "tag": "0068_orders_daily_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1793103454104,
+      "tag": "0069_ods_recompute_per_restaurant",
+      "breakpoints": true
     }
   ]
 }
