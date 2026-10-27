@@ -372,6 +372,7 @@ export interface OverviewData {
   global: {
     rating: number | null;
     prepTime: number | null;
+    courierWaitTime: number | null;
     errorRate: number | null;
     incorrectOrderRate: number | null;
     profitability: number | null;
@@ -382,6 +383,7 @@ export interface OverviewData {
   uber: {
     rating: number | null;
     prepTime: number | null;
+    courierWaitTime: number | null;
     errorRate: number | null;
     incorrectOrderRate: number | null;
     profitability: number | null;
@@ -391,6 +393,7 @@ export interface OverviewData {
   deliveroo: {
     rating: number | null;
     prepTime: number | null;
+    courierWaitTime: number | null;
     errorRate: number | null;
     incorrectOrderRate: number | null;
     profitability: number | null;
@@ -472,6 +475,14 @@ export function useOverviewData(
     }, 0);
     const totalPrepCount = prepTimesData.reduce((sum: number, d: any) => sum + (d.prep_count || 0), 0);
     const avgPrepTime = totalPrepCount > 0 ? totalPrepSum / totalPrepCount : null;
+
+    // Avg avoidable courier wait — Uber method: averaged over ALL orders
+    // (on-time orders are stored as 0 and included in the average)
+    const totalWaitSum = prepTimesData.reduce((sum: number, d: any) => {
+      return d.avg_avoidable_wait_time != null ? sum + d.avg_avoidable_wait_time * d.avoidable_wait_count : sum;
+    }, 0);
+    const totalWaitCount = prepTimesData.reduce((sum: number, d: any) => sum + (d.avoidable_wait_count || 0), 0);
+    const avgCourierWait = totalWaitCount > 0 ? totalWaitSum / totalWaitCount : null;
 
     const totalErrors = errorsData.length;
     const errorRate = totalOrders > 0 ? (totalErrors / totalOrders) * 100 : null;
