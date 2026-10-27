@@ -21,8 +21,8 @@ const INTER_JOB_DELAY_MS = 1200;
 // Rattrapage de versements (priorité basse) : vague >= 1000.
 // On limite fortement le débit pour ne pas déclencher les 429 Uber.
 const RETRO_VAGUE_THRESHOLD = 1000;
-const RETRO_PARALLEL = 2;
-const RETRO_INTER_JOB_DELAY_MS = 3000;
+const RETRO_PARALLEL = 3;
+const RETRO_INTER_JOB_DELAY_MS = 2000;
 // Frein automatique : si un requeue 429 a eu lieu récemment, on ne prend qu'1 job.
 const THROTTLE_COOLDOWN_MINUTES = 10;
 
