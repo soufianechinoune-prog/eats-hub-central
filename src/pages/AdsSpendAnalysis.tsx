@@ -6,7 +6,8 @@ import { fr } from "date-fns/locale";
 import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from "recharts";
 import type { DateRange } from "react-day-picker";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
+import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,29 +18,15 @@ import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/ov
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
 import { ADS_RATIO_MODES, computeAdsRatio, type AdsRatioMode } from "@/lib/adsRatioModes";
-import { ADS_EFFORT_TIERS, getAdsEffortTier, median, type AdsEffortTier } from "@/lib/adsEffortTiers";
+import { ADS_EFFORT_TIERS, getAdsEffortTier, median, quarterRange, type AdsEffortTier } from "@/lib/adsEffortTiers";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
-type Row = { restaurant_id: string; ads_spend_ht: number; revenue_net_ttc: number; revenue_net_ht: number };
+type Row = AdsRatioRow;
+const fetchRatio = fetchAdsRatio;
+const sumRows = sumAdsRows;
 const SENTINEL = "00000000-0000-0000-0000-000000000000";
 const eur = (v: number) => new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(v) + " €";
 const pctFmt = (v: number | null, d = 2) => (v == null ? "—" : v.toFixed(d).replace(".", ",") + " %");
-
-async function fetchRatio(start: Date, end: Date, ids: string[]): Promise<Row[]> {
-  const { data, error } = await supabase.rpc("get_ads_revenue_ratio_modes", {
-    p_start_date: format(start, "yyyy-MM-dd"),
-    p_end_date: format(end, "yyyy-MM-dd"),
-    p_restaurant_ids: ids,
-  });
-  if (error) throw error;
-  return (data ?? []) as Row[];
-}
-
-function sumRows(rows: Row[], mode: AdsRatioMode) {
-  let adsHt = 0, revenueTtc = 0, revenueHt = 0;
-  rows.forEach((r) => { adsHt += Number(r.ads_spend_ht) || 0; revenueTtc += Number(r.revenue_net_ttc) || 0; revenueHt += Number(r.revenue_net_ht) || 0; });
-  return computeAdsRatio(mode, { adsHt, revenueTtc, revenueHt });
-}
 
 type SortKey = "pct" | "ads" | "revenue" | "delta" | "name";
 
@@ -55,6 +42,8 @@ export default function AdsSpendAnalysis() {
   const [tierFilter, setTierFilter] = useState<AdsEffortTier | "all">("all");
   const [sortKey, setSortKey] = useState<SortKey>("pct");
   const [sortDesc, setSortDesc] = useState(true);
+  const [quarterYear, setQuarterYear] = useState(today.getFullYear());
+  const [activeQ, setActiveQ] = useState<number | null>(null);
 
   const range = useMemo(() => {
     const lastWeek = subWeeks(today, 1);
@@ -104,6 +93,24 @@ export default function AdsSpendAnalysis() {
     ],
   });
   const [cur, prev, ...weekly] = results;
+
+  const quarters = useMemo(() => [
+    quarterRange(quarterYear - 1, 4, today),
+    ...[1, 2, 3, 4].map((q) => quarterRange(quarterYear, q, today)),
+  ], [quarterYear, today]);
+  const qResults = useQueries({
+    queries: quarters.map((r) => ({ queryKey: ["ads-page", ...key(r.start, r.end), ids], queryFn: () => fetchRatio(r.start, r.end, ids), enabled: ready && !r.future, staleTime: 300000, retry: false })),
+  });
+  const qStats: QuarterStat[] = quarters.map((r, i) => {
+    const s = sumRows(qResults[i]?.data ?? [], mode);
+    return { q: i === 0 ? 4 : i, ads: s.ads, revenue: s.revenue, pct: s.pct, future: r.future, loading: !ready || qResults[i]?.isLoading };
+  });
+  const selectQuarter = (q: number) => {
+    const r = quarterRange(quarterYear, q, today);
+    setActiveQ(q);
+    setCustomRange({ from: r.start, to: r.end });
+    setPeriodMode("custom_range");
+  };
   const loading = !ready || cur.isLoading;
 
   const nameById = useMemo(() => new Map(restaurants.map((r: { id: string; name: string; city?: string | null }) => [r.id, r])), [restaurants]);
@@ -133,7 +140,7 @@ export default function AdsSpendAnalysis() {
   const medianSpend = median(advertisers.map((r) => r.ads));
 
   const tierCounts = useMemo(() => {
-    const c: Record<AdsEffortTier, number> = { none: 0, controlled: 0, moderate: 0, over: 0 };
+    const c: Record<AdsEffortTier, number> = { none: 0, t1: 0, t2: 0, t3: 0, t4: 0 };
     rows.forEach((r) => c[r.tier]++);
     return c;
   }, [rows]);
@@ -186,9 +193,11 @@ export default function AdsSpendAnalysis() {
               <ToggleGroupItem key={k} value={k} className="h-8 px-3 text-xs data-[state=on]:bg-uber/15 data-[state=on]:text-uber">{ADS_RATIO_MODES[k].label}</ToggleGroupItem>
             ))}
           </ToggleGroup>
-          <OverviewPeriodSelector periodMode={periodMode} onPeriodModeChange={setPeriodMode} selectedYear={selectedYear} onYearChange={setSelectedYear} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} dateRange={customRange} onDateRangeChange={setCustomRange} />
+          <OverviewPeriodSelector periodMode={periodMode} onPeriodModeChange={(m) => { setActiveQ(null); setPeriodMode(m); }} selectedYear={selectedYear} onYearChange={setSelectedYear} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} dateRange={customRange} onDateRangeChange={setCustomRange} />
         </div>
       </div>
+
+      <AdsQuarterCards year={quarterYear} onYearChange={(y) => { setQuarterYear(y); setActiveQ(null); }} stats={qStats.slice(1)} prevQ4={qStats[0]} activeQ={activeQ} onSelect={selectQuarter} maxYear={today.getFullYear()} />
 
       {/* KPIs */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -250,7 +259,7 @@ export default function AdsSpendAnalysis() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Répartition par effort pub</CardTitle>
+            <CardTitle className="text-base">Répartition par ratio pub / CA</CardTitle>
             <p className="text-xs text-muted-foreground">Cliquez une tranche pour filtrer le classement</p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -261,7 +270,7 @@ export default function AdsSpendAnalysis() {
               return (
                 <button key={t} onClick={() => setTierFilter(active ? "all" : t)} className={`w-full text-left rounded-lg border p-3 transition-colors ${active ? "border-uber bg-uber/5" : "border-border hover:bg-muted/50"}`}>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="font-medium">{ADS_EFFORT_TIERS[t].label} <span className="text-xs text-muted-foreground">({ADS_EFFORT_TIERS[t].range})</span></span>
+                    <span className="font-medium">{ADS_EFFORT_TIERS[t].label} <span className="text-xs text-muted-foreground">· {ADS_EFFORT_TIERS[t].range}</span></span>
                     <span className="font-semibold">{n}</span>
                   </div>
                   <div className="mt-2 h-1.5 rounded-full bg-muted overflow-hidden">
@@ -281,7 +290,7 @@ export default function AdsSpendAnalysis() {
             <p className="text-xs text-muted-foreground">Repère : médiane des annonceurs à {pctFmt(medianPct)}</p>
           </div>
           <div className="flex items-center gap-2">
-            {tierFilter !== "all" && <Button variant="outline" size="sm" onClick={() => setTierFilter("all")}>Tous les paliers</Button>}
+            {tierFilter !== "all" && <Button variant="outline" size="sm" onClick={() => setTierFilter("all")}>Toutes les tranches</Button>}
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher…" className="pl-8 h-9 w-52" />
@@ -295,7 +304,7 @@ export default function AdsSpendAnalysis() {
                 <tr>
                   <th className="px-3 py-2 text-left font-medium w-10">#</th>
                   <SortHead k="name">Restaurant</SortHead>
-                  <th className="px-3 py-2 text-left font-medium">Statut</th>
+                  <th className="px-3 py-2 text-left font-medium">Tranche</th>
                   <SortHead k="ads" right>Pub HT</SortHead>
                   <SortHead k="revenue" right>{revLabel}</SortHead>
                   <SortHead k="pct">Pub / CA</SortHead>
@@ -304,7 +313,7 @@ export default function AdsSpendAnalysis() {
               </thead>
               <tbody>
                 {tableRows.map((r, i) => (
-                  <tr key={r.id} className="border-b last:border-0 hover:bg-muted/30">
+                  <tr key={r.id} onClick={() => navigate(`/analytics/ads-spend/${r.id}`)} className="border-b last:border-0 hover:bg-muted/30 cursor-pointer">
                     <td className="px-3 py-2.5 text-muted-foreground">{i + 1}</td>
                     <td className="px-3 py-2.5"><div className="font-medium">{r.name}</div>{r.city && <div className="text-xs text-muted-foreground">{r.city}</div>}</td>
                     <td className="px-3 py-2.5"><Badge variant="outline" className={ADS_EFFORT_TIERS[r.tier].className}>{ADS_EFFORT_TIERS[r.tier].label}</Badge></td>
