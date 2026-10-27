@@ -357,7 +357,7 @@ export function WaitTimeAnalytics() {
   const getChartTitle = () => {
     if (selectedDay) return format(parseISO(selectedDay), "EEEE d MMMM yyyy", { locale: fr });
     if (periodMode === "month") return format(new Date(selectedYear, selectedMonth - 1, 1), "MMMM yyyy", { locale: fr });
-    return "Évolution du temps d'attente évitable";
+    return "Évolution de l'attente coursier évitable";
   };
 
   const isChartClickable = () => !selectedDay;
@@ -439,7 +439,7 @@ export function WaitTimeAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Temps évitable moyen
+              Attente coursier évitable moyenne
             </CardTitle>
             <Timer className="h-5 w-5 text-chart-4" />
           </CardHeader>
@@ -448,7 +448,7 @@ export function WaitTimeAnalytics() {
               {formatMinutes(kpis.avgAvoidableWait)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Par commande avec attente
+              Moyenne sur toutes les commandes (méthode Uber)
             </p>
           </CardContent>
         </Card>
@@ -456,7 +456,7 @@ export function WaitTimeAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Commandes avec temps évitable
+              Commandes avec attente coursier évitable
             </CardTitle>
             <Clock className="h-5 w-5 text-destructive" />
           </CardHeader>
@@ -473,7 +473,7 @@ export function WaitTimeAnalytics() {
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Temps d'attente total moyen
+              Temps d'attente total des coursiers
             </CardTitle>
             <TrendingDown className="h-5 w-5 text-chart-1" />
           </CardHeader>
@@ -732,7 +732,7 @@ export function WaitTimeAnalytics() {
         {/* Hourly Heatmap */}
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader>
-            <CardTitle>Heatmap temps d'attente évitable (moyenne en min)</CardTitle>
+            <CardTitle>Heatmap attente coursier évitable (moyenne en min)</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-1">
@@ -786,7 +786,7 @@ export function WaitTimeAnalytics() {
         {/* Restaurant Ranking */}
         <Card className="bg-card/80 backdrop-blur-xl border-2 shadow-xl">
           <CardHeader>
-            <CardTitle>Classement par temps d'attente évitable</CardTitle>
+            <CardTitle>Classement par attente coursier évitable</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
