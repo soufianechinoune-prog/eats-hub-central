@@ -210,7 +210,8 @@ const PrepTimeComparison = () => {
         p_start_date: formatDateLocal(dateRange.start),
         p_end_date: formatDateLocal(dateRange.end),
         p_platform: platformParam,
-      });
+        p_mode: "hourly",
+      } as never);
       if (error) throw error;
       return (data || []) as Array<{
         restaurant_id: string;
