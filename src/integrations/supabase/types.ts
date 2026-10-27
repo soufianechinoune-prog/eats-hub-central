@@ -10034,6 +10034,63 @@ export type Database = {
           },
         ]
       }
+      order_history_daily_summary: {
+        Row: {
+          day: string
+          delivery_count: number
+          delivery_sum: number
+          prep_count: number
+          prep_sum: number
+          refreshed_at: string
+          restaurant_id: string
+          wait_count: number
+          wait_sum: number
+        }
+        Insert: {
+          day: string
+          delivery_count?: number
+          delivery_sum?: number
+          prep_count?: number
+          prep_sum?: number
+          refreshed_at?: string
+          restaurant_id: string
+          wait_count?: number
+          wait_sum?: number
+        }
+        Update: {
+          day?: string
+          delivery_count?: number
+          delivery_sum?: number
+          prep_count?: number
+          prep_sum?: number
+          refreshed_at?: string
+          restaurant_id?: string
+          wait_count?: number
+          wait_sum?: number
+        }
+        Relationships: []
+      }
+      order_history_daily_summary_state: {
+        Row: {
+          backfill_cursor: string
+          backfill_done: boolean
+          id: number
+          updated_at: string
+        }
+        Insert: {
+          backfill_cursor?: string
+          backfill_done?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Update: {
+          backfill_cursor?: string
+          backfill_done?: boolean
+          id?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_items: {
         Row: {
           category: string | null
@@ -15508,6 +15565,13 @@ export type Database = {
       ods_nightly: { Args: never; Returns: undefined }
       ods_recompute_pairs: { Args: { p_pairs: Json }; Returns: undefined }
       ods_recompute_range: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: undefined
+      }
+      ohds_backfill_step: { Args: never; Returns: string }
+      ohds_nightly: { Args: never; Returns: undefined }
+      ohds_recompute_pairs: { Args: { p_pairs: Json }; Returns: undefined }
+      ohds_recompute_range: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: undefined
       }
