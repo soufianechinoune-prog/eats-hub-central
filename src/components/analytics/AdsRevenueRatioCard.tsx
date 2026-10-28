@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 import { ADS_RATIO_MODES, type AdsRatioMode } from "@/lib/adsRatioModes";
+import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 
 interface AdsRevenueRatioCardProps {
   adsSpend: number;
@@ -12,6 +13,7 @@ interface AdsRevenueRatioCardProps {
   pct: number | null;
   isLoading?: boolean;
   periodLabel?: string;
+  endDate: Date;
   mode: AdsRatioMode;
   onModeChange: (m: AdsRatioMode) => void;
 }
@@ -20,7 +22,7 @@ const formatEuro = (value: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value) + " €";
 
 export function AdsRevenueRatioCard({
-  adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange,
+  adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange, endDate,
 }: AdsRevenueRatioCardProps) {
   const meta = ADS_RATIO_MODES[mode];
   const adsTax = "HT";
@@ -83,6 +85,7 @@ export function AdsRevenueRatioCard({
         </ToggleGroup>
       </CardHeader>
       <CardContent className="pt-0">
+        <div className="mb-2"><AdsConsolidationBadge endDate={endDate} /></div>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
         ) : pct == null ? (

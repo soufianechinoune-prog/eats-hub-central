@@ -8,6 +8,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
+import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -200,6 +201,7 @@ export default function AdsSpendAnalysis() {
       <AdsQuarterCards year={quarterYear} onYearChange={(y) => { setQuarterYear(y); setActiveQ(null); }} stats={qStats.slice(1)} prevQ4={qStats[0]} activeQ={activeQ} onSelect={selectQuarter} maxYear={today.getFullYear()} />
 
       {/* KPIs */}
+      <AdsConsolidationBadge endDate={range.end} />
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-2 border-uber/30 bg-gradient-to-br from-card to-uber/5">
           <CardContent className="p-5">

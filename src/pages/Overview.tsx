@@ -1298,6 +1298,7 @@ const Overview = () => {
                   pct={adsRatio.networkPct}
                   isLoading={adsRatio.isLoading}
                   periodLabel={getPeriodLabel()}
+                  endDate={endDate}
                   mode={adsRatioMode}
                   onModeChange={setAdsRatioMode}
                 />
