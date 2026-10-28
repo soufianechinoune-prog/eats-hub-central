@@ -18,6 +18,21 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { OverviewPeriodSelector, type OverviewPeriodMode } from "@/components/overview/OverviewPeriodSelector";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { filterActiveRestaurants } from "@/lib/restaurantActivityFilter";
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Info } from "lucide-react";
+
+function InfoTip({ text }: { text: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <UiTooltip>
+        <TooltipTrigger asChild>
+          <button type="button" aria-label="Explication" className="text-muted-foreground hover:text-foreground"><Info className="h-3 w-3" /></button>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs text-xs">{text}</TooltipContent>
+      </UiTooltip>
+    </TooltipProvider>
+  );
+}
 import { ADS_RATIO_MODES, computeAdsRatio, type AdsRatioMode } from "@/lib/adsRatioModes";
 import { ADS_EFFORT_TIERS, getAdsEffortTier, median, quarterRange, type AdsEffortTier } from "@/lib/adsEffortTiers";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
@@ -213,7 +228,7 @@ export default function AdsSpendAnalysis() {
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         <Card className="border-2 border-uber/30 bg-gradient-to-br from-card to-uber/5">
           <CardContent className="p-5">
-            <p className="text-xs text-muted-foreground">Ratio pub / CA réseau</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1">Ratio pub / CA réseau <InfoTip text="Moyenne globale pondérée : tout le budget pub du réseau divisé par tout le CA du réseau. Les gros restaurants pèsent davantage — c'est la vision franchiseur." /></p>
             {loading ? <Skeleton className="h-9 w-24 mt-2" /> : <p className="text-3xl font-bold text-uber mt-1">{pctFmt(net.pct)}</p>}
             {deltaPts != null && (
               <p className={`text-xs mt-1 flex items-center gap-1 ${deltaPts > 0 ? "text-destructive" : "text-success"}`}>
@@ -235,7 +250,7 @@ export default function AdsSpendAnalysis() {
           <p className="text-xs text-muted-foreground mt-1">{tierCounts.none} sans aucune pub</p>
         </CardContent></Card>
         <Card><CardContent className="p-5">
-          <p className="text-xs text-muted-foreground">Médiane des annonceurs</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1">Médiane des annonceurs <InfoTip text="Ratio du restaurant « typique » : on classe les restaurants qui font de la pub du plus petit au plus grand ratio et on prend celui du milieu. Non faussée par quelques restaurants très offensifs — c'est la référence à donner à un franchisé." /></p>
           {loading ? <Skeleton className="h-9 w-24 mt-2" /> : <p className="text-3xl font-bold mt-1">{pctFmt(medianPct)}</p>}
           <p className="text-xs text-muted-foreground mt-1">soit {medianSpend != null ? eur(medianSpend) : "—"} par restaurant</p>
         </CardContent></Card>
