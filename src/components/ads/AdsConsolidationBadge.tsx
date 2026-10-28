@@ -9,9 +9,11 @@ export function AdsConsolidationBadge({ endDate }: { endDate: Date }) {
     <TooltipProvider delayDuration={150}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <Badge variant="outline" tabIndex={0} className="max-w-full whitespace-normal border-uber/30 bg-uber/5 text-uber text-[10px] gap-1 leading-snug">
-            <Clock3 className="h-3 w-3 shrink-0" /> En cours de consolidation
-          </Badge>
+          <span tabIndex={0} className="inline-flex max-w-full">
+            <Badge variant="outline" className="max-w-full whitespace-normal border-uber/30 bg-uber/5 text-uber text-[10px] gap-1 leading-snug">
+              <Clock3 className="h-3 w-3 shrink-0" /> En cours de consolidation
+            </Badge>
+          </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs">
           Chiffres provisoires : Uber transmet les frais publicitaires avec un décalage par rapport aux ventes.
