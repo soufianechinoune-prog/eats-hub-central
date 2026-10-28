@@ -8,6 +8,8 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
+import { AdsEfficiencyPanel } from "@/components/ads/AdsEfficiencyPanel";
+import { fetchAdsEfficiency, lastClosedQuarters } from "@/lib/adsEfficiency";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -120,6 +122,20 @@ export default function AdsSpendAnalysis() {
     placeholderData: () => cachedAdsQuarters(quarterYear, ids),
     enabled: ready, staleTime: 600000, retry: false,
   });
+  const effQ = useMemo(() => lastClosedQuarters(today), [today]);
+  const effRes = useQuery({
+    queryKey: ["ads-eff-q", format(effQ.cur.start, "yyyy-MM-dd"), ids],
+    queryFn: () => fetchAdsEfficiency(effQ.cur, effQ.prev, ids), enabled: ready, staleTime: 600000, retry: false,
+  });
+  const netRes = useQuery({
+    queryKey: ["ads-eff-range", ...key(range.start, range.end), ids],
+    queryFn: () => fetchAdsEfficiency(range, prevRange, ids), enabled: ready, staleTime: 300000, retry: false,
+  });
+  const netById = useMemo(() => {
+    const m = new Map<string, number | null>();
+    (netRes.data ?? []).forEach((r) => { const rev = Number(r.rev_ttc); m.set(r.restaurant_id, rev > 0 ? ((Number(r.payout) - Number(r.ads_ht)) / rev) * 100 : null); });
+    return m;
+  }, [netRes.data]);
   const qStats: QuarterStat[] = quarters.map((r, i) => {
     const y = i === 0 ? quarterYear - 1 : quarterYear;
     const q = i === 0 ? 4 : i;
@@ -323,6 +339,8 @@ export default function AdsSpendAnalysis() {
         </Card>
       </div>
 
+      <AdsEfficiencyPanel rows={effRes.data} loading={!ready || effRes.isLoading} curLabel={effQ.cur.label} prevLabel={effQ.prev.label} />
+
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
           <div>
@@ -349,6 +367,7 @@ export default function AdsSpendAnalysis() {
                   <SortHead k="revenue" right>{revLabel}</SortHead>
                   <SortHead k="pct">Pub / CA</SortHead>
                   <SortHead k="delta" right>Évol.</SortHead>
+                  <th className="px-3 py-2 text-right font-medium" title="(Versement Uber − pub) ÷ CA net TTC">Net en banque</th>
                 </tr>
               </thead>
               <tbody>
@@ -371,9 +390,10 @@ export default function AdsSpendAnalysis() {
                     <td className={`px-3 py-2.5 text-right tabular-nums text-xs ${r.delta == null ? "text-muted-foreground" : r.delta > 0 ? "text-destructive" : r.delta < 0 ? "text-success" : "text-muted-foreground"}`}>
                       {r.delta == null ? "—" : `${r.delta > 0 ? "+" : ""}${r.delta.toFixed(2).replace(".", ",")} pt`}
                     </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums">{(() => { const v = netById.get(r.id); return v == null ? "—" : pctFmt(v, 1); })()}</td>
                   </tr>
                 ))}
-                {!tableRows.length && <tr><td colSpan={7} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
+                {!tableRows.length && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
               </tbody>
             </table>
           )}

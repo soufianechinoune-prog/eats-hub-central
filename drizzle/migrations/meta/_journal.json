@@ -526,6 +526,13 @@
       "when": 1793195368705,
       "tag": "0074_ads_ratio_modes_from_daily_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0075_ads_efficiency",
+      "breakpoints": true
     }
   ]
 }
