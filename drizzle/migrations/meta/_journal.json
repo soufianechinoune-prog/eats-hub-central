@@ -547,6 +547,13 @@
       "when": 1793212175256,
       "tag": "0077_ads_efficiency_payout_prev",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1793212845818,
+      "tag": "0078_chataigne_daily_by_service",
+      "breakpoints": true
     }
   ]
 }
