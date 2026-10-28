@@ -92,8 +92,8 @@ export function AdsRevenueRatioCard({
           <div className="text-muted-foreground text-sm py-3">Aucune donnée disponible sur la période</div>
         ) : (
           <>
-            <div className="flex items-baseline justify-between gap-4">
-              <div className="text-4xl font-bold tracking-tight text-uber">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+              <div className="text-4xl font-bold whitespace-nowrap text-uber">
                 {pct.toFixed(2).replace(".", ",")} %
               </div>
               <div className="text-right text-xs text-muted-foreground leading-snug">
