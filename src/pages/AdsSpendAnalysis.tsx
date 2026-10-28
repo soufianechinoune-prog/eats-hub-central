@@ -99,12 +99,17 @@ export default function AdsSpendAnalysis() {
     quarterRange(quarterYear - 1, 4, today),
     ...[1, 2, 3, 4].map((q) => quarterRange(quarterYear, q, today)),
   ], [quarterYear, today]);
-  const qResults = useQueries({
-    queries: quarters.map((r) => ({ queryKey: ["ads-page", ...key(r.start, r.end), ids], queryFn: () => fetchRatio(r.start, r.end, ids), enabled: ready && !r.future, staleTime: 300000, retry: false })),
+  const qRes = useQuery({
+    queryKey: ["ads-quarters", quarterYear, ids],
+    queryFn: () => fetchAdsQuarters(quarterYear, ids),
+    placeholderData: () => cachedAdsQuarters(quarterYear, ids),
+    enabled: ready, staleTime: 600000, retry: false,
   });
   const qStats: QuarterStat[] = quarters.map((r, i) => {
-    const s = sumRows(qResults[i]?.data ?? [], mode);
-    return { q: i === 0 ? 4 : i, ads: s.ads, revenue: s.revenue, pct: s.pct, future: r.future, loading: !ready || qResults[i]?.isLoading };
+    const y = i === 0 ? quarterYear - 1 : quarterYear;
+    const q = i === 0 ? 4 : i;
+    const s = sumRows((qRes.data ?? []).filter((x) => x.q_year === y && x.quarter === q), mode);
+    return { q, ads: s.ads, revenue: s.revenue, pct: s.pct, future: r.future, loading: !ready || (qRes.isLoading && !qRes.data) };
   });
   const selectQuarter = (q: number) => {
     const r = quarterRange(quarterYear, q, today);
