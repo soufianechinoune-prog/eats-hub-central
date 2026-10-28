@@ -533,6 +533,13 @@
       "when": 1793200000000,
       "tag": "0075_ads_efficiency",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1793200000001,
+      "tag": "0076_ads_efficiency_apply",
+      "breakpoints": true
     }
   ]
 }

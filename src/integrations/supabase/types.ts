@@ -13627,6 +13627,22 @@ export type Database = {
               total_revenue: number
             }[]
           }
+      get_ads_efficiency: {
+        Args: {
+          p_end: string
+          p_prev_end: string
+          p_prev_start: string
+          p_restaurant_ids: string[]
+          p_start: string
+        }
+        Returns: {
+          ads_ht: number
+          payout: number
+          restaurant_id: string
+          rev_prev_ttc: number
+          rev_ttc: number
+        }[]
+      }
       get_ads_quarterly_summary: {
         Args: { p_restaurant_ids: string[]; p_year: number }
         Returns: {
