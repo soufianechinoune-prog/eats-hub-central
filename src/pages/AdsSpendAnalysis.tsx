@@ -4,7 +4,8 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, differenceInCalendarDays, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown } from "lucide-react";
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from "recharts";
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceArea } from "recharts";
+import { differenceInCalendarDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
@@ -153,8 +154,11 @@ export default function AdsSpendAnalysis() {
 
   const chartData = weeks.map((w, i) => {
     const s = sumRows(weekly[i]?.data ?? [], mode);
-    return { label: format(w.start, "d MMM", { locale: fr }), ads: Math.round(s.ads), revenue: Math.round(s.revenue), pct: s.pct != null ? Number(s.pct.toFixed(2)) : null };
+    const consolidating = differenceInCalendarDays(today, w.end) < 14;
+    return { label: format(w.start, "d MMM", { locale: fr }), ads: Math.round(s.ads), revenue: Math.round(s.revenue), pct: s.pct != null ? Number(s.pct.toFixed(2)) : null, consolidating };
   });
+  const firstConsolidating = chartData.find((d) => d.consolidating)?.label;
+  const lastLabel = chartData[chartData.length - 1]?.label;
   const chartLoading = weekly.some((q) => q.isLoading);
 
   const maxPct = Math.max(1, ...rows.map((r) => r.pct ?? 0));
