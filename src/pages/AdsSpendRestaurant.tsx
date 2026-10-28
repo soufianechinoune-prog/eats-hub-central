@@ -17,6 +17,7 @@ import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { aggregateEfficiency, fetchAdsEfficiency, isComparable, lastClosedQuarters, SWEET_SPOT } from "@/lib/adsEfficiency";
+import { computeIncremental } from "@/lib/adsIncremental";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
 const SENTINEL = "00000000-0000-0000-0000-000000000000";
@@ -92,6 +93,7 @@ export default function AdsSpendRestaurant() {
   const zone = ownEff.pct == null ? null : ownEff.pct < SWEET_SPOT.min ? "under" : ownEff.pct < SWEET_SPOT.max ? "in" : "over";
   const f1 = (v: number | null, sign = false) => (v == null ? "—" : `${sign && v > 0 ? "+" : ""}${v.toFixed(1).replace(".", ",")}`);
   const effLoading = !ready || effRes.isLoading;
+  const inc = useMemo(() => computeIncremental(effRows, restaurantId), [effRows, restaurantId]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
