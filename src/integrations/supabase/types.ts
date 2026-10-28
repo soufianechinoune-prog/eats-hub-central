@@ -13638,6 +13638,7 @@ export type Database = {
         Returns: {
           ads_ht: number
           payout: number
+          payout_prev: number
           restaurant_id: string
           rev_prev_ttc: number
           rev_ttc: number

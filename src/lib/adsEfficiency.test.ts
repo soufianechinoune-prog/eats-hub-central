@@ -9,13 +9,13 @@ describe("adsEfficiency", () => {
     expect(cohortOf(4)).toBe("c3");
   });
   it("net in bank = payout minus ads, over revenue", () => {
-    const s = aggregateEfficiency([{ restaurant_id: "a", ads_ht: 300, rev_ttc: 10000, rev_prev_ttc: 8000, payout: 7000 }]);
+    const s = aggregateEfficiency([{ restaurant_id: "a", ads_ht: 300, rev_ttc: 10000, rev_prev_ttc: 8000, payout: 7000, payout_prev: 5600 }]);
     expect(s.netMargin).toBeCloseTo(67);
     expect(s.growth).toBeCloseTo(25);
     expect(s.gainPerEuro).toBeCloseTo(2000 / 300);
   });
   it("excludes restaurants not active on both periods", () => {
-    const g = groupByCohort([{ restaurant_id: "a", ads_ht: 0, rev_ttc: 100, rev_prev_ttc: 0, payout: 60 }]);
+    const g = groupByCohort([{ restaurant_id: "a", ads_ht: 0, rev_ttc: 100, rev_prev_ttc: 0, payout: 60, payout_prev: 0 }]);
     expect(g.reduce((n, c) => n + c.count, 0)).toBe(0);
   });
   it("last closed quarter on Oct 28 2026 is Q3 vs Q2", () => {

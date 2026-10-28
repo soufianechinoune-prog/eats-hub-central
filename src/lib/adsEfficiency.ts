@@ -1,7 +1,7 @@
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AdsEfficiencyRow = { restaurant_id: string; ads_ht: number; rev_ttc: number; rev_prev_ttc: number; payout: number };
+export type AdsEfficiencyRow = { restaurant_id: string; ads_ht: number; rev_ttc: number; rev_prev_ttc: number; payout: number; payout_prev: number };
 
 export type EfficiencyCohort = "c0" | "c1" | "c2" | "c3";
 export const EFFICIENCY_COHORTS: Record<EfficiencyCohort, { label: string; hint: string; min: number; max: number }> = {
