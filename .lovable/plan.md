@@ -1,48 +1,28 @@
-# Page « Performance restaurant » multi-canal (V1)
+# Panneau « Effet réel des ads » (tête de réseau)
 
-Route : `/restaurants/:id/performance` — une seule source de vérité : les fonctions Mijo existantes, aucune nouvelle formule.
+D'accord avec la méthode de Claude, avec deux ajustements (voir fin).
 
-## Sources de données (aucun calcul parallèle)
+## Ce que vous verrez sur la page Dépenses pub / CA
+Le bloc actuel « Rendement de la pub » est remplacé par un panneau **« Effet réel des ads »**, même style Mijotek (cartes sobres, chiffres lisibles, infobulles « i »), placé au-dessus du classement.
 
-| Bloc | Fonction | Paramètres |
-|---|---|---|
-| KPIs + tableau par canal + mix | `mijo_kpis_periode` | chain_id, période, `canal='tous'`, `[restaurantId]` → une ligne par canal |
-| Courbe jour / semaine | `mijo_daily_base` | idem, `canal='tous'` → lignes jour × canal ; semaine = simple somme des jours (regroupement lundi ISO, aucune règle métier ajoutée) |
-| Courbe mois | `mijo_evolution_mensuelle` | idem |
+1. **Bandeau périmètre** : « Périmètre constant » actif par défaut (ouvertures récentes exclues), avec le nombre de restaurants retenus / exclus.
+2. **4 indicateurs**, tous calculés sur le versement réel, sans taux inventé :
+   - Taux de reversement (versement ÷ CA) + médiane réseau, restos anormalement bas signalés.
+   - Intensité pub (pub ÷ CA) vs médiane réseau.
+   - Versement gagné par € de pub supplémentaire (vert si > 1 €, sinon gris neutre).
+   - Effet net sur le CA vs groupe témoin (en points).
+3. **Graphique groupe témoin à la semaine** : deux courbes (restos qui ont augmenté leurs ads vs « jumeaux » stables), CA indexé à 100 avant la période, l'écart = effet net. Zone grisée sur les 14 derniers jours (consolidation).
+4. **Encart Uber One** : taux de reversement par tranche de part Uber One, et évolution de la part Uber One chez les restos qui augmentent leurs ads vs témoin.
+5. Mention permanente : « constat statistique, effet variable selon les restaurants ».
 
-- Canaux V1 : Caisse (hors Châtaigne, déjà déduite), Uber Eats, Deliveroo (via Splash), Châtaigne. Dishop exclu.
-- Panier moyen = CA / commandes (division d'affichage seulement).
-- Rentabilité = `rentabilite_pct` de la ligne Uber, badge « Uber ».
-- CA total consolidé = somme des 4 canaux renvoyés (pas de ligne « tous » recalculée côté client si la fonction en fournit une : on l'utilise telle quelle).
-- Granularité auto : ≤ 31 j → jour, ≤ 120 j → semaine, au-delà → mois ; modifiable par boutons Jour/Semaine/Mois.
+## Détails techniques
+- Une RPC `get_ads_effect_weekly(p_restaurant_ids, p_start, p_end)` : par restaurant et par semaine (lundi, Paris) → CA net TTC (`rev_net_ttc`), versement (`net_payout + meal_voucher`) depuis `orders_daily_summary`, pub `abs(amount)` de `payout_adjustments` category='advertising' via `ads_reporting_date`. Isolation via `user_has_chain_access`.
+- Uber One : non présent dans la table résumé → RPC séparée `get_ads_uber_one_share` qui agrège `orders` par restaurant/mois (`uber_one_status ILIKE 'Membre%'`), chargée à part pour ne pas ralentir le reste.
+- Périmètre constant : `getEffectiveOpeningDate` appliqué côté front avant l'appel (restos ouverts avant le début de la période de référence et avec CA sur les deux périodes).
+- Calculs (cohortes, appariement des jumeaux, différence de différences) en fonctions pures dans `src/lib/adsEffect.ts` + tests (appariement, effet net, reversement incrémental).
+- Appariement : groupe « hausse » = ratio pub période B ≥ ratio A + 0,5 pt ; témoin = variation de ratio < 0,5 pt ; jumeau = témoin le plus proche en tendance de CA des 8 semaines avant.
 
-## Composants
-
-```text
-src/pages/RestaurantPerformance.tsx          page, lit :id + query params
-src/hooks/useRestaurantPerformance.ts        3 requêtes React Query (kpis, daily, monthly)
-src/components/restaurant-performance/
-  PerformanceHeader.tsx       ← retour, nom, ville, badges canaux connectés, sélecteur période
-  PerformanceKpiRow.tsx       4 cartes (réutilise le style des vignettes réseau)
-  ChannelRevenueEvolution.tsx Recharts multi-courbes, légende cliquable (masquer un canal), Jour/Semaine/Mois
-  ChannelMixBar.tsx           barre empilée % du CA (même rendu que la Vue réseau)
-  ChannelBreakdownTable.tsx   CA, commandes, panier moyen, lien « Ouvrir » vers la page canal filtrée sur ce resto
-```
-
-Réutilisés : `OverviewPeriodSelector` (période), `Card`/`Badge` shadcn, logos `PlatformIcons` + logos Splash/Châtaigne, couleurs canal déjà utilisées dans `NetworkChannelCards`.
-
-## Navigation
-
-- **Bouton « Voir »** de `NetworkComparisonTable` → `/restaurants/:id/performance?from=…&to=…&return=<url overview encodée>`.
-- **Période héritée** : lue dans l'URL à l'arrivée (sinon contexte analytics), modifiable sur place sans toucher la Vue réseau.
-- **Retour ←** : `navigate(-1)` si on vient de la Vue réseau, sinon `return`. Avant de partir, on mémorise en `sessionStorage` la position de scroll + tri/recherche/filtres du tableau ; au retour, `NetworkComparisonTable` les restaure.
-- **Liste Restaurants** : ajout d'un lien « Performance » sur chaque ligne/carte (la fiche `/restaurants/:id` existante reste inchangée).
-- Badges canaux connectés : présence Uber store id, mapping Deliveroo, mapping Splash, mapping Châtaigne (données déjà en base, lecture seule).
-
-## Hors V1
-
-Dishop, détail éco-contribution / titres restaurant, comparaison N-1 sur la page.
-
-## Point à confirmer
-
-`mijo_*` reçoivent le chain_id en paramètre : on passe l'enseigne active ; l'accès est déjà contrôlé par la fonction (accès enseigne). Aucune modification des fonctions `mijo_*`.
+## Ajustements par rapport au brief
+- Le versement par jour existe déjà dans la table résumé : rien à reconstruire.
+- Uber One reste lu sur les commandes brutes (agrégé côté serveur, par mois), car la table résumé ne le contient pas ; si c'est trop lent, j'ajouterai la colonne dans la table résumé en second temps.
+- La fiche restaurant n'est pas modifiée dans cette étape.
