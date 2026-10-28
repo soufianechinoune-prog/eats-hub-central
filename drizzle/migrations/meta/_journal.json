@@ -498,6 +498,13 @@
       "when": 1793111238808,
       "tag": "0070_order_history_daily_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 71,
+      "version": "7",
+      "when": 1793175406307,
+      "tag": "0071_ads_monday_settlement_period",
+      "breakpoints": true
     }
   ]
 }

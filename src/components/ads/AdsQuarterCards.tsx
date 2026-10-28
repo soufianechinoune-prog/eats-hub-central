@@ -2,6 +2,8 @@ import { TrendingDown, TrendingUp, ChevronLeft, ChevronRight } from "lucide-reac
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
+import { isAdsConsolidating } from "@/lib/adsConsolidation";
 
 export type QuarterStat = { q: number; ads: number; revenue: number; pct: number | null; future: boolean; loading: boolean };
 
@@ -64,6 +66,7 @@ export function AdsQuarterCards({ year, onYearChange, stats, prevQ4, activeQ, on
                 {s.future ? <p className="text-sm text-muted-foreground mt-3">À venir</p> : s.loading ? <Skeleton className="h-8 w-20 mt-2" /> : (
                   <>
                     <p className="text-2xl font-bold mt-1 tabular-nums">{pctFmt(s.pct)}</p>
+                    <AdsConsolidationBadge endDate={p.lastDay} />
                     <p className="text-xs text-muted-foreground mt-1 tabular-nums">{eur(s.ads)} pub · {eur(s.revenue)} CA</p>
                     <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
                       {dm(p.start)} – {dm(p.lastDay)} · {p.inProgress ? `${p.elapsed} j / ${p.total}` : `${p.total} j`}
@@ -71,9 +74,9 @@ export function AdsQuarterCards({ year, onYearChange, stats, prevQ4, activeQ, on
                     {p.inProgress && (
                       <>
                         <div className="h-1 rounded-full bg-muted mt-1.5 overflow-hidden"><div className="h-full bg-uber" style={{ width: `${(p.elapsed / p.total) * 100}%` }} /></div>
-                        <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+                        {!isAdsConsolidating(p.lastDay) && <p className="text-[11px] text-muted-foreground mt-1 tabular-nums">
                           Rythme ~{eur(s.ads / p.elapsed)}/j · projeté ~{eur((s.ads / p.elapsed) * p.total)}
-                        </p>
+                        </p>}
                       </>
                     )}
                   </>

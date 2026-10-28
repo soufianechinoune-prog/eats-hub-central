@@ -5,6 +5,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 import { ADS_RATIO_MODES, type AdsRatioMode } from "@/lib/adsRatioModes";
+import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 
 interface AdsRevenueRatioCardProps {
   adsSpend: number;
@@ -12,6 +13,7 @@ interface AdsRevenueRatioCardProps {
   pct: number | null;
   isLoading?: boolean;
   periodLabel?: string;
+  endDate: Date;
   mode: AdsRatioMode;
   onModeChange: (m: AdsRatioMode) => void;
 }
@@ -20,7 +22,7 @@ const formatEuro = (value: number) =>
   new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 }).format(value) + " €";
 
 export function AdsRevenueRatioCard({
-  adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange,
+  adsSpend, revenue, pct, isLoading, periodLabel, mode, onModeChange, endDate,
 }: AdsRevenueRatioCardProps) {
   const meta = ADS_RATIO_MODES[mode];
   const adsTax = "HT";
@@ -83,14 +85,15 @@ export function AdsRevenueRatioCard({
         </ToggleGroup>
       </CardHeader>
       <CardContent className="pt-0">
+        <div className="mb-2"><AdsConsolidationBadge endDate={endDate} /></div>
         {isLoading ? (
           <Skeleton className="h-16 w-full" />
         ) : pct == null ? (
           <div className="text-muted-foreground text-sm py-3">Aucune donnée disponible sur la période</div>
         ) : (
           <>
-            <div className="flex items-baseline justify-between gap-4">
-              <div className="text-4xl font-bold tracking-tight text-uber">
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+              <div className="text-4xl font-bold whitespace-nowrap text-uber">
                 {pct.toFixed(2).replace(".", ",")} %
               </div>
               <div className="text-right text-xs text-muted-foreground leading-snug">

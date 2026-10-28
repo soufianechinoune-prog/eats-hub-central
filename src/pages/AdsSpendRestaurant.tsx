@@ -15,6 +15,7 @@ import { ADS_RATIO_MODES, type AdsRatioMode } from "@/lib/adsRatioModes";
 import { ADS_EFFORT_TIERS, getAdsEffortTier, quarterRange } from "@/lib/adsEffortTiers";
 import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
+import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
 const SENTINEL = "00000000-0000-0000-0000-000000000000";
@@ -98,6 +99,7 @@ export default function AdsSpendRestaurant() {
         <Card><CardContent className="p-6 text-muted-foreground">Ce restaurant n'est pas accessible dans l'enseigne active.</CardContent></Card>
       ) : (
         <>
+          <AdsConsolidationBadge endDate={year === today.getFullYear() ? today : new Date(year, 11, 31)} />
           <div className="grid gap-4 grid-cols-1 sm:grid-cols-3">
             <Card className="border-2 border-uber/30 bg-gradient-to-br from-card to-uber/5"><CardContent className="p-5">
               <p className="text-xs text-muted-foreground">Ratio pub / CA {year}</p>
@@ -162,7 +164,7 @@ export default function AdsSpendRestaurant() {
                     const t = getAdsEffortTier(m.ads, m.pct);
                     return (
                       <tr key={m.label} className="border-b last:border-0">
-                        <td className="px-3 py-2.5 capitalize font-medium">{m.label}</td>
+                        <td className="px-3 py-2.5 font-medium"><span className="capitalize">{m.label}</span><div className="mt-1"><AdsConsolidationBadge endDate={months[monthly.indexOf(m)].end} /></div></td>
                         <td className="px-3 py-2.5 text-right tabular-nums">{eur(m.ads)}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums text-muted-foreground">{eur(m.revenue)}</td>
                         <td className="px-3 py-2.5 text-right tabular-nums font-semibold">{pctFmt(m.pct)}</td>
