@@ -1,5 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Dépenses publicitaires — consolidation
+- [ ] Vérifier et corriger le rattachement des frais publicitaires à la semaine réglée, sans modifier le backfill J-14 / J-8.
+- [ ] Afficher un indicateur de consolidation sur la vignette, les analyses réseau et restaurant ; tester et vérifier en session connectée.
+
 ## Réception webhooks Splash
 - [x] Implémenter la vérification de signature, le challenge et la réception idempotente selon le guide Splash (18 tests réussis).
 - [x] Déployer splash-webhook ; vérifier en ligne les rejets 401/405 et l'inbox inaccessible aux utilisateurs ; aucun événement de test enregistré.
