@@ -5,7 +5,6 @@ import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subW
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceArea } from "recharts";
-import { differenceInCalendarDays } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
