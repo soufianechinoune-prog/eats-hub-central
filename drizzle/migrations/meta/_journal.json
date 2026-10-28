@@ -512,6 +512,13 @@
       "when": 1793176603521,
       "tag": "0072_ads_quarterly_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1793177838997,
+      "tag": "0073_ads_quarters_no_lock",
+      "breakpoints": true
     }
   ]
 }
