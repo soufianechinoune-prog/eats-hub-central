@@ -1,12 +1,12 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, differenceInCalendarDays, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip } from "recharts";
 import type { DateRange } from "react-day-picker";
-import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
+import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { Button } from "@/components/ui/button";
