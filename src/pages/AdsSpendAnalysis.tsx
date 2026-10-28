@@ -397,9 +397,10 @@ export default function AdsSpendAnalysis() {
                       {r.delta == null ? "—" : `${r.delta > 0 ? "+" : ""}${r.delta.toFixed(2).replace(".", ",")} pt`}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{(() => { const v = netById.get(r.id); return v == null ? "—" : pctFmt(v, 1); })()}</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums text-xs">{(() => { const inc = incById.get(r.id); if (inc?.incremental == null) return <span className="text-muted-foreground">—</span>; const v = inc.incremental; return <span className={v >= 0 ? "text-success font-medium" : "text-destructive font-medium"} title={`Rythme médian des ${inc.twins.length} jumeaux : ${inc.twinsGrowth != null ? `${(inc.twinsGrowth * 100).toFixed(1).replace(".", ",")} %` : "—"}`}>{v > 0 ? "+" : ""}{eur(v)}</span>; })()}</td>
                   </tr>
                 ))}
-                {!tableRows.length && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
+                {!tableRows.length && <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
               </tbody>
             </table>
           )}
