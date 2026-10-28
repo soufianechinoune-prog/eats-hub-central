@@ -13528,6 +13528,7 @@ export type Database = {
         }
         Returns: Json
       }
+      ads_reporting_date: { Args: { p_payout_date: string }; Returns: string }
       apply_splash_stock_event: {
         Args: { p_event_id: string }
         Returns: undefined
