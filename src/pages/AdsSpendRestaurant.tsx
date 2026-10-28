@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, endOfMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { ArrowLeft, Megaphone } from "lucide-react";
@@ -16,6 +16,7 @@ import { ADS_EFFORT_TIERS, getAdsEffortTier, quarterRange } from "@/lib/adsEffor
 import { fetchAdsRatio, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
+import { aggregateEfficiency, fetchAdsEfficiency, isComparable, lastClosedQuarters, SWEET_SPOT } from "@/lib/adsEfficiency";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
 const SENTINEL = "00000000-0000-0000-0000-000000000000";
@@ -77,6 +78,21 @@ export default function AdsSpendRestaurant() {
   }));
   const tier = getAdsEffortTier(yearTotal.ads, yearTotal.pct);
 
+  const effQ = useMemo(() => lastClosedQuarters(today), [today]);
+  const effRes = useQuery({
+    queryKey: ["ads-eff-q", format(effQ.cur.start, "yyyy-MM-dd"), ids],
+    queryFn: () => fetchAdsEfficiency(effQ.cur, effQ.prev, ids), enabled: ready, staleTime: 600000, retry: false,
+  });
+  const effRows = effRes.data ?? [];
+  const ownEff = aggregateEfficiency(effRows.filter((r) => r.restaurant_id === restaurantId));
+  const netEff = aggregateEfficiency(effRows.filter((r) => isComparable(r) && r.restaurant_id !== restaurantId));
+  const gap = ownEff.growth != null && netEff.growth != null ? ownEff.growth - netEff.growth : null;
+  const GAUGE_MAX = 8;
+  const pos = Math.min(100, ((ownEff.pct ?? 0) / GAUGE_MAX) * 100);
+  const zone = ownEff.pct == null ? null : ownEff.pct < SWEET_SPOT.min ? "under" : ownEff.pct < SWEET_SPOT.max ? "in" : "over";
+  const f1 = (v: number | null, sign = false) => (v == null ? "—" : `${sign && v > 0 ? "+" : ""}${v.toFixed(1).replace(".", ",")}`);
+  const effLoading = !ready || effRes.isLoading;
+
   return (
     <div className="space-y-6 p-4 md:p-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -117,6 +133,40 @@ export default function AdsSpendRestaurant() {
               <p className="text-xs text-muted-foreground mt-1">ratio pub / CA de l'ensemble des restaurants</p>
             </CardContent></Card>
           </div>
+
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Rendement de la pub · {effQ.cur.label} vs {effQ.prev.label}</CardTitle>
+              <p className="text-xs text-muted-foreground">Dernier trimestre clos, comparé au reste du réseau à périmètre constant · constat observé, pas une preuve de cause à effet</p>
+            </CardHeader>
+            <CardContent className="grid gap-4 grid-cols-1 lg:grid-cols-3">
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-muted-foreground">Écart de croissance vs réseau</p>
+                {effLoading ? <Skeleton className="h-9 w-24 mt-2" /> : (<>
+                  <p className={`text-3xl font-bold mt-1 ${gap == null ? "" : gap >= 0 ? "text-success" : "text-destructive"}`}>{gap == null ? "—" : `${f1(gap, true)} pt`}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Restaurant {f1(ownEff.growth, true)} % de CA avec {f1(ownEff.pct)} % de pub, réseau {f1(netEff.growth, true)} % avec {f1(netEff.pct)} %.</p>
+                </>)}
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-muted-foreground">Position face au repère réseau ({String(SWEET_SPOT.min).replace(".", ",")} – {SWEET_SPOT.max} %)</p>
+                {effLoading ? <Skeleton className="h-9 w-full mt-2" /> : (<>
+                  <div className="relative mt-4 h-3 rounded-full bg-muted">
+                    <div className="absolute inset-y-0 rounded-full bg-success/30" style={{ left: `${(SWEET_SPOT.min / GAUGE_MAX) * 100}%`, width: `${((SWEET_SPOT.max - SWEET_SPOT.min) / GAUGE_MAX) * 100}%` }} />
+                    {ownEff.pct != null && <div className="absolute -top-1.5 h-6 w-1.5 -translate-x-1/2 rounded-full bg-uber" style={{ left: `${pos}%` }} />}
+                  </div>
+                  <div className="mt-1 flex justify-between text-[10px] text-muted-foreground"><span>0 %</span><span>{GAUGE_MAX} %+</span></div>
+                  <p className="text-xs mt-2">{zone == null ? "Pas de donnée" : zone === "in" ? "Dans la zone de rendement observée" : zone === "under" ? "En dessous du repère réseau" : "Au-dessus du repère réseau"} · {f1(ownEff.pct)} %</p>
+                </>)}
+              </div>
+              <div className="rounded-xl border p-4">
+                <p className="text-xs text-muted-foreground">Net en banque (versement − pub)</p>
+                {effLoading ? <Skeleton className="h-9 w-24 mt-2" /> : (<>
+                  <p className="text-3xl font-bold mt-1">{eur(ownEff.payout - ownEff.ads)}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{f1(ownEff.netMargin)} % du CA · réseau {f1(netEff.netMargin)} %</p>
+                </>)}
+              </div>
+            </CardContent>
+          </Card>
 
           <AdsQuarterCards year={year} onYearChange={setYear} stats={qStats} prevQ4={prevQ4Stat} maxYear={today.getFullYear()} />
 
