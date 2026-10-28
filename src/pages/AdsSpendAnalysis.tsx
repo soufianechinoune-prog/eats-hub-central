@@ -246,19 +246,34 @@ export default function AdsSpendAnalysis() {
         <Card className="lg:col-span-2">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Évolution sur 12 semaines</CardTitle>
-            <p className="text-xs text-muted-foreground">Barres : pub HT par semaine · Courbe : ratio pub / CA</p>
+            <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2">
+              <span>Barres : pub HT par semaine · Courbe : ratio pub / CA</span>
+              {firstConsolidating && (
+                <span className="inline-flex items-center gap-1" title="Uber impute la pub au fil des versements hebdomadaires : les 14 derniers jours remontent progressivement et seront consolidés sous ~14 jours.">
+                  <span className="inline-block h-2.5 w-3 rounded-sm bg-muted-foreground/20 border border-dashed border-muted-foreground/50" />
+                  Zone grisée : en cours de consolidation
+                </span>
+              )}
+            </p>
           </CardHeader>
           <CardContent className="h-72">
             {chartLoading ? <Skeleton className="h-full w-full" /> : (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                  {firstConsolidating && lastLabel && (
+                    <ReferenceArea yAxisId="ads" x1={firstConsolidating} x2={lastLabel} fill="hsl(var(--muted-foreground))" fillOpacity={0.1} stroke="hsl(var(--muted-foreground))" strokeOpacity={0.35} strokeDasharray="4 4"
+                      label={{ value: "En consolidation", position: "insideTop", fontSize: 10, fill: "hsl(var(--muted-foreground))" }} />
+                  )}
                   <XAxis dataKey="label" tick={{ fontSize: 11 }} className="fill-muted-foreground" />
                   <YAxis yAxisId="ads" tick={{ fontSize: 11 }} tickFormatter={(v) => `${Math.round(v / 1000)}k€`} width={45} />
                   <YAxis yAxisId="pct" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v) => `${v}%`} width={40} />
                   <RTooltip
                     contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 8, fontSize: 12 }}
                     formatter={(v: number, n: string) => n === "pct" ? [pctFmt(v), "Pub / CA"] : [eur(v), "Pub HT"]}
+                    labelFormatter={(l: string, p) => p?.[0]?.payload?.consolidating
+                      ? <span>{l}<br /><span style={{ fontWeight: 400, opacity: 0.75 }}>⏳ En cours de consolidation : la pub Uber remonte au fil des versements,<br />chiffre définitif sous ~14 jours.</span></span>
+                      : l}
                   />
                   <Bar yAxisId="ads" dataKey="ads" fill="hsl(var(--uber) / 0.35)" radius={[4, 4, 0, 0]} />
                   <Line yAxisId="pct" dataKey="pct" stroke="hsl(var(--uber))" strokeWidth={2.5} dot={{ r: 3 }} />
