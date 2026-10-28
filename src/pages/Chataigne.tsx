@@ -64,6 +64,7 @@ import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServ
 import { ChataigneServiceRecurrence } from "@/components/chataigne/ChataigneServiceRecurrence";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
+import { ChataigneDailyByService } from "@/components/chataigne/ChataigneDailyByService";
 import { ChataigneWeekdaySection } from "@/components/chataigne/ChataigneWeekdaySection";
 import { useChartNoteSelection } from "@/hooks/useChartNoteSelection";
 import { ChartNoteDialog } from "@/components/charts/ChartNoteDialog";
@@ -749,6 +750,7 @@ export default function Chataigne() {
 
 
             <TabsContent value="overview" className="space-y-6">
+              <ChataigneDailyByService start={start} end={end} restaurantIds={restaurantFilter} />
               {/* Évolution */}
               <Card>
                 <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">

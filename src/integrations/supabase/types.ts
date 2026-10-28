@@ -14003,6 +14003,15 @@ export type Database = {
           total_spent: number
         }[]
       }
+      get_chataigne_daily_by_service: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: {
+          day: string
+          orders: number
+          revenue: number
+          service_type: string
+        }[]
+      }
       get_chataigne_daily_totals: {
         Args: {
           p_end_date: string
