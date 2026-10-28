@@ -505,6 +505,13 @@
       "when": 1793175406307,
       "tag": "0071_ads_monday_settlement_period",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1793176603521,
+      "tag": "0072_ads_quarterly_summary",
+      "breakpoints": true
     }
   ]
 }

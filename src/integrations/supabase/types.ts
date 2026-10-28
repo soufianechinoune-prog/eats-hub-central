@@ -10506,6 +10506,8 @@ export type Database = {
           order_count: number
           refreshed_at: string
           restaurant_id: string
+          rev_net_ht: number
+          rev_net_ttc: number
           sales_incl_vat: number
           sales_incl_vat_pos: number
         }
@@ -10517,6 +10519,8 @@ export type Database = {
           order_count?: number
           refreshed_at?: string
           restaurant_id: string
+          rev_net_ht?: number
+          rev_net_ttc?: number
           sales_incl_vat?: number
           sales_incl_vat_pos?: number
         }
@@ -10528,6 +10532,8 @@ export type Database = {
           order_count?: number
           refreshed_at?: string
           restaurant_id?: string
+          rev_net_ht?: number
+          rev_net_ttc?: number
           sales_incl_vat?: number
           sales_incl_vat_pos?: number
         }
@@ -10537,18 +10543,24 @@ export type Database = {
         Row: {
           backfill_cursor: string
           backfill_done: boolean
+          ht_backfill_cursor: string
+          ht_backfill_done: boolean
           id: number
           updated_at: string
         }
         Insert: {
           backfill_cursor?: string
           backfill_done?: boolean
+          ht_backfill_cursor?: string
+          ht_backfill_done?: boolean
           id?: number
           updated_at?: string
         }
         Update: {
           backfill_cursor?: string
           backfill_done?: boolean
+          ht_backfill_cursor?: string
+          ht_backfill_done?: boolean
           id?: number
           updated_at?: string
         }
@@ -13615,6 +13627,17 @@ export type Database = {
               total_revenue: number
             }[]
           }
+      get_ads_quarterly_summary: {
+        Args: { p_restaurant_ids: string[]; p_year: number }
+        Returns: {
+          ads_spend_ht: number
+          q_year: number
+          quarter: number
+          restaurant_id: string
+          revenue_net_ht: number
+          revenue_net_ttc: number
+        }[]
+      }
       get_ads_revenue_ratio: {
         Args: {
           p_end_date: string
@@ -15563,6 +15586,7 @@ export type Database = {
       normalize_resto_name: { Args: { input: string }; Returns: string }
       ods_backfill_step: { Args: never; Returns: string }
       ods_business_day: { Args: { ts: string }; Returns: string }
+      ods_ht_backfill_step: { Args: never; Returns: string }
       ods_nightly: { Args: never; Returns: undefined }
       ods_recompute_pairs: { Args: { p_pairs: Json }; Returns: undefined }
       ods_recompute_range: {
