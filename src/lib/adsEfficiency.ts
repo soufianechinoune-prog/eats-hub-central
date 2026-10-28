@@ -59,10 +59,9 @@ export async function fetchAdsEfficiency(cur: { start: Date; end: Date }, prev: 
 /** Dernier trimestre clos et celui qui le précède. */
 export function lastClosedQuarters(today: Date) {
   const q = Math.floor(today.getMonth() / 3); // trimestre en cours (0-based)
-  const mk = (y: number, qi: number) => {
-    const yy = y + Math.floor(qi / 4), q0 = ((qi % 4) + 4) % 4;
-    const adjY = qi < 0 ? y - 1 : yy;
-    return { start: new Date(adjY, q0 * 3, 1), end: new Date(adjY, q0 * 3 + 3, 0), label: `T${q0 + 1} ${adjY}` };
+  const mk = (qi: number) => {
+    const start = new Date(today.getFullYear(), qi * 3, 1);
+    return { start, end: new Date(start.getFullYear(), start.getMonth() + 3, 0), label: `T${Math.floor(start.getMonth() / 3) + 1} ${start.getFullYear()}` };
   };
-  return { cur: mk(today.getFullYear(), q - 1), prev: mk(today.getFullYear(), q - 2) };
+  return { cur: mk(q - 1), prev: mk(q - 2) };
 }
