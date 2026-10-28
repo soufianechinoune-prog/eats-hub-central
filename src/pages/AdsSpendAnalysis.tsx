@@ -344,6 +344,8 @@ export default function AdsSpendAnalysis() {
 
       <AdsEfficiencyPanel rows={effRes.data} loading={!ready || effRes.isLoading} curLabel={effQ.cur.label} prevLabel={effQ.prev.label} />
 
+      <AdsIncrementalPanel rows={effRes.data} loading={!ready || effRes.isLoading} curLabel={effQ.cur.label} prevLabel={effQ.prev.label} />
+
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
           <div>
@@ -371,6 +373,7 @@ export default function AdsSpendAnalysis() {
                   <SortHead k="pct">Pub / CA</SortHead>
                   <SortHead k="delta" right>Évol.</SortHead>
                   <th className="px-3 py-2 text-right font-medium" title="(Versement Uber − pub) ÷ CA net TTC">Net en banque</th>
+                  <th className="px-3 py-2 text-right font-medium" title="Versement réel − versement attendu au rythme médian des 5 restaurants les plus proches en taille">Impact vs jumeaux</th>
                 </tr>
               </thead>
               <tbody>
