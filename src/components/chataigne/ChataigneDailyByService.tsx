@@ -50,17 +50,20 @@ export function ChataigneDailyByService({ start, end, restaurantIds }: Props) {
   });
 
   const data = useMemo(() => {
-    const map = new Map<string, { delivery: number; collection: number }>();
+    const map = new Map<string, { delivery: number; collection: number; orders: number; revenue: number; dOrders: number; cOrders: number }>();
     for (const r of q.data ?? []) {
       const k = String(r.day).slice(0, 10);
-      const cur = map.get(k) ?? { delivery: 0, collection: 0 };
+      const cur = map.get(k) ?? { delivery: 0, collection: 0, orders: 0, revenue: 0, dOrders: 0, cOrders: 0 };
+      cur.orders += Number(r.orders) || 0;
+      cur.revenue += Number(r.revenue) || 0;
+      if (r.service_type === "delivery") cur.dOrders += Number(r.orders) || 0; else cur.cOrders += Number(r.orders) || 0;
       const v = Number(metric === "orders" ? r.orders : r.revenue) || 0;
       if (r.service_type === "delivery") cur.delivery += v; else cur.collection += v;
       map.set(k, cur);
     }
     return eachDayOfInterval({ start: parseISO(rStart), end: parseISO(rEnd) }).map((d) => {
       const k = format(d, "yyyy-MM-dd");
-      const v = map.get(k) ?? { delivery: 0, collection: 0 };
+      const v = map.get(k) ?? { delivery: 0, collection: 0, orders: 0, revenue: 0, dOrders: 0, cOrders: 0 };
       return { key: k, label: format(d, "d MMM", { locale: fr }), ...v, total: v.delivery + v.collection };
     });
   }, [q.data, metric, rStart, rEnd]);
@@ -72,15 +75,17 @@ export function ChataigneDailyByService({ start, end, restaurantIds }: Props) {
       cursor={{ fill: "hsl(var(--muted) / 0.4)" }}
       content={({ active, payload, label }) => {
         if (!active || !payload?.length) return null;
-        const p = payload[0].payload as { delivery: number; collection: number; total: number };
-        const share = p.total > 0 ? Math.round((p.delivery / p.total) * 100) : 0;
+        const p = payload[0].payload as { delivery: number; collection: number; total: number; orders: number; revenue: number; dOrders: number; cOrders: number };
+        const share = p.orders > 0 ? Math.round((p.dOrders / p.orders) * 100) : 0;
         return (
           <div className="rounded-xl border bg-popover px-3 py-2 text-sm text-popover-foreground shadow-lg">
             <div className="mb-1 font-medium">{label}</div>
             <div className="flex justify-between gap-6"><span style={{ color: DELIVERY }}>Livraison</span><span>{fmt(p.delivery)}</span></div>
             <div className="flex justify-between gap-6"><span style={{ color: COLLECTION }}>À emporter</span><span>{fmt(p.collection)}</span></div>
             <div className="mt-1 flex justify-between gap-6 border-t pt-1 font-medium"><span>Total</span><span>{fmt(p.total)}</span></div>
-            <div className="text-xs text-muted-foreground">{share} % en livraison</div>
+            <div className="flex justify-between gap-6"><span>Commandes</span><span>{fmtInt(p.orders)}</span></div>
+            <div className="flex justify-between gap-6"><span>CA</span><span>{fmtEur(p.revenue)}</span></div>
+            <div className="text-xs text-muted-foreground">{share} % des commandes en livraison</div>
           </div>
         );
       }}
