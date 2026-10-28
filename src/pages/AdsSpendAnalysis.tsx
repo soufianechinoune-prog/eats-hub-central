@@ -9,6 +9,8 @@ import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
 import { AdsEfficiencyPanel } from "@/components/ads/AdsEfficiencyPanel";
+import { AdsIncrementalPanel } from "@/components/ads/AdsIncrementalPanel";
+import { computeIncrementalAll } from "@/lib/adsIncremental";
 import { fetchAdsEfficiency, lastClosedQuarters } from "@/lib/adsEfficiency";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { Button } from "@/components/ui/button";
@@ -136,6 +138,7 @@ export default function AdsSpendAnalysis() {
     (netRes.data ?? []).forEach((r) => { const rev = Number(r.rev_ttc); m.set(r.restaurant_id, rev > 0 ? ((Number(r.payout) - Number(r.ads_ht)) / rev) * 100 : null); });
     return m;
   }, [netRes.data]);
+  const incById = useMemo(() => computeIncrementalAll(netRes.data ?? []), [netRes.data]);
   const qStats: QuarterStat[] = quarters.map((r, i) => {
     const y = i === 0 ? quarterYear - 1 : quarterYear;
     const q = i === 0 ? 4 : i;
