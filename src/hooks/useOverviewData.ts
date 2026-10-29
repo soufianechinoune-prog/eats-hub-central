@@ -119,6 +119,8 @@ function useOverviewPayouts(
         sales_incl_vat: Number(row.sales_incl_vat) || 0,
         net_payout: Number(row.net_payout) || 0,
         order_count: Number(row.order_count) || 0,
+        // Versement total = net_payout + titres restaurant (encaissés hors Uber)
+        meal_voucher_amount: Number(row.meal_voucher_amount) || 0,
       }));
     },
     enabled,
@@ -525,7 +527,7 @@ export function useOverviewData(
     const uberAvailabilityRate = availabilityRate;
 
     const totalPayoutSales = payoutsData.reduce((sum, p: any) => sum + Number(p.sales_incl_vat || 0), 0);
-    const totalNetPayout = payoutsData.reduce((sum, p: any) => sum + Number(p.net_payout || 0), 0);
+    const totalNetPayout = payoutsData.reduce((sum, p: any) => sum + Number(p.net_payout || 0) + Number(p.meal_voucher_amount || 0), 0);
     const uberProfitability = totalPayoutSales > 0 ? (totalNetPayout / totalPayoutSales) * 100 : null;
 
     // Deliveroo financial metrics from RPC summary
@@ -560,7 +562,7 @@ export function useOverviewData(
 
       const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : null;
       const restoPayoutSales = restoPayouts.reduce((sum, p: any) => sum + Number(p.sales_incl_vat || 0), 0);
-      const restoNetPayout = restoPayouts.reduce((sum, p: any) => sum + Number(p.net_payout || 0), 0);
+      const restoNetPayout = restoPayouts.reduce((sum, p: any) => sum + Number(p.net_payout || 0) + Number(p.meal_voucher_amount || 0), 0);
       const profitability = restoPayoutSales > 0 ? (restoNetPayout / restoPayoutSales) * 100 : null;
 
       return {
