@@ -24,6 +24,7 @@ import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { cn } from "@/lib/utils";
 import { filterStockoutProduct, rankStockoutRestaurants, selectStockoutHistory } from "@/lib/stockoutHistory";
+import { StockoutReportDialog } from "@/components/caisse/StockoutReportDialog";
 
 interface Stockout {
   restaurant_id: string;
@@ -224,6 +225,7 @@ export default function CaisseStockouts() {
                 </div>
                 <Button variant={onlyOngoing ? "destructive" : "outline"} size="sm" onClick={() => setOnlyOngoing((v) => !v)}>En cours uniquement</Button>
                 <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!detailRows.length}><Download className="mr-1.5 h-4 w-4" />Excel</Button>
+                <StockoutReportDialog chainId={selectedChainId} restaurantIds={ids} initialStart={start} initialEnd={end} initialRestaurantId={activeResto} initialProduct={product} />
               </div>
             </CardContent>
           </Card>
