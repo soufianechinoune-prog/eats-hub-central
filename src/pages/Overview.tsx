@@ -1318,10 +1318,9 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note réseau · 90 jours" value={recentRatings.isLoading ? "…" : recentRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
-                <MetricRow icon={Star} label={`Note période · ${periodRatingSummary.count.toLocaleString("fr-FR")} avis`} value={wave2Loading ? "…" : periodRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
-                <p className="text-xs text-muted-foreground">90 jours : {format(new Date(recentRatings.window.start + "T12:00:00"), "dd/MM/yyyy")} au {format(new Date(recentRatings.window.end + "T12:00:00"), "dd/MM/yyyy")} · {recentRatingSummary.count.toLocaleString("fr-FR")} avis reçus. Moyenne reconstruite, non certifiée comme note publique Uber Eats ; les avis récents arrivent avec délai.</p>
-                {recentRatings.isError && <p className="text-xs text-destructive">La note sur 90 jours n’a pas pu être chargée.</p>}
+                <MetricRow icon={Star} label="Note moyenne du réseau" value={recentRatings.isLoading ? "…" : recentRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
+                <MetricRow icon={Star} label="Moyenne sur la période" value={wave2Loading ? "…" : periodRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
+                {recentRatings.isError && <p className="text-xs text-destructive">La note moyenne du réseau n’a pas pu être chargée.</p>}
                 <MetricRow icon={Timer} label="Attente coursier évitable" value={formatMinutesToTime(networkData?.uber.courierWaitTime)} color="text-amber-500" onClick={() => navigate('/analytics/operations?tab=waitTime')} />
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
