@@ -26,3 +26,18 @@ describe("Overview N-1 rules", () => {
     expect(revenueChange(120, 0)).toBeNull();
   });
 });
+import { isLaunchN1 as launch } from "./overviewN1";
+describe("isLaunchN1", () => {
+  it("flags opening inside N-1 period (Châtelet 09/10/2025 vs octobre 2026)", () => {
+    expect(launch("2025-10-09", "2026-10-01", "2026-10-28")).toBe(true);
+  });
+  it("flags opening less than 3 months before N-1 start", () => {
+    expect(launch("2025-08-15", "2026-10-01", "2026-10-28")).toBe(true);
+  });
+  it("ignores mature restaurants (Saint-Ouen 2020)", () => {
+    expect(launch("2020-05-01", "2026-10-19", "2026-10-25")).toBe(false);
+  });
+  it("ignores openings after N-1 end", () => {
+    expect(launch("2026-01-10", "2026-10-01", "2026-10-28")).toBe(false);
+  });
+});

@@ -21,7 +21,7 @@ import { Info } from "lucide-react";
 import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
-import { revenueChange } from "@/lib/overviewN1";
+import { revenueChange, isLaunchN1 } from "@/lib/overviewN1";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
 type SortDirection = "asc" | "desc";
@@ -697,11 +697,30 @@ export function RestaurantComparisonTable({
                         {formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)}
                       </TableCell>
                     )}
-                    {showN1Column && (
-                      <TableCell className="text-right">
-                        {formatVariation(channelTab === "all" ? resto.revenueVariation : revenueChange(v.revenue, channelPrior(resto))) ?? <span className="text-muted-foreground">—</span>}
-                      </TableCell>
-                    )}
+                    {showN1Column && (() => {
+                      const od = resto.openingDates;
+                      const opening = channelTab === "uber" ? (od?.uber ?? od?.effective) : channelTab === "deliveroo" ? (od?.deliveroo ?? od?.effective) : od?.effective;
+                      const launch = isLaunchN1(opening, startDateStr, endDateStr);
+                      return (
+                        <TableCell className="text-right">
+                          <div className="flex flex-col items-end gap-0.5">
+                            {formatVariation(channelTab === "all" ? resto.revenueVariation : revenueChange(v.revenue, channelPrior(resto))) ?? <span className="text-muted-foreground">—</span>}
+                            {launch && opening && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap cursor-help">Ouverture N-1</Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs text-xs">
+                                    Restaurant ouvert le {opening.split("-").reverse().join("/")} — la période de référence N-1 correspondait à son lancement, la variation est donc gonflée.
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                        </TableCell>
+                      );
+                    })()}
                     {cols.channelSplit && (() => {
                       const cashVal = cashByRestaurant?.get(resto.id)?.cashRevenue ?? 0;
                       const dishopVal = dishopByRestaurant?.get(resto.id) ?? 0;
