@@ -106,11 +106,11 @@ export default function CaisseStockouts() {
       (!s || r.product_name.toLowerCase().includes(s) || r.restaurant_name.toLowerCase().includes(s)));
   }, [scoped, search, onlyOngoing, product]);
 
-  const activeResto = !liveMode && rows.some(r => r.restaurant_id === historyResto) ? historyResto : null;
+  const activeResto = !liveMode && scoped.some(r => r.restaurant_id === historyResto) ? historyResto : null;
   const categories = useMemo(() => [...new Set(rows.filter(r => !activeResto || r.restaurant_id === activeResto).map(r => r.category ?? "Sans catégorie"))].sort(), [rows, activeResto]);
   const activeCategory = categories.includes(category) ? category : "all";
   const detailRows = useMemo(() => selectStockoutHistory(rows, activeResto, activeCategory, detailSort), [rows, activeResto, activeCategory, detailSort]);
-  const selectedRestoName = rows.find(r => r.restaurant_id === activeResto)?.restaurant_name;
+  const selectedRestoName = scoped.find(r => r.restaurant_id === activeResto)?.restaurant_name;
   const selectRestaurant = (id: string) => {
     if (liveMode) setOpenResto(id);
     else { setHistoryResto(id); setCategory("all"); }
