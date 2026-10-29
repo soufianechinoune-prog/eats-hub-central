@@ -21,6 +21,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { deduceUberDeclarationStatus, buildUberDeclarationUrl, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger } from "@/components/ui/tooltip";
@@ -342,6 +343,18 @@ export function EcoContributionSection({
 
   const repDataRef = useRef(repData);
   repDataRef.current = repData;
+
+  const [restoDetails, setRestoDetails] = useState<Map<string, { uber_store_id: string | null; postal_code: string | null; denomination_sociale: string | null; siret: string | null; name: string | null }>>(new Map());
+  useEffect(() => {
+    if (!restaurantIds.length) return;
+    let cancelled = false;
+    supabase.from("restaurants").select("id, name, uber_store_id, postal_code, denomination_sociale, siret").in("id", restaurantIds)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        setRestoDetails(new Map(data.map((r: any) => [r.id, r])));
+      });
+    return () => { cancelled = true; };
+  }, [restaurantIds.join(",")]);
 
   const handleRepCheck = async () => {
     const { data: restData } = await supabase
@@ -715,6 +728,7 @@ export function EcoContributionSection({
                       <TableRow>
                         <TableHead>Restaurant</TableHead>
                         {repChecked && <TableHead className="text-center w-[80px]">REP</TableHead>}
+                        {repChecked && <TableHead className="text-center w-[150px]">Déclaration Uber</TableHead>}
                         <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("refund")}>
                           Remb. {sortKey === "refund" && (sortDir === "desc" ? "↓" : "↑")}
                         </TableHead>
@@ -740,6 +754,7 @@ export function EcoContributionSection({
                           isEvenRow={idx % 2 === 0}
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
+                          details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
                           newLinesDelta={ecoLineDeltas.get(r.restaurant_id)}
                           scanClass={
@@ -957,6 +972,26 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
+function UberDeclarationCell({ status, url, hasIdu }: { status: UberDeclarationStatus; url: string; hasIdu: boolean }) {
+  if (status === "regularise") {
+    return <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Remboursement reçu ou aucun prélèvement sur l'année : Uber a pris en compte la déclaration.">Régularisé</Badge>;
+  }
+  if (status === "a_declarer") {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <Badge variant="destructive" className="text-[10px]" title="Adhérent REP mais toujours prélevé, sans remboursement sur l'année.">À déclarer</Badge>
+        <Button asChild size="sm" variant="outline" className="h-6 text-[10px] px-2">
+          <a href={url} target="_blank" rel="noopener noreferrer" title={hasIdu ? "Formulaire Uber pré-rempli (IDU inclus) : il reste nom, prénom et case à cocher." : "Formulaire Uber pré-rempli, IDU à saisir."}>Déclarer à Uber</a>
+        </Button>
+      </div>
+    );
+  }
+  if (status === "non_adherent") {
+    return <Badge variant="secondary" className="text-[10px]" title="Prélevé, aucune adhésion à un éco-organisme connue : adhérer à Citeo, Léko ou Adelphe d'abord.">Non adhérent</Badge>;
+  }
+  return <span className="text-[10px] text-muted-foreground">—</span>;
+}
+
 function RepStatusBadge({ repData, changeType }: { repData: ParsedRepData; changeType?: "new_adherent" | "lost_adherent" }) {
   if (repData.status === "loading") {
     return <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground mx-auto" />;
@@ -1101,7 +1136,9 @@ function RestaurantDrilldown({
   repChangeType,
   newLinesDelta,
   scanClass,
+  details,
 }: {
+  details?: { uber_store_id: string | null; postal_code: string | null; denomination_sociale: string | null; siret: string | null; name: string | null };
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
   detailLines: DetailLine[];
@@ -1123,7 +1160,15 @@ function RestaurantDrilldown({
   const refundPct = total > 0 ? Math.round((r.refund / total) * 100) : 0;
 
   const hasRepDetail = repData && repData.status === "inscrit" && repData.entries.length > 0;
-  const colSpan = showRepColumn ? 6 : 5;
+  const colSpan = showRepColumn ? 7 : 5;
+  const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({ refund: r.refund, charge: r.charge, repStatus: repData?.status });
+  const firstIdu = repData?.iduEntries?.[0];
+  const declUrl = buildUberDeclarationUrl({
+    uberStoreId: details?.uber_store_id, name: details?.name || name, postalCode: details?.postal_code,
+    legalName: details?.denomination_sociale, siret: details?.siret,
+    org: repData?.entries.find(e => e.idu === firstIdu?.identifiant_unique)?.org || repData?.orgs?.[0],
+    idu: firstIdu?.identifiant_unique,
+  });
 
   const monthlyBreakdown = useMemo(() => {
     const byKey = new Map<string, DetailLine[]>();
@@ -1222,6 +1267,11 @@ function RestaurantDrilldown({
                 <RepStatusBadge repData={repData} changeType={repChangeType} />
               </div>
             ) : null}
+          </TableCell>
+        )}
+        {showRepColumn && (
+          <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
+            <UberDeclarationCell status={declStatus} url={declUrl} hasIdu={!!firstIdu} />
           </TableCell>
         )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
