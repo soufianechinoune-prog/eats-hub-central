@@ -420,6 +420,14 @@ const RatingsComparison = () => {
           </div>
         ) : (
           <div className="space-y-6">
+            {/* Evolution Chart - top of page */}
+            {reviewsData && reviewsData.length > 0 && (
+              <RatingsEvolutionChart 
+                reviews={reviewsData}
+                dateRange={dateRange}
+              />
+            )}
+
             {/* Global KPIs - Conditional Deliveroo */}
             <div className={`grid gap-4 ${showDeliveroo ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
               <Card className="backdrop-blur-xl bg-card/80 border-border/50 shadow-lg">
@@ -485,14 +493,6 @@ const RatingsComparison = () => {
               isExporting={isExporting}
               dateRange={dateRange}
             />
-
-            {/* Evolution Chart - Below ranking */}
-            {reviewsData && reviewsData.length > 0 && (
-              <RatingsEvolutionChart 
-                reviews={reviewsData}
-                dateRange={dateRange}
-              />
-            )}
 
             {/* Rating Distribution - Horizontal Bars */}
             <RatingsDistributionBars data={distributionData} />

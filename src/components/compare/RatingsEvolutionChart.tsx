@@ -119,7 +119,7 @@ export function RatingsEvolutionChart({ reviews, dateRange }: RatingsEvolutionCh
   };
 
   const handleBarClick = (data: any) => {
-    if (!isDrillDown && data && data.date) {
+    if (!isDrillDown && granularity === "month" && data && data.date) {
       // Drill down to the month of the clicked bar
       setCurrentMonth(startOfMonth(parseISO(data.date)));
     }
@@ -220,7 +220,7 @@ export function RatingsEvolutionChart({ reviews, dateRange }: RatingsEvolutionCh
                   borderRadius: '8px',
                 }}
                 formatter={(value: number, name: string) => {
-                  if (name === "rating") return [value?.toFixed(2) + " / 5", "Note du jour"];
+                  if (name === "rating") return [value?.toFixed(2) + " / 5", granularity === "day" ? "Note du jour" : granularity === "week" ? "Note de la semaine" : "Note du mois"];
                   if (name === "rollingAvg") return [value?.toFixed(2), "Moyenne mobile"];
                   return [value, name];
                 }}
@@ -240,7 +240,7 @@ export function RatingsEvolutionChart({ reviews, dateRange }: RatingsEvolutionCh
                 dataKey="rating" 
                 radius={[4, 4, 0, 0]}
                 onClick={(data) => handleBarClick(data)}
-                cursor={!isDrillDown ? "pointer" : "default"}
+                cursor={!isDrillDown && granularity === "month" ? "pointer" : "default"}
               >
                 {chartDataWithAverage.map((entry, index) => (
                   <Cell 
