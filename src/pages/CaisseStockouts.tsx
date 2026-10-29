@@ -78,8 +78,10 @@ export default function CaisseStockouts() {
   });
   const ids = useMemo(() => {
     if (!restaurants) return undefined;
+    // État actuel = toujours tout le réseau ; le filtre restaurant ne s'applique qu'à l'Historique.
+    if (liveMode) return restaurants;
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: restaurants }) ?? restaurants;
-  }, [restaurants, selectedRestaurants, selectedChainId]);
+  }, [restaurants, selectedRestaurants, selectedChainId, liveMode]);
 
   // Restaurants « scannés » = ceux dont la station de notification Splash est reliée.
   const { data: scannedCount } = useQuery({
