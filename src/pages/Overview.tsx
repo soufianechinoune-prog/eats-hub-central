@@ -6,6 +6,8 @@ import type { DateRange } from "react-day-picker";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext, PeriodMode } from "@/contexts/AnalyticsContext";
 import { useOverviewData } from "@/hooks/useOverviewData";
+import { useUberRecentRatings } from "@/hooks/useUberRecentRatings";
+import { summarizeUberRatings } from "@/lib/uberRatings";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -475,6 +477,10 @@ const Overview = () => {
     queryKeys: overviewQueryKeys,
     reviewsData: overviewReviewsData,
   } = useOverviewData(startDate, endDate, startDateStr, endDateStr, activeIds, analyticsCtx.selectedChainId);
+
+  const recentRatings = useUberRecentRatings(activeIds, activeChannel === "uber");
+  const recentRatingSummary = summarizeUberRatings(recentRatings.data ?? []);
+  const periodRatingSummary = summarizeUberRatings(overviewReviewsData);
 
   // Logo de l'enseigne active (avatars du tableau comparatif réseau)
   const { data: activeChainLogo } = useQuery({
@@ -1312,7 +1318,10 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.uber.rating != null ? networkData.uber.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={navigateToRatingsComparison} />
+                <MetricRow icon={Star} label="Note réseau · 90 jours" value={recentRatings.isLoading ? "…" : recentRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
+                <MetricRow icon={Star} label={`Note période · ${periodRatingSummary.count.toLocaleString("fr-FR")} avis`} value={wave2Loading ? "…" : periodRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
+                <p className="text-xs text-muted-foreground">90 jours : {format(new Date(recentRatings.window.start + "T12:00:00"), "dd/MM/yyyy")} au {format(new Date(recentRatings.window.end + "T12:00:00"), "dd/MM/yyyy")} · {recentRatingSummary.count.toLocaleString("fr-FR")} avis reçus. Moyenne reconstruite, non certifiée comme note publique Uber Eats ; les avis récents arrivent avec délai.</p>
+                {recentRatings.isError && <p className="text-xs text-destructive">La note sur 90 jours n’a pas pu être chargée.</p>}
                 <MetricRow icon={Timer} label="Attente coursier évitable" value={formatMinutesToTime(networkData?.uber.courierWaitTime)} color="text-amber-500" onClick={() => navigate('/analytics/operations?tab=waitTime')} />
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.uber.incorrectOrderRate != null ? networkData.uber.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" onClick={() => navigate('/compare/inaccurate-orders')} />
@@ -1707,6 +1716,10 @@ const Overview = () => {
                 periodStart={startDate}
                 periodEnd={endDate}
                 forcedChannel={activeChannel}
+                recentRatings={recentRatings.data}
+                periodRatings={overviewReviewsData}
+                recentRatingsLoading={recentRatings.isLoading}
+                periodRatingsLoading={wave2Loading}
               />
             )}
           </div>
