@@ -1,5 +1,8 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Comparaison N-1 Vue d'ensemble
+- [ ] Verrouiller les journées isolées et périodes glissantes ; mois/année à date sur jours clos, comparaison Uber/Deliveroo par canal et vérification connectée.
+
 ## Dépenses publicitaires — consolidation
 - [x] Vérifier et corriger le rattachement des frais publicitaires à la semaine réglée, sans modifier le backfill J-14 / J-8 ; assertions SQL de dates exécutées dans la migration.
 - [x] Afficher un indicateur de consolidation sur la vignette, les analyses réseau et restaurant ; 14 tests réussis et parcours connecté vérifié (ratio observé 1,60 %, toujours provisoire).
