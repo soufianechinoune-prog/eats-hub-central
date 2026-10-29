@@ -38,7 +38,6 @@ import { useDishopRestaurantBreakdown } from "@/hooks/useDishopRestaurantBreakdo
 import { DishopRestaurantComparisonTable } from "@/components/overview/DishopRestaurantComparisonTable";
 import { useMealVoucherBreakdown } from "@/hooks/useMealVoucherBreakdown";
 import { MealVoucherAnalysisPanel } from "@/components/overview/MealVoucherAnalysisPanel";
-import { UberLiveTodayCard } from "@/components/overview/UberLiveTodayCard";
 import { DeliverooChannelSummary } from "@/components/overview/DeliverooChannelSummary";
 import { NetworkRevenueHero } from "@/components/overview/NetworkRevenueHero";
 import { NetworkChannelCards } from "@/components/overview/NetworkChannelCards";
@@ -1341,14 +1340,6 @@ const Overview = () => {
               </div>
             )}
 
-            {activeChannel === "uber" && (
-              <div className="lg:col-span-3">
-                <UberLiveTodayCard
-                  restaurantIds={activeIds}
-                  scope={periodMode === "yesterday" ? "yesterday" : "today"}
-                />
-              </div>
-            )}
 
 
             {/* Deliveroo Card — réservée à l'onglet Deliveroo */}
