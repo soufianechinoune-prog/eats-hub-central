@@ -32,25 +32,16 @@ interface RatingsFullRankingTableProps {
 type SortField = "rank" | "name" | "avgRating" | "totalReviews";
 type SortDirection = "asc" | "desc";
 
+type Tier = "all" | "top" | "alert";
+
 const getStatusBadge = (rating: number) => {
-  if (rating >= 4.7) {
-    return <Badge className="bg-emerald-500/20 text-emerald-600 border-emerald-500/30">Excellent</Badge>;
-  }
-  if (rating >= 4.5) {
-    return <Badge className="bg-green-500/20 text-green-600 border-green-500/30">Très bien</Badge>;
-  }
-  if (rating >= 4.2) {
-    return <Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30">Bon</Badge>;
-  }
-  return <Badge className="bg-red-500/20 text-red-600 border-red-500/30">À surveiller</Badge>;
+  if (rating >= 4.7) return <Badge variant="outline" className="border-success/30 bg-success/10 text-success">Excellent</Badge>;
+  if (rating >= 4.5) return <Badge variant="outline" className="border-success/20 bg-success/5 text-success">Très bien</Badge>;
+  if (rating >= 4.2) return <Badge variant="outline" className="border-warning/30 bg-warning/10 text-warning">Bon</Badge>;
+  return <Badge variant="outline" className="border-destructive/30 bg-destructive/10 text-destructive">À surveiller</Badge>;
 };
 
-const getBarColor = (rating: number) => {
-  if (rating >= 4.7) return "bg-emerald-500";
-  if (rating >= 4.5) return "bg-green-500";
-  if (rating >= 4.2) return "bg-amber-500";
-  return "bg-red-500";
-};
+const fmt = (n: number, d = 2) => n.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
 
 export const RatingsFullRankingTable = ({ 
   data, 
@@ -62,6 +53,13 @@ export const RatingsFullRankingTable = ({
   const { setSelectedRestaurants, setVisibleRestaurants, setDateRange, setPeriodMode } = useAnalyticsContext();
   
   const [searchQuery, setSearchQuery] = useState("");
+  const [tier, setTier] = useState<Tier>("all");
+  const networkAvg = useMemo(() => {
+    const t = data.reduce((a, r) => a + r.totalReviews, 0);
+    return t > 0 ? data.reduce((a, r) => a + r.avgRating * r.totalReviews, 0) / t : 0;
+  }, [data]);
+  const maxReviews = useMemo(() => Math.max(1, ...data.map((r) => r.totalReviews)), [data]);
+  const counts = useMemo(() => ({ all: data.length, top: data.filter((r) => r.avgRating >= 4.7).length, alert: data.filter((r) => r.avgRating < 4.2).length }), [data]);
   const [sortField, setSortField] = useState<SortField>("rank");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
 
@@ -105,6 +103,9 @@ export const RatingsFullRankingTable = ({
       result = result.filter(r => r.name.toLowerCase().includes(query));
     }
 
+    if (tier === "top") result = result.filter((r) => r.avgRating >= 4.7);
+    if (tier === "alert") result = result.filter((r) => r.avgRating < 4.2);
+
     // Sort
     result.sort((a, b) => {
       let comparison = 0;
@@ -130,7 +131,7 @@ export const RatingsFullRankingTable = ({
     });
 
     return result;
-  }, [data, searchQuery, sortField, sortDirection, rankedData]);
+  }, [data, searchQuery, tier, sortField, sortDirection, rankedData]);
 
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) {
