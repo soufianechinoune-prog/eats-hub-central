@@ -83,7 +83,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   r.products.forEach(product => {
     doc.setFontSize(8); const lines = doc.splitTextToSize(clean(product.name), 91) as string[];
     const height = Math.max(5, lines.length * 4.3 + 0.7);
-    if (y + height > 252) { doc.addPage(); y = tableHead(summaryColumns, header("Synthèse produits", true)); }
+    if (y + height > 259) { doc.addPage(); y = tableHead(summaryColumns, header("Synthèse produits", true)); }
     wrapped(product.name, 15, y, 91, 8); text(String(product.events), 113, y, 8); text(String(product.restaurants), 139, y, 8); text(reportHours(product.minutes), 164, y, 8);
     y += height; doc.setDrawColor(...colors.border); doc.setLineWidth(0.15); doc.line(15, y - 1, 195, y - 1);
   });
@@ -100,7 +100,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
     section.rows.forEach(row => {
       doc.setFontSize(8); const lines = doc.splitTextToSize(clean(row.product_name), 65) as string[];
       const height = Math.max(8.7, lines.length * 4.3 + 2);
-      if (y + height > 251) { doc.addPage(); y = tableHead(columns, header(section.name, true)); }
+      if (y + height > 259) { doc.addPage(); y = tableHead(columns, header(section.name, true)); }
       wrapped(row.product_name, 15, y, 65, 8);
       wrapped(reportDate(row.started_at), 85, y, 36, 8);
       const endLabel = row.ended_at && Date.parse(row.ended_at) <= row.to ? reportDate(row.ended_at) : "Ouverte en fin de période";
