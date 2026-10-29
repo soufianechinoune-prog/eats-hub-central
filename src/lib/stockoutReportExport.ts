@@ -48,7 +48,7 @@ export async function exportStockoutExcel(r: StockoutReport, chainId: string) {
 export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   const [{ jsPDF }, name, logo] = await Promise.all([import("jspdf"), getChainName(chainId), loadChainLogoBase64(chainId)]);
   const doc = new jsPDF({ unit: "mm", format: "a4" });
-  const colors = { fg: tokenRgb("foreground"), muted: tokenRgb("muted-foreground"), bg: tokenRgb("background"), primary: tokenRgb("primary"), border: tokenRgb("border"), accent: tokenRgb("accent") };
+  const colors = { fg: tokenRgb("foreground"), muted: tokenRgb("muted-foreground"), bg: tokenRgb("background"), primary: tokenRgb("primary"), border: tokenRgb("border"), accent: tokenRgb("chart-2") };
   // Helvetica's PDF character set supports French accents, but not narrow nonbreaking spaces.
   const clean = (text: string) => text.replace(/[\u202f\u00a0]/g, " ").replace(/’/g, "'").replace(/—/g, "-");
   const text = (s: string, x: number, y: number, size = 10, bold = false, muted = false) => {
