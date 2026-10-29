@@ -611,8 +611,8 @@ export function RestaurantComparisonTable({
               )}
               {cols.orders && <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>}
               {cols.basket && <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>}
-              {cols.rating && <HeaderCell column="rating90" className="text-right">Note 90 j</HeaderCell>}
-              {cols.rating && <HeaderCell column="rating" className="text-right">Note période</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating90" className="text-right">Note réseau</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating" className="text-right">Moy. période</HeaderCell>}
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
               {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
@@ -828,7 +828,6 @@ export function RestaurantComparisonTable({
                     {cols.rating && (
                       <TableCell className="text-right whitespace-nowrap">
                         <span className="font-medium">{recentRatingsLoading ? "…" : summarizeUberRatings(recentRatings, [resto.id]).rating?.toFixed(1) ?? "—"}</span>
-                        <span className="block text-xs text-muted-foreground">{summarizeUberRatings(recentRatings, [resto.id]).count} avis</span>
                       </TableCell>
                     )}
                     {cols.rating && (
@@ -837,7 +836,6 @@ export function RestaurantComparisonTable({
                           <Star className="h-3 w-3" />
                           {periodRatingsLoading ? "…" : summarizeUberRatings(periodRatings, [resto.id]).rating?.toFixed(1) ?? "—"}
                         </span>
-                        <span className="block text-xs text-muted-foreground">{summarizeUberRatings(periodRatings, [resto.id]).count} avis</span>
                       </TableCell>
                     )}
                     {cols.errorRate && (
