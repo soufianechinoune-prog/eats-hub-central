@@ -54,8 +54,10 @@ Deno.serve(async (req) => {
         const { data, error } = await supabase.functions.invoke('parse-reviews-order', {
           body: { csvContent: csvText, restaurantId, dryRun: false },
         });
-        if (error) console.error('parse-reviews-order invoke error:', error);
-        else console.log('parse-reviews-order result:', JSON.stringify(data)?.substring(0, 400));
+        if (error || data?.success === false || (data?.stats?.errors ?? 0) > 0) {
+          throw new Error('Customer feedback import failed; retry required');
+        }
+        console.log('Customer feedback imported:', data?.stats?.inserted ?? 0);
         break;
       }
 
@@ -66,8 +68,10 @@ Deno.serve(async (req) => {
         const { data, error } = await supabase.functions.invoke('parse-reviews-item', {
           body: { csvContent: csvText, restaurantId, dryRun: false },
         });
-        if (error) console.error('parse-reviews-item invoke error:', error);
-        else console.log('parse-reviews-item result:', JSON.stringify(data)?.substring(0, 400));
+        if (error || data?.success === false || (data?.stats?.errors ?? 0) > 0) {
+          throw new Error('Menu feedback import failed; retry required');
+        }
+        console.log('Menu feedback imported:', data?.stats?.inserted ?? 0);
         break;
       }
       

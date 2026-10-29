@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
     const { data: restos, error: restoErr } = await supabase
       .from('restaurants')
       .select('id, name, uber_store_id')
+      .eq('is_active', true)
       .not('uber_store_id', 'is', null)
       .neq('uber_store_id', '');
 
@@ -90,11 +91,14 @@ Deno.serve(async (req) => {
       }))
     );
 
-    const { error: insErr } = await supabase.from('backfill_jobs').insert(jobs);
+    const { data: insertedJobs, error: insErr } = await supabase.from('backfill_jobs').upsert(jobs, {
+      onConflict: 'restaurant_id,month_start,report_type',
+      ignoreDuplicates: true,
+    }).select('id');
     if (insErr) throw insErr;
 
 
-    console.log(`[daily-backfill] Enqueued ${jobs.length} jobs for ${startStr} → ${endStr}`);
+    console.log(`[daily-backfill] Enqueued ${insertedJobs?.length ?? 0} jobs for ${startStr} → ${endStr}`);
 
     // Réveille immédiatement le worker (sinon il faut attendre le tick suivant)
     try {
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         status: 'ok',
-        inserted: jobs.length,
+        inserted: insertedJobs?.length ?? 0,
         window: `${startStr} → ${endStr}`,
         report_types: reportTypes,
       }),

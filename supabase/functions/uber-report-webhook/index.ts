@@ -47,6 +47,9 @@ Deno.serve(async (req) => {
     
     console.log('Environment:', environment);
     
+    if (!signature) {
+      return new Response('Missing signature', { status: 401, headers: corsHeaders });
+    }
     if (signature) {
       const clientSecret = Deno.env.get('UBER_CLIENT_SECRET') ?? Deno.env.get('VITE_UBER_CLIENT_SECRET');
       if (!clientSecret) {
@@ -78,8 +81,9 @@ Deno.serve(async (req) => {
       console.log('Signature verified successfully');
     }
     
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) throw new Error('Missing server configuration');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     
     // Route orders.notification events → uber_live_orders (live mode)
@@ -170,7 +174,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
 
     if (reportError) {
-      console.error('Error finding report:', reportError);
+      throw new Error('Report lookup failed');
     }
     console.log('Matched report id:', report?.id ?? 'NONE');
     
@@ -191,7 +195,7 @@ Deno.serve(async (req) => {
         .eq('id', report.id);
       
       if (updateError) {
-        console.error('Failed to update report:', updateError);
+        throw new Error('Report update failed');
       } else {
         console.log('Report updated successfully');
         
@@ -217,7 +221,7 @@ Deno.serve(async (req) => {
           if (reportData && body.report_metadata.sections.length > 0) {
             const section = body.report_metadata.sections[0];
             try {
-              console.log('Downloading CSV from Uber:', section.download_url.substring(0, 100));
+              console.log('Downloading payment CSV');
               const csvResp = await fetch(section.download_url);
               if (!csvResp.ok) {
                 throw new Error(`CSV download failed: ${csvResp.status} ${csvResp.statusText}`);
@@ -259,7 +263,7 @@ Deno.serve(async (req) => {
             const section = body.report_metadata.sections[0];
             
             try {
-              await supabase.functions.invoke('parse-report-csv', {
+              const { data: parsed, error: parseInvokeError } = await supabase.functions.invoke('parse-report-csv', {
                 body: {
                   reportId: report.id,
                   downloadUrl: section.download_url,
@@ -267,15 +271,18 @@ Deno.serve(async (req) => {
                   restaurantId: reportData.restaurant_id,
                 },
               });
+              if (parseInvokeError || parsed?.success === false) throw new Error('Report import failed');
+              await supabase.from('reports').update({ error_message: null }).eq('id', report.id);
               console.log('Report parsed successfully');
             } catch (parseError) {
-              console.error('Failed to parse report:', parseError);
+              await supabase.from('reports').update({ error_message: 'Import failed; awaiting webhook retry' }).eq('id', report.id);
+              throw new Error('Report import failed; retry required');
             }
           }
         }
       }
     } else {
-      console.warn('No matching report found for job_id', body.job_id, '— skipping insert (restaurant_id unknown).');
+      throw new Error('Report not yet registered; retry required');
     }
 
     // ============================================================
@@ -288,7 +295,7 @@ Deno.serve(async (req) => {
       const { data: bfJobs, error: bfErr } = await supabase
         .from('backfill_jobs')
         .select('id, status, restaurant_name, month_start, report_id')
-        .or(`report_id.eq.${body.job_id},report_id.ilike.%${body.job_id}%`)
+        .eq('report_id', body.job_id)
         .limit(1);
       const bfJob = bfJobs && bfJobs.length > 0 ? bfJobs[0] : null;
 
@@ -314,7 +321,7 @@ Deno.serve(async (req) => {
     await supabase.from('webhook_logs').insert({
       event_type: body.event_type,
       webhook_uuid: body.webhook_meta.webhook_msg_uuid,
-      payload: body,
+      payload: { job_id: body.job_id, report_type: body.report_type, section_count: body.report_metadata.sections.length },
       processed_at: new Date().toISOString(),
     });
     
@@ -324,6 +331,6 @@ Deno.serve(async (req) => {
     
   } catch (error) {
     console.error('Webhook processing error:', error);
-    return new Response(null, { status: 200, headers: corsHeaders });
+    return new Response(null, { status: 503, headers: corsHeaders });
   }
 });
