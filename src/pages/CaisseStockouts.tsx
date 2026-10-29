@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2, X, ArrowUpDown, Check, ChevronsUpDown } from "lucide-react";
+import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2, X, Check, ChevronsUpDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -24,7 +23,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { cn } from "@/lib/utils";
-import { filterStockoutProduct, rankStockoutRestaurants, selectStockoutHistory, type RestaurantStockoutSort, type StockoutSort } from "@/lib/stockoutHistory";
+import { filterStockoutProduct, rankStockoutRestaurants, selectStockoutHistory } from "@/lib/stockoutHistory";
 
 interface Stockout {
   restaurant_id: string;
@@ -65,9 +64,6 @@ export default function CaisseStockouts() {
   const [onlyOngoing, setOnlyOngoing] = useState(false);
   const [openResto, setOpenResto] = useState<string | null>(null);
   const [historyResto, setHistoryResto] = useState<string | null>(null);
-  const [restaurantSort, setRestaurantSort] = useState<RestaurantStockoutSort>("products");
-  const [detailSort, setDetailSort] = useState<StockoutSort>("recent");
-  const [category, setCategory] = useState("all");
 
   const { data: restaurants } = useQuery({
     queryKey: ["stockouts-restaurants", selectedChainId],
@@ -112,18 +108,15 @@ export default function CaisseStockouts() {
   const availableProducts = useMemo(() => [...new Set((q.data ?? []).map(r => r.product_name))].sort((a, b) => a.localeCompare(b, "fr")), [q.data]);
   const chooseProduct = (name: string | null) => {
     setProduct(name);
-    setCategory("all");
     setProductPickerOpen(false);
   };
 
   const activeResto = !liveMode && scoped.some(r => r.restaurant_id === historyResto) ? historyResto : null;
-  const categories = useMemo(() => [...new Set(rows.filter(r => !activeResto || r.restaurant_id === activeResto).map(r => r.category ?? "Sans catégorie"))].sort(), [rows, activeResto]);
-  const activeCategory = categories.includes(category) ? category : "all";
-  const detailRows = useMemo(() => selectStockoutHistory(rows, activeResto, activeCategory, detailSort), [rows, activeResto, activeCategory, detailSort]);
+  const detailRows = useMemo(() => selectStockoutHistory(rows, activeResto, "all", "recent"), [rows, activeResto]);
   const selectedRestoName = scoped.find(r => r.restaurant_id === activeResto)?.restaurant_name;
   const selectRestaurant = (id: string) => {
     if (liveMode) setOpenResto(id);
-    else { setHistoryResto(id); setCategory("all"); }
+    else setHistoryResto(id);
   };
 
   const kpis = useMemo(() => ({
@@ -133,8 +126,8 @@ export default function CaisseStockouts() {
     avg: detailRows.length ? detailRows.reduce((a, r) => a + Number(r.duration_minutes), 0) / detailRows.length : 0,
   }), [detailRows]);
 
-  const byResto = useMemo(() => rankStockoutRestaurants(rows, restaurantSort), [rows, restaurantSort]);
-  const rankValue = (r: typeof byResto[number]) => restaurantSort === "duration" ? r.min : restaurantSort === "events" ? r.n : r.productCount;
+  const byResto = useMemo(() => rankStockoutRestaurants(rows, "products"), [rows]);
+  const rankValue = (r: typeof byResto[number]) => r.productCount;
   const maxRank = Math.max(1, ...byResto.map(rankValue));
 
   const detail = useMemo(() => {
@@ -239,12 +232,8 @@ export default function CaisseStockouts() {
             <Card className="min-w-0">
               <CardHeader className="space-y-3 pb-2">
                 <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">Par restaurant</CardTitle>
-                  {activeResto && <Button size="sm" variant="ghost" onClick={() => { setHistoryResto(null); setCategory("all"); }}>Tous <X className="ml-1 h-3.5 w-3.5" /></Button>}
+                  {activeResto && <Button size="sm" variant="ghost" onClick={() => setHistoryResto(null)}>Tous <X className="ml-1 h-3.5 w-3.5" /></Button>}
                 </div>
-                <Select value={restaurantSort} onValueChange={v => setRestaurantSort(v as RestaurantStockoutSort)}>
-                  <SelectTrigger aria-label="Trier les restaurants"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="products">Produits concernés ↓</SelectItem><SelectItem value="events">Nombre de ruptures ↓</SelectItem><SelectItem value="duration">Durée cumulée ↓</SelectItem><SelectItem value="name">Restaurant A → Z</SelectItem></SelectContent>
-                </Select>
               </CardHeader>
               <CardContent className="space-y-1">
                 {byResto.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant concerné.</p>}
@@ -269,16 +258,6 @@ export default function CaisseStockouts() {
             <Card className="min-w-0">
               <CardHeader className="space-y-3 pb-2">
                 <div><CardTitle className="break-words text-base">{selectedRestoName ?? product ?? "Détail rupture par rupture"}</CardTitle><CardDescription>{detailRows.length} rupture{detailRows.length > 1 ? "s" : ""} · {selectedRestoName ? "Restaurant sélectionné" : "Tous les restaurants du périmètre"}{selectedRestoName && product ? ` · ${product}` : ""}</CardDescription></div>
-                <div className="flex flex-wrap gap-2">
-                  <Select value={detailSort} onValueChange={v => setDetailSort(v as StockoutSort)}>
-                    <SelectTrigger className="w-full sm:w-[210px]" aria-label="Trier les ruptures"><ArrowUpDown className="mr-2 h-4 w-4 shrink-0" /><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="recent">Plus récentes</SelectItem><SelectItem value="oldest">Plus anciennes</SelectItem><SelectItem value="longest">Durée la plus longue</SelectItem><SelectItem value="shortest">Durée la plus courte</SelectItem><SelectItem value="product">Produit A → Z</SelectItem></SelectContent>
-                  </Select>
-                  <Select value={activeCategory} onValueChange={setCategory}>
-                    <SelectTrigger className="w-full sm:w-[210px]" aria-label="Filtrer par catégorie"><SelectValue /></SelectTrigger>
-                    <SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                  </Select>
-                </div>
               </CardHeader>
               <CardContent>
                 {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.error ? (
