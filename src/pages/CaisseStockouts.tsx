@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2, X, ArrowUpDown } from "lucide-react";
+import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2, X, ArrowUpDown, Check, ChevronsUpDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -22,7 +24,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { cn } from "@/lib/utils";
-import { rankStockoutRestaurants, selectStockoutHistory, type RestaurantStockoutSort, type StockoutSort } from "@/lib/stockoutHistory";
+import { filterStockoutProduct, rankStockoutRestaurants, selectStockoutHistory, type RestaurantStockoutSort, type StockoutSort } from "@/lib/stockoutHistory";
 
 interface Stockout {
   restaurant_id: string;
@@ -59,6 +61,7 @@ export default function CaisseStockouts() {
   const end = liveMode || periodEnd >= yesterdayStr ? todayStr : periodEnd;
   const [search, setSearch] = useState("");
   const [product, setProduct] = useState<string | null>(null);
+  const [productPickerOpen, setProductPickerOpen] = useState(false);
   const [onlyOngoing, setOnlyOngoing] = useState(false);
   const [openResto, setOpenResto] = useState<string | null>(null);
   const [historyResto, setHistoryResto] = useState<string | null>(null);
@@ -101,10 +104,17 @@ export default function CaisseStockouts() {
 
   const rows = useMemo(() => {
     const s = search.trim().toLowerCase();
-    return scoped.filter((r) =>
-      (!onlyOngoing || r.is_ongoing) && (!product || r.product_name === product) &&
+    return filterStockoutProduct(scoped, product).filter((r) =>
+      (!onlyOngoing || r.is_ongoing) &&
       (!s || r.product_name.toLowerCase().includes(s) || r.restaurant_name.toLowerCase().includes(s)));
   }, [scoped, search, onlyOngoing, product]);
+
+  const availableProducts = useMemo(() => [...new Set((q.data ?? []).map(r => r.product_name))].sort((a, b) => a.localeCompare(b, "fr")), [q.data]);
+  const chooseProduct = (name: string | null) => {
+    setProduct(name);
+    setCategory("all");
+    setProductPickerOpen(false);
+  };
 
   const activeResto = !liveMode && scoped.some(r => r.restaurant_id === historyResto) ? historyResto : null;
   const categories = useMemo(() => [...new Set(rows.filter(r => !activeResto || r.restaurant_id === activeResto).map(r => r.category ?? "Sans catégorie"))].sort(), [rows, activeResto]);
@@ -139,7 +149,7 @@ export default function CaisseStockouts() {
 
   const detail = useMemo(() => {
     if (!openResto) return null;
-    const list = (q.data ?? []).filter((r) => r.restaurant_id === openResto);
+    const list = filterStockoutProduct(q.data ?? [], product).filter((r) => r.restaurant_id === openResto);
     const hours = Array.from({ length: 24 }, (_, h) => ({ h: `${h}h`, n: 0 }));
     list.forEach((r) => { hours[hourOf(r.started_at)].n += 1; });
     const min = list.reduce((a, r) => a + Number(r.duration_minutes), 0);
@@ -153,7 +163,7 @@ export default function CaisseStockouts() {
       availability: Math.max(0, 100 - (min / Math.max(1, products.size) / openMinutes) * 100),
       products: [...products.entries()].sort((a, b) => b[1].min - a[1].min),
     };
-  }, [openResto, q.data, start, end]);
+  }, [openResto, q.data, start, end, product]);
 
   const exportXlsx = () => {
     const ws = XLSX.utils.json_to_sheet(detailRows.map((r) => ({
@@ -205,6 +215,26 @@ export default function CaisseStockouts() {
           <Card>
             <CardContent className="space-y-3 p-4">
               <div className="flex flex-wrap items-center gap-2">
+                <Popover open={productPickerOpen} onOpenChange={setProductPickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" role="combobox" aria-expanded={productPickerOpen} aria-label="Choisir un produit" className="w-full justify-between sm:w-[280px]">
+                      <span className="min-w-0 truncate">{product ?? "Tous les produits"}</span><ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-[min(360px,calc(100vw-32px))] p-0">
+                    <Command>
+                      <CommandInput placeholder="Rechercher un produit…" />
+                      <CommandList>
+                        <CommandEmpty>Aucun produit trouvé sur cette période.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="Tous les produits" onSelect={() => chooseProduct(null)}><Check className={cn("mr-2 h-4 w-4", product ? "opacity-0" : "opacity-100")} />Tous les produits</CommandItem>
+                          {availableProducts.map(name => <CommandItem key={name} value={name} onSelect={() => chooseProduct(name)}><Check className={cn("mr-2 h-4 w-4 shrink-0", product === name ? "opacity-100" : "opacity-0")} /><span className="break-words">{name}</span></CommandItem>)}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {product && <Button variant="ghost" size="icon" aria-label="Effacer le filtre produit" title="Tous les produits" onClick={() => chooseProduct(null)}><X className="h-4 w-4" /></Button>}
                 <div className="relative flex-1 min-w-[240px]">
                   <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit ou un restaurant…" className="pl-9" />
@@ -214,9 +244,9 @@ export default function CaisseStockouts() {
               </div>
               {topProducts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Les plus fréquents (30 j) :</span>
+                  <span className="text-xs text-muted-foreground">Les plus fréquents sur la période :</span>
                   {topProducts.map((p) => (
-                    <Button variant="outline" size="sm" key={p.name} onClick={() => setProduct(product === p.name ? null : p.name)}
+                    <Button variant="outline" size="sm" key={p.name} onClick={() => chooseProduct(product === p.name ? null : p.name)}
                       className={cn("h-auto rounded-full border px-3 py-1 text-xs transition-colors",
                         product === p.name ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}>
                       {p.name} <span className="opacity-70">× {p.n}</span>
@@ -260,7 +290,7 @@ export default function CaisseStockouts() {
 
             <Card className="min-w-0">
               <CardHeader className="space-y-3 pb-2">
-                <div><CardTitle className="break-words text-base">{selectedRestoName ?? "Détail rupture par rupture"}</CardTitle><CardDescription>{detailRows.length} rupture{detailRows.length > 1 ? "s" : ""} · {selectedRestoName ? "Restaurant sélectionné" : "Tous les restaurants du périmètre"}</CardDescription></div>
+                <div><CardTitle className="break-words text-base">{selectedRestoName ?? product ?? "Détail rupture par rupture"}</CardTitle><CardDescription>{detailRows.length} rupture{detailRows.length > 1 ? "s" : ""} · {selectedRestoName ? "Restaurant sélectionné" : "Tous les restaurants du périmètre"}{selectedRestoName && product ? ` · ${product}` : ""}</CardDescription></div>
                 <div className="flex flex-wrap gap-2">
                   <Select value={detailSort} onValueChange={v => setDetailSort(v as StockoutSort)}>
                     <SelectTrigger className="w-full sm:w-[210px]" aria-label="Trier les ruptures"><ArrowUpDown className="mr-2 h-4 w-4 shrink-0" /><SelectValue /></SelectTrigger>

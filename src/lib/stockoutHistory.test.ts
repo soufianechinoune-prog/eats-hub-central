@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankStockoutRestaurants, selectStockoutHistory } from "./stockoutHistory";
+import { filterStockoutProduct, rankStockoutRestaurants, selectStockoutHistory } from "./stockoutHistory";
 
 const rows = [
   { restaurant_id: "a", restaurant_name: "A", item_id: "p1", product_name: "Poulet", category: "Plats", started_at: "2026-10-28T10:00:00Z", duration_minutes: 60, is_ongoing: false },
@@ -8,6 +8,10 @@ const rows = [
   { restaurant_id: "b", restaurant_name: "B", item_id: "p3", product_name: "Glace", category: "Desserts", started_at: "2026-10-29T11:00:00Z", duration_minutes: 15, is_ongoing: false },
 ];
 describe("historique des ruptures", () => {
+  it("cible le produit choisi sans inclure les autres produits", () => {
+    expect(filterStockoutProduct(rows, "Poulet").map(r => r.item_id)).toEqual(["p1", "p1"]);
+    expect(filterStockoutProduct(rows, null)).toHaveLength(4);
+  });
   it("limite le détail au restaurant sélectionné", () => {
     expect(selectStockoutHistory(rows, "a", "all", "recent").map(r => r.restaurant_id)).toEqual(["a", "a"]);
   });
