@@ -227,8 +227,8 @@ export default function CaisseStockouts() {
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <Card>
+          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <Card className="min-w-0">
               <CardHeader className="space-y-3 pb-2">
                 <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">Par restaurant</CardTitle>
                   {activeResto && <Button size="sm" variant="ghost" onClick={() => { setHistoryResto(null); setCategory("all"); }}>Tous <X className="ml-1 h-3.5 w-3.5" /></Button>}
@@ -258,7 +258,7 @@ export default function CaisseStockouts() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="space-y-3 pb-2">
                 <div><CardTitle className="break-words text-base">{selectedRestoName ?? "Détail rupture par rupture"}</CardTitle><CardDescription>{detailRows.length} rupture{detailRows.length > 1 ? "s" : ""} · {selectedRestoName ? "Restaurant sélectionné" : "Tous les restaurants du périmètre"}</CardDescription></div>
                 <div className="flex flex-wrap gap-2">
@@ -299,7 +299,7 @@ export default function CaisseStockouts() {
                             {fmtDt(r.started_at)} → {r.ended_at ? fmtDt(r.ended_at) : <Badge variant="destructive" className="ml-1">En cours</Badge>}
                             <div><Badge variant="outline" className={cn("mt-1 text-[10px]", isRush(r.started_at) && "border-destructive/40 text-destructive")}>{isRush(r.started_at) ? "Plein rush" : "Hors rush"}</Badge></div>
                           </TableCell>
-                          <TableCell className="text-right"><span className={cn("rounded-md px-2 py-0.5 text-sm font-medium tabular-nums", Number(r.duration_minutes) > 120 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{fmtDur(Number(r.duration_minutes))}</span></TableCell>
+                          <TableCell className="whitespace-nowrap text-right"><span className={cn("rounded-md px-2 py-0.5 text-sm font-medium tabular-nums", Number(r.duration_minutes) > 120 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{fmtDur(Number(r.duration_minutes))}</span></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
