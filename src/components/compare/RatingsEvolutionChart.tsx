@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { format, eachDayOfInterval, parseISO, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
+import { format, parseISO, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
+import { pickGranularity, bucketRatings } from "@/lib/ratingsGranularity";
 import { fr } from "date-fns/locale";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,55 +53,26 @@ export function RatingsEvolutionChart({ reviews, dateRange }: RatingsEvolutionCh
     return dateRange;
   }, [currentMonth, dateRange]);
 
-  // Process data for the chart
-  const chartData = useMemo(() => {
-    const days = eachDayOfInterval({
-      start: effectiveDateRange.start,
-      end: effectiveDateRange.end,
-    });
+  const granularity = useMemo(
+    () => pickGranularity(effectiveDateRange.start, effectiveDateRange.end),
+    [effectiveDateRange],
+  );
 
-    const dailyData: Record<string, { sum: number; count: number }> = {};
-    
-    reviews.forEach((review) => {
-      if (review.review_date && review.overall_rating) {
-        const date = format(parseISO(review.review_date), "yyyy-MM-dd");
-        if (!dailyData[date]) dailyData[date] = { sum: 0, count: 0 };
-        dailyData[date].sum += review.overall_rating;
-        dailyData[date].count += 1;
-      }
-    });
+  const chartData = useMemo(
+    () => bucketRatings(reviews, effectiveDateRange.start, effectiveDateRange.end, granularity),
+    [reviews, effectiveDateRange, granularity],
+  );
 
-    return days.map((day) => {
-      const dateKey = format(day, "yyyy-MM-dd");
-      const data = dailyData[dateKey];
-      const avgRating = data && data.count > 0 ? data.sum / data.count : null;
-      
-      return {
-        date: dateKey,
-        label: format(day, "d", { locale: fr }),
-        fullDate: format(day, "d MMM", { locale: fr }),
-        rating: avgRating ? parseFloat(avgRating.toFixed(2)) : null,
-        count: data?.count || 0,
-      };
-    });
-  }, [reviews, effectiveDateRange]);
-
-  // Calculate rolling average (7 days)
+  // Moyenne mobile 7 jours uniquement en vue journalière
   const chartDataWithAverage = useMemo(() => {
     return chartData.map((item, index) => {
-      const windowStart = Math.max(0, index - 6);
-      const window = chartData.slice(windowStart, index + 1);
-      const validRatings = window.filter(d => d.rating !== null).map(d => d.rating as number);
-      const rollingAvg = validRatings.length > 0 
-        ? validRatings.reduce((a, b) => a + b, 0) / validRatings.length 
-        : null;
-      
-      return {
-        ...item,
-        rollingAvg: rollingAvg ? parseFloat(rollingAvg.toFixed(2)) : null,
-      };
+      if (granularity !== "day") return { ...item, rollingAvg: null as number | null };
+      const window = chartData.slice(Math.max(0, index - 6), index + 1);
+      const valid = window.filter(d => d.rating !== null).map(d => d.rating as number);
+      const rollingAvg = valid.length ? valid.reduce((a, b) => a + b, 0) / valid.length : null;
+      return { ...item, rollingAvg: rollingAvg ? parseFloat(rollingAvg.toFixed(2)) : null };
     });
-  }, [chartData]);
+  }, [chartData, granularity]);
 
   // Calculate period stats
   const periodStats = useMemo(() => {
