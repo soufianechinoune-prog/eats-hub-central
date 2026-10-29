@@ -265,7 +265,7 @@ export default function CaisseStockouts() {
                         <ChevronRight className="h-4 w-4" />
                       </span>
                     </div>
-                    <div className="mt-1 text-xs font-normal text-muted-foreground">{r.productCount} produit{r.productCount > 1 ? "s" : ""} · {r.n} rupture{r.n > 1 ? "s" : ""} · {fmtDur(r.min)} cumulées</div>
+                    <div className="mt-1 text-xs font-normal text-muted-foreground">{r.productCount} produit{r.productCount > 1 ? "s" : ""} · {r.n} rupture{r.n > 1 ? "s" : ""} </div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
                       <div className="h-full rounded-full bg-primary" style={{ width: `${(rankValue(r) / maxRank) * 100}%` }} />
                     </div>
