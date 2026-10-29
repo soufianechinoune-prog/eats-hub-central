@@ -81,6 +81,21 @@ export default function CaisseStockouts() {
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: restaurants }) ?? restaurants;
   }, [restaurants, selectedRestaurants, selectedChainId]);
 
+  // Restaurants « scannés » = ceux dont la station de notification Splash est reliée.
+  const { data: scannedCount } = useQuery({
+    queryKey: ["stockouts-scanned", selectedChainId],
+    enabled: !!selectedChainId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("splash_notification_stations")
+        .select("restaurant_id")
+        .eq("chain_id", selectedChainId);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: { restaurant_id: string }) => r.restaurant_id)).size;
+    },
+  });
+
   const q = useQuery({
     queryKey: ["splash-stockouts", start, end, ids],
     enabled: !!ids && ids.length > 0,
