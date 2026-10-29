@@ -3,6 +3,20 @@ import type { HistoryStockout } from "./stockoutHistory";
 export interface ReportStockout extends HistoryStockout { ended_at: string | null }
 export interface ReportRestaurant { id: string; name: string }
 
+export function stockoutReportDefaults(now = Date.now()) {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Paris", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date(now));
+  const value = (key: string) => parts.find(p => p.type === key)?.value ?? "";
+  const month = `${value("year")}-${value("month")}`;
+  return { start: `${month}-01`, end: `${month}-${value("day")}`, mode: "month", restaurant: "all", product: "all" };
+}
+
+export function stockoutRestaurantSections(report: StockoutReport) {
+  return report.restaurants.filter(r => r.observed && (!report.restaurantId || r.id === report.restaurantId)).map(restaurant => ({
+    ...restaurant,
+    rows: report.rows.filter(row => row.restaurant_id === restaurant.id).sort((a, b) => b.from - a.from),
+  }));
+}
+
 /** Paris calendar midnight, including the DST offset applicable to that date. */
 export function parisMidnight(date: string): number {
   const [y, m, d] = date.split("-").map(Number);
