@@ -5,6 +5,7 @@
 - [x] Afficher un indicateur de consolidation sur la vignette, les analyses réseau et restaurant ; 14 tests réussis et parcours connecté vérifié (ratio observé 1,60 %, toujours provisoire).
 
 ## Réception webhooks Splash
+- [x] Relier les stations confirmées de Juvisy et Le Mans ; 66 événements rattachés chronologiquement, 6 ruptures Juvisy et 11 Le Mans visibles dans l’historique connecté.
 - [x] Implémenter la vérification de signature, le challenge et la réception idempotente selon le guide Splash (18 tests réussis).
 - [x] Déployer splash-webhook ; vérifier en ligne les rejets 401/405 et l'inbox inaccessible aux utilisateurs ; aucun événement de test enregistré.
 - [ ] Valider le challenge et un événement réel avec Splash : attend l'activation par Splash sur l'URL splash-webhook déjà communiquée (disponibilités uniquement sur l'URL sans suffixe). Les notifications sont conservées sans modifier les grilles tarifaires ; accès catalogue et mapping produits restent nécessaires pour les tarifs automatiques.
