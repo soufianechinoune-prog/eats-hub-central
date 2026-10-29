@@ -118,6 +118,7 @@ export interface NetworkComparisonTableProps {
   previousByRestaurant?: Map<string, { cash: number | null; uber: number | null; deliveroo: number | null }>;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
+  n1DisabledReason?: string;
 }
 
 export function NetworkComparisonTable({
@@ -137,6 +138,7 @@ export function NetworkComparisonTable({
   footerTotals,
   showN1Comparison,
   onToggleN1,
+  n1DisabledReason,
   previousByRestaurant,
 }: NetworkComparisonTableProps) {
   // Filtres conservés le temps de la session (retour depuis la page Performance)
@@ -345,10 +347,11 @@ export function NetworkComparisonTable({
                     id="n1-toggle-network"
                     checked={showN1Comparison}
                     onCheckedChange={onToggleN1}
+                    disabled={!!n1DisabledReason}
                   />
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">
-                  Affiche la variation du chiffre d'affaires par rapport à la même période l'année précédente.
+                  {n1DisabledReason ?? "Affiche la variation du chiffre d'affaires par rapport à la même période l'année précédente."}
                 </p>
               </PopoverContent>
             </Popover>

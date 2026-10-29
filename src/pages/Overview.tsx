@@ -46,6 +46,7 @@ import { NetworkComparisonTable } from "@/components/overview/NetworkComparisonT
 import { ZeroRevenueAlert } from "@/components/overview/ZeroRevenueAlert";
 import { SourceHealthAlerts } from "@/components/overview/SourceHealthAlerts";
 import { useNetworkDailyRevenue } from "@/hooks/useNetworkDailyRevenue";
+import { lastClosedParisDay, overviewN1Eligibility } from "@/lib/overviewN1";
 
 const getOverviewStorageKey = (chainId: string | null) =>
   chainId ? `overview-state-${chainId}` : "overview-state";
@@ -139,7 +140,7 @@ const Overview = () => {
     }
     return analyticsCtx.dateRange;
   });
-  const [showN1Comparison, setShowN1Comparison] = useState(true);
+  const [n1Requested, setShowN1Comparison] = useState(true);
   const [showDataSource, setShowDataSource] = useState(true);
   // Canal actif : piloté par ?channel=... (la barre latérale gauche navigue vers cette URL)
   const [channelParams] = useSearchParams();
@@ -439,6 +440,12 @@ const Overview = () => {
     // selects the current/future year (e.g. 4 months of 2026 vs 12 of 2025).
     if (end > now) end = now;
 
+    // Month/year to date exclude the still-open business day on both N and N-1.
+    if (["current_month", "custom_month", "year"].includes(periodMode)) {
+      const closed = new Date(`${lastClosedParisDay(now)}T12:00:00`);
+      if (format(end, "yyyy-MM-dd") > format(closed, "yyyy-MM-dd")) end = closed;
+    }
+
     return { startDate: start, endDate: end };
   }, [periodMode, selectedYear, selectedMonth, dateRange]);
 
@@ -446,6 +453,9 @@ const Overview = () => {
   // Using toISOString() can shift the day in France/Europe timezones and create an extra day.
   const startDateStr = format(startDate, "yyyy-MM-dd");
   const endDateStr = format(endDate, "yyyy-MM-dd");
+  const n1Eligibility = overviewN1Eligibility(periodMode, startDateStr, endDateStr);
+  const showN1Comparison = n1Requested && n1Eligibility.allowed;
+  const atDate = ["current_month", "custom_month", "year"].includes(periodMode) && endDateStr === lastClosedParisDay();
 
   // All active restaurants of the brand are used (épinglage retiré).
   const activeIds = useMemo(
@@ -506,6 +516,27 @@ const Overview = () => {
   );
   const previousStartDateStr = format(subYears(startDate, 1), "yyyy-MM-dd");
   const previousEndDateStr = format(subYears(endDate, 1), "yyyy-MM-dd");
+
+  // Channel tabs use API/import revenue, unlike the Splash-first network view.
+  const { data: channelPrevious } = useQuery({
+    queryKey: ["overview-channel-previous", activeIds, previousStartDateStr, previousEndDateStr],
+    enabled: showN1Comparison && (activeChannel === "uber" || activeChannel === "deliveroo") && activeIds.length > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+    queryFn: async () => {
+      const args = { p_restaurant_ids: activeIds, p_start_date: previousStartDateStr, p_end_date: previousEndDateStr };
+      const [uber, deliveroo] = await Promise.all([
+        supabase.rpc("get_network_orders_summary", args),
+        supabase.rpc("get_network_deliveroo_summary", args),
+      ]);
+      if (uber.error) throw uber.error;
+      if (deliveroo.error) throw deliveroo.error;
+      const result = new Map<string, { uber: number; deliveroo: number }>();
+      for (const row of uber.data ?? []) result.set(row.restaurant_id, { uber: Number(row.total_sales_incl_vat) || 0, deliveroo: 0 });
+      for (const row of deliveroo.data ?? []) result.set(row.restaurant_id, { uber: result.get(row.restaurant_id)?.uber ?? 0, deliveroo: Number(row.total_revenue) || 0 });
+      return result;
+    },
+  });
 
   const { data: dataSourceMap } = useDataSourceBreakdown({
     restaurantIds: activeIds,
@@ -1194,6 +1225,11 @@ const Overview = () => {
         />
       )}
 
+      {atDate && (
+        <p className="mb-4 text-sm text-muted-foreground">
+          {periodMode === "year" ? "Année à date" : "Mois à date"} · du {format(startDate, "dd/MM/yyyy")} au {format(endDate, "dd/MM/yyyy")} · mêmes dates N-1, hors journée en cours.
+        </p>
+      )}
 
       {isLoading ? (
         <div className="text-center py-12">
@@ -1580,7 +1616,7 @@ const Overview = () => {
               daily={isConstantScope ? networkDaily.scopedDaily : networkDaily.daily}
               startDateStr={startDateStr}
               endDateStr={endDateStr}
-              comparisonMode={comparisonMode}
+              comparisonMode={comparisonMode && showN1Comparison}
               onToggleComparisonMode={setComparisonMode}
               constantScope={isConstantScope}
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
@@ -1600,7 +1636,7 @@ const Overview = () => {
             />
             <NetworkChannelCards
               isLoading={statsLoading || cashLoading}
-              comparisonMode={comparisonMode}
+              comparisonMode={comparisonMode && showN1Comparison}
               cash={cashConnected ? (isConstantScope ? channelComparisons.cash.current : cashNetTotal) : null}
               cashVariation={isConstantScope ? channelComparisons.cash.variation : cashRevenueData?.cashVariation ?? null}
               cashConnected={cashConnected}
@@ -1649,11 +1685,12 @@ const Overview = () => {
                 chainLogoUrl={activeChainLogo}
                 comparedCount={comparedCount}
                 onOpenRestaurantFile={(id) => navigate(`/restaurants/${id}`)}
-                comparisonMode={comparisonMode}
+                comparisonMode={comparisonMode && showN1Comparison}
                 footerTotals={comparisonFooterTotals}
                 previousByRestaurant={comparisonMode && showN1Comparison ? previousByRestaurant : undefined}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
+                n1DisabledReason={n1Eligibility.allowed ? undefined : n1Eligibility.reason}
               />
             ) : (
               <RestaurantComparisonTable
@@ -1661,6 +1698,8 @@ const Overview = () => {
                 networkTotals={networkTotals}
                 showN1Comparison={showN1Comparison}
                 onToggleN1={setShowN1Comparison}
+                n1DisabledReason={n1Eligibility.allowed ? undefined : n1Eligibility.reason}
+                channelPrevious={channelPrevious}
                 isLoading={statsLoading || (activeChannel === "cash" && (cashLoading || cashByRestaurantLoading))}
                 onRestaurantClick={navigateToChannelRestaurant}
                 showDataSource={showDataSource}

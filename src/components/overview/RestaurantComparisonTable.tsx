@@ -21,6 +21,7 @@ import { Info } from "lucide-react";
 import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
+import { revenueChange } from "@/lib/overviewN1";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
 type SortDirection = "asc" | "desc";
@@ -33,6 +34,8 @@ interface RestaurantComparisonTableProps {
   networkTotals: NetworkTotals;
   showN1Comparison: boolean;
   onToggleN1: (value: boolean) => void;
+  n1DisabledReason?: string;
+  channelPrevious?: Map<string, { uber: number; deliveroo: number }>;
   isLoading: boolean;
   onRestaurantClick?: (restaurantId: string) => void;
   /**
@@ -121,6 +124,8 @@ export function RestaurantComparisonTable({
   networkTotals,
   showN1Comparison,
   onToggleN1,
+  n1DisabledReason,
+  channelPrevious,
   isLoading,
   onRestaurantClick,
   networkCashTotal = 0,
@@ -151,6 +156,12 @@ export function RestaurantComparisonTable({
   const [searchQuery, setSearchQuery] = useState("");
   const [internalChannelTab, setInternalChannelTab] = useState<ChannelTab>("all");
   const channelTab: ChannelTab = forcedChannel ?? internalChannelTab;
+  const showN1Column = showN1Comparison && ["all", "uber", "deliveroo"].includes(channelTab);
+  const channelPrior = (r: RestaurantNetworkStats) => {
+    if (analyticsCtx.comparisonScope === "constant" && !networkTotals.comparableRestaurantIds?.includes(r.id)) return null;
+    if (channelTab === "uber" || channelTab === "deliveroo") return channelPrevious?.get(r.id)?.[channelTab] ?? null;
+    return r.prevRevenue;
+  };
   const setChannelTab = (v: ChannelTab) => setInternalChannelTab(v);
 
   const hasUber = useMemo(() => stats.some(r => r.platformBreakdown.uber.revenue > 0), [stats]);
@@ -451,10 +462,17 @@ export function RestaurantComparisonTable({
                 </Label>
               </>
             )}
-            <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} />
-            <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">
-              Afficher N-1
-            </Label>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="inline-flex items-center gap-2">
+                    <Switch id="n1-toggle" checked={showN1Comparison} onCheckedChange={onToggleN1} disabled={!!n1DisabledReason} />
+                    <Label htmlFor="n1-toggle" className="text-sm text-muted-foreground cursor-pointer">Afficher N-1</Label>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">{n1DisabledReason ?? "CA du même canal, sur les mêmes dates de l’année précédente."}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             {showN1Comparison && (
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
@@ -510,7 +528,7 @@ export function RestaurantComparisonTable({
               {channelTab === "cash" && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">CA HT</TableHead>
               )}
-              {showN1Comparison && channelTab === "all" && (
+              {showN1Column && (
                 <TableHead className="text-right text-xs font-semibold uppercase whitespace-nowrap">vs N-1</TableHead>
               )}
               {cols.channelSplit && (
@@ -679,9 +697,9 @@ export function RestaurantComparisonTable({
                         {formatCurrency((v as typeof v & { revenueHT?: number }).revenueHT ?? 0)}
                       </TableCell>
                     )}
-                    {showN1Comparison && channelTab === "all" && (
+                    {showN1Column && (
                       <TableCell className="text-right">
-                        {formatVariation(resto.revenueVariation)}
+                        {formatVariation(channelTab === "all" ? resto.revenueVariation : revenueChange(v.revenue, channelPrior(resto))) ?? <span className="text-muted-foreground">—</span>}
                       </TableCell>
                     )}
                     {cols.channelSplit && (() => {
@@ -829,7 +847,7 @@ export function RestaurantComparisonTable({
                     // # + Restaurant + CA + (vs N-1) + payout + meal + profit + ads + orders + basket + rating + err + delivery + downtime
                     const visibleCols = 3
                       + (channelTab === "cash" ? 1 : 0)
-                      + (showN1Comparison && channelTab === "all" ? 1 : 0)
+                      + (showN1Column ? 1 : 0)
                       + (cols.channelSplit ? 3 + (hasDishop ? 1 : 0) + (hasChataigne ? 1 : 0) : 0)
                       + (cols.payout ? 1 : 0)
                       + (cols.mealVoucher ? 1 : 0)
@@ -890,9 +908,12 @@ export function RestaurantComparisonTable({
                       {formatCurrency(sumRevenueHT)}
                     </TableCell>
                   )}
-                  {showN1Comparison && isAll && (
+                  {showN1Column && (
                     <TableCell className="text-right">
-                      {formatVariation(networkTotals.revenueVariation)}
+                      {formatVariation(isAll ? networkTotals.revenueVariation : (() => {
+                        const comparable = filteredStats.filter(r => (channelPrior(r.resto) ?? 0) > 0);
+                        return revenueChange(comparable.reduce((sum, r) => sum + r.v.revenue, 0), comparable.reduce((sum, r) => sum + (channelPrior(r.resto) ?? 0), 0));
+                      })()) ?? <span className="text-muted-foreground">—</span>}
                     </TableCell>
                   )}
                   {cols.channelSplit && (() => {
