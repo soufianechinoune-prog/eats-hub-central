@@ -349,8 +349,15 @@ const Overview = () => {
   };
 
   // Navigate to Ratings Comparison with period preserved
-  const navigateToRatingsComparison = useCallback(() => {
-    const ratingsState = {
+  const navigateToRatingsComparison = useCallback((rolling90 = false) => {
+    const now = new Date();
+    const from90 = new Date(now); from90.setDate(now.getDate() - 89);
+    const ratingsState = rolling90 ? {
+      periodMode: "custom_range",
+      selectedYear,
+      selectedMonth,
+      customDateRange: { from: from90.toISOString(), to: now.toISOString() },
+    } : {
       periodMode,
       selectedYear,
       selectedMonth,
@@ -1318,8 +1325,8 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne du réseau" value={recentRatings.isLoading ? "…" : recentRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
-                <MetricRow icon={Star} label="Moyenne sur la période" value={wave2Loading ? "…" : periodRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={navigateToRatingsComparison} />
+                <MetricRow icon={Star} label="Note moyenne du réseau" value={recentRatings.isLoading ? "…" : recentRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={() => navigateToRatingsComparison(true)} />
+                <MetricRow icon={Star} label="Moyenne sur la période" value={wave2Loading ? "…" : periodRatingSummary.rating?.toFixed(1) ?? null} unit="/5" color="text-primary" onClick={() => navigateToRatingsComparison(false)} />
                 {recentRatings.isError && <p className="text-xs text-destructive">La note moyenne du réseau n’a pas pu être chargée.</p>}
                 <MetricRow icon={Timer} label="Attente coursier évitable" value={formatMinutesToTime(networkData?.uber.courierWaitTime)} color="text-amber-500" onClick={() => navigate('/analytics/operations?tab=waitTime')} />
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/compare/total-delivery-time')} />
