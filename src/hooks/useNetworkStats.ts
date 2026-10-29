@@ -18,6 +18,8 @@ export interface RestaurantNetworkStats {
   id: string;
   name: string;
   city: string | null;
+  /** Dates d'ouverture (effective + par canal) pour signaler un N-1 de lancement. */
+  openingDates?: { effective: string | null; uber: string | null; deliveroo: string | null };
   // Financial metrics
   revenue: number;
   orders: number;
@@ -468,6 +470,11 @@ export function useNetworkStats({
         id: resto.id,
         name: resto.name,
         city: resto.city,
+        openingDates: {
+          effective: getEffectiveOpeningDate(resto).date,
+          uber: resto.uber_opening_date ?? null,
+          deliveroo: resto.deliveroo_opening_date ?? null,
+        },
         revenue,
         orders,
         avgBasket,
