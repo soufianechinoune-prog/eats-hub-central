@@ -225,7 +225,7 @@ export default function CaisseStockouts() {
                 </div>
                 <Button variant={onlyOngoing ? "destructive" : "outline"} size="sm" onClick={() => setOnlyOngoing((v) => !v)}>En cours uniquement</Button>
                 <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!detailRows.length}><Download className="mr-1.5 h-4 w-4" />Excel</Button>
-                <StockoutReportDialog chainId={selectedChainId} restaurantIds={ids} initialStart={start} initialEnd={end} initialRestaurantId={activeResto} initialProduct={product} />
+                <StockoutReportDialog chainId={selectedChainId} />
               </div>
             </CardContent>
           </Card>
