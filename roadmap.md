@@ -1,5 +1,8 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Titres restaurant — vue annuelle
+- [x] Consolider les commandes en résumés calendaires Paris, préserver les corrections historiques par deltas transactionnels ; vue 2026 connectée vérifiée (1 689 418 €), agrégation réseau ~106 ms, 3 786 jours/émetteurs Place de Clichy sans écart avec les commandes, quatre tests réussis.
+
 ## Comparaison N-1 Vue d'ensemble
 - [x] Verrouiller les journées isolées et périodes glissantes ; mois/année à date sur jours clos, comparaison Uber/Deliveroo par canal ; dix tests réussis, Hier bloqué, octobre arrêté au 28, toggle et septembre Uber (+22,3 % Colombes) vérifiés en session connectée, colonne Deliveroo confirmée.
 

@@ -42,6 +42,8 @@ export function useMealVoucherBreakdown({ restaurantIds, startDate, endDate }: P
     queryKey: ["meal-voucher-breakdown", restaurantIds, dateFrom, dateTo],
     enabled,
     staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: false,
     queryFn: async (): Promise<MealVoucherRestaurantRow[]> => {
       const [breakdownRes, totalsRes] = await Promise.all([
         supabase.rpc("get_meal_voucher_breakdown", {
@@ -82,10 +84,9 @@ export function useMealVoucherBreakdown({ restaurantIds, startDate, endDate }: P
         amount: number | string;
         order_count: number | string;
       }>) {
-        if (!breakdownMap.has(row.restaurant_id)) {
-          breakdownMap.set(row.restaurant_id, new Map());
-        }
-        breakdownMap.get(row.restaurant_id)!.set(row.provider, {
+        const providers = breakdownMap.get(row.restaurant_id) ?? new Map();
+        breakdownMap.set(row.restaurant_id, providers);
+        providers.set(row.provider, {
           amount: Number(row.amount) || 0,
           count: Number(row.order_count) || 0,
         });
