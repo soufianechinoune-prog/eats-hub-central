@@ -12,6 +12,10 @@ export interface HistoryStockout {
 export type StockoutSort = "recent" | "oldest" | "longest" | "shortest" | "product";
 export type RestaurantStockoutSort = "products" | "events" | "duration" | "name";
 
+export function filterStockoutProduct<T extends HistoryStockout>(rows: T[], product: string | null) {
+  return rows.filter(r => !product || r.product_name === product);
+}
+
 export function selectStockoutHistory<T extends HistoryStockout>(rows: T[], restaurantId: string | null, category: string, sort: StockoutSort) {
   return rows.filter((r) => (!restaurantId || r.restaurant_id === restaurantId) &&
     (category === "all" || (r.category ?? "Sans catégorie") === category)).sort((a, b) => {
