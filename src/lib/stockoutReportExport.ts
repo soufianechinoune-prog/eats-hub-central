@@ -1,7 +1,7 @@
 import { getChainName, loadChainLogoBase64 } from "./pdfLogoHelper";
 import { reportDate, reportHours, stockoutProductSections, stockoutRestaurantSections, stockoutReportMethod, type StockoutReport, type StockoutReportLayout } from "./stockoutReport";
 
-const filename = (r: StockoutReport, layout: StockoutReportLayout) => `bilan_ruptures_par_${layout}_${r.restaurantId ? "restaurant" : "reseau"}_${r.start}_${r.end}`;
+const filename = (r: StockoutReport, layout: StockoutReportLayout) => `bilan_ruptures_par_${layout === "product" ? "produit" : "restaurant"}_${r.restaurantId ? "restaurant" : "reseau"}_${r.start}_${r.end}`;
 const targetName = (r: StockoutReport) => r.restaurants.find(x => x.id === r.restaurantId)?.name ?? "Ensemble du réseau";
 
 // Read the shared theme tokens for document graphics too, rather than a separate report palette.
