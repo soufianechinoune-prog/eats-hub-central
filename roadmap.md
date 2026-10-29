@@ -1,7 +1,7 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Comparaison N-1 Vue d'ensemble
-- [ ] Verrouiller les journées isolées et périodes glissantes ; mois/année à date sur jours clos, comparaison Uber/Deliveroo par canal et vérification connectée.
+- [x] Verrouiller les journées isolées et périodes glissantes ; mois/année à date sur jours clos, comparaison Uber/Deliveroo par canal ; dix tests réussis, Hier bloqué, octobre arrêté au 28, toggle et septembre Uber (+22,3 % Colombes) vérifiés en session connectée, colonne Deliveroo confirmée.
 
 ## Dépenses publicitaires — consolidation
 - [x] Vérifier et corriger le rattachement des frais publicitaires à la semaine réglée, sans modifier le backfill J-14 / J-8 ; assertions SQL de dates exécutées dans la migration.
