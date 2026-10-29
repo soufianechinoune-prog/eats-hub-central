@@ -207,7 +207,7 @@ export default function CaisseStockouts() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi icon={PackageX} tone="bg-primary/10 text-primary" label={liveMode ? "Ruptures aujourd'hui" : "Ruptures sur la période"} value={String(kpis.total)} />
             <Kpi icon={Radio} tone="bg-destructive/10 text-destructive" label="En cours" value={String(kpis.ongoing)} />
-            <Kpi icon={Store} tone="bg-accent/15 text-accent" label="Restaurants concernés" value={String(kpis.restos)} />
+            <Kpi icon={Store} tone="bg-accent/15 text-accent" label="Restaurants concernés" value={scannedCount ? `${kpis.restos} sur ${scannedCount}` : String(kpis.restos)} />
             <Kpi icon={Clock} tone="bg-secondary text-secondary-foreground" label="Durée moyenne" value={kpis.total ? fmtDur(kpis.avg) : "—"} />
           </div>
 
