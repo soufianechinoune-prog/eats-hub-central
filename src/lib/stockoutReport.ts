@@ -82,3 +82,21 @@ export const stockoutReportMethod = [
   "Le temps de remise en stock utilise la durée complète des ruptures résolues au plus tard à la fin de période. Les ruptures encore ouvertes sont exclues de cette moyenne.",
   "Une désactivation peut être volontaire avant un lancement. Aucun incident, problème fournisseur ou manque à gagner n’est déduit automatiquement. Le taux réel de disponibilité nécessite le catalogue complet et une couverture des notifications validée.",
 ];
+export type StockoutReportLayout = "product" | "restaurant";
+
+/** Product-first view: each product lists the restaurants that recorded it, with count and clipped duration. */
+export function stockoutProductSections(report: StockoutReport) {
+  const names = new Map(report.restaurants.map(r => [r.id, r.name]));
+  return report.products.map(product => {
+    const list = report.rows.filter(row => row.product_name === product.name);
+    const byRestaurant = new Map<string, typeof list>();
+    list.forEach(row => byRestaurant.set(row.restaurant_id, [...(byRestaurant.get(row.restaurant_id) ?? []), row]));
+    const restaurants = [...byRestaurant.entries()].map(([id, rows]) => ({
+      id, name: names.get(id) ?? rows[0].restaurant_name, events: rows.length,
+      minutes: rows.reduce((s, r) => s + r.minutes, 0),
+      open: rows.filter(r => !r.ended_at || Date.parse(r.ended_at) > r.to).length,
+      lastStart: rows.reduce((m, r) => Math.max(m, Date.parse(r.started_at)), 0),
+    })).sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name, "fr"));
+    return { ...product, restaurantRows: restaurants };
+  });
+}
