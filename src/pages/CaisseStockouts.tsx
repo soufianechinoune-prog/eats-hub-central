@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Download, Search, PackageX, Clock, Store, Radio, ChevronRight, CheckCircle2, X, ArrowUpDown } from "lucide-react";
 import * as XLSX from "xlsx";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,6 +22,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { cn } from "@/lib/utils";
+import { rankStockoutRestaurants, selectStockoutHistory, type RestaurantStockoutSort, type StockoutSort } from "@/lib/stockoutHistory";
 
 interface Stockout {
   restaurant_id: string;
@@ -59,12 +61,17 @@ export default function CaisseStockouts() {
   const [product, setProduct] = useState<string | null>(null);
   const [onlyOngoing, setOnlyOngoing] = useState(false);
   const [openResto, setOpenResto] = useState<string | null>(null);
+  const [historyResto, setHistoryResto] = useState<string | null>(null);
+  const [restaurantSort, setRestaurantSort] = useState<RestaurantStockoutSort>("products");
+  const [detailSort, setDetailSort] = useState<StockoutSort>("recent");
+  const [category, setCategory] = useState("all");
 
   const { data: restaurants } = useQuery({
     queryKey: ["stockouts-restaurants", selectedChainId],
     enabled: !!selectedChainId,
     queryFn: async () => {
-      const { data, error } = await supabase.from("restaurants").select("id").eq("chain_id", selectedChainId!);
+      if (!selectedChainId) return [];
+      const { data, error } = await supabase.from("restaurants").select("id").eq("chain_id", selectedChainId);
       if (error) throw error;
       return (data ?? []).map((r) => r.id as string);
     },
@@ -99,33 +106,36 @@ export default function CaisseStockouts() {
       (!s || r.product_name.toLowerCase().includes(s) || r.restaurant_name.toLowerCase().includes(s)));
   }, [scoped, search, onlyOngoing, product]);
 
+  const activeResto = !liveMode && scoped.some(r => r.restaurant_id === historyResto) ? historyResto : null;
+  const categories = useMemo(() => [...new Set(rows.filter(r => !activeResto || r.restaurant_id === activeResto).map(r => r.category ?? "Sans catégorie"))].sort(), [rows, activeResto]);
+  const activeCategory = categories.includes(category) ? category : "all";
+  const detailRows = useMemo(() => selectStockoutHistory(rows, activeResto, activeCategory, detailSort), [rows, activeResto, activeCategory, detailSort]);
+  const selectedRestoName = scoped.find(r => r.restaurant_id === activeResto)?.restaurant_name;
+  const selectRestaurant = (id: string) => {
+    if (liveMode) setOpenResto(id);
+    else { setHistoryResto(id); setCategory("all"); }
+  };
+
   const kpis = useMemo(() => ({
-    total: rows.length,
-    ongoing: rows.filter((r) => r.is_ongoing).length,
-    restos: new Set(rows.map((r) => r.restaurant_id)).size,
-    avg: rows.length ? rows.reduce((a, r) => a + Number(r.duration_minutes), 0) / rows.length : 0,
-  }), [rows]);
+    total: detailRows.length,
+    ongoing: detailRows.filter((r) => r.is_ongoing).length,
+    restos: new Set(detailRows.map((r) => r.restaurant_id)).size,
+    avg: detailRows.length ? detailRows.reduce((a, r) => a + Number(r.duration_minutes), 0) / detailRows.length : 0,
+  }), [detailRows]);
 
   const topProducts = useMemo(() => {
     const m = new Map<string, { name: string; n: number; min: number }>();
-    (q.data ?? []).forEach((r) => {
+    (q.data ?? []).filter(r => !activeResto || r.restaurant_id === activeResto).forEach((r) => {
       const x = m.get(r.product_name) ?? { name: r.product_name, n: 0, min: 0 };
       x.n += 1; x.min += Number(r.duration_minutes);
       m.set(r.product_name, x);
     });
     return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 10);
-  }, [q.data]);
+  }, [q.data, activeResto]);
 
-  const byResto = useMemo(() => {
-    const m = new Map<string, { id: string; name: string; n: number; min: number; ongoing: number }>();
-    rows.forEach((r) => {
-      const x = m.get(r.restaurant_id) ?? { id: r.restaurant_id, name: r.restaurant_name, n: 0, min: 0, ongoing: 0 };
-      x.n += 1; x.min += Number(r.duration_minutes); if (r.is_ongoing) x.ongoing += 1;
-      m.set(r.restaurant_id, x);
-    });
-    return [...m.values()].sort((a, b) => b.min - a.min);
-  }, [rows]);
-  const maxMin = Math.max(1, ...byResto.map((r) => r.min));
+  const byResto = useMemo(() => rankStockoutRestaurants(rows, restaurantSort), [rows, restaurantSort]);
+  const rankValue = (r: typeof byResto[number]) => restaurantSort === "duration" ? r.min : restaurantSort === "events" ? r.n : r.productCount;
+  const maxRank = Math.max(1, ...byResto.map(rankValue));
 
   const detail = useMemo(() => {
     if (!openResto) return null;
@@ -146,7 +156,7 @@ export default function CaisseStockouts() {
   }, [openResto, q.data, start, end]);
 
   const exportXlsx = () => {
-    const ws = XLSX.utils.json_to_sheet(rows.map((r) => ({
+    const ws = XLSX.utils.json_to_sheet(detailRows.map((r) => ({
       Restaurant: r.restaurant_name, Produit: r.product_name, Catégorie: r.category ?? "", "Réf. Splash": r.item_id,
       Début: format(new Date(r.started_at), "dd/MM/yyyy HH:mm"),
       Fin: r.ended_at ? format(new Date(r.ended_at), "dd/MM/yyyy HH:mm") : "En cours",
@@ -200,51 +210,72 @@ export default function CaisseStockouts() {
                   <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Rechercher un produit ou un restaurant…" className="pl-9" />
                 </div>
                 <Button variant={onlyOngoing ? "destructive" : "outline"} size="sm" onClick={() => setOnlyOngoing((v) => !v)}>En cours uniquement</Button>
-                <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!rows.length}><Download className="mr-1.5 h-4 w-4" />Excel</Button>
+                <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!detailRows.length}><Download className="mr-1.5 h-4 w-4" />Excel</Button>
               </div>
               {topProducts.length > 0 && (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted-foreground">Les plus fréquents (30 j) :</span>
                   {topProducts.map((p) => (
-                    <button key={p.name} onClick={() => setProduct(product === p.name ? null : p.name)}
-                      className={cn("rounded-full border px-3 py-1 text-xs transition-colors",
+                    <Button variant="outline" size="sm" key={p.name} onClick={() => setProduct(product === p.name ? null : p.name)}
+                      className={cn("h-auto rounded-full border px-3 py-1 text-xs transition-colors",
                         product === p.name ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}>
                       {p.name} <span className="opacity-70">× {p.n}</span>
-                    </button>
+                    </Button>
                   ))}
                 </div>
               )}
             </CardContent>
           </Card>
 
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">Par restaurant</CardTitle><CardDescription>Cliquez pour voir le détail</CardDescription></CardHeader>
+          <div className="grid min-w-0 grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <Card className="min-w-0">
+              <CardHeader className="space-y-3 pb-2">
+                <div className="flex items-center justify-between gap-2"><CardTitle className="text-base">Par restaurant</CardTitle>
+                  {activeResto && <Button size="sm" variant="ghost" onClick={() => { setHistoryResto(null); setCategory("all"); }}>Tous <X className="ml-1 h-3.5 w-3.5" /></Button>}
+                </div>
+                <Select value={restaurantSort} onValueChange={v => setRestaurantSort(v as RestaurantStockoutSort)}>
+                  <SelectTrigger aria-label="Trier les restaurants"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="products">Produits concernés ↓</SelectItem><SelectItem value="events">Nombre de ruptures ↓</SelectItem><SelectItem value="duration">Durée cumulée ↓</SelectItem><SelectItem value="name">Restaurant A → Z</SelectItem></SelectContent>
+                </Select>
+              </CardHeader>
               <CardContent className="space-y-1">
                 {byResto.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant concerné.</p>}
                 {byResto.map((r) => (
-                  <button key={r.id} onClick={() => setOpenResto(r.id)} className="group w-full rounded-lg p-2 text-left hover:bg-muted">
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="truncate font-medium">{r.name}</span>
-                      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Button variant="ghost" key={r.id} onClick={() => selectRestaurant(r.id)} aria-pressed={activeResto === r.id} className={cn("group block h-auto w-full rounded-lg p-2 text-left whitespace-normal", activeResto === r.id && "bg-primary/10 ring-1 ring-primary/30")}>
+                    <div className="flex items-start justify-between gap-2 text-sm">
+                      <span className="min-w-0 break-words font-medium">{r.name}</span>
+                      <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
                         {r.ongoing > 0 && <Badge variant="destructive" className="h-5 px-1.5">{r.ongoing} en cours</Badge>}
-                        {r.n} · {fmtDur(r.min)}<ChevronRight className="h-4 w-4 opacity-0 group-hover:opacity-100" />
+                        <ChevronRight className="h-4 w-4" />
                       </span>
                     </div>
+                    <div className="mt-1 text-xs font-normal text-muted-foreground">{r.productCount} produit{r.productCount > 1 ? "s" : ""} · {r.n} rupture{r.n > 1 ? "s" : ""} · {fmtDur(r.min)} cumulées</div>
                     <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-muted">
-                      <div className="h-full rounded-full bg-gradient-to-r from-primary to-destructive" style={{ width: `${(r.min / maxMin) * 100}%` }} />
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${(rankValue(r) / maxRank) * 100}%` }} />
                     </div>
-                  </button>
+                  </Button>
                 ))}
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-base">Détail rupture par rupture</CardTitle><CardDescription>{rows.length} rupture{rows.length > 1 ? "s" : ""}</CardDescription></CardHeader>
+            <Card className="min-w-0">
+              <CardHeader className="space-y-3 pb-2">
+                <div><CardTitle className="break-words text-base">{selectedRestoName ?? "Détail rupture par rupture"}</CardTitle><CardDescription>{detailRows.length} rupture{detailRows.length > 1 ? "s" : ""} · {selectedRestoName ? "Restaurant sélectionné" : "Tous les restaurants du périmètre"}</CardDescription></div>
+                <div className="flex flex-wrap gap-2">
+                  <Select value={detailSort} onValueChange={v => setDetailSort(v as StockoutSort)}>
+                    <SelectTrigger className="w-full sm:w-[210px]" aria-label="Trier les ruptures"><ArrowUpDown className="mr-2 h-4 w-4 shrink-0" /><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="recent">Plus récentes</SelectItem><SelectItem value="oldest">Plus anciennes</SelectItem><SelectItem value="longest">Durée la plus longue</SelectItem><SelectItem value="shortest">Durée la plus courte</SelectItem><SelectItem value="product">Produit A → Z</SelectItem></SelectContent>
+                  </Select>
+                  <Select value={activeCategory} onValueChange={setCategory}>
+                    <SelectTrigger className="w-full sm:w-[210px]" aria-label="Filtrer par catégorie"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="all">Toutes les catégories</SelectItem>{categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              </CardHeader>
               <CardContent>
                 {q.isLoading ? <Skeleton className="h-40 w-full" /> : q.error ? (
                   <p className="py-8 text-center text-sm text-destructive">Impossible de charger les ruptures.</p>
-                ) : rows.length === 0 ? (
+                ) : detailRows.length === 0 ? (
                   <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
                     <CheckCircle2 className="h-8 w-8 text-accent" />Aucune rupture remontée par la caisse pour ce périmètre.
                   </div>
@@ -254,8 +285,8 @@ export default function CaisseStockouts() {
                       <TableHead>Produit</TableHead><TableHead>Restaurant</TableHead><TableHead>Période</TableHead><TableHead className="text-right">Durée</TableHead>
                     </TableRow></TableHeader>
                     <TableBody>
-                      {rows.map((r) => (
-                        <TableRow key={`${r.restaurant_id}-${r.item_id}-${r.started_at}`} className="cursor-pointer" onClick={() => setOpenResto(r.restaurant_id)}>
+                      {detailRows.map((r) => (
+                        <TableRow key={`${r.restaurant_id}-${r.item_id}-${r.started_at}`} className={liveMode ? "cursor-pointer" : ""} onClick={() => liveMode && setOpenResto(r.restaurant_id)}>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className={cn("h-2 w-2 shrink-0 rounded-full", r.is_ongoing ? "bg-destructive" : "bg-accent")} />
@@ -263,12 +294,12 @@ export default function CaisseStockouts() {
                             </div>
                             {r.category && <div className="ml-4 text-xs text-muted-foreground">{r.category}</div>}
                           </TableCell>
-                          <TableCell>{r.restaurant_name}</TableCell>
+                          <TableCell><Button variant="link" className="h-auto p-0 text-left whitespace-normal" onClick={() => selectRestaurant(r.restaurant_id)}>{r.restaurant_name}</Button></TableCell>
                           <TableCell className="text-sm tabular-nums">
-                            {fmtDt(r.started_at)} → {r.ended_at ? format(new Date(r.ended_at), "HH:mm") : <Badge variant="destructive" className="ml-1">En cours</Badge>}
+                            {fmtDt(r.started_at)} → {r.ended_at ? fmtDt(r.ended_at) : <Badge variant="destructive" className="ml-1">En cours</Badge>}
                             <div><Badge variant="outline" className={cn("mt-1 text-[10px]", isRush(r.started_at) && "border-destructive/40 text-destructive")}>{isRush(r.started_at) ? "Plein rush" : "Hors rush"}</Badge></div>
                           </TableCell>
-                          <TableCell className="text-right"><span className={cn("rounded-md px-2 py-0.5 text-sm font-medium tabular-nums", Number(r.duration_minutes) > 120 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{fmtDur(Number(r.duration_minutes))}</span></TableCell>
+                          <TableCell className="whitespace-nowrap text-right"><span className={cn("rounded-md px-2 py-0.5 text-sm font-medium tabular-nums", Number(r.duration_minutes) > 120 ? "bg-destructive/10 text-destructive" : "bg-muted")}>{fmtDur(Number(r.duration_minutes))}</span></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
