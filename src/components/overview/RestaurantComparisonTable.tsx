@@ -832,10 +832,10 @@ export function RestaurantComparisonTable({
                             {vc.cashShare != null ? `${vc.cashShare.toFixed(1)}%` : "—"}
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatVariation(vc.cashVariation) ?? <span className="text-muted-foreground">—</span>}
+                            {formatVariation(showN1Comparison ? vc.cashVariation : null) ?? <span className="text-muted-foreground">—</span>}
                           </TableCell>
                           <TableCell className="text-right">
-                            {formatVariation(vc.cashOrdersVariation) ?? <span className="text-muted-foreground">—</span>}
+                            {formatVariation(showN1Comparison ? vc.cashOrdersVariation : null) ?? <span className="text-muted-foreground">—</span>}
                           </TableCell>
                         </>
                       );
@@ -911,7 +911,9 @@ export function RestaurantComparisonTable({
                   {showN1Column && (
                     <TableCell className="text-right">
                       {formatVariation(isAll ? networkTotals.revenueVariation : (() => {
-                        const comparable = filteredStats.filter(r => (channelPrior(r.resto) ?? 0) > 0);
+                        const comparable = analyticsCtx.comparisonScope === "constant"
+                          ? filteredStats.filter(r => networkTotals.comparableRestaurantIds?.includes(r.resto.id))
+                          : filteredStats;
                         return revenueChange(comparable.reduce((sum, r) => sum + r.v.revenue, 0), comparable.reduce((sum, r) => sum + (channelPrior(r.resto) ?? 0), 0));
                       })()) ?? <span className="text-muted-foreground">—</span>}
                     </TableCell>
