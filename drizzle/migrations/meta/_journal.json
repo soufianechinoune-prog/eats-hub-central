@@ -554,6 +554,13 @@
       "when": 1793212845818,
       "tag": "0078_chataigne_daily_by_service",
       "breakpoints": true
+    },
+    {
+      "idx": 79,
+      "version": "7",
+      "when": 1793277995273,
+      "tag": "0079_migration",
+      "breakpoints": true
     }
   ]
 }
