@@ -8,8 +8,10 @@ export const MEAL_VOUCHER_PROVIDERS = [
   "Sodexo",
   "UpDejeuner",
   "Bimpli (ex Apetiz)",
-  "Pluxee",
 ] as const;
+
+/** Sodexo s'est renommé Pluxee : les deux libellés Uber sont fusionnés sous « Sodexo ». */
+const PROVIDER_ALIASES: Record<string, MealVoucherProvider> = { Pluxee: "Sodexo" };
 
 export type MealVoucherProvider = (typeof MEAL_VOUCHER_PROVIDERS)[number];
 
@@ -80,15 +82,17 @@ export function useMealVoucherBreakdown({ restaurantIds, startDate, endDate }: P
       const breakdownMap = new Map<string, Map<MealVoucherProvider, { amount: number; count: number }>>();
       for (const row of (breakdownRes.data ?? []) as Array<{
         restaurant_id: string;
-        provider: MealVoucherProvider;
+        provider: string;
         amount: number | string;
         order_count: number | string;
       }>) {
         const providers = breakdownMap.get(row.restaurant_id) ?? new Map();
         breakdownMap.set(row.restaurant_id, providers);
-        providers.set(row.provider, {
-          amount: Number(row.amount) || 0,
-          count: Number(row.order_count) || 0,
+        const key = (PROVIDER_ALIASES[row.provider] ?? row.provider) as MealVoucherProvider;
+        const prev = providers.get(key) ?? { amount: 0, count: 0 };
+        providers.set(key, {
+          amount: prev.amount + (Number(row.amount) || 0),
+          count: prev.count + (Number(row.order_count) || 0),
         });
       }
 
