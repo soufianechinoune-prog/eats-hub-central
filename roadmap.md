@@ -1,5 +1,11 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Notes Uber — automatisation et deux périodes
+- [x] Afficher séparément la moyenne 90 jours et les avis de la période sélectionnée dans la synthèse et le comparatif ; août vérifié en session sans changement de la note 90 jours.
+- [x] Corriger les erreurs d’import masquées, les doublons de file et de planification ; collecte quotidienne unique à 05:00 UTC, notifications signées vérifiées ; 327 demandes de rattrapage Chicken Street août–octobre lancées, 15 terminées au contrôle.
+- [x] Vérifier les calculs pondérés et le parcours connecté ; affichage explicitement reconstruit, aucune garantie d’équivalence à la note publique.
+- [ ] Confirmer la concordance avec les cinq notes publiques après réception des rapports Uber : attente du traitement asynchrone des 312 demandes restantes et des avis récents indisponibles avant J-2.
+
 ## Titres restaurant — vue annuelle
 - [x] Consolider les commandes en résumés calendaires Paris, préserver les corrections historiques par deltas transactionnels ; vue 2026 connectée vérifiée (1 689 418 €), agrégation réseau ~106 ms, 3 786 jours/émetteurs Place de Clichy sans écart avec les commandes, quatre tests réussis.
 

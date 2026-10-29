@@ -22,14 +22,19 @@ import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopov
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
 import { revenueChange, isLaunchN1 } from "@/lib/overviewN1";
+import { summarizeUberRatings, type RatingAggregate } from "@/lib/uberRatings";
 
-type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
+type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "rating90" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
 type SortDirection = "asc" | "desc";
 type ChannelTab = "all" | "uber" | "deliveroo" | "cash" | "chataigne";
 
 import type { AdsRatioByRestaurant } from "@/hooks/useAdsRevenueRatio";
 
 interface RestaurantComparisonTableProps {
+  recentRatings?: RatingAggregate[];
+  periodRatings?: RatingAggregate[];
+  recentRatingsLoading?: boolean;
+  periodRatingsLoading?: boolean;
   stats: RestaurantNetworkStats[];
   networkTotals: NetworkTotals;
   showN1Comparison: boolean;
@@ -142,6 +147,10 @@ export function RestaurantComparisonTable({
   periodStart,
   periodEnd,
   forcedChannel,
+  recentRatings = [],
+  periodRatings = [],
+  recentRatingsLoading = false,
+  periodRatingsLoading = false,
 }: RestaurantComparisonTableProps) {
   const navigate = useNavigate();
   const analyticsCtx = useAnalyticsContext();
@@ -356,6 +365,7 @@ export function RestaurantComparisonTable({
         case "netPayout": aVal = a.netPayout; bVal = b.netPayout; break;
         case "mealVoucher": aVal = a.mealVoucher; bVal = b.mealVoucher; break;
         case "rating": aVal = a.rating ?? -999; bVal = b.rating ?? -999; break;
+        case "rating90": aVal = summarizeUberRatings(recentRatings, [A.resto.id]).rating ?? -999; bVal = summarizeUberRatings(recentRatings, [B.resto.id]).rating ?? -999; break;
         case "profitability": aVal = a.profitability ?? -999; bVal = b.profitability ?? -999; break;
         case "totalDeliveryTime": aVal = a.totalDeliveryTime ?? 999; bVal = b.totalDeliveryTime ?? 999; break;
         case "errorRate": aVal = a.errorRate ?? 999; bVal = b.errorRate ?? 999; break;
@@ -379,7 +389,7 @@ export function RestaurantComparisonTable({
       const numB = bVal as number;
       return sortDirection === "asc" ? numA - numB : numB - numA;
     });
-  }, [projectedRows, sortColumn, sortDirection, adsRatioMap, cashByRestaurant, dishopByRestaurant, chataigneByRestaurant]);
+  }, [projectedRows, sortColumn, sortDirection, adsRatioMap, cashByRestaurant, dishopByRestaurant, chataigneByRestaurant, recentRatings]);
 
   const filteredStats = useMemo(() => {
     if (!searchQuery.trim()) return sortedStats;
@@ -601,7 +611,8 @@ export function RestaurantComparisonTable({
               )}
               {cols.orders && <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>}
               {cols.basket && <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>}
-              {cols.rating && <HeaderCell column="rating" className="text-right">Note</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating90" className="text-right">Note 90 j</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating" className="text-right">Note période</HeaderCell>}
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
               {cols.downtime && <HeaderCell column="downtime" className="text-right">Dispo.</HeaderCell>}
@@ -815,11 +826,18 @@ export function RestaurantComparisonTable({
                       </TableCell>
                     )}
                     {cols.rating && (
+                      <TableCell className="text-right whitespace-nowrap">
+                        <span className="font-medium">{recentRatingsLoading ? "…" : summarizeUberRatings(recentRatings, [resto.id]).rating?.toFixed(1) ?? "—"}</span>
+                        <span className="block text-xs text-muted-foreground">{summarizeUberRatings(recentRatings, [resto.id]).count} avis</span>
+                      </TableCell>
+                    )}
+                    {cols.rating && (
                       <TableCell className="text-right">
                         <span className={cn("flex items-center justify-end gap-1 font-medium", getStatusTextClass(ratingStatus))}>
                           <Star className="h-3 w-3" />
-                          {v.rating?.toFixed(1) ?? "—"}
+                          {periodRatingsLoading ? "…" : summarizeUberRatings(periodRatings, [resto.id]).rating?.toFixed(1) ?? "—"}
                         </span>
+                        <span className="block text-xs text-muted-foreground">{summarizeUberRatings(periodRatings, [resto.id]).count} avis</span>
                       </TableCell>
                     )}
                     {cols.errorRate && (
@@ -874,7 +892,7 @@ export function RestaurantComparisonTable({
                       + (cols.adsRatio ? 1 : 0)
                       + (cols.orders ? 1 : 0)
                       + (cols.basket ? 1 : 0)
-                      + (cols.rating ? 1 : 0)
+                      + (cols.rating ? 2 : 0)
                       + (cols.errorRate ? 1 : 0)
                       + (cols.delivery ? 1 : 0)
                       + (cols.downtime ? 1 : 0);
@@ -1000,10 +1018,15 @@ export function RestaurantComparisonTable({
                     </TableCell>
                   )}
                   {cols.rating && (
+                    <TableCell className="text-right font-semibold">
+                      {recentRatingsLoading ? "…" : summarizeUberRatings(recentRatings, projectedRows.map(row => row.resto.id)).rating?.toFixed(1) ?? "—"}
+                    </TableCell>
+                  )}
+                  {cols.rating && (
                     <TableCell className="text-right">
                       <span className="flex items-center justify-end gap-1 font-semibold text-muted-foreground">
                         <Star className="h-3 w-3" />
-                        {networkTotals.avgRating?.toFixed(1) ?? "—"}
+                        {periodRatingsLoading ? "…" : summarizeUberRatings(periodRatings, projectedRows.map(row => row.resto.id)).rating?.toFixed(1) ?? "—"}
                       </span>
                     </TableCell>
                   )}
