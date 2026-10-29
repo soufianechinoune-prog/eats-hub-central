@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStockoutReport, parisMidnight, stockoutReportDefaults, stockoutRestaurantSections, type ReportStockout } from "./stockoutReport";
+import { buildStockoutReport, parisMidnight, stockoutReportDefaults, stockoutProductSections, stockoutRestaurantSections, type ReportStockout } from "./stockoutReport";
 const scope = [{ id: "a", name: "Juvisy" }, { id: "b", name: "Le Mans" }, { id: "c", name: "Autre" }];
 const row = (overrides: Partial<ReportStockout> = {}): ReportStockout => ({ restaurant_id: "a", restaurant_name: "Juvisy", item_id: "prd1", product_name: "Dessert", category: null, started_at: "2026-10-27T22:00:00Z", ended_at: "2026-10-29T00:00:00Z", duration_minutes: 1560, is_ongoing: false, ...overrides });
 const now = Date.parse("2026-10-30T12:00:00Z");
@@ -46,5 +46,12 @@ describe("rapport ruptures", () => {
     const r = buildStockoutReport([row(), row({ item_id: "prd2", product_name: "Burger" }), row({ item_id: "ing1" })], scope, "2026-10-28", "2026-10-28", null, null, now);
     expect(r.total.minutes).toBe(2880);
     expect(r.total.products).toBe(2);
+  });
+});describe("rapport par produit", () => {
+  it("liste par produit les restaurants en rupture avec nombre et durée", () => {
+    const report = buildStockoutReport([row(), row({ started_at: "2026-10-28T10:00:00Z", ended_at: "2026-10-28T12:00:00Z" }), row({ restaurant_id: "b", restaurant_name: "Le Mans" })], scope, "2026-10-28", "2026-10-28", null, null, now);
+    const [dessert] = stockoutProductSections(report);
+    expect(dessert.name).toBe("Dessert");
+    expect(dessert.restaurantRows.map(r => [r.id, r.events, r.minutes])).toEqual([["a", 2, 1560], ["b", 1, 1440]]);
   });
 });
