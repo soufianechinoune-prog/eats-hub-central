@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { feedbackImportFailed } from './feedbackResult.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -54,7 +55,7 @@ Deno.serve(async (req) => {
         const { data, error } = await supabase.functions.invoke('parse-reviews-order', {
           body: { csvContent: csvText, restaurantId, dryRun: false },
         });
-        if (error || data?.success === false || (data?.stats?.errors ?? 0) > 0) {
+        if (feedbackImportFailed(error, data)) {
           throw new Error('Customer feedback import failed; retry required');
         }
         console.log('Customer feedback imported:', data?.stats?.inserted ?? 0);
@@ -68,7 +69,7 @@ Deno.serve(async (req) => {
         const { data, error } = await supabase.functions.invoke('parse-reviews-item', {
           body: { csvContent: csvText, restaurantId, dryRun: false },
         });
-        if (error || data?.success === false || (data?.stats?.errors ?? 0) > 0) {
+        if (feedbackImportFailed(error, data)) {
           throw new Error('Menu feedback import failed; retry required');
         }
         console.log('Menu feedback imported:', data?.stats?.inserted ?? 0);
