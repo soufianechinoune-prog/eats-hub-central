@@ -34,7 +34,7 @@ describe("meal voucher consolidated reads", () => {
     expect(rpc).toHaveBeenCalledWith("get_meal_voucher_totals", { p_restaurant_ids: [restaurantId], p_date_from: "2026-01-01", p_date_to: "2026-10-28" });
   });
 
-  it.each([[], ["00000000-0000-0000-0000-000000000000"]])("does not fetch an unresolved restaurant scope %j", (restaurantIds) => {
+  it.each([{ restaurantIds: [] }, { restaurantIds: ["00000000-0000-0000-0000-000000000000"] }])("does not fetch an unresolved restaurant scope $restaurantIds", ({ restaurantIds }) => {
     renderHook(() => useMealVoucherBreakdown({ restaurantIds, ...period }), { wrapper });
     expect(rpc).not.toHaveBeenCalled();
   });
