@@ -15013,6 +15013,7 @@ export type Database = {
           p_start_date: string
         }
         Returns: {
+          meal_voucher_amount: number
           net_payout: number
           order_count: number
           payout_date: string
