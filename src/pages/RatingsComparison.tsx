@@ -367,7 +367,7 @@ const RatingsComparison = () => {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => navigate("/overview")}
+              onClick={() => navigate("/overview?channel=uber")}
               className="rounded-full"
             >
               <ArrowLeft className="h-5 w-5" />
