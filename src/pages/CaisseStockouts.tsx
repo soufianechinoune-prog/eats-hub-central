@@ -81,6 +81,21 @@ export default function CaisseStockouts() {
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: restaurants }) ?? restaurants;
   }, [restaurants, selectedRestaurants, selectedChainId]);
 
+  // Restaurants « scannés » = ceux dont la station de notification Splash est reliée.
+  const { data: scannedCount } = useQuery({
+    queryKey: ["stockouts-scanned", selectedChainId],
+    enabled: !!selectedChainId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await (supabase as any)
+        .from("splash_notification_stations")
+        .select("restaurant_id")
+        .eq("chain_id", selectedChainId);
+      if (error) throw error;
+      return new Set((data ?? []).map((r: { restaurant_id: string }) => r.restaurant_id)).size;
+    },
+  });
+
   const q = useQuery({
     queryKey: ["splash-stockouts", start, end, ids],
     enabled: !!ids && ids.length > 0,
@@ -192,7 +207,7 @@ export default function CaisseStockouts() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Kpi icon={PackageX} tone="bg-primary/10 text-primary" label={liveMode ? "Ruptures aujourd'hui" : "Ruptures sur la période"} value={String(kpis.total)} />
             <Kpi icon={Radio} tone="bg-destructive/10 text-destructive" label="En cours" value={String(kpis.ongoing)} />
-            <Kpi icon={Store} tone="bg-accent/15 text-accent" label="Restaurants concernés" value={String(kpis.restos)} />
+            <Kpi icon={Store} tone="bg-accent/15 text-accent" label="Restaurants concernés" value={scannedCount ? `${kpis.restos} sur ${scannedCount}` : String(kpis.restos)} />
             <Kpi icon={Clock} tone="bg-secondary text-secondary-foreground" label="Durée moyenne" value={kpis.total ? fmtDur(kpis.avg) : "—"} />
           </div>
 
