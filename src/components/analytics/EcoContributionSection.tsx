@@ -427,185 +427,126 @@ export function EcoContributionSection({
 
   return (
     <div className="space-y-6">
-      {/* ═══════════════ ZONE 1: Status Banner ═══════════════ */}
-      <div className={cn(
-        "rounded-xl p-4 md:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4",
-        isExempt
-          ? "bg-gradient-to-r from-green-500/10 via-green-500/5 to-transparent border border-green-500/20"
-          : "bg-gradient-to-r from-red-500/10 via-red-500/5 to-transparent border border-red-500/20"
-      )}>
-        <div className="flex items-center gap-3">
-          <div className={cn(
-            "flex items-center justify-center h-11 w-11 rounded-xl",
-            isExempt ? "bg-green-500/15" : "bg-red-500/15"
-          )}>
-            {isExempt
-              ? <Shield className="h-6 w-6 text-green-600" />
-              : <ShieldAlert className="h-6 w-6 text-red-500" />
-            }
-          </div>
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h2 className="text-lg font-bold leading-tight">Éco-Contribution</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {yearLabel} · {totals.lineCount} lignes · {byRestaurant.length} restaurants
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-background/80 backdrop-blur rounded-full p-0.5 border border-border/50">
-            <button
-              onClick={() => setLocalYear(null)}
-              className={cn(
-                "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                isHistorique
-                  ? "bg-primary text-primary-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              Historique
-            </button>
-            {YEAR_OPTIONS.map(y => (
-              <button
-                key={y}
-                onClick={() => setLocalYear(y)}
-                className={cn(
-                  "px-3 py-1.5 rounded-full text-xs font-medium transition-all",
-                  localYear === y
-                    ? "bg-primary text-primary-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {y}
-              </button>
-            ))}
-          </div>
-
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs rounded-full">
-                <Download className="h-3.5 w-3.5" />
-                Exporter
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => handleExport("pdf")}>
-                <Download className="h-4 w-4 mr-2" />
-                Export PDF
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleExport("excel")}>
-                <FileSpreadsheet className="h-4 w-4 mr-2" />
-                Export Excel
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* ═══════════════ ZONE 2: Hero KPI + Stat Strip ═══════════════ */}
-      <Card className={cn(
-        "overflow-hidden border-0 shadow-md",
-        isExempt
-          ? "bg-gradient-to-br from-green-500/5 via-background to-background"
-          : "bg-gradient-to-br from-red-500/5 via-background to-background"
-      )}>
-        <CardContent className="p-5 md:p-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                <Leaf className="h-3.5 w-3.5" />
-                Solde Net
-              </div>
-              <div className={cn(
-                "text-4xl md:text-5xl font-extrabold tracking-tight",
-                isExempt ? "text-green-600" : "text-red-500"
-              )}>
-                {fmt(totals.net)}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {isExempt
-                  ? "Les remboursements couvrent les prélèvements"
-                  : "Défaut d'exonération détecté — action requise"
-                }
-              </p>
-            </div>
-
-            <div className="flex items-stretch gap-4 md:gap-6">
-              <div className="text-center space-y-1 px-4 border-l border-border/50 first:border-l-0 first:pl-0">
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1">
-                  <TrendingUp className="h-3 w-3 text-green-600" />
-                  Remboursements
+      {/* ═══════════════ ZONE 1+2: Hero unifié ═══════════════ */}
+      {(() => {
+        const verifiedTotal = repStats ? repStats.inscrit + repStats.nonTrouve : 0;
+        const adhesionRate = repStats && verifiedTotal > 0 ? Math.round((repStats.inscrit / verifiedTotal) * 100) : null;
+        const refundShare = totals.refund + absCharge > 0 ? (totals.refund / (totals.refund + absCharge)) * 100 : 0;
+        return (
+          <Card className="overflow-hidden shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 px-5 py-3 border-b bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg", isExempt ? "bg-green-500/15" : "bg-red-500/15")}>
+                  {isExempt ? <Shield className="h-4 w-4 text-green-600" /> : <ShieldAlert className="h-4 w-4 text-red-500" />}
                 </div>
-                <div className="text-xl font-bold text-green-600 tabular-nums">{fmt(totals.refund)}</div>
-              </div>
-              <div className="text-center space-y-1 px-4 border-l border-border/50">
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1">
-                  <TrendingDown className="h-3 w-3 text-red-500" />
-                  Prélèvements
-                </div>
-                <div className="text-xl font-bold text-red-500 tabular-nums">{fmt(totals.charge)}</div>
-              </div>
-              <div className="text-center space-y-1 px-4 border-l border-border/50">
-                <div className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center justify-center gap-1">
-                  <Hash className="h-3 w-3" />
-                  Lignes
-                </div>
-                <div className="text-xl font-bold tabular-nums">{totals.lineCount}</div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {/* Barre 1: Ratio remboursements / prélèvements */}
-            <div>
-              <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
-                <span>Ratio remboursements / prélèvements</span>
-                <span className="font-semibold">{recoveryRatio}%</span>
-              </div>
-              <div className="h-2.5 w-full bg-red-500/15 rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-all duration-700",
-                    recoveryRatio >= 100 ? "bg-green-500" : recoveryRatio >= 50 ? "bg-yellow-500" : "bg-red-500"
-                  )}
-                  style={{ width: `${Math.min(recoveryRatio, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Barre 2: Taux d'adhésion REP */}
-            {repChecked && repStats && (() => {
-              const verifiedTotal = repStats.inscrit + repStats.nonTrouve;
-              const adhesionRate = verifiedTotal > 0 ? Math.round((repStats.inscrit / verifiedTotal) * 100) : 0;
-              return (
                 <div>
-                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1.5">
-                    <span>Taux d'adhésion REP</span>
-                    <span className="font-semibold">{adhesionRate}%</span>
-                  </div>
-                  <div className="h-2.5 w-full bg-green-500/15 rounded-full overflow-hidden">
-                    <div
+                  <p className="text-sm font-semibold leading-tight">{isExempt ? "Situation exonérée" : "Défaut d'exonération — action requise"}</p>
+                  <p className="text-[11px] text-muted-foreground">{yearLabel} · {totals.lineCount} lignes · {byRestaurant.length} restaurants</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center bg-background rounded-full p-0.5 border">
+                  {[null, ...YEAR_OPTIONS].map(y => (
+                    <button
+                      key={String(y)}
+                      onClick={() => setLocalYear(y)}
                       className={cn(
-                        "h-full rounded-full transition-all duration-700",
-                        adhesionRate >= 80 ? "bg-green-500" : adhesionRate >= 50 ? "bg-yellow-500" : "bg-red-500"
+                        "px-3 py-1 rounded-full text-xs font-medium transition-all",
+                        localYear === y ? "bg-foreground text-background shadow-sm" : "text-muted-foreground hover:text-foreground"
                       )}
-                      style={{ width: `${adhesionRate}%` }}
-                    />
+                    >
+                      {y ?? "Historique"}
+                    </button>
+                  ))}
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs rounded-full">
+                      <Download className="h-3.5 w-3.5" />
+                      Exporter
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export PDF
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleExport("excel")}>
+                      <FileSpreadsheet className="h-4 w-4 mr-2" />
+                      Export Excel
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+
+            <CardContent className="p-5 md:p-6">
+              <div className="grid gap-6 lg:grid-cols-[1.3fr_2fr] lg:items-center">
+                <div>
+                  <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                    <Leaf className="h-3.5 w-3.5" /> Solde net
+                  </div>
+                  <div className={cn("mt-1 text-4xl md:text-5xl font-extrabold tracking-tight tabular-nums", isExempt ? "text-green-600" : "text-red-500")}>
+                    {fmt(totals.net)}
+                  </div>
+                  <div className="mt-4">
+                    <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div className="h-full bg-green-500 transition-all duration-700" style={{ width: `${refundShare}%` }} />
+                      <div className="h-full bg-red-500 transition-all duration-700" style={{ width: `${100 - refundShare}%` }} />
+                    </div>
+                    <div className="mt-1.5 flex justify-between text-[11px] text-muted-foreground">
+                      <span>Remboursé</span>
+                      <span className="font-semibold text-foreground">{recoveryRatio}% des prélèvements couverts</span>
+                    </div>
                   </div>
                 </div>
-              );
-            })()}
-          </div>
-        </CardContent>
-      </Card>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-xl border bg-green-500/5 p-3">
+                    <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <TrendingUp className="h-3 w-3 text-green-600" /> Remboursements
+                    </div>
+                    <div className="mt-1 text-lg font-bold tabular-nums text-green-600">{fmt(totals.refund)}</div>
+                  </div>
+                  <div className="rounded-xl border bg-red-500/5 p-3">
+                    <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <TrendingDown className="h-3 w-3 text-red-500" /> Prélèvements
+                    </div>
+                    <div className="mt-1 text-lg font-bold tabular-nums text-red-500">{fmt(totals.charge)}</div>
+                  </div>
+                  <div className="rounded-xl border p-3">
+                    <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <ShieldCheck className="h-3 w-3 text-primary" /> Adhésion REP
+                    </div>
+                    <div className="mt-1 text-lg font-bold tabular-nums">{adhesionRate !== null ? `${adhesionRate}%` : "—"}</div>
+                    {repStats && (
+                      <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div
+                          className={cn("h-full rounded-full", (adhesionRate ?? 0) >= 80 ? "bg-green-500" : (adhesionRate ?? 0) >= 50 ? "bg-yellow-500" : "bg-red-500")}
+                          style={{ width: `${adhesionRate ?? 0}%` }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-xl border p-3">
+                    <div className="flex items-center gap-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                      <Hash className="h-3 w-3" /> Lignes
+                    </div>
+                    <div className="mt-1 text-lg font-bold tabular-nums">{totals.lineCount}</div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       {/* ═══════════════ ZONE 3: Restaurant Table with integrated REP (moved up) ═══════════════ */}
       <Card>
         <CardContent className="pt-5 pb-3">
           {/* Search + count moved together below REP strip */}
 
+            <div className="grid gap-3 lg:grid-cols-2 mb-2 [&>div]:mb-0">
             {/* REP verification strip - inside the card */}
             <div className={cn(
                 "flex items-center justify-between gap-3 mb-4 px-3 py-2.5 rounded-lg border transition-colors",
@@ -743,8 +684,10 @@ export function EcoContributionSection({
                 </Button>
               </div>
 
+              </div>
+
               {/* ADEME data freshness notice */}
-              <p className="text-[10px] text-muted-foreground/70 leading-relaxed mt-1">
+              <p className="text-[10px] text-muted-foreground/70 leading-relaxed mb-4">
                 Source ADEME — Données mises à jour <span className="font-medium">tous les 3 mois</span>. Dernière MàJ : fév. 2026. Inutile d'actualiser quotidiennement.
               </p>
 
