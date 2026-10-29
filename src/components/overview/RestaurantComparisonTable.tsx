@@ -611,7 +611,7 @@ export function RestaurantComparisonTable({
               )}
               {cols.orders && <HeaderCell column="orders" className="text-right">Cmds</HeaderCell>}
               {cols.basket && <HeaderCell column="avgBasket" className="text-right">Panier</HeaderCell>}
-              {cols.rating && <HeaderCell column="rating90" className="text-right">Note réseau</HeaderCell>}
+              {cols.rating && <HeaderCell column="rating90" className="text-right">Note Uber Eats</HeaderCell>}
               {cols.rating && <HeaderCell column="rating" className="text-right">Moy. période</HeaderCell>}
               {cols.errorRate && <HeaderCell column="errorRate" className="text-right">Erreurs</HeaderCell>}
               {cols.delivery && <HeaderCell column="totalDeliveryTime" className="text-right">Prépa+Livr</HeaderCell>}
