@@ -1,5 +1,10 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Notes Uber — automatisation et deux périodes
+- [ ] Afficher séparément la moyenne 90 jours et les avis de la période sélectionnée dans la synthèse et le comparatif.
+- [ ] Réparer et vérifier la collecte automatique, lancer le rattrapage des avis récents.
+- [ ] Vérifier les calculs et le parcours connecté ; ne pas garantir la concordance publique sans données complètes.
+
 ## Titres restaurant — vue annuelle
 - [x] Consolider les commandes en résumés calendaires Paris, préserver les corrections historiques par deltas transactionnels ; vue 2026 connectée vérifiée (1 689 418 €), agrégation réseau ~106 ms, 3 786 jours/émetteurs Place de Clichy sans écart avec les commandes, quatre tests réussis.
 
