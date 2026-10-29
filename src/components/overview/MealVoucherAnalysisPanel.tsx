@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Ticket, AlertTriangle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +12,7 @@ import {
   type MealVoucherProvider,
   type MealVoucherRestaurantRow,
 } from "@/hooks/useMealVoucherBreakdown";
+import { providerMedianShares, restaurantPotential } from "@/lib/mealVoucherPotential";
 
 interface Props {
   rows: MealVoucherRestaurantRow[];
@@ -31,19 +33,17 @@ const PROVIDER_COLORS: Record<MealVoucherProvider, string> = {
   Sodexo: "bg-blue-500/10 text-blue-600 border-blue-500/30",
   UpDejeuner: "bg-emerald-500/10 text-emerald-600 border-emerald-500/30",
   "Bimpli (ex Apetiz)": "bg-violet-500/10 text-violet-600 border-violet-500/30",
-  Pluxee: "bg-amber-500/10 text-amber-600 border-amber-500/30",
 };
 
 const PROVIDER_LABELS: Record<MealVoucherProvider, string> = {
   Edenred: "Edenred",
   Swile: "Swile",
-  Sodexo: "Sodexo",
+  Sodexo: "Sodexo / Pluxee",
   UpDejeuner: "UpDéjeuner",
   "Bimpli (ex Apetiz)": "Bimpli",
-  Pluxee: "Pluxee",
 };
 
-type SortKey = "name" | "tr" | "share" | MealVoucherProvider;
+type SortKey = "name" | "tr" | "share" | "potential" | MealVoucherProvider;
 
 export function MealVoucherAnalysisPanel({
   rows,
@@ -85,6 +85,22 @@ export function MealVoucherAnalysisPanel({
     };
   }, [rows]);
 
+  const medianShares = useMemo(() => providerMedianShares(rows, MEAL_VOUCHER_PROVIDERS), [rows]);
+  const potentials = useMemo(() => {
+    const m = new Map<string, ReturnType<typeof restaurantPotential>>();
+    for (const r of rows) m.set(r.restaurantId, restaurantPotential(r, medianShares));
+    return m;
+  }, [rows, medianShares]);
+  const networkPotential = useMemo(() => {
+    let total = 0;
+    let restos = 0;
+    for (const p of potentials.values()) {
+      total += p.total;
+      if (p.total > 0) restos += 1;
+    }
+    return { total, restos };
+  }, [potentials]);
+
   const filteredSorted = useMemo(() => {
     const q = search.trim().toLowerCase();
     let list = rows
@@ -104,6 +120,9 @@ export function MealVoucherAnalysisPanel({
       if (sortKey === "tr") {
         av = a.trAmount;
         bv = b.trAmount;
+      } else if (sortKey === "potential") {
+        av = potentials.get(a.restaurantId)?.total ?? 0;
+        bv = potentials.get(b.restaurantId)?.total ?? 0;
       } else if (sortKey === "share") {
         av = a.trShareOfUber;
         bv = b.trShareOfUber;
@@ -114,7 +133,7 @@ export function MealVoucherAnalysisPanel({
       return (av as number) < (bv as number) ? -dir : (av as number) > (bv as number) ? dir : 0;
     });
     return list;
-  }, [rows, restaurantNames, search, sortKey, sortDir]);
+  }, [rows, restaurantNames, search, sortKey, sortDir, potentials]);
 
   const toggleSort = (k: SortKey) => {
     if (sortKey === k) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -191,13 +210,32 @@ export function MealVoucherAnalysisPanel({
         </Card>
       </div>
 
+      {networkPotential.total > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="py-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="text-sm">
+              <div className="font-semibold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" /> Manque à gagner potentiel : {fmtEur(networkPotential.total)}
+              </div>
+              <div className="text-xs text-muted-foreground mt-1">
+                {networkPotential.restos} restaurants n'acceptent pas au moins un émetteur majeur. Estimation : part médiane de
+                l'émetteur dans le CA Uber des restaurants qui l'acceptent, appliquée au CA du restaurant ({periodLabel}).
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => { setSortKey("potential"); setSortDir("desc"); }}>
+              Trier par potentiel
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cartes par émetteur */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Répartition par émetteur — réseau</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+          <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-5">
             {MEAL_VOUCHER_PROVIDERS.map((p) => {
               const v = network.byProvider[p];
               const share = network.totalTR > 0 ? (v.amount / network.totalTR) * 100 : 0;
@@ -276,6 +314,14 @@ export function MealVoucherAnalysisPanel({
                       </button>
                     </TableHead>
                   ))}
+                  <TableHead className="text-right">
+                    <button
+                      onClick={() => toggleSort("potential")}
+                      className="flex items-center gap-1 ml-auto text-xs uppercase tracking-wider"
+                    >
+                      Potentiel non capté <SortIcon k="potential" />
+                    </button>
+                  </TableHead>
                   <TableHead className="text-center text-xs uppercase tracking-wider">
                     Manquants
                   </TableHead>
@@ -284,7 +330,7 @@ export function MealVoucherAnalysisPanel({
               <TableBody>
                 {filteredSorted.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4 + MEAL_VOUCHER_PROVIDERS.length + 1} className="text-center py-8 text-muted-foreground text-sm">
+                    <TableCell colSpan={4 + MEAL_VOUCHER_PROVIDERS.length + 2} className="text-center py-8 text-muted-foreground text-sm">
                       Aucune donnée sur la période.
                     </TableCell>
                   </TableRow>
@@ -339,6 +385,20 @@ export function MealVoucherAnalysisPanel({
                             </TableCell>
                           );
                         })}
+                        <TableCell className="text-right text-sm tabular-nums">
+                          {(() => {
+                            const pot = potentials.get(row.restaurantId);
+                            if (!pot || pot.total <= 0) return <span className="text-muted-foreground/40">—</span>;
+                            return (
+                              <div title={Object.entries(pot.byProvider).map(([p, v]) => `${PROVIDER_LABELS[p as MealVoucherProvider]} : ${fmtEur(v)}`).join("\n")}>
+                                <div className="font-semibold text-amber-600">~{fmtEur(pot.total)}</div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {Object.keys(pot.byProvider).map((p) => PROVIDER_LABELS[p as MealVoucherProvider]).join(", ")}
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </TableCell>
                         <TableCell className="text-center">
                           {row.missingProviders.length === 0 ? (
                             <Badge variant="outline" className="border-emerald-500/40 text-emerald-600 text-[10px]">
@@ -355,7 +415,7 @@ export function MealVoucherAnalysisPanel({
                               )}
                               title={row.missingProviders.map((p) => PROVIDER_LABELS[p]).join(", ")}
                             >
-                              {row.missingProviders.length}/6
+                              {row.missingProviders.length}/{MEAL_VOUCHER_PROVIDERS.length}
                             </Badge>
                           )}
                         </TableCell>
