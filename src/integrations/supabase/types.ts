@@ -9253,6 +9253,39 @@ export type Database = {
         }
         Relationships: []
       }
+      meal_voucher_daily_summary: {
+        Row: {
+          day: string
+          positive_tr_amount: number
+          provider: string
+          restaurant_id: string
+          tr_amount: number
+          tr_order_count: number
+          uber_order_count: number
+          uber_revenue_ttc: number
+        }
+        Insert: {
+          day: string
+          positive_tr_amount?: number
+          provider?: string
+          restaurant_id: string
+          tr_amount?: number
+          tr_order_count?: number
+          uber_order_count?: number
+          uber_revenue_ttc?: number
+        }
+        Update: {
+          day?: string
+          positive_tr_amount?: number
+          provider?: string
+          restaurant_id?: string
+          tr_amount?: number
+          tr_order_count?: number
+          uber_order_count?: number
+          uber_revenue_ttc?: number
+        }
+        Relationships: []
+      }
       menu_item_changes: {
         Row: {
           change_type: string

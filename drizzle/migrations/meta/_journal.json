@@ -568,6 +568,13 @@
       "when": 1793301166617,
       "tag": "0080_migration",
       "breakpoints": true
+    },
+    {
+      "idx": 81,
+      "version": "7",
+      "when": 1793305702111,
+      "tag": "0081_consolidate_meal_vouchers_paris_days",
+      "breakpoints": true
     }
   ]
 }
