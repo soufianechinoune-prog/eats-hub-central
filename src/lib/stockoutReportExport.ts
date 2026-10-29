@@ -72,7 +72,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   };
   const stats = (items: [string, string][], y: number) => {
     items.forEach(([label, value], i) => { const x = 15 + i * 61; doc.setDrawColor(...colors.border); doc.setLineWidth(0.2); doc.line(x, y, x + 55, y); text(label, x, y + 7, 8, false, true); text(value, x, y + 17, 17, true); });
-    return y + 29;
+    return y + 23;
   };
   const tableHead = (columns: [string, number][], y: number) => { doc.setDrawColor(...colors.border); columns.forEach(([label, x]) => text(label, x, y, 8, true)); doc.line(15, y + 3, 195, y + 3); return y + 10; };
   let y = header(r.restaurantId ? `Synthèse produits - ${targetName(r)}` : "Synthèse produits réseau");
