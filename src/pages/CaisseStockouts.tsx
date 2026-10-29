@@ -133,16 +133,6 @@ export default function CaisseStockouts() {
     avg: detailRows.length ? detailRows.reduce((a, r) => a + Number(r.duration_minutes), 0) / detailRows.length : 0,
   }), [detailRows]);
 
-  const topProducts = useMemo(() => {
-    const m = new Map<string, { name: string; n: number; min: number }>();
-    (q.data ?? []).filter(r => !activeResto || r.restaurant_id === activeResto).forEach((r) => {
-      const x = m.get(r.product_name) ?? { name: r.product_name, n: 0, min: 0 };
-      x.n += 1; x.min += Number(r.duration_minutes);
-      m.set(r.product_name, x);
-    });
-    return [...m.values()].sort((a, b) => b.n - a.n).slice(0, 10);
-  }, [q.data, activeResto]);
-
   const byResto = useMemo(() => rankStockoutRestaurants(rows, restaurantSort), [rows, restaurantSort]);
   const rankValue = (r: typeof byResto[number]) => restaurantSort === "duration" ? r.min : restaurantSort === "events" ? r.n : r.productCount;
   const maxRank = Math.max(1, ...byResto.map(rankValue));
@@ -242,18 +232,6 @@ export default function CaisseStockouts() {
                 <Button variant={onlyOngoing ? "destructive" : "outline"} size="sm" onClick={() => setOnlyOngoing((v) => !v)}>En cours uniquement</Button>
                 <Button variant="outline" size="sm" onClick={exportXlsx} disabled={!detailRows.length}><Download className="mr-1.5 h-4 w-4" />Excel</Button>
               </div>
-              {topProducts.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">Les plus fréquents sur la période :</span>
-                  {topProducts.map((p) => (
-                    <Button variant="outline" size="sm" key={p.name} onClick={() => chooseProduct(product === p.name ? null : p.name)}
-                      className={cn("h-auto rounded-full border px-3 py-1 text-xs transition-colors",
-                        product === p.name ? "border-primary bg-primary text-primary-foreground" : "bg-background hover:bg-muted")}>
-                      {p.name} <span className="opacity-70">× {p.n}</span>
-                    </Button>
-                  ))}
-                </div>
-              )}
             </CardContent>
           </Card>
 
