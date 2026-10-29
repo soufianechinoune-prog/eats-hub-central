@@ -1368,7 +1368,7 @@ function MonthDrilldownRow({
         )}
         onClick={() => setOpen(!open)}
       >
-        <TableCell className="text-sm pl-10 py-2.5" colSpan={colSpan > 5 ? 2 : 1}>
+        <TableCell className="text-sm pl-10 py-2.5" colSpan={Math.max(1, colSpan - 4)}>
           <div className="flex items-center gap-1.5">
             <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform duration-200", open && "rotate-90")} />
             <span className="font-medium">{monthGroup.label}</span>
@@ -1387,7 +1387,7 @@ function MonthDrilldownRow({
           borderColor,
           i % 2 === 0 ? "bg-muted/5" : "bg-background"
         )}>
-          <TableCell className="text-xs pl-16 text-muted-foreground py-2" colSpan={colSpan > 5 ? 2 : 1}>
+          <TableCell className="text-xs pl-16 text-muted-foreground py-2" colSpan={Math.max(1, colSpan - 4)}>
             {showPlatformDot && (
               line.platform === "deliveroo"
                 ? <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600 font-normal">Deliveroo</Badge>
