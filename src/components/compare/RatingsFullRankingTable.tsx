@@ -147,7 +147,7 @@ export const RatingsFullRankingTable = ({
       <CardHeader className="pb-4">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-lg flex items-center gap-2">
-            <Star className="h-5 w-5 text-amber-500" />
+            <Star className="h-5 w-5 text-warning" />
             Classement complet ({data.length} restaurants)
           </CardTitle>
           
@@ -183,7 +183,13 @@ export const RatingsFullRankingTable = ({
         </div>
       </CardHeader>
       
-      <CardContent>
+      <CardContent className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {([["all", `Tous (${counts.all})`], ["top", `Excellents ≥ 4,7 (${counts.top})`], ["alert", `En alerte < 4,2 (${counts.alert})`]] as const).map(([k, label]) => (
+            <Button key={k} size="sm" variant={tier === k ? "default" : "outline"} className="h-7 rounded-full text-xs" onClick={() => setTier(k)}>{label}</Button>
+          ))}
+          <span className="ml-auto text-xs text-muted-foreground">Moyenne réseau : <span className="font-semibold text-foreground tabular-nums">{fmt(networkAvg)}</span></span>
+        </div>
         <div className="rounded-lg border overflow-hidden max-h-[700px] overflow-y-auto">
           <Table>
             <TableHeader>
@@ -215,7 +221,8 @@ export const RatingsFullRankingTable = ({
                     <SortIcon field="avgRating" />
                   </button>
                 </TableHead>
-                <TableHead className="text-center w-24">
+                <TableHead className="text-center w-24">vs réseau</TableHead>
+                <TableHead className="w-32">
                   <button 
                     className="flex items-center justify-center hover:text-foreground transition-colors mx-auto"
                     onClick={() => handleSort("totalReviews")}
@@ -230,7 +237,7 @@ export const RatingsFullRankingTable = ({
             <TableBody>
               {filteredAndSortedData.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                     Aucun restaurant trouvé
                   </TableCell>
                 </TableRow>
@@ -247,26 +254,28 @@ export const RatingsFullRankingTable = ({
                         {rank}
                       </TableCell>
                       <TableCell>
-                        <div className="space-y-1">
-                          <span className="font-medium">{restaurant.name}</span>
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1 h-3 bg-muted rounded-full overflow-hidden min-w-[400px]">
-                              <div 
-                                className={`h-full rounded-full ${getBarColor(restaurant.avgRating)}`}
-                                style={{ width: `${(restaurant.avgRating / 5) * 100}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
+                        <span className="font-medium">{restaurant.name}</span>
                       </TableCell>
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center gap-1">
-                          <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
-                          <span className="font-semibold">{restaurant.avgRating.toFixed(2)}</span>
+                          <Star className="h-4 w-4 fill-warning text-warning" />
+                          <span className="font-semibold tabular-nums">{fmt(restaurant.avgRating)}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className="text-sm font-medium">{restaurant.totalReviews}</span>
+                        {(() => {
+                          const d = restaurant.avgRating - networkAvg;
+                          const cls = Math.abs(d) < 0.05 ? "text-muted-foreground" : d > 0 ? "text-success" : "text-destructive";
+                          return <span className={`text-sm font-semibold tabular-nums ${cls}`}>{d >= 0 ? "+" : "−"}{fmt(Math.abs(d))}</span>;
+                        })()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2" title={restaurant.totalReviews < 30 ? "Volume faible : note peu représentative" : undefined}>
+                          <div className="h-1.5 w-16 rounded-full bg-muted overflow-hidden">
+                            <div className={`h-full rounded-full ${restaurant.totalReviews < 30 ? "bg-warning" : "bg-primary/60"}`} style={{ width: `${Math.max(4, (restaurant.totalReviews / maxReviews) * 100)}%` }} />
+                          </div>
+                          <span className="text-xs tabular-nums text-muted-foreground">{restaurant.totalReviews}</span>
+                        </div>
                       </TableCell>
                       <TableCell className="text-center">
                         {getStatusBadge(restaurant.avgRating)}
