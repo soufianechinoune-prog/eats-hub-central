@@ -20,3 +20,17 @@ export function overviewN1Eligibility(mode: string, start: string, end: string, 
 export function revenueChange(current: number, previous: number | null | undefined): number | null {
   return previous != null && previous > 0 ? (current - previous) / previous * 100 : null;
 }
+/**
+ * Le N-1 est une période de lancement si l'ouverture tombe dans la période N-1
+ * ou moins de 3 mois avant son début : la base de comparaison n'est pas mature.
+ */
+export function isLaunchN1(openingDate: string | null | undefined, start: string, end: string): boolean {
+  if (!openingDate || !start || !end) return false;
+  const shift = (d: string, years: number, months = 0) => {
+    const [y, m, day] = d.split("-").map(Number);
+    return format(new Date(y + years, m - 1 + months, day, 12), "yyyy-MM-dd");
+  };
+  const prevEnd = shift(end, -1);
+  const windowStart = shift(start, -1, -3);
+  return openingDate > windowStart && openingDate <= prevEnd;
+}
