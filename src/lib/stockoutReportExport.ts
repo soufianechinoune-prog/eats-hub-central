@@ -51,7 +51,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   const [{ jsPDF }, name, logo] = await Promise.all([import("jspdf"), getChainName(chainId), loadChainLogoBase64(chainId)]);
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const colors = { fg: tokenRgb("foreground"), muted: tokenRgb("muted-foreground"), bg: tokenRgb("background"), primary: tokenRgb("primary"), border: tokenRgb("border") };
-  const clean = (s: string) => s.replace(/[\u202f\u00a0]/g, " ").replace(/’/g, "'").replace(/—|→/g, "-");
+  const clean = (s: string) => s.replace(/[\u202f\u00a0]/g, " ").replace(/’/g, "'").replace(/—|→/g, "-").replace(/[^\u0020-\u007e\u00a0-\u00ff\n]/gu, "");
   const text = (s: string, x: number, y: number, size = 9, bold = false, muted = false) => {
     doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); doc.setTextColor(...(muted ? colors.muted : colors.fg)); doc.text(clean(s), x, y);
   };
@@ -61,6 +61,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   };
   const header = (title: string, continuation = false) => {
     doc.setFillColor(...colors.bg); doc.rect(0, 0, 210, 297, "F");
+    doc.setLineWidth(0.2);
     if (logo) { try { doc.addImage(logo, 15, 12, 13, 13); } catch { /* Name is retained. */ } }
     text(name, logo ? 32 : 15, 17, 11, true); text("Ruptures & Disponibilité", logo ? 32 : 15, 23, 9, false, true);
     doc.setDrawColor(...colors.primary); doc.setLineWidth(0.8); doc.line(15, 30, 195, 30);
@@ -80,11 +81,11 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   const summaryColumns: [string, number][] = [["Produit", 15], ["Ruptures", 113], ["Restos", 139], ["Durée cumulée", 164]];
   y = tableHead(summaryColumns, y);
   r.products.forEach(product => {
-    doc.setFontSize(9); const lines = doc.splitTextToSize(clean(product.name), 91) as string[];
-    const height = Math.max(9, lines.length * 4.3 + 4);
+    doc.setFontSize(8); const lines = doc.splitTextToSize(clean(product.name), 91) as string[];
+    const height = Math.max(5, lines.length * 4.3 + 0.7);
     if (y + height > 252) { doc.addPage(); y = tableHead(summaryColumns, header("Synthèse produits", true)); }
-    wrapped(product.name, 15, y, 91); text(String(product.events), 113, y); text(String(product.restaurants), 139, y); text(reportHours(product.minutes), 164, y);
-    y += height; doc.setDrawColor(...colors.border); doc.line(15, y - 4, 195, y - 4);
+    wrapped(product.name, 15, y, 91, 8); text(String(product.events), 113, y, 8); text(String(product.restaurants), 139, y, 8); text(reportHours(product.minutes), 164, y, 8);
+    y += height; doc.setDrawColor(...colors.border); doc.setLineWidth(0.15); doc.line(15, y - 1, 195, y - 1);
   });
   const disclaimer = "Couverture Splash partielle : aucun événement ne signifie pas absence de rupture. Les durées sont des heures-produit, pas des heures de fermeture. Les désactivations avant lancement peuvent être volontaires.";
   wrapped(disclaimer, 15, 265, 180, 8);
@@ -98,7 +99,7 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
     y = tableHead(columns, y);
     section.rows.forEach(row => {
       doc.setFontSize(8); const lines = doc.splitTextToSize(clean(row.product_name), 65) as string[];
-      const height = Math.max(12, lines.length * 4.3 + 5);
+      const height = Math.max(8.7, lines.length * 4.3 + 2);
       if (y + height > 251) { doc.addPage(); y = tableHead(columns, header(section.name, true)); }
       wrapped(row.product_name, 15, y, 65, 8);
       wrapped(reportDate(row.started_at), 85, y, 36, 8);
