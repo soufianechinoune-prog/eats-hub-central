@@ -5,6 +5,7 @@
 - [x] Afficher un indicateur de consolidation sur la vignette, les analyses réseau et restaurant ; 14 tests réussis et parcours connecté vérifié (ratio observé 1,60 %, toujours provisoire).
 
 ## Réception webhooks Splash
+- [x] Relier la station d’O’Parinor confirmée par Splash : 78 événements rattachés, 17 ruptures (8 en cours, 9 résolues), zéro durée négative et historique connecté vérifié.
 - [x] Rapports ruptures réseau et restaurant : période indépendante, aperçu visuel, PDF 2 pages et Excel 5 onglets ; téléchargements réseau/Juvisy vérifiés en session connectée, 10 tests réussis, durées bornées et limites de couverture explicites.
 - [x] Historique ruptures : sélection locale par restaurant, classement par produits/ruptures/durée, filtres catégorie et tri du détail ; quatre tests réussis, Juvisy (6 ruptures), filtre en cours et retour réseau vérifiés en session connectée.
 - [x] Relier les stations confirmées de Juvisy et Le Mans ; 66 événements rattachés chronologiquement, 6 ruptures Juvisy et 11 Le Mans visibles dans l’historique connecté.
