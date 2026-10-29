@@ -1,7 +1,7 @@
 import { getChainName, loadChainLogoBase64 } from "./pdfLogoHelper";
-import { reportDate, reportHours, stockoutRestaurantSections, stockoutReportMethod, type StockoutReport } from "./stockoutReport";
+import { reportDate, reportHours, stockoutProductSections, stockoutRestaurantSections, stockoutReportMethod, type StockoutReport, type StockoutReportLayout } from "./stockoutReport";
 
-const filename = (r: StockoutReport) => `bilan_ruptures_${r.restaurantId ? "restaurant" : "reseau"}_${r.start}_${r.end}`;
+const filename = (r: StockoutReport, layout: StockoutReportLayout) => `bilan_ruptures_par_${layout === "product" ? "produit" : "restaurant"}_${r.restaurantId ? "restaurant" : "reseau"}_${r.start}_${r.end}`;
 const targetName = (r: StockoutReport) => r.restaurants.find(x => x.id === r.restaurantId)?.name ?? "Ensemble du réseau";
 
 // Read the shared theme tokens for document graphics too, rather than a separate report palette.
@@ -14,7 +14,7 @@ function tokenRgb(token: string): [number, number, number] {
   return [values[0], values[1], values[2]];
 }
 
-export async function exportStockoutExcel(r: StockoutReport, chainId: string) {
+export async function exportStockoutExcel(r: StockoutReport, chainId: string, layout: StockoutReportLayout) {
   const [XLSX, name] = await Promise.all([import("xlsx-js-style"), getChainName(chainId)]);
   const wb = XLSX.utils.book_new();
   const append = (title: string, data: Record<string, string | number>[]) => {
@@ -30,24 +30,28 @@ export async function exportStockoutExcel(r: StockoutReport, chainId: string) {
     if (ws["!ref"]) ws["!autofilter"] = { ref: ws["!ref"] };
     XLSX.utils.book_append_sheet(wb, ws, title);
   };
-  append("Synthèse produits", r.products.map(x => ({ Produit: x.name, "Ruptures enregistrées": x.events, "Heures-produit": x.minutes / 60, "Restaurants concernés": x.restaurants, "Restaurants concernés réseau": x.networkRestaurants, "Part du périmètre réseau (%)": x.networkShare })));
   const journal = (rows: StockoutReport["rows"]) => rows.map(x => ({ Restaurant: x.restaurant_name, Produit: x.product_name, Catégorie: x.category ?? "", "Référence Splash": x.item_id, "Début réel (Paris)": reportDate(x.started_at), "Fin réelle (Paris)": x.ended_at ? reportDate(x.ended_at) : "En cours", "Début compté (Paris)": reportDate(x.from), "Fin comptée (Paris)": reportDate(x.to), "Minutes dans la période": x.minutes, "Statut en fin de période": x.ended_at && Date.parse(x.ended_at) <= x.to ? "Résolue" : "Ouverte" }));
-  stockoutRestaurantSections(r).forEach((section, i) => append(`${String(i + 1).padStart(2, "0")} ${section.name.replace(/Chicken Street - |Tasty Crousty - /g, "").replace(/[\\/?:*\[\]]/g, " ")}`.slice(0, 31), journal(section.rows)));
-  append("Comparatif restaurants", r.restaurants.map(x => ({ Restaurant: x.name, "Restaurant ID": x.id, "Ruptures enregistrées": x.events, "Produits concernés": x.products, "Heures-produit sur période": x.minutes / 60, Observation: x.observed ? "Événements enregistrés" : "Aucun événement — couverture non certifiée" })));
-  append("Évolution quotidienne", r.days.map(x => ({ Date: x.date, "Ruptures chevauchant le jour": x.events, "Heures-produit": x.minutes / 60 })));
+  if (layout === "product") {
+    append("Synthèse produits", r.products.map(x => ({ Produit: x.name, "Ruptures enregistrées": x.events, "Heures-produit": x.minutes / 60, "Restaurants concernés": x.restaurants, "Restaurants concernés réseau": x.networkRestaurants, "Part du périmètre réseau (%)": x.networkShare })));
+    append("Produits par restaurant", stockoutProductSections(r).flatMap(p => p.restaurantRows.map(x => ({ Produit: p.name, Restaurant: x.name, "Nombre de ruptures": x.events, "Heures-produit": x.minutes / 60, "Ouvertes en fin de période": x.open, "Dernière rupture (Paris)": reportDate(x.lastStart) }))));
+  } else {
+    stockoutRestaurantSections(r).forEach((section, i) => append(`${String(i + 1).padStart(2, "0")} ${section.name.replace(/Chicken Street - |Tasty Crousty - /g, "").replace(/[\\/?:*\[\]]/g, " ")}`.slice(0, 31), journal(section.rows)));
+  }
+  if (layout === "restaurant") append("Comparatif restaurants", r.restaurants.map(x => ({ Restaurant: x.name, "Restaurant ID": x.id, "Ruptures enregistrées": x.events, "Produits concernés": x.products, "Heures-produit sur période": x.minutes / 60, Observation: x.observed ? "Événements enregistrés" : "Aucun événement — couverture non certifiée" })));
+  if (layout === "product") append("Évolution quotidienne", r.days.map(x => ({ Date: x.date, "Ruptures chevauchant le jour": x.events, "Heures-produit": x.minutes / 60 })));
   append("Journal chronologique", journal([...r.rows].sort((a, b) => a.from - b.from)));
   append("Périmètre & méthode", [
-    { Rubrique: "Enseigne", Valeur: name }, { Rubrique: "Cible", Valeur: targetName(r) },
+    { Rubrique: "Enseigne", Valeur: name }, { Rubrique: "Cible", Valeur: targetName(r) }, { Rubrique: "Type de rapport", Valeur: layout === "product" ? "Par produit" : "Par restaurant" },
     { Rubrique: "Période", Valeur: `${r.start} au ${r.end}` }, { Rubrique: "Produit", Valeur: r.product ?? "Tous les produits" },
     { Rubrique: "Généré le (Paris)", Valeur: reportDate(r.generatedAt) },
     { Rubrique: "Restaurants du périmètre", Valeur: r.scopeCount },
     { Rubrique: "Restaurants avec événement", Valeur: r.observedCount },
     ...stockoutReportMethod.map((Valeur, i) => ({ Rubrique: `Méthode ${i + 1}`, Valeur })),
   ]);
-  XLSX.writeFile(wb, `${filename(r)}.xlsx`);
+  XLSX.writeFile(wb, `${filename(r, layout)}.xlsx`);
 }
 
-export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
+export async function exportStockoutPdf(r: StockoutReport, chainId: string, layout: StockoutReportLayout) {
   const [{ jsPDF }, name, logo] = await Promise.all([import("jspdf"), getChainName(chainId), loadChainLogoBase64(chainId)]);
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const colors = { fg: tokenRgb("foreground"), muted: tokenRgb("muted-foreground"), bg: tokenRgb("background"), primary: tokenRgb("primary"), border: tokenRgb("border") };
@@ -75,7 +79,9 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
     return y + 23;
   };
   const tableHead = (columns: [string, number][], y: number) => { doc.setDrawColor(...colors.border); columns.forEach(([label, x]) => text(label, x, y, 8, true)); doc.line(15, y + 3, 195, y + 3); return y + 10; };
-  let y = header(r.restaurantId ? `Synthèse produits - ${targetName(r)}` : "Synthèse produits réseau");
+  let y = 0;
+  if (layout === "product") {
+  y = header(r.restaurantId ? `Synthèse produits - ${targetName(r)}` : "Synthèse produits réseau");
   y = stats([["Ruptures enregistrées", String(r.total.events)], ["Produits concernés", String(r.total.products)], ["Heures-produit", reportHours(r.total.minutes)]], y);
   text(`${r.observedCount}/${r.scopeCount} restaurants avec événements enregistrés`, 15, y, 9, false, true); y += 9;
   const summaryColumns: [string, number][] = [["Produit", 15], ["Ruptures", 113], ["Restos", 139], ["Durée cumulée", 164]];
@@ -89,9 +95,25 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
   });
   const disclaimer = "Couverture Splash partielle : aucun événement ne signifie pas absence de rupture. Les durées sont des heures-produit, pas des heures de fermeture. Les désactivations avant lancement peuvent être volontaires.";
   wrapped(disclaimer, 15, 265, 180, 8);
+  doc.addPage(); y = header("Détail par produit");
+  const productColumns: [string, number][] = [["Restaurant", 15], ["Ruptures", 113], ["Ouvertes", 139], ["Durée cumulée", 164]];
+  stockoutProductSections(r).forEach(product => {
+    if (y + 30 > 259) { doc.addPage(); y = header("Détail par produit", true); }
+    y += 4; text(product.name, 15, y, 11, true);
+    text(`${product.events} ruptures | ${product.restaurantRows.length} restaurants | ${reportHours(product.minutes)}`, 15, y + 5, 8, false, true);
+    y = tableHead(productColumns, y + 12);
+    product.restaurantRows.forEach(row => {
+      if (y + 5 > 259) { doc.addPage(); y = tableHead(productColumns, header(product.name, true)); }
+      wrapped(row.name, 15, y, 91, 8); text(String(row.events), 113, y, 8); text(String(row.open), 139, y, 8); text(reportHours(row.minutes), 164, y, 8);
+      y += 5; doc.setDrawColor(...colors.border); doc.setLineWidth(0.15); doc.line(15, y - 1, 195, y - 1);
+    });
+  });
+  }
+  if (layout === "restaurant") {
   const sections = stockoutRestaurantSections(r);
-  sections.forEach(section => {
-    doc.addPage(); y = header(section.name);
+  sections.forEach((section, index) => {
+    if (index > 0) doc.addPage();
+    y = header(section.name);
     const openCount = section.rows.filter(row => !row.ended_at || Date.parse(row.ended_at) > row.to).length;
     y = stats([["Produits concernés", String(section.products)], ["Ruptures sur période", String(section.events)], ["Heures-produit", reportHours(section.minutes)]], y);
     text(`${openCount} ouvertes en fin de période | ${section.events - openCount} résolues`, 15, y, 9, false, true); y += 10;
@@ -109,7 +131,8 @@ export async function exportStockoutPdf(r: StockoutReport, chainId: string) {
     });
     wrapped("Dates de rupture réelles, durées limitées à la période choisie. Confirmer les ruptures volontaires et vérifier les produits toujours désactivés avec le restaurant.", 15, 263, 180, 8);
   });
+  }
   const pages = doc.getNumberOfPages();
   for (let page = 1; page <= pages; page++) { doc.setPage(page); text(`MIJOTEK | ${reportDate(r.generatedAt)} | ${page}/${pages}`, 15, 288, 8, false, true); }
-  doc.save(`${filename(r)}.pdf`);
+  doc.save(`${filename(r, layout)}.pdf`);
 }

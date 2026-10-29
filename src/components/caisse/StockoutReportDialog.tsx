@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { supabase } from "@/integrations/supabase/client";
-import { buildStockoutReport, reportDate, reportHours, stockoutReportDefaults, stockoutRestaurantSections, stockoutReportMethod, type ReportStockout } from "@/lib/stockoutReport";
+import { buildStockoutReport, reportDate, reportHours, stockoutReportDefaults, stockoutRestaurantSections, stockoutReportMethod, type ReportStockout, type StockoutReportLayout } from "@/lib/stockoutReport";
 import { exportStockoutExcel, exportStockoutPdf } from "@/lib/stockoutReportExport";
 
 interface Props { chainId: string | null }
@@ -26,6 +27,7 @@ export function StockoutReportDialog({ chainId }: Props) {
   const [restaurant, setRestaurant] = useState(defaults.restaurant);
   const [product, setProduct] = useState(defaults.product);
   const [busy, setBusy] = useState<"pdf" | "excel" | null>(null);
+  const [layout, setLayout] = useState<StockoutReportLayout>("product");
   const { data: activeRestaurants = [] } = useActiveRestaurants();
   const scope = activeRestaurants;
   const ids = useMemo(() => scope.map(r => r.id), [scope]);
@@ -56,7 +58,7 @@ export function StockoutReportDialog({ chainId }: Props) {
   const download = async (type: "pdf" | "excel") => {
     if (!report || !chainId || !report.rows.length || !ready || q.isFetching || q.isError) return;
     setBusy(type);
-    try { await (type === "pdf" ? exportStockoutPdf : exportStockoutExcel)(report, chainId); toast.success(type === "pdf" ? "Rapport PDF téléchargé" : "Classeur Excel téléchargé"); }
+    try { await (type === "pdf" ? exportStockoutPdf : exportStockoutExcel)(report, chainId, layout); toast.success(type === "pdf" ? "Rapport PDF téléchargé" : "Classeur Excel téléchargé"); }
     catch { toast.error("Le téléchargement a échoué. Réessayez."); }
     finally { setBusy(null); }
   };
@@ -68,7 +70,7 @@ export function StockoutReportDialog({ chainId }: Props) {
   return <Dialog open={open} onOpenChange={onOpen}>
     <DialogTrigger asChild><Button variant="outline" size="sm"><FileText className="mr-1.5 h-4 w-4" />Bilan & Rapport</Button></DialogTrigger>
     <DialogContent className="max-h-[90dvh] w-[calc(100%-24px)] max-w-4xl overflow-y-auto">
-      <DialogHeader><DialogTitle>Bilan des ruptures</DialogTitle><DialogDescription>Synthèse produits réseau · Fiches par restaurant · PDF et Excel</DialogDescription></DialogHeader>
+      <DialogHeader><DialogTitle>Bilan des ruptures</DialogTitle><DialogDescription>Rapport par produit ou par restaurant · PDF et Excel</DialogDescription></DialogHeader>
       <div className="grid gap-3 border-b pb-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-1.5"><Label>Période</Label><Select value={mode} onValueChange={setPeriod}><SelectTrigger aria-label="Type de période du rapport"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="month">Mois civil</SelectItem><SelectItem value="quarter">Trimestre</SelectItem><SelectItem value="custom">Dates au choix</SelectItem></SelectContent></Select></div>
         {mode === "custom" ? <div className="space-y-1.5"><Label htmlFor="report-start">Du</Label><Input id="report-start" type="date" value={start} onChange={e => setStart(e.target.value)} /></div> : <div className="space-y-1.5"><Label htmlFor="report-month">{mode === "month" ? "Mois" : "Mois du trimestre"}</Label><Input id="report-month" type="month" value={start.slice(0, 7)} onChange={e => setPeriod(mode, `${e.target.value}-01`)} /></div>}
@@ -76,6 +78,7 @@ export function StockoutReportDialog({ chainId }: Props) {
         <div className="space-y-1.5"><Label>Restaurant</Label><Select value={selectedRestaurant} onValueChange={setRestaurant}><SelectTrigger aria-label="Restaurant du rapport"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Ensemble du réseau</SelectItem>{scope.map(r => <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>)}</SelectContent></Select></div>
         <div className="space-y-1.5 sm:col-span-2"><Label>Produit</Label><Select value={selectedProduct} onValueChange={setProduct}><SelectTrigger aria-label="Produit du rapport"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tous les produits</SelectItem>{products.map(p => <SelectItem value={p} key={p}>{p}</SelectItem>)}</SelectContent></Select></div>
       </div>
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b pb-4"><div className="space-y-1.5"><Label>Type de rapport</Label><ToggleGroup type="single" variant="outline" size="sm" value={layout} onValueChange={v => v && setLayout(v as StockoutReportLayout)} aria-label="Type de rapport"><ToggleGroupItem value="product" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Par produit</ToggleGroupItem><ToggleGroupItem value="restaurant" className="data-[state=on]:bg-primary data-[state=on]:text-primary-foreground">Par restaurant</ToggleGroupItem></ToggleGroup></div><div className="flex flex-wrap gap-2"><Button variant="outline" disabled={!!busy || !ready || q.isFetching || q.isError || !report?.rows.length} onClick={() => download("excel")}>{busy === "excel" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Télécharger Excel</Button><Button disabled={!!busy || !ready || q.isFetching || q.isError || !report?.rows.length} onClick={() => download("pdf")}>{busy === "pdf" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}Télécharger PDF</Button></div></div>
       <div className="flex items-start gap-2 border-l-2 border-warning bg-warning/10 p-3 text-xs text-muted-foreground"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" /><span>Couverture Splash encore partielle. Aucun événement ne prouve pas l’absence de rupture. Les désactivations avant lancement peuvent être volontaires. Les heures cumulées concernent les produits, pas la fermeture du restaurant.</span></div>
       {!valid ? <p className="text-sm text-destructive">Choisissez une période valide, d’un an maximum, commençant au plus tard aujourd’hui.</p> : !ready ? <p className="text-sm text-muted-foreground">Aucun restaurant actif dans ce périmètre.</p> : q.isPending || q.isFetching ? <Skeleton className="h-60 w-full" /> : q.isError ? <div className="space-y-2 text-sm text-destructive">Impossible de charger les ruptures.<Button variant="outline" size="sm" onClick={() => q.refetch()}>Réessayer</Button></div> : report && <>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -89,7 +92,6 @@ export function StockoutReportDialog({ chainId }: Props) {
         </>}
         <details className="text-xs text-muted-foreground"><summary className="cursor-pointer font-medium">Périmètre & méthode de calcul</summary><ul className="mt-2 space-y-2">{stockoutReportMethod.map(line => <li key={line}>{line}</li>)}</ul></details>
       </>}
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Button variant="outline" disabled={!!busy || !ready || q.isFetching || q.isError || !report?.rows.length} onClick={() => download("excel")}>{busy === "excel" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}Excel détaillé</Button><Button disabled={!!busy || !ready || q.isFetching || q.isError || !report?.rows.length} onClick={() => download("pdf")}>{busy === "pdf" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}PDF réseau & restaurants</Button></div>
     </DialogContent>
   </Dialog>;
 }
