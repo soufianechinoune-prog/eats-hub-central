@@ -1374,7 +1374,7 @@ const Overview = () => {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating != null ? networkData.deliveroo.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={navigateToRatingsComparison} />
+                <MetricRow icon={Star} label="Note moyenne" value={networkData?.deliveroo.rating != null ? networkData.deliveroo.rating.toFixed(1) : null} unit="/5" color="text-blue-500" onClick={() => navigateToRatingsComparison(false)} />
                 <MetricRow icon={Clock} label="Temps préparation" value={formatMinutesToTime(networkData?.deliveroo.prepTime)} color="text-amber-500" onClick={() => navigate('/compare/prep-time')} />
                 <MetricRow icon={Truck} label="Temps prépa+livraison" value={networkTotals.avgTotalDeliveryTime != null ? `${Math.round(networkTotals.avgTotalDeliveryTime)}min` : null} color="text-cyan-500" onClick={() => navigate('/analytics?view=operations&tab=totalDelivery')} />
                 <MetricRow icon={TrendingDown} label="Commandes incorrectes" value={networkData?.deliveroo.incorrectOrderRate != null ? networkData.deliveroo.incorrectOrderRate.toFixed(1) : null} unit="%" color="text-red-500" />
