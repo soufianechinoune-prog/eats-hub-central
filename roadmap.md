@@ -1,5 +1,10 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Éco-contribution — contrôle historique
+- [x] Contrôler les 6 816 lignes historiques « Autres frais » : 2 113 exclues vers autres frais à vérifier, 4 703 candidates conservées ; montants et classement original préservés pour audit, aucune correspondance présentée comme preuve.
+- [x] Vérifier les montants inchangés (zéro écart), 13 tests réussis et page connectée Chicken Street 2026 (23 244,43 € / 24 627,89 €, 691 lignes).
+- [ ] Certifier le tarif, le traitement HT/TTC et les lignes restantes : justificatif Uber identifiant la période et le nombre réel de commandes nécessaire ; les multiples seuls ne suffisent pas.
+
 ## Notes Uber — automatisation et deux périodes
 - [x] Afficher séparément la moyenne 90 jours et les avis de la période sélectionnée dans la synthèse et le comparatif ; août vérifié en session sans changement de la note 90 jours.
 - [x] Corriger les erreurs d’import masquées, les doublons de file et de planification ; collecte quotidienne unique à 05:00 UTC, notifications signées vérifiées ; 327 demandes de rattrapage Chicken Street août–octobre lancées, 15 terminées au contrôle.
