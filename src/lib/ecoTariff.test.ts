@@ -38,3 +38,11 @@ describe("matchEcoMultiple", () => {
     expect(matchEcoMultiple(Infinity, 2026).valid).toBe(false);
   });
 });
+
+describe("barème fin 2025 (Angers)", () => {
+  it("reconnaît 555 commandes à 0,1381 €", () => {
+    const m = matchEcoMultiple(-76.65, 2025);
+    expect(m.valid).toBe(true);
+    expect(m.orders).toBe(555);
+  });
+});
