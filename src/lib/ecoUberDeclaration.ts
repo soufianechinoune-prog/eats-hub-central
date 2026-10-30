@@ -16,8 +16,10 @@ export function deduceUberDeclarationStatus(input: {
 }): UberDeclarationStatus {
   const refund = Math.max(0, input.refund || 0);
   const charged = Math.abs(input.charge || 0) > 0.005;
-  if (refund > 0.005) return "regularise";
-  if (input.repStatus === "inscrit") return charged ? "a_declarer" : "regularise";
+  if (input.repStatus === "inscrit") {
+    if (refund > 0.005) return "regularise";
+    return charged ? "a_declarer" : "regularise";
+  }
   if (input.repStatus === "non_trouve" || input.repStatus === "sans_siret") return charged ? "non_adherent" : "inconnu";
   return "inconnu";
 }
