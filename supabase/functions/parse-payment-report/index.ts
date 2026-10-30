@@ -354,9 +354,9 @@ export function routeAdjustment(
     if (Math.abs(amount) < ECO_MIN_ABS) {
       return { category: 'tax_rounding', recognized: true, rule: 'autres_frais<seuil' };
     }
-    // Validation par multiple du barème TTC (0,1130 / 0,1363 / 0,1829 € par commande)
+    // Validation par multiple du barème TTC (0,1130 / 0,1363 / 0,1381 / 0,1829 € par commande)
     const abs = Math.abs(amount);
-    const isMultiple = [0.113, 0.1363, 0.1829].some((r) => {
+    const isMultiple = [0.113, 0.1363, 0.1381, 0.1829].some((r) => {
       const n = Math.round(abs / r);
       return n >= 1 && Math.abs(abs - n * r) <= 0.01;
     });
