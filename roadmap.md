@@ -1,5 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Éco-contribution — contrôle historique
+- [ ] Contrôler les lignes historiques « Autres frais » avec les montants observés par année ; conserver les montants et le classement original pour audit, sans présenter une correspondance comme une preuve.
+- [ ] Vérifier les totaux après reclassement et les tests d’arrondi.
+
 ## Notes Uber — automatisation et deux périodes
 - [x] Afficher séparément la moyenne 90 jours et les avis de la période sélectionnée dans la synthèse et le comparatif ; août vérifié en session sans changement de la note 90 jours.
 - [x] Corriger les erreurs d’import masquées, les doublons de file et de planification ; collecte quotidienne unique à 05:00 UTC, notifications signées vérifiées ; 327 demandes de rattrapage Chicken Street août–octobre lancées, 15 terminées au contrôle.
