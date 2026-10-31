@@ -239,13 +239,12 @@ Deno.serve(async (req) => {
                   dataSource: 'uber_api',
                 },
               });
-              if (parseInvokeError) {
-                console.error('parse-payment-report invoke error:', parseInvokeError);
-              } else {
-                console.log('Payment report parsed successfully:', JSON.stringify(parseData)?.substring(0, 500));
-              }
+              if (parseInvokeError || parseData?.success !== true) throw new Error('Payment import failed');
+              await supabase.from('reports').update({ error_message: null }).eq('id', report.id);
+              console.log('Payment report parsed successfully');
             } catch (parseError) {
-              console.error('Failed to parse payment report:', parseError);
+              await supabase.from('reports').update({ error_message: 'Payment import failed; awaiting webhook retry' }).eq('id', report.id);
+              throw new Error('Payment import failed; retry required');
             }
           }
         } else if (parseableReports.includes(body.report_type)) {
