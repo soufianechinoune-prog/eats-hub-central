@@ -8946,6 +8946,95 @@ export type Database = {
           },
         ]
       }
+      eco_observed_rate_windows: {
+        Row: {
+          code: string
+          evidence: string
+          rate_units: number
+          valid_from: string
+          valid_to: string
+          vat_basis: string
+        }
+        Insert: {
+          code: string
+          evidence?: string
+          rate_units: number
+          valid_from: string
+          valid_to: string
+          vat_basis?: string
+        }
+        Update: {
+          code?: string
+          evidence?: string
+          rate_units?: number
+          valid_from?: string
+          valid_to?: string
+          vat_basis?: string
+        }
+        Relationships: []
+      }
+      eco_reconciliation_audit: {
+        Row: {
+          adjustment_id: string
+          algorithm_version: string
+          attribution: string | null
+          candidate_rates: Json
+          chain_id: string
+          checked_at: string
+          period_end: string | null
+          period_start: string | null
+          rate_code: string | null
+          real_volume: number | null
+          reason: string
+          restaurant_id: string
+          source_amount: number
+          source_line_key: string | null
+          status: string
+        }
+        Insert: {
+          adjustment_id: string
+          algorithm_version?: string
+          attribution?: string | null
+          candidate_rates?: Json
+          chain_id: string
+          checked_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          rate_code?: string | null
+          real_volume?: number | null
+          reason: string
+          restaurant_id: string
+          source_amount: number
+          source_line_key?: string | null
+          status: string
+        }
+        Update: {
+          adjustment_id?: string
+          algorithm_version?: string
+          attribution?: string | null
+          candidate_rates?: Json
+          chain_id?: string
+          checked_at?: string
+          period_end?: string | null
+          period_start?: string | null
+          rate_code?: string | null
+          real_volume?: number | null
+          reason?: string
+          restaurant_id?: string
+          source_amount?: number
+          source_line_key?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eco_reconciliation_audit_adjustment_id_fkey"
+            columns: ["adjustment_id"]
+            isOneToOne: true
+            referencedRelation: "payout_adjustments"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -14526,6 +14615,26 @@ export type Database = {
           p_start_date: string
         }
         Returns: Json
+      }
+      get_eco_reconciliation_report: {
+        Args: { p_chain_id: string }
+        Returns: Json
+      }
+      get_eco_reconciliation_source: {
+        Args: { p_restaurant_id: string }
+        Returns: {
+          amount: number
+          category: string
+          chain_id: string
+          description: string
+          id: string
+          payout_date: string
+          period_end: string
+          period_start: string
+          restaurant_id: string
+          source_line_key: string
+          volume: number
+        }[]
       }
       get_finances_daily_uber: {
         Args: {
