@@ -7,3 +7,10 @@ export function isPaymentHeader(row: string[]): boolean {
     (text.includes('Code alphanumérique de commande tel') &&
       text.includes('Code alphanumérique de référence identifiant le versement'));
 }
+
+/** Uber can prepend a descriptive dictionary before the actual short-column header. */
+export function findPaymentHeader(rows: string[][]): number {
+  const candidates = rows.slice(0, 20).map((row, index) => ({ row, index })).filter(x => isPaymentHeader(x.row));
+  return candidates.find(x => x.row.some(cell => cell.trim() === 'Id. du flux' || cell.trim() === 'Workflow ID'))?.index ??
+    candidates[0]?.index ?? -1;
+}

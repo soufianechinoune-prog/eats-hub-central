@@ -1,7 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
-import { isPaymentHeader } from './headerRecognition.ts';
+import { findPaymentHeader } from './headerRecognition.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -626,14 +626,7 @@ Deno.serve(async (req) => {
     console.log('Total parsed rows:', rows.length);
     
     // Find header row - support both French (Uber Manager export) and English (Uber Reports API)
-    let headerRowIndex = -1;
-    for (let i = 0; i < Math.min(20, rows.length); i++) {
-      if (isPaymentHeader(rows[i])) {
-        headerRowIndex = i;
-        console.log('Found header at row', i, ':', rows[i].slice(0, 5).join(', '));
-        break;
-      }
-    }
+    const headerRowIndex = findPaymentHeader(rows);
 
     if (headerRowIndex === -1) {
       console.log('Could not find header. First 5 rows:', JSON.stringify(rows.slice(0, 5)));
