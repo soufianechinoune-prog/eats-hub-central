@@ -5,6 +5,10 @@ const line = (amount: number, description = 'Autres frais', restaurantId = 'Ange
   ({ restaurantId, payoutReference: '2026-01', description, category: 'eco_contribution', amount });
 
 describe('Signed bidirectional payout reconciliation', () => {
+  it('never tolerates a real one-cent discrepancy', () => {
+    expect(reconcileSignedPayouts([line(-26.89)], [line(-26.90)])[0])
+      .toMatchObject({ oldCents: -2689, newCents: -2690, deltaCents: -1, cause: 'amount_difference' });
+  });
   it('reports old charges missing from API with a positive delta', () => {
     expect(reconcileSignedPayouts([line(-26.89)], [])[0]).toMatchObject({ cause: 'missing_api', deltaCents: 2689 });
   });
