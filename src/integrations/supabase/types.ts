@@ -10599,6 +10599,30 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_adjustment_legacy_archive: {
+        Row: {
+          archived_at: string
+          original_id: string
+          original_row: Json
+          replacement_report_hash: string
+          restaurant_id: string | null
+        }
+        Insert: {
+          archived_at?: string
+          original_id: string
+          original_row: Json
+          replacement_report_hash: string
+          restaurant_id?: string | null
+        }
+        Update: {
+          archived_at?: string
+          original_id?: string
+          original_row?: Json
+          replacement_report_hash?: string
+          restaurant_id?: string | null
+        }
+        Relationships: []
+      }
       payout_adjustments: {
         Row: {
           amount: number
@@ -10611,6 +10635,9 @@ export type Database = {
           raw_columns: Json | null
           restaurant_id: string | null
           restaurant_name: string | null
+          source_line_key: string | null
+          source_record_index: number | null
+          source_report_hash: string | null
           uber_store_id: string
         }
         Insert: {
@@ -10624,6 +10651,9 @@ export type Database = {
           raw_columns?: Json | null
           restaurant_id?: string | null
           restaurant_name?: string | null
+          source_line_key?: string | null
+          source_record_index?: number | null
+          source_report_hash?: string | null
           uber_store_id: string
         }
         Update: {
@@ -10637,6 +10667,9 @@ export type Database = {
           raw_columns?: Json | null
           restaurant_id?: string | null
           restaurant_name?: string | null
+          source_line_key?: string | null
+          source_record_index?: number | null
+          source_report_hash?: string | null
           uber_store_id?: string
         }
         Relationships: [
@@ -15548,6 +15581,10 @@ export type Database = {
       }
       import_instore_restaurant_prices: {
         Args: { p_chain_id: string; p_rows: Json }
+        Returns: number
+      }
+      import_payout_adjustment_lines: {
+        Args: { p_rows: Json }
         Returns: number
       }
       increment_ai_quota: {

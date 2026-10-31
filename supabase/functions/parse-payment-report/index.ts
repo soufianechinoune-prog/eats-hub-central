@@ -1,9 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-};
+import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { identifyAdjustmentLines, sha256 } from './lineIdentity.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -597,11 +594,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!supabaseUrl || !supabaseServiceKey) throw new Error('Missing server configuration');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv' } = await req.json();
+    let lookupClient = supabase;
+    const token = req.headers.get('Authorization')?.replace(/^Bearer\s+/i, '');
+    if (!token) return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
+    if (token !== supabaseServiceKey) {
+      const { data, error } = await supabase.auth.getUser(token);
+      if (error || !data.user) return new Response(JSON.stringify({ success: false, error: 'Unauthorized' }), { status: 401, headers: corsHeaders });
+      const scoped = createClient(supabaseUrl, supabaseServiceKey, { global: { headers: { Authorization: `Bearer ${token}` } } });
+      const { data: role } = await scoped.rpc('get_user_role');
+      if (role !== 'super_admin' && role !== 'importer') return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: corsHeaders });
+      lookupClient = scoped;
+    }
+    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv', adjustmentsOnly = false } = await req.json();
+    if (typeof csvContent !== 'string' || csvContent.length > 50000000 || typeof dryRun !== 'boolean' || typeof adjustmentsOnly !== 'boolean') throw new Error('Invalid import request');
 
     if (!csvContent) {
       throw new Error('Missing csvContent in request body');
@@ -723,7 +732,7 @@ Deno.serve(async (req) => {
     let restaurants: any[] | null = null;
     let restaurantError: any = null;
     for (let attempt = 0; attempt < 3; attempt++) {
-      const result = await supabase
+      const result = await lookupClient
         .from('restaurants')
         .select('id, name, uber_store_id');
       if (!result.error) {
@@ -740,7 +749,7 @@ Deno.serve(async (req) => {
     }
 
     // Also fetch from the multi-UUID mapping table
-    const { data: uberIdMappings } = await supabase
+    const { data: uberIdMappings } = await lookupClient
       .from('restaurant_uber_ids')
       .select('restaurant_id, uber_store_id');
 
@@ -765,7 +774,7 @@ Deno.serve(async (req) => {
     }
 
     // Fetch name aliases for fallback matching
-    const { data: nameAliases } = await supabase
+    const { data: nameAliases } = await lookupClient
       .from('restaurant_name_aliases')
       .select('normalized_name, restaurant_id');
 
@@ -996,6 +1005,7 @@ Deno.serve(async (req) => {
               category,
               amount: candidateAmount,
               raw_columns: buildRawColumns(row),
+              source_record_index: rowIndex,
             });
           } else {
             skippedCount++;
@@ -1318,7 +1328,9 @@ Deno.serve(async (req) => {
     let errorCount = 0;
     const errors: string[] = [];
 
-    if (dryRun) {
+    if (adjustmentsOnly) {
+      // Repairs do not overwrite order history.
+    } else if (dryRun) {
       // In dry run mode, just count existing vs new
       const orderIds = deduplicatedOrders.map(o => o.uber_order_id);
       const { data: existingOrders } = await supabase
@@ -1399,25 +1411,7 @@ Deno.serve(async (req) => {
     const ecoContributionTotalAmount = 0;
 
 
-    // Phase 3.5: Deduplicate adjustments by (payout_reference_id, description, uber_store_id)
-    // Multiple CSV lines can share the same composite key - merge by summing amounts
-    const adjustmentsMap = new Map<string, any>();
-    for (const adj of adjustmentsToUpsert) {
-      const key = `${adj.payout_reference_id}__${adj.description || ''}__${adj.uber_store_id}`;
-      const existing = adjustmentsMap.get(key);
-      if (existing) {
-        existing.amount = (existing.amount || 0) + (adj.amount || 0);
-        // Keep non-null text values from latest entry
-        if (adj.restaurant_id) existing.restaurant_id = adj.restaurant_id;
-        if (adj.restaurant_name) existing.restaurant_name = adj.restaurant_name;
-        if (adj.payout_date) existing.payout_date = adj.payout_date;
-        if (adj.category) existing.category = adj.category;
-      } else {
-        adjustmentsMap.set(key, { ...adj });
-      }
-    }
-    const deduplicatedAdjustments = Array.from(adjustmentsMap.values());
-    console.log('Phase 3.5 adjustment dedup:', adjustmentsToUpsert.length, '->', deduplicatedAdjustments.length);
+    const deduplicatedAdjustments = await identifyAdjustmentLines(adjustmentsToUpsert, await sha256(csvContent));
 
     // Phase 4: Upsert payout_adjustments
     let adjustmentsInserted = 0;
@@ -1432,11 +1426,7 @@ Deno.serve(async (req) => {
         let adjError: any = null;
         
         const { error: firstAdjError } = await supabase
-          .from('payout_adjustments')
-          .upsert(batch, {
-            onConflict: 'payout_reference_id,description,uber_store_id',
-            ignoreDuplicates: false,
-          });
+          .rpc('import_payout_adjustment_lines', { p_rows: batch });
 
         adjError = firstAdjError;
 
@@ -1446,11 +1436,7 @@ Deno.serve(async (req) => {
           if (errMsg.includes('502') || errMsg.includes('surchargé')) {
             await new Promise(r => setTimeout(r, 2000));
             const { error: retryAdjError } = await supabase
-              .from('payout_adjustments')
-              .upsert(batch, {
-                onConflict: 'payout_reference_id,description,uber_store_id',
-                ignoreDuplicates: false,
-              });
+              .rpc('import_payout_adjustment_lines', { p_rows: batch });
             adjError = retryAdjError;
           }
         }
@@ -1487,7 +1473,7 @@ Deno.serve(async (req) => {
     csvTotals.expectedBankPayout = csvTotals.netPayout + csvTotals.mealVoucher;
 
     const result = {
-      success: true,
+      success: errorCount === 0 && adjustmentsErrors === 0,
       reportType,
       dryRun,
       stats: {
