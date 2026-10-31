@@ -13672,11 +13672,14 @@ export type Database = {
         Row: {
           cause: string | null
           delta: number | null
+          delta_cents: number | null
           direction: number | null
           family: string | null
           new_amount: number | null
+          new_cents: number | null
           new_lines: number | null
           old_amount: number | null
+          old_cents: number | null
           old_lines: number | null
           payout_reference_id: string | null
           restaurant_id: string | null
