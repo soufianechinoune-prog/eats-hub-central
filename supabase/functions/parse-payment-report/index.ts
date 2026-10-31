@@ -1,6 +1,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
+import { isPaymentHeader } from './headerRecognition.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -627,15 +628,7 @@ Deno.serve(async (req) => {
     // Find header row - support both French (Uber Manager export) and English (Uber Reports API)
     let headerRowIndex = -1;
     for (let i = 0; i < Math.min(20, rows.length); i++) {
-      const rowText = rows[i].join(' ');
-      if (
-        // FR (Uber Eats Manager export)
-        rowText.includes('Id. de la commande') || rowText.includes('Id. du flux') ||
-        rowText.includes('Nom du restaurant') || rowText.includes('Date de la commande') ||
-        // EN (Uber Reports API direct delivery)
-        (rowText.includes('Order ID') && rowText.includes('Workflow ID')) ||
-        (rowText.includes('Order ID') && rowText.includes('Store Name'))
-      ) {
+      if (isPaymentHeader(rows[i])) {
         headerRowIndex = i;
         console.log('Found header at row', i, ':', rows[i].slice(0, 5).join(', '));
         break;
@@ -894,6 +887,8 @@ Deno.serve(async (req) => {
 
       const uberFlowId = getValue('uber_flow_id');
       let uberOrderId = getValue('uber_order_id');
+      // Parallel adjustment repairs must neither allocate nor write order records.
+      if (adjustmentsOnly && (uberOrderId || uberFlowId)) continue;
       // Format 2026 : « Id. du restaurant » peut contenir un UUID, l'ID externe est ailleurs.
       // On retient le premier candidat qui matche réellement un restaurant connu.
       const storeCandidates = [
