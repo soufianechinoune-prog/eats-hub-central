@@ -1,0 +1,10 @@
+ALTER TABLE public.payout_adjustment_lines ADD COLUMN source_duplicate_of uuid REFERENCES public.payout_adjustment_lines(id);
+COMMENT ON COLUMN public.payout_adjustment_lines.source_duplicate_of IS 'Audit-only pointer for verified duplicate representations from Uber descriptive versus actual headers. Original immutable row retained; excluded from effective reporting.';
+WITH fingerprints AS (SELECT id,restaurant_id,payout_reference_id,amount,description,(SELECT jsonb_agg(value ORDER BY value) FROM jsonb_each_text(raw_columns)) values_fingerprint,raw_columns ? 'Code alphanumérique unique pour identifier la commande' dictionary,source_record_index FROM public.payout_adjustment_lines), ranked AS (SELECT *,row_number() over(partition by restaurant_id,payout_reference_id,amount,description,values_fingerprint,dictionary order by source_record_index,id) occurrence FROM fingerprints), matches AS (SELECT d.id duplicate_id,c.id canonical_id FROM ranked d JOIN ranked c ON c.restaurant_id=d.restaurant_id AND c.payout_reference_id=d.payout_reference_id AND c.amount=d.amount AND c.description IS NOT DISTINCT FROM d.description AND c.values_fingerprint=d.values_fingerprint AND c.occurrence=d.occurrence WHERE d.dictionary AND NOT c.dictionary) UPDATE public.payout_adjustment_lines l SET source_duplicate_of=m.canonical_id FROM matches m WHERE l.id=m.duplicate_id AND l.source_duplicate_of IS NULL;
+DO $$ DECLARE v_name text; v_definition text; BEGIN
+FOREACH v_name IN ARRAY ARRAY['payout_adjustments_effective','payout_signed_reconciliation','payout_family_reconciliation'] LOOP
+ v_definition:=pg_get_viewdef(('public.'||v_name)::regclass,true);
+ v_definition:=replace(v_definition,'FROM payout_adjustment_lines a','FROM (SELECT * FROM public.payout_adjustment_lines WHERE source_duplicate_of IS NULL) a');
+ v_definition:=replace(v_definition,'FROM payout_adjustment_lines','FROM (SELECT * FROM public.payout_adjustment_lines WHERE source_duplicate_of IS NULL) payout_adjustment_lines');
+ EXECUTE 'CREATE OR REPLACE VIEW public.'||quote_ident(v_name)||' WITH (security_invoker=true) AS '||v_definition;
+END LOOP; END $$;

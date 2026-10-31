@@ -10724,6 +10724,7 @@ export type Database = {
           raw_columns: Json
           restaurant_id: string
           restaurant_name: string | null
+          source_duplicate_of: string | null
           source_line_key: string
           source_record_index: number | null
           source_report_hash: string
@@ -10740,6 +10741,7 @@ export type Database = {
           raw_columns?: Json
           restaurant_id: string
           restaurant_name?: string | null
+          source_duplicate_of?: string | null
           source_line_key: string
           source_record_index?: number | null
           source_report_hash: string
@@ -10756,12 +10758,21 @@ export type Database = {
           raw_columns?: Json
           restaurant_id?: string
           restaurant_name?: string | null
+          source_duplicate_of?: string | null
           source_line_key?: string
           source_record_index?: number | null
           source_report_hash?: string
           uber_store_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "payout_adjustment_lines_source_duplicate_of_fkey"
+            columns: ["source_duplicate_of"]
+            isOneToOne: false
+            referencedRelation: "payout_adjustment_lines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       payout_adjustments: {
         Row: {
