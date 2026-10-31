@@ -2,8 +2,10 @@
 
 ## Éco-contribution — contrôle historique
 - [x] Identité des lignes : deux réimports réels Angers, 28 mouvements, zéro doublon, somme contrôlée −704,43 € identique ; anciens groupes archivés.
-- [ ] Barèmes à fenêtres recouvrantes et classification (0,01 €, 5 €, volume ±10 %) ; ambiguïtés départagées par voisins sans va-et-vient, sinon « à confirmer » hors bascule.
-- [ ] Appariement puis ré-ingestion 2026/2025/2024 par lots ; recette Angers, bascule observée avec contradictions et tableau par enseigne, sans forcer les résultats attendus.
+- [x] Barèmes candidats à fenêtres recouvrantes et audit séparé (0,01 €, 5 €, volume ±10 %) ; voisins monotones, « à confirmer » hors bascule, appariement par période documentée ; 27 tests et contrôles réels 401/403 réussis.
+- [x] Vérifier l'accès API ancien sur Angers 2026/2025/2024 ; rapports reçus. Réimport 2024 deux fois : 37 lignes, zéro doublon, total −1 192,72 € inchangé ; groupes indivisibles dans les lots.
+- [ ] Ré-ingestion massive et recette Angers/réseau : bloquées par groupes sources incomplets ou discordants en janvier 2026/2025 et périodes de cotisation non documentées ; montants conservés, détail dans docs/eco-reconciliation-validation.md.
+- [ ] Bascule observée et EN ATTENTE rapproché : aucune observation de période suffisante sur Angers ; ne pas présenter zéro contradiction sur zéro observation comme validation.
 - [x] Contrôler les 6 816 lignes historiques « Autres frais » : 2 113 exclues vers autres frais à vérifier, 4 703 candidates conservées ; montants et classement original préservés pour audit, aucune correspondance présentée comme preuve.
 - [x] Vérifier les montants inchangés (zéro écart), 13 tests réussis et page connectée Chicken Street 2026 (23 244,43 € / 24 627,89 €, 691 lignes).
 - [ ] Certifier le tarif, le traitement HT/TTC et les lignes restantes : justificatif Uber identifiant la période et le nombre réel de commandes nécessaire ; les multiples seuls ne suffisent pas.
