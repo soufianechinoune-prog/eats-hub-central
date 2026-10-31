@@ -13668,6 +13668,21 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_family_reconciliation: {
+        Row: {
+          cause: string | null
+          delta: number | null
+          direction: number | null
+          family: string | null
+          new_amount: number | null
+          new_lines: number | null
+          old_amount: number | null
+          old_lines: number | null
+          payout_reference_id: string | null
+          restaurant_id: string | null
+        }
+        Relationships: []
+      }
       payout_signed_reconciliation: {
         Row: {
           category: string | null
@@ -15922,6 +15937,10 @@ export type Database = {
       }
       parse_uber_csv_date: { Args: { _value: string }; Returns: string }
       parse_uber_csv_numeric: { Args: { _value: string }; Returns: number }
+      payout_reporting_family: {
+        Args: { p_category: string; p_description: string }
+        Returns: string
+      }
       pick_next_backfill_job: {
         Args: { p_limit?: number }
         Returns: {

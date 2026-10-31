@@ -1,0 +1,11 @@
+CREATE OR REPLACE FUNCTION public.payout_reporting_family(p_description text,p_category text) RETURNS text LANGUAGE sql IMMUTABLE SET search_path=public AS $$ SELECT CASE WHEN p_category='advertising' OR lower(coalesce(p_description,'')) ~ '(publicit|advertis)' THEN 'advertising' WHEN p_category='tax_rounding' OR lower(coalesce(p_description,'')) ~ '(arrondi|rounding)' THEN 'tax_rounding' WHEN p_category='marketing_adjustment' THEN 'marketing_adjustment' WHEN lower(coalesce(p_description,'')) ~ '(saisie.arr[eê]t|garnish)' THEN 'garnishment' ELSE 'other_payments' END $$;
+REVOKE ALL ON FUNCTION public.payout_reporting_family(text,text) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.payout_reporting_family(text,text) TO authenticated,service_role;
+CREATE VIEW public.payout_family_reconciliation WITH (security_invoker=true) AS
+WITH old AS (SELECT restaurant_id,payout_reference_id,public.payout_reporting_family(description,category) family,sign(amount) direction,sum(round(amount,2)) amount,count(*) line_count FROM public.payout_adjustments GROUP BY 1,2,3,4),
+raw AS (SELECT restaurant_id,payout_reference_id,public.payout_reporting_family(description,category) family,sign(amount) direction,sum(round(amount,2)) amount,count(*) line_count FROM public.payout_adjustment_lines GROUP BY 1,2,3,4)
+SELECT coalesce(o.restaurant_id,n.restaurant_id) restaurant_id,coalesce(o.payout_reference_id,n.payout_reference_id) payout_reference_id,coalesce(o.family,n.family) family,coalesce(o.direction,n.direction) direction,o.amount old_amount,n.amount new_amount,coalesce(n.amount,0)-coalesce(o.amount,0) delta,coalesce(o.line_count,0) old_lines,coalesce(n.line_count,0) new_lines,
+CASE WHEN o.line_count IS NULL THEN 'missing_legacy' WHEN n.line_count IS NULL THEN 'missing_api' WHEN o.amount<>n.amount THEN 'amount_difference' ELSE 'concordant' END cause
+FROM old o FULL OUTER JOIN raw n ON o.restaurant_id=n.restaurant_id AND o.payout_reference_id=n.payout_reference_id AND o.family=n.family AND o.direction=n.direction;
+GRANT SELECT ON public.payout_family_reconciliation TO authenticated,service_role;
+COMMENT ON VIEW public.payout_family_reconciliation IS 'Signed per-family diagnostic only; absence is not a confirmed missing financial movement without established source coverage. Does not weaken detailed promotion gates or certify eco classification.';

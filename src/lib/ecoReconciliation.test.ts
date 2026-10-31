@@ -11,6 +11,18 @@ const line = (overrides: Partial<EcoSourceLine> = {}): EcoSourceLine => ({ id: '
   periodStart: '2024-09-09', periodEnd: '2024-09-15', ...overrides });
 const classify = (overrides: Partial<EcoSourceLine>) => classifyEcoLine(line(overrides), rates);
 describe('eco precise screening', () => {
+  it('retains Cergy August 2025 at 0.1363: 1008 orders round to 137.39', () => {
+    const result = classify({ amount: -137.39, volume: 1008,
+      periodStart: '2025-08-01', periodEnd: '2025-08-07' });
+    expect(result.candidates).toContainEqual({ code: 'observed_1363', units: 1363, orders: 1008, residualUnits: 4 });
+    expect(result.status).toBe('candidate');
+  });
+  it('retains late-2025 0.1381 within the same overlapping year', () => {
+    const result = classify({ amount: -76.65, volume: 555,
+      periodStart: '2025-12-22', periodEnd: '2025-12-28' });
+    expect(result.candidates).toContainEqual({ code: 'observed_1381', units: 1381, orders: 555, residualUnits: 45 });
+    expect(result.status).toBe('candidate');
+  });
   it('accepts 238 × 0.1130 = 26.894 displayed as 26.89', () => {
     expect(classify({}).candidates).toEqual([{ code: 'observed_1130', units: 1130, orders: 238, residualUnits: 40 }]);
   });
