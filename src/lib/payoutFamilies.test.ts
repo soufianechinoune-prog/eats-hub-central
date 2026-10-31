@@ -5,6 +5,14 @@ const line = (amount: number, category = 'eco_contribution', description = 'Autr
   ({ restaurantId: 'Angers', payoutReference: '02/02', amount, category, description });
 
 describe('independent signed payout families', () => {
+  it('treats a real one-cent discrepancy as an amount difference', () => {
+    expect(reconcilePayoutFamilies([line(-10)], [line(-10.01)])[0])
+      .toMatchObject({ oldCents: -1000, newCents: -1001, deltaCents: -1, cause: 'amount_difference' });
+  });
+  it('sums split source cents without floating-point residuals', () => {
+    expect(reconcilePayoutFamilies([line(-0.30)], [line(-0.10), line(-0.20)])[0])
+      .toMatchObject({ oldCents: -30, newCents: -30, deltaCents: 0, cause: 'concordant' });
+  });
   it('isolates the actual February 2 eco family from advertising discrepancies', () => {
     const result = reconcilePayoutFamilies(
       [line(-205.94), line(-27.49, 'advertising', 'Dépenses publicitaires'), line(0.22, 'adjustment', "Ajustement lié à l'arrondissement de la TVA")],
