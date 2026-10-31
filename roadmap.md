@@ -1,6 +1,7 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
+- [ ] Demande 31/10 11:14 : rapprochement strict en centimes, aucun écart de 1 centime concordant ; préserver superseded pour toutes familles ; lot explicite 10 restaurants 2026, concordance par famille, pub sous-évaluée et % versements touchés, créances par restaurant, cas à vérifier listés.
 - [x] Correction 31/10 : deux candidats 2025 présents avec recouvrement ; tests Cergy 1008 × 0,1363 = 137,39 € et fin 2025 555 × 0,1381 = 76,65 €, 41 tests ciblés réussis.
 - [x] Jalon 1 élargi Angers : 18 rapports 01/12/2025–31/10/2026 reçus ; 464 lignes/464 clés ; 12 prélèvements 1 226,46 €, 10 remboursements 1 108,38 €, net −118,08 € ; famille source autres paiements 379,05 € sur dates de lignes 01/01–30/10, hors publicité/marketing/TVA explicite/saisie-arrêt. Deux réimports mars inchangés ; vue par famille vérifiée avec utilisateur autorisé.
 - [ ] Validation indépendante jalon 1 : attend contre-vérification utilisateur/PDF original ; périodes/volumes repris du document fourni, pas certifiés par la seule concordance des montants. Aucun versement promu.
