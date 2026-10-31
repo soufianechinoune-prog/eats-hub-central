@@ -34,4 +34,11 @@ describe('Signed bidirectional payout reconciliation', () => {
     expect(reconcileSignedPayouts([line(-10), line(2)], [line(-9), line(1)]).map(r => r.cause))
       .toEqual(['amount_difference', 'amount_difference']);
   });
+  it('reports changed categories as classification discrepancies, not missing lines', () => {
+    const api = { ...line(0.37), category: 'tax_rounding' };
+    const old = { ...line(0.37), category: 'adjustment' };
+    expect(reconcileSignedPayouts([old], [api])).toMatchObject([
+      { cause: 'classification_difference', deltaCents: 0, oldCents: 37, newCents: 37 },
+    ]);
+  });
 });

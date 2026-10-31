@@ -1,10 +1,10 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
-- [ ] Transition non destructive : lignes brutes parallèles, agrégats superseded et vue mixte ; rapprochement signé bidirectionnel.
-- [ ] Livrable a : matrice Angers 2026 par versement, certifiée contre le PDF source.
-- [ ] Livrable b : lot test explicite de 10 restaurants sur 2026, concordances/écarts/manquants et causes.
-- [ ] Livrable c : réseau complet uniquement après validation a/b ; recette Angers, bascule et consolidation certifiée.
+- [x] Transition non destructive : lignes brutes parallèles, promotion service-only avec preuve de source complète, agrégats superseded conservés, vue mixte et rapprochement signé bidirectionnel ; 45 lignes Angers réimportées deux fois, anciens chiffres et vue effective inchangés.
+- [ ] Livrable a : matrice provisoire 42 versements Angers 2026 produite, 5 couverts par janvier partiel ; certification bloquée par PDF source Angers absent et couverture annuelle API incomplète.
+- [ ] Livrable b : lot test explicite de 10 restaurants sur 2026, concordances/écarts/manquants et causes — attend validation a, ordre strict utilisateur.
+- [ ] Livrable c : réseau complet uniquement après validation a/b ; recette Angers, bascule et consolidation certifiée — attend a/b.
 - [x] Identité des lignes : deux réimports réels Angers, 28 mouvements, zéro doublon, somme contrôlée −704,43 € identique ; anciens groupes archivés.
 - [x] Barèmes candidats à fenêtres recouvrantes et audit séparé (0,01 €, 5 €, volume ±10 %) ; voisins monotones, « à confirmer » hors bascule, appariement par période documentée ; 27 tests et contrôles réels 401/403 réussis.
 - [x] Vérifier l'accès API ancien sur Angers 2026/2025/2024 ; rapports reçus. Réimport 2024 deux fois : 37 lignes, zéro doublon, total −1 192,72 € inchangé ; groupes indivisibles dans les lots.
