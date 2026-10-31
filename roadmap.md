@@ -1,8 +1,11 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
-- [ ] Contre-vérification 31/10 : règle de dédoublonnage + trois clés exemples ; recette Angers sur stockage actuel (1 226,46 / 1 108,38 / 379,05 €, 62 lignes) et comparaison des deux collectes du 02/02 ; réseau bloqué avant résolution.
-- [ ] Documenter anomalies CS/TC Argenteuil ; redemander cinq fenêtres Paris 18 avec espacement ; certifier les 166 candidats par période, commandes réelles, barème et appariement, sans exporter leur solde hors classeur.
+- [x] Contre-vérification 31/10 : recette Angers sur stockage actuel inchangée (1 226,46 / 1 108,38 / 379,05 €, 62 lignes, zéro doublon Angers) ; 2 992 paires vérifiées par même hash, colonnes positionnelles et ligne CSV physique ; trois exemples et clés livrés. Écart 02/02 de −54,54 € expliqué par publicité du 31/01 et 01/02 ; jalon 1 complet et lot actuel identiques. Aucun lancement réseau.
+- [x] Documenter anomalies CS/TC Argenteuil : couverture 2026 sans trous et mappings confirmés, absence de libellés éco explicites ; cause financière réelle non établie, pas de conclusion de non-facturation.
+- [ ] Paris 18 : cinq fenêtres retentées avec 95 secondes entre demandes après refus ; cinq nouveaux 429 Uber, aucun accepté. Bloqué par limitation Uber, aucun traitement automatique après le tour.
+- [ ] Certifier les 166 candidats : périodes documentées absentes et audits historiques sans clés communes ; besoin des justificatifs de période/éligibilité/tarif et appariements, sans exporter leur solde hors classeur.
+- [ ] Durcir la règle générale de doublons avant extension : SQL value-only trop large ; les paires du lot sont contre-vérifiées, mais de nouveaux formats exigent preuve par champs nommés et provenance.
 - [x] Rapprochement strict en centimes, piste d'audit préservée, 44 tests réussis ; double rejeu réel inchangé. 2 992 représentations doubles liées à leur source canonique, jamais supprimées ; aucune promotion.
 - [x] Lot 10 provisoire livré : matrice par famille/signe, publicité 2 419 339 centimes sur 137/381 versements comparables (36,0 %), 351 groupes à vérifier et 166 lignes éco candidates listées. Sources disponibles, non certification comptable.
 - [ ] Finaliser couverture lot : 94/99 demandes reçues ; cinq fenêtres Paris 18 bloquées par limite Uber. Créances par restaurant non certifiables sans périodes/volumes/appairages sources ; Angers 02/02 source actuelle −412,97 € contre ancien −233,21 €, version antérieure −358,43 € restant à vérifier (54,54 €).
