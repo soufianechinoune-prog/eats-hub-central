@@ -1,6 +1,10 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
+- [ ] Correction 31/10 : conserver les deux candidats 2025 (0,1363 et 0,1381) avec recouvrement ; test Cergy 1008 × 0,1363 = 137,39 €.
+- [ ] Jalon 1 élargi Angers 01/12/2025–31/10/2026 : collecte brute complète, rapprochement par famille, contrôle 12 prélèvements / 10 remboursements / autres paiements 379,05 € ; transmettre résultat pour contre-vérification avant lot 10.
+- [ ] Jalon 2 : lot 10 restaurants après validation Angers ; expliquer ligne à ligne 02/02 (−233,21 / −358,43) et matrice par famille.
+- [ ] Jalon 3 : réseau après jalons 1/2 ; bascule observée et tableau certifié par enseigne, sans préparer de réclamation avant certification.
 - [x] Transition non destructive : lignes brutes parallèles, promotion service-only avec preuve de source complète, agrégats superseded conservés, vue mixte et rapprochement signé bidirectionnel ; 45 lignes Angers réimportées deux fois, anciens chiffres et vue effective inchangés.
 - [ ] Livrable a : matrice provisoire 42 versements Angers 2026 produite, 5 couverts par janvier partiel ; certification bloquée par PDF source Angers absent et couverture annuelle API incomplète.
 - [ ] Livrable b : lot test explicite de 10 restaurants sur 2026, concordances/écarts/manquants et causes — attend validation a, ordre strict utilisateur.
