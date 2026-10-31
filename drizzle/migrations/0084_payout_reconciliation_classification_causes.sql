@@ -1,0 +1,8 @@
+CREATE OR REPLACE VIEW public.payout_signed_reconciliation WITH (security_invoker=true) AS
+ WITH old AS (SELECT restaurant_id,payout_reference_id,coalesce(description,'') description,string_agg(DISTINCT category,',' ORDER BY category) category,sign(amount) direction,sum(round(amount,2)) amount,count(*) line_count FROM public.payout_adjustments GROUP BY 1,2,3,5),
+ raw AS (SELECT restaurant_id,payout_reference_id,coalesce(description,'') description,string_agg(DISTINCT category,',' ORDER BY category) category,sign(amount) direction,sum(round(amount,2)) amount,count(*) line_count FROM public.payout_adjustment_lines GROUP BY 1,2,3,5)
+ SELECT coalesce(o.restaurant_id,n.restaurant_id) restaurant_id,coalesce(o.payout_reference_id,n.payout_reference_id) payout_reference_id,coalesce(o.description,n.description) description,coalesce(o.category,n.category) category,coalesce(o.direction,n.direction) direction,
+ o.amount old_amount,n.amount new_amount,coalesce(n.amount,0)-coalesce(o.amount,0) delta,coalesce(o.line_count,0) old_lines,coalesce(n.line_count,0) new_lines,
+ CASE WHEN o.line_count IS NULL THEN 'missing_legacy' WHEN n.line_count IS NULL THEN 'missing_api' WHEN o.amount<>n.amount THEN 'amount_difference' WHEN o.category<>n.category THEN 'classification_difference' ELSE 'concordant' END cause
+ FROM old o FULL OUTER JOIN raw n ON o.restaurant_id=n.restaurant_id AND o.payout_reference_id=n.payout_reference_id AND o.description=n.description AND o.direction=n.direction;
+COMMENT ON VIEW public.payout_signed_reconciliation IS 'Bidirectional signed comparison; category changes are discrepancies, not missing source movements. Unrequested windows must be labelled coverage_not_established by reporting.';
