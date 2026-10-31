@@ -1,6 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
+- [x] Identité des lignes : deux réimports réels Angers, 28 mouvements, zéro doublon, somme contrôlée −704,43 € identique ; anciens groupes archivés.
+- [ ] Barèmes datés et classification (0,01 €, 5 €, volume ±10 %) : date de bascule et périodes de cotisation absentes des lignes génériques, à établir sur justificatifs source.
+- [ ] Appariement puis ré-ingestion 2026/2025/2024 et recette réseau : bloqués sur les périodes sources ; ne pas certifier Angers −118,08 € avant rapprochement.
 - [x] Contrôler les 6 816 lignes historiques « Autres frais » : 2 113 exclues vers autres frais à vérifier, 4 703 candidates conservées ; montants et classement original préservés pour audit, aucune correspondance présentée comme preuve.
 - [x] Vérifier les montants inchangés (zéro écart), 13 tests réussis et page connectée Chicken Street 2026 (23 244,43 € / 24 627,89 €, 691 lignes).
 - [ ] Certifier le tarif, le traitement HT/TTC et les lignes restantes : justificatif Uber identifiant la période et le nombre réel de commandes nécessaire ; les multiples seuls ne suffisent pas.
