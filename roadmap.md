@@ -1,18 +1,19 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
-- [ ] Correction 31/10 : conserver les deux candidats 2025 (0,1363 et 0,1381) avec recouvrement ; test Cergy 1008 × 0,1363 = 137,39 €.
-- [ ] Jalon 1 élargi Angers 01/12/2025–31/10/2026 : collecte brute complète, rapprochement par famille, contrôle 12 prélèvements / 10 remboursements / autres paiements 379,05 € ; transmettre résultat pour contre-vérification avant lot 10.
+- [x] Correction 31/10 : deux candidats 2025 présents avec recouvrement ; tests Cergy 1008 × 0,1363 = 137,39 € et fin 2025 555 × 0,1381 = 76,65 €, 41 tests ciblés réussis.
+- [x] Jalon 1 élargi Angers : 18 rapports 01/12/2025–31/10/2026 reçus ; 464 lignes/464 clés ; 12 prélèvements 1 226,46 €, 10 remboursements 1 108,38 €, net −118,08 € ; famille source autres paiements 379,05 € sur dates de lignes 01/01–30/10, hors publicité/marketing/TVA explicite/saisie-arrêt. Deux réimports mars inchangés ; vue par famille vérifiée avec utilisateur autorisé.
+- [ ] Validation indépendante jalon 1 : attend contre-vérification utilisateur/PDF original ; périodes/volumes repris du document fourni, pas certifiés par la seule concordance des montants. Aucun versement promu.
 - [ ] Jalon 2 : lot 10 restaurants après validation Angers ; expliquer ligne à ligne 02/02 (−233,21 / −358,43) et matrice par famille.
 - [ ] Jalon 3 : réseau après jalons 1/2 ; bascule observée et tableau certifié par enseigne, sans préparer de réclamation avant certification.
 - [x] Transition non destructive : lignes brutes parallèles, promotion service-only avec preuve de source complète, agrégats superseded conservés, vue mixte et rapprochement signé bidirectionnel ; 45 lignes Angers réimportées deux fois, anciens chiffres et vue effective inchangés.
-- [ ] Livrable a : matrice provisoire 42 versements Angers 2026 produite, 5 couverts par janvier partiel ; certification bloquée par PDF source Angers absent et couverture annuelle API incomplète.
+- [ ] Livrable a : matrice par famille Angers et preuves 22 mouvements produites sur collecte complète ; attend contre-vérification utilisateur/PDF original avant certification indépendante.
 - [ ] Livrable b : lot test explicite de 10 restaurants sur 2026, concordances/écarts/manquants et causes — attend validation a, ordre strict utilisateur.
 - [ ] Livrable c : réseau complet uniquement après validation a/b ; recette Angers, bascule et consolidation certifiée — attend a/b.
 - [x] Identité des lignes : deux réimports réels Angers, 28 mouvements, zéro doublon, somme contrôlée −704,43 € identique ; anciens groupes archivés.
 - [x] Barèmes candidats à fenêtres recouvrantes et audit séparé (0,01 €, 5 €, volume ±10 %) ; voisins monotones, « à confirmer » hors bascule, appariement par période documentée ; 27 tests et contrôles réels 401/403 réussis.
 - [x] Vérifier l'accès API ancien sur Angers 2026/2025/2024 ; rapports reçus. Réimport 2024 deux fois : 37 lignes, zéro doublon, total −1 192,72 € inchangé ; groupes indivisibles dans les lots.
-- [ ] Ré-ingestion massive et recette Angers/réseau : bloquées par groupes sources incomplets ou discordants en janvier 2026/2025 et périodes de cotisation non documentées ; montants conservés, détail dans docs/eco-reconciliation-validation.md.
+- [ ] Ré-ingestion massive et recette réseau : attend validation indépendante Angers et lot 10 ; groupes discordants conservés sans promotion, périodes de cotisation non documentées indépendamment.
 - [ ] Bascule observée et EN ATTENTE rapproché : aucune observation de période suffisante sur Angers ; ne pas présenter zéro contradiction sur zéro observation comme validation.
 - [x] Contrôler les 6 816 lignes historiques « Autres frais » : 2 113 exclues vers autres frais à vérifier, 4 703 candidates conservées ; montants et classement original préservés pour audit, aucune correspondance présentée comme preuve.
 - [x] Vérifier les montants inchangés (zéro écart), 13 tests réussis et page connectée Chicken Street 2026 (23 244,43 € / 24 627,89 €, 691 lignes).
