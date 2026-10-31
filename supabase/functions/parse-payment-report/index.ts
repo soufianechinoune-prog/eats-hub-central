@@ -1414,7 +1414,7 @@ Deno.serve(async (req) => {
 
     const deduplicatedAdjustments = await identifyAdjustmentLines(adjustmentsToUpsert, await sha256(csvContent));
 
-    // Phase 4: Upsert payout_adjustments
+    // Phase 4: stage immutable source lines; legacy totals remain active until reviewed promotion.
     let adjustmentsInserted = 0;
     let adjustmentsErrors = 0;
 
@@ -1428,7 +1428,7 @@ Deno.serve(async (req) => {
         let adjError: any = null;
         
         const { error: firstAdjError } = await supabase
-          .rpc('import_payout_adjustment_lines', { p_rows: batch });
+          .rpc('stage_payout_adjustment_lines', { p_rows: batch });
 
         adjError = firstAdjError;
 
@@ -1438,7 +1438,7 @@ Deno.serve(async (req) => {
           if (errMsg.includes('502') || errMsg.includes('surchargé')) {
             await new Promise(r => setTimeout(r, 2000));
             const { error: retryAdjError } = await supabase
-              .rpc('import_payout_adjustment_lines', { p_rows: batch });
+              .rpc('stage_payout_adjustment_lines', { p_rows: batch });
             adjError = retryAdjError;
           }
         }

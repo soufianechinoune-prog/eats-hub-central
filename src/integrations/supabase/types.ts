@@ -10712,6 +10712,57 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_adjustment_lines: {
+        Row: {
+          amount: number
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          payout_date: string | null
+          payout_reference_id: string
+          raw_columns: Json
+          restaurant_id: string
+          restaurant_name: string | null
+          source_line_key: string
+          source_record_index: number | null
+          source_report_hash: string
+          uber_store_id: string
+        }
+        Insert: {
+          amount: number
+          category: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id: string
+          raw_columns?: Json
+          restaurant_id: string
+          restaurant_name?: string | null
+          source_line_key: string
+          source_record_index?: number | null
+          source_report_hash: string
+          uber_store_id: string
+        }
+        Update: {
+          amount?: number
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          payout_date?: string | null
+          payout_reference_id?: string
+          raw_columns?: Json
+          restaurant_id?: string
+          restaurant_name?: string | null
+          source_line_key?: string
+          source_record_index?: number | null
+          source_report_hash?: string
+          uber_store_id?: string
+        }
+        Relationships: []
+      }
       payout_adjustments: {
         Row: {
           amount: number
@@ -10727,6 +10778,8 @@ export type Database = {
           source_line_key: string | null
           source_record_index: number | null
           source_report_hash: string | null
+          superseded_at: string | null
+          transition_status: string
           uber_store_id: string
         }
         Insert: {
@@ -10743,6 +10796,8 @@ export type Database = {
           source_line_key?: string | null
           source_record_index?: number | null
           source_report_hash?: string | null
+          superseded_at?: string | null
+          transition_status?: string
           uber_store_id: string
         }
         Update: {
@@ -10759,6 +10814,8 @@ export type Database = {
           source_line_key?: string | null
           source_record_index?: number | null
           source_report_hash?: string | null
+          superseded_at?: string | null
+          transition_status?: string
           uber_store_id?: string
         }
         Relationships: [
@@ -10810,6 +10867,27 @@ export type Database = {
           restaurant_name?: string | null
           source_id?: string | null
           uber_store_id?: string | null
+        }
+        Relationships: []
+      }
+      payout_source_transitions: {
+        Row: {
+          evidence: string
+          payout_reference_id: string
+          restaurant_id: string
+          switched_at: string
+        }
+        Insert: {
+          evidence: string
+          payout_reference_id: string
+          restaurant_id: string
+          switched_at?: string
+        }
+        Update: {
+          evidence?: string
+          payout_reference_id?: string
+          restaurant_id?: string
+          switched_at?: string
         }
         Relationships: []
       }
@@ -13570,6 +13648,42 @@ export type Database = {
           },
         ]
       }
+      payout_adjustments_effective: {
+        Row: {
+          amount: number | null
+          category: string | null
+          created_at: string | null
+          description: string | null
+          id: string | null
+          payout_date: string | null
+          payout_reference_id: string | null
+          raw_columns: Json | null
+          restaurant_id: string | null
+          restaurant_name: string | null
+          source_kind: string | null
+          source_line_key: string | null
+          source_record_index: number | null
+          source_report_hash: string | null
+          uber_store_id: string | null
+        }
+        Relationships: []
+      }
+      payout_signed_reconciliation: {
+        Row: {
+          category: string | null
+          cause: string | null
+          delta: number | null
+          description: string | null
+          direction: number | null
+          new_amount: number | null
+          new_lines: number | null
+          old_amount: number | null
+          old_lines: number | null
+          payout_reference_id: string | null
+          restaurant_id: string | null
+        }
+        Relationships: []
+      }
       splash_ticket_coverage: {
         Row: {
           chain_id: string | null
@@ -15822,6 +15936,15 @@ export type Database = {
           vague: number
         }[]
       }
+      promote_concordant_payout: {
+        Args: {
+          p_evidence: string
+          p_payout_reference_id: string
+          p_restaurant_id: string
+          p_source_complete: boolean
+        }
+        Returns: undefined
+      }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
         Returns: {
@@ -15991,6 +16114,7 @@ export type Database = {
         }[]
       }
       splash360_reset_stuck_runs: { Args: never; Returns: number }
+      stage_payout_adjustment_lines: { Args: { p_rows: Json }; Returns: number }
       unaccent: { Args: { "": string }; Returns: string }
       update_splash_mapping: {
         Args: { p_restaurant_id: string; p_splash_id: number }
