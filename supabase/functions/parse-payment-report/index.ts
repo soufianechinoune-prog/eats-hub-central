@@ -1,6 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { identifyAdjustmentLines, sha256 } from './lineIdentity.ts';
+import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -269,7 +269,7 @@ function normalizeHeader(h: string): string {
 // elles arrivent via (description, montant TTC, colonne marketing).
 // ============================================================================
 
-const ECO_MIN_ABS = 0.1381; // seuil minimal d'une ligne d'éco-contribution réelle
+const ECO_MIN_ABS = 5; // Requested screening floor, not a tariff or VAT claim.
 
 export type AdjustmentCategory =
   | 'advertising'
@@ -335,6 +335,7 @@ export function routeAdjustment(
   if (d.includes('eco-contribution') || d.includes('eco contribution') ||
       d.includes('ecocontribution') || d.includes('environnement') ||
       (d.includes('contribution') && !d.includes('autres frais'))) {
+    if (Math.abs(amount) < ECO_MIN_ABS) return { category: 'other_fee', recognized: true, rule: 'eco_explicit:below_5_review' };
     return { category: 'eco_contribution', recognized: true, rule: 'pattern:eco_explicit' };
   }
 
@@ -349,9 +350,9 @@ export function routeAdjustment(
       return { category: 'marketing_adjustment', recognized: true, rule: 'autres_frais+marketing' };
     }
     if (Math.abs(amount) < ECO_MIN_ABS) {
-      return { category: 'tax_rounding', recognized: true, rule: 'autres_frais<seuil' };
+      return { category: 'other_fee', recognized: true, rule: 'autres_frais:below_5_review' };
     }
-    // Validation par multiple du barème TTC (0,1130 / 0,1363 / 0,1381 / 0,1829 € par commande)
+    // Candidate screening only; tax basis and real volumes are checked separately by eco-reconcile.
     const abs = Math.abs(amount);
     const isMultiple = [0.113, 0.1363, 0.1381, 0.1829].some((r) => {
       const n = Math.round(abs / r);
@@ -1420,8 +1421,9 @@ Deno.serve(async (req) => {
     if (!dryRun && deduplicatedAdjustments.length > 0) {
       console.log('Phase 4: Upserting', deduplicatedAdjustments.length, 'payout adjustments');
       
-      for (let i = 0; i < deduplicatedAdjustments.length; i += BATCH_SIZE) {
-        const batch = deduplicatedAdjustments.slice(i, i + BATCH_SIZE);
+      const adjustmentBatches = batchAdjustmentGroups(deduplicatedAdjustments);
+      for (let i = 0; i < adjustmentBatches.length; i++) {
+        const batch = adjustmentBatches[i];
         
         let adjError: any = null;
         
@@ -1451,7 +1453,7 @@ Deno.serve(async (req) => {
         }
         
         // Delay between batches
-        if (i + BATCH_SIZE < deduplicatedAdjustments.length) {
+        if (i + 1 < adjustmentBatches.length) {
           await new Promise(r => setTimeout(r, 300));
         }
       }

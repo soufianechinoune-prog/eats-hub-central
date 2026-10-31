@@ -18,3 +18,21 @@ export async function identifyAdjustmentLines<T extends {
       source_line_key: await sha256(`${canonical}:${occurrence}`) };
   }));
 }
+
+/** Never split a legacy replacement group across RPC batches. */
+export function batchAdjustmentGroups<T extends { payout_reference_id: string; uber_store_id: string; description: string | null }>(rows: T[], target = 100, maximum = 1000): T[][] {
+  const groups = new Map<string, T[]>();
+  for (const row of rows) {
+    const key = JSON.stringify([row.payout_reference_id, row.uber_store_id, row.description || '']);
+    groups.set(key, [...(groups.get(key) || []), row]);
+  }
+  const batches: T[][] = [];
+  let batch: T[] = [];
+  for (const group of groups.values()) {
+    if (group.length > maximum) throw new Error('Source group exceeds atomic import limit');
+    if (batch.length && batch.length + group.length > target) { batches.push(batch); batch = []; }
+    batch.push(...group);
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
