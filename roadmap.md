@@ -1,11 +1,13 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Éco-contribution — contrôle historique
-- [ ] Demande 31/10 11:14 : rapprochement strict en centimes, aucun écart de 1 centime concordant ; préserver superseded pour toutes familles ; lot explicite 10 restaurants 2026, concordance par famille, pub sous-évaluée et % versements touchés, créances par restaurant, cas à vérifier listés.
+- [x] Rapprochement strict en centimes, piste d'audit préservée, 44 tests réussis ; double rejeu réel inchangé. 2 992 représentations doubles liées à leur source canonique, jamais supprimées ; aucune promotion.
+- [x] Lot 10 provisoire livré : matrice par famille/signe, publicité 2 419 339 centimes sur 137/381 versements comparables (36,0 %), 351 groupes à vérifier et 166 lignes éco candidates listées. Sources disponibles, non certification comptable.
+- [ ] Finaliser couverture lot : 94/99 demandes reçues ; cinq fenêtres Paris 18 bloquées par limite Uber. Créances par restaurant non certifiables sans périodes/volumes/appairages sources ; Angers 02/02 source actuelle −412,97 € contre ancien −233,21 €, version antérieure −358,43 € restant à vérifier (54,54 €).
 - [x] Correction 31/10 : deux candidats 2025 présents avec recouvrement ; tests Cergy 1008 × 0,1363 = 137,39 € et fin 2025 555 × 0,1381 = 76,65 €, 41 tests ciblés réussis.
 - [x] Jalon 1 élargi Angers : 18 rapports 01/12/2025–31/10/2026 reçus ; 464 lignes/464 clés ; 12 prélèvements 1 226,46 €, 10 remboursements 1 108,38 €, net −118,08 € ; famille source autres paiements 379,05 € sur dates de lignes 01/01–30/10, hors publicité/marketing/TVA explicite/saisie-arrêt. Deux réimports mars inchangés ; vue par famille vérifiée avec utilisateur autorisé.
 - [ ] Validation indépendante jalon 1 : attend contre-vérification utilisateur/PDF original ; périodes/volumes repris du document fourni, pas certifiés par la seule concordance des montants. Aucun versement promu.
-- [ ] Jalon 2 : lot 10 restaurants après validation Angers ; expliquer ligne à ligne 02/02 (−233,21 / −358,43) et matrice par famille.
+- [ ] Jalon 2 certification : contrôle provisoire produit sur demande Build explicite ; attend couverture complète, explication de la version −358,43 € et validation documentaire Angers. Aucun lancement réseau.
 - [ ] Jalon 3 : réseau après jalons 1/2 ; bascule observée et tableau certifié par enseigne, sans préparer de réclamation avant certification.
 - [x] Transition non destructive : lignes brutes parallèles, promotion service-only avec preuve de source complète, agrégats superseded conservés, vue mixte et rapprochement signé bidirectionnel ; 45 lignes Angers réimportées deux fois, anciens chiffres et vue effective inchangés.
 - [ ] Livrable a : matrice par famille Angers et preuves 22 mouvements produites sur collecte complète ; attend contre-vérification utilisateur/PDF original avant certification indépendante.
