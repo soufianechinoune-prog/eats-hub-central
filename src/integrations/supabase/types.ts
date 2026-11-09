@@ -13958,6 +13958,8 @@ export type Database = {
         Row: {
           attribution: string | null
           chain_id: string | null
+          chat_charges_cents: number | null
+          chat_total_cents: number | null
           created_at_uber: string | null
           delivery_id: string | null
           delivery_status: string | null
