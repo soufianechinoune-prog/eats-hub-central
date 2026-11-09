@@ -61,6 +61,7 @@ import { ChataigneOrdersAnalysis } from "@/components/chataigne/ChataigneOrdersA
 import { ChataigneOrdersTable } from "@/components/chataigne/ChataigneOrdersTable";
 import { ChataigneHourlySection } from "@/components/chataigne/ChataigneHourlySection";
 import { ChataigneServiceComparison } from "@/components/chataigne/ChataigneServiceComparison";
+import { UberDirectCostPanel } from "@/components/chataigne/UberDirectCostPanel";
 import { ChataigneServiceRecurrence } from "@/components/chataigne/ChataigneServiceRecurrence";
 import { DailyComparisonCharts } from "@/components/analytics/DailyComparisonCharts";
 import { fetchDailyChataigne } from "@/lib/dailyChannelFetchers";
@@ -737,6 +738,7 @@ export default function Chataigne() {
               <TabsTrigger value="daily">Vue quotidienne</TabsTrigger>
               <TabsTrigger value="weekday">Jours de la semaine</TabsTrigger>
               <TabsTrigger value="service">Emport vs Livraison</TabsTrigger>
+              <TabsTrigger value="uber-direct">Coût livraison Uber Direct</TabsTrigger>
             </TabsList>
 
             <TabsContent value="service" className="space-y-6">
@@ -1010,6 +1012,15 @@ export default function Chataigne() {
                 end={end}
                 totalOrders={o?.commandes ?? 0}
                 restaurantIds={restaurantFilter ?? null}
+              />
+            </TabsContent>
+
+            <TabsContent value="uber-direct">
+              <UberDirectCostPanel
+                start={start}
+                end={end}
+                restaurantIds={restaurantFilter === undefined ? undefined : (restaurantFilter ?? chainRestaurantIds)}
+                restaurants={restaurants ?? []}
               />
             </TabsContent>
 
