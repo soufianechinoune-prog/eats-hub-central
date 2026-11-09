@@ -13954,6 +13954,45 @@ export type Database = {
           },
         ]
       }
+      uber_direct_order_match: {
+        Row: {
+          basket_value_cents: number | null
+          chain_id: string | null
+          client_delivery_fee_cents: number | null
+          client_service_fee_cents: number | null
+          created_at_uber: string | null
+          delivery_fee_amount: number | null
+          delivery_id: string | null
+          delivery_status: string | null
+          discount_cents: number | null
+          external_id: string | null
+          fee_cents: number | null
+          match_status: string | null
+          order_datetime: string | null
+          order_id: string | null
+          payment_amount: number | null
+          restaurant_id: string | null
+          reste_a_charge_cents: number | null
+          service_charge_amount: number | null
+          total_amount: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_direct_deliveries_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_direct_deliveries_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       _ensure_ai_quota_row: { Args: { p_chain_id: string }; Returns: string }
