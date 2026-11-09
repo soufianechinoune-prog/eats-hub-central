@@ -238,6 +238,8 @@ Deno.serve(async (req) => {
     })
     if (unknown.length) await admin.from('uber_direct_store_mapping').upsert(unknown, { onConflict: 'external_store_id', ignoreDuplicates: true })
     await admin.from('uber_direct_sync_runs').update({ finished_at: new Date().toISOString(), status: 'ok', fetched, upserted, pages }).eq('id', runRow?.id)
+    const { error: refreshErr } = await admin.rpc('refresh_uber_direct_cost_mv')
+    if (refreshErr) console.error('cost projection refresh failed', refreshErr.message)
     return json({ ok: true, fetched, upserted, pages, new_unmapped_stores: unknown.length })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

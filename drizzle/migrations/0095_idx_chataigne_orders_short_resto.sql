@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS idx_chataigne_orders_short_resto ON public.chataigne_orders (short_id, restaurant_id, order_datetime);

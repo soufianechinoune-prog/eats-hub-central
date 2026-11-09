@@ -13954,6 +13954,53 @@ export type Database = {
           },
         ]
       }
+      uber_direct_cost_mv: {
+        Row: {
+          attribution: string | null
+          chain_id: string | null
+          chat_charges_cents: number | null
+          chat_total_cents: number | null
+          created_at_uber: string | null
+          delivery_id: string | null
+          delivery_status: string | null
+          discount_cents: number | null
+          dlv_cents: number | null
+          external_id: string | null
+          fee_cents: number | null
+          fees_collected_cents: number | null
+          fees_collected_max_cents: number | null
+          fees_collected_min_cents: number | null
+          fees_displayed_cents: number | null
+          labelled_cents: number | null
+          match_status: string | null
+          order_id: string | null
+          paris_date: string | null
+          products_gross_cents: number | null
+          promo_labels: string | null
+          restaurant_id: string | null
+          reste_a_charge_cents: number | null
+          reste_a_charge_max_cents: number | null
+          reste_a_charge_min_cents: number | null
+          svc_cents: number | null
+          total_paid_cents: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_direct_deliveries_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_direct_deliveries_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uber_direct_cost_view: {
         Row: {
           attribution: string | null
@@ -16045,6 +16092,23 @@ export type Database = {
           week_start: string
         }[]
       }
+      get_uber_direct_attention_list: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          attribution: string
+          created_at_uber: string
+          delivery_id: string
+          discount_cents: number
+          external_id: string
+          fee_cents: number
+          products_gross_cents: number
+          restaurant_id: string
+          reste_a_charge_cents: number
+          reste_a_charge_max_cents: number
+          reste_a_charge_min_cents: number
+          total_paid_cents: number
+        }[]
+      }
       get_uber_direct_cost_summary: {
         Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
         Returns: {
@@ -16056,7 +16120,9 @@ export type Database = {
           n_a_verifier: number
           n_calcules: number
           n_detail_absent: number
+          n_ecart_prix: number
           n_non_apparies: number
+          n_produits_prouve: number
           rac_a_verifier_max_cents: number
           rac_a_verifier_min_cents: number
           restaurant_id: string
@@ -16335,6 +16401,7 @@ export type Database = {
         Args: { p_restaurant_ids?: string[] }
         Returns: number
       }
+      refresh_uber_direct_cost_mv: { Args: never; Returns: undefined }
       requeue_current_month_splash_deleted: { Args: never; Returns: undefined }
       requeue_incomplete_caisse_months: {
         Args: { p_lookback_days?: number; p_threshold?: number }
