@@ -16045,6 +16045,23 @@ export type Database = {
           week_start: string
         }[]
       }
+      get_uber_direct_attention_list: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          attribution: string
+          created_at_uber: string
+          delivery_id: string
+          discount_cents: number
+          external_id: string
+          fee_cents: number
+          products_gross_cents: number
+          restaurant_id: string
+          reste_a_charge_cents: number
+          reste_a_charge_max_cents: number
+          reste_a_charge_min_cents: number
+          total_paid_cents: number
+        }[]
+      }
       get_uber_direct_cost_summary: {
         Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
         Returns: {
@@ -16056,7 +16073,9 @@ export type Database = {
           n_a_verifier: number
           n_calcules: number
           n_detail_absent: number
+          n_ecart_prix: number
           n_non_apparies: number
+          n_produits_prouve: number
           rac_a_verifier_max_cents: number
           rac_a_verifier_min_cents: number
           restaurant_id: string
