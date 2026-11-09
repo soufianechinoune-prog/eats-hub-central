@@ -11,6 +11,12 @@ interface Row {
   fees_collected_cents: number; reste_a_charge_cents: number; fee_calc_cents: number;
   n_calcules: number; n_a_verifier: number; n_detail_absent: number;
   rac_a_verifier_min_cents: number; rac_a_verifier_max_cents: number; n_non_apparies: number;
+  n_ecart_prix: number; n_produits_prouve: number;
+}
+interface Attn {
+  delivery_id: string; restaurant_id: string; external_id: string; created_at_uber: string; attribution: string;
+  products_gross_cents: number; discount_cents: number; total_paid_cents: number; fee_cents: number;
+  reste_a_charge_cents: number | null; reste_a_charge_min_cents: number; reste_a_charge_max_cents: number;
 }
 
 const eur = (c: number) => new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR" }).format((c || 0) / 100);
@@ -24,7 +30,7 @@ interface Props {
 
 export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: Props) {
   const key = restaurantIds ? [...restaurantIds].sort().join(",") : "pending";
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["uber-direct-cost", start, end, key],
     enabled: !!restaurantIds && restaurantIds.length > 0,
     queryFn: async (): Promise<Row[]> => {
@@ -36,6 +42,17 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
     },
   });
 
+  const attnQ = useQuery({
+    queryKey: ["uber-direct-attn", start, end, key],
+    enabled: !!restaurantIds && restaurantIds.length > 0,
+    queryFn: async (): Promise<Attn[]> => {
+      const { data, error } = await supabase.rpc("get_uber_direct_attention_list", {
+        p_restaurant_ids: restaurantIds!, p_start: start, p_end: end,
+      });
+      if (error) throw error;
+      return (data ?? []) as Attn[];
+    },
+  });
   const names = useMemo(() => new Map(restaurants.map((r) => [r.id, r.name])), [restaurants]);
   const rows = data ?? [];
   const t = rows.reduce((a, r) => {
@@ -44,6 +61,9 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
   }, {} as Row);
 
   if (isLoading) return <Skeleton className="h-64 w-full" />;
+  if (error) return (
+    <Card><CardContent className="py-8 text-sm text-destructive">Chargement impossible des courses Uber Direct. Réessayez ; aucun chiffre n'est affiché tant que le calcul n'a pas abouti.</CardContent></Card>
+  );
   if (!rows.length) return (
     <Card><CardContent className="py-8 text-sm text-muted-foreground">Aucune course Uber Direct sur cette période et ce périmètre.</CardContent></Card>
   );
@@ -59,6 +79,12 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
       <div className="flex flex-wrap gap-2 text-xs">
         {t.n_a_verifier > 0 && (
           <Badge variant="outline">Attribution à vérifier : {int(t.n_a_verifier)} courses · reste à charge entre {eur(t.rac_a_verifier_min_cents)} et {eur(t.rac_a_verifier_max_cents)} (non inclus ci-dessus)</Badge>
+        )}
+        {t.n_produits_prouve > 0 && (
+          <Badge variant="secondary">Remise produits prouvée (écart de prix inclus) : {int(t.n_produits_prouve)} courses</Badge>
+        )}
+        {t.n_ecart_prix > 0 && (
+          <Badge variant="outline">Écart de prix produits (sans promo) : {int(t.n_ecart_prix)} courses · frais intégralement encaissés</Badge>
         )}
         {t.n_detail_absent > 0 && (
           <Badge variant="secondary">Détail des lignes absent : {int(t.n_detail_absent)} courses (avant fin septembre) · non calculé</Badge>
@@ -101,6 +127,48 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
           </Table>
         </CardContent>
       </Card>
+      {!!attnQ.data?.length && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Courses à surveiller</CardTitle>
+            <CardDescription>Écarts de prix produits entre Châtaigne et Uber (désynchronisation de prix à investiguer) et attributions à vérifier.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Restaurant</TableHead>
+                  <TableHead>Code</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Produits Uber</TableHead>
+                  <TableHead className="text-right">Écart / remise</TableHead>
+                  <TableHead className="text-right">Payé client</TableHead>
+                  <TableHead className="text-right">Reste à charge</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {attnQ.data.map((a) => (
+                  <TableRow key={a.delivery_id}>
+                    <TableCell>
+                      <Badge variant="outline">{a.attribution === "ecart_prix" ? "Écart de prix (sans promo)" : "À vérifier"}</Badge>
+                    </TableCell>
+                    <TableCell>{names.get(a.restaurant_id) ?? "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">{a.external_id}</TableCell>
+                    <TableCell>{new Date(a.created_at_uber).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short", timeStyle: "short" })}</TableCell>
+                    <TableCell className="text-right">{eur(a.products_gross_cents)}</TableCell>
+                    <TableCell className="text-right">{eur(a.discount_cents)}</TableCell>
+                    <TableCell className="text-right">{eur(a.total_paid_cents)}</TableCell>
+                    <TableCell className="text-right">
+                      {a.reste_a_charge_cents != null ? eur(a.reste_a_charge_cents) : `${eur(a.reste_a_charge_min_cents)}–${eur(a.reste_a_charge_max_cents)}`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
