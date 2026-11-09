@@ -162,7 +162,16 @@ Deno.serve(async (req) => {
   try {
     const token = await getToken(admin)
     const { data: maps } = await admin.from('uber_direct_store_mapping').select('external_store_id, restaurant_id, chain_id')
-    const mapping = new Map((maps ?? []).map((m) => [m.external_store_id, m]))
+    // Clé exacte : pickup.external_store_id (loc_*) = identifiant de lieu Châtaigne. Aucun rapprochement par nom.
+    const { data: chMaps } = await admin.from('chataigne_location_mapping').select('chataigne_location_id, restaurant_id, chain_id')
+    const chMap = new Map((chMaps ?? []).map((m) => [m.chataigne_location_id, m]))
+    const mapping = new Map<string, { restaurant_id: string | null; chain_id: string }>()
+    for (const m of maps ?? []) {
+      const ch = chMap.get(m.external_store_id)
+      mapping.set(m.external_store_id, { restaurant_id: m.restaurant_id ?? ch?.restaurant_id ?? null, chain_id: m.chain_id })
+    }
+    for (const [k, m] of chMap) if (!mapping.has(k) && m.restaurant_id) mapping.set(k, { restaurant_id: m.restaurant_id, chain_id: m.chain_id })
+    const known = new Set((maps ?? []).map((m) => m.external_store_id))
 
     // Constat : l'API plafonne la pagination à 500 courses par fenêtre (offset ≥ 500 → vide).
     // On découpe donc en tranches de 6 h, redécoupées si une tranche atteint le plafond.
@@ -213,7 +222,10 @@ Deno.serve(async (req) => {
       await fetchWindow(new Date(t), new Date(Math.min(t + STEP, end.getTime())))
     }
     // Magasins inconnus : enregistrés non mappés (restaurant_id NULL), jamais devinés
-    const unknown = [...seenStores].filter(([k]) => !mapping.has(k)).map(([k, n]) => ({ external_store_id: k, pickup_name: n, chain_id: CS_CHAIN_ID }))
+    const unknown = [...seenStores].filter(([k]) => !known.has(k)).map(([k, n]) => {
+      const ch = chMap.get(k)
+      return { external_store_id: k, pickup_name: n, chain_id: ch?.chain_id ?? CS_CHAIN_ID, restaurant_id: ch?.restaurant_id ?? null, match_method: ch?.restaurant_id ? 'chataigne_location_id' : null }
+    })
     if (unknown.length) await admin.from('uber_direct_store_mapping').upsert(unknown, { onConflict: 'external_store_id', ignoreDuplicates: true })
     await admin.from('uber_direct_sync_runs').update({ finished_at: new Date().toISOString(), status: 'ok', fetched, upserted, pages }).eq('id', runRow?.id)
     return json({ ok: true, fetched, upserted, pages, new_unmapped_stores: unknown.length })
