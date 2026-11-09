@@ -45,41 +45,42 @@ function parseAddress(raw: unknown): Rec {
 // Copie expurgée conservée pour l'audit (montants, statuts, horodatages, manifeste).
 function sanitized(d: Rec) {
   const pick = (w: Rec) => ({ status: w.status ?? null, status_timestamp: w.status_timestamp ?? null })
-  const dropAddr = parseAddress(obj(d.dropoff).address)
+  const dropAddr = obj(obj(d.dropoff).detailed_address)
   return {
     id: d.id, external_id: d.external_id ?? null, status: d.status, complete: d.complete ?? null,
     fee: d.fee ?? null, currency: d.currency ?? null, tip: d.tip ?? null,
     created: d.created ?? null, updated: d.updated ?? null,
     pickup_eta: d.pickup_eta ?? null, dropoff_eta: d.dropoff_eta ?? null,
-    batch: d.batch ?? null, undeliverable_reason: d.undeliverable_reason ?? null,
-    refund: d.refund ?? null, manifest: d.manifest ?? null, manifest_items: d.manifest_items ?? null,
-    pickup: { ...pick(obj(d.pickup)), name: obj(d.pickup).name ?? null },
-    dropoff: { ...pick(obj(d.dropoff)), city: dropAddr.city ?? null, zip_code: dropAddr.zip_code ?? null },
+    batch_id: d.batch_id ?? null, dropoff_sequence_number: d.dropoff_sequence_number ?? null,
+    undeliverable_reason: d.undeliverable_reason ?? null, refunds: d.refunds ?? null, manifest: d.manifest ?? null, manifest_items: d.manifest_items ?? null,
+    pickup: { ...pick(obj(d.pickup)), name: obj(d.pickup).name ?? null, external_store_id: obj(d.pickup).external_store_id ?? null },
+    dropoff: { ...pick(obj(d.dropoff)), city: dropAddr.city ?? null, zip_code: dropAddr.zip_code ?? dropAddr.postal_code ?? null },
   }
 }
 
 function toRow(d: Rec, mapping: Map<string, { restaurant_id: string | null; chain_id: string }>) {
   const pickup = obj(d.pickup), dropoff = obj(d.dropoff), manifest = obj(d.manifest)
-  const storeId = str(d.external_store_id) ?? str(obj(d.external_store_id).id) ?? str(pickup.external_store_id)
+  const storeId = str(pickup.external_store_id) ?? str(d.external_store_id)
   const items = Array.isArray(d.manifest_items) ? (d.manifest_items as Rec[]) : []
-  let products = 0, delFee: number | null = null, svcFee: number | null = null
+  let products = 0, allLines = 0, delFee: number | null = null, svcFee: number | null = null
   for (const it of items) {
     const name = String(it.name ?? '')
     const line = (num(it.price) ?? 0) * (num(it.quantity) ?? 1)
+    allLines += line
     if (isDeliveryFee(name)) delFee = (delFee ?? 0) + line
     else if (isServiceFee(name)) svcFee = (svcFee ?? 0) + line
     else products += line
   }
   const totalValue = num(manifest.total_value)
-  // Remise = produits (hors lignes de frais) − total_value net, bornée à ≥ 0
-  const discount = totalValue != null && items.length ? Math.max(0, Math.round(products - totalValue)) : null
+  // Constat API : total_value = somme de TOUTES les lignes du manifeste (frais inclus), remises déduites.
+  // Remise = somme(prix × qté, toutes lignes) − total_value, bornée à ≥ 0
+  const discount = totalValue != null && items.length ? Math.max(0, Math.round(allLines - totalValue)) : null
   const created = str(d.created)
   const delivered = str(dropoff.status_timestamp)
   const deliveredMin = d.status === 'delivered' && created && delivered
     ? Math.round(((Date.parse(delivered) - Date.parse(created)) / 60000) * 10) / 10 : null
-  const dropAddr = parseAddress(dropoff.address)
+  const dropAddr = obj(dropoff.detailed_address)
   const map = storeId ? mapping.get(storeId) : undefined
-  const batch = obj(d.batch)
   return {
     id: String(d.id),
     chain_id: map?.chain_id ?? CS_CHAIN_ID,
@@ -101,12 +102,12 @@ function toRow(d: Rec, mapping: Map<string, { restaurant_id: string | null; chai
     delivered_in_min: deliveredMin,
     created_at_uber: created,
     updated_at_uber: str(d.updated),
-    batch_id: str(batch.id),
-    dropoff_sequence_number: num(obj(dropoff).sequence_number) ?? num(batch.dropoff_sequence_number),
+    batch_id: str(d.batch_id),
+    dropoff_sequence_number: num(d.dropoff_sequence_number),
     undeliverable_reason: str(d.undeliverable_reason),
-    refunds: d.refund ?? null,
+    refunds: d.refunds ?? null,
     dropoff_city: str(dropAddr.city),
-    dropoff_zip: str(dropAddr.zip_code),
+    dropoff_zip: str(dropAddr.zip_code) ?? str(dropAddr.postal_code),
     raw_sanitized: sanitized(d),
     synced_at: new Date().toISOString(),
   }
@@ -179,7 +180,7 @@ Deno.serve(async (req) => {
         return json({ count_page: list.length, top_keys: list[0] ? Object.keys(list[0]) : [],
           pickup_keys: Object.keys(pk), dropoff_keys: Object.keys(dk),
           pickup_store: pk.external_store_id ?? null, pickup_loc_keys: Object.keys(obj(pk.location)),
-          dropoff_addr_keys: Object.keys(parseAddress(dk.address)), dropoff_types: Object.fromEntries(Object.entries(dk).map(([k, v]) => [k, typeof v])),
+          dropoff_addr_keys: Object.keys(obj(dk.detailed_address)), dropoff_types: Object.fromEntries(Object.entries(dk).map(([k, v]) => [k, typeof v])),
           state_changes: d0.state_changes ?? null, refunds_root: d0.refunds ?? null, batch_id: d0.batch_id ?? null, seq: d0.dropoff_sequence_number ?? null, external_store_id: list[0]?.external_store_id ?? null, sample: s, next_href: body.next_href ?? null })
       }
       // Bornage strict à la fenêtre demandée (au cas où le filtre serveur serait laxiste)
