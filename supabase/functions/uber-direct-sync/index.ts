@@ -174,7 +174,13 @@ Deno.serve(async (req) => {
       pages++
       if (p.mode === 'probe') {
         const s = list[0] ? sanitized(list[0]) : null
-        return json({ count_page: list.length, top_keys: list[0] ? Object.keys(list[0]) : [], external_store_id: list[0]?.external_store_id ?? null, sample: s, next_href: body.next_href ?? null })
+        const d0 = obj(list[0])
+        const pk = obj(d0.pickup), dk = obj(d0.dropoff)
+        return json({ count_page: list.length, top_keys: list[0] ? Object.keys(list[0]) : [],
+          pickup_keys: Object.keys(pk), dropoff_keys: Object.keys(dk),
+          pickup_store: pk.external_store_id ?? null, pickup_loc_keys: Object.keys(obj(pk.location)),
+          dropoff_addr_keys: Object.keys(parseAddress(dk.address)), dropoff_types: Object.fromEntries(Object.entries(dk).map(([k, v]) => [k, typeof v])),
+          state_changes: d0.state_changes ?? null, refunds_root: d0.refunds ?? null, batch_id: d0.batch_id ?? null, seq: d0.dropoff_sequence_number ?? null, external_store_id: list[0]?.external_store_id ?? null, sample: s, next_href: body.next_href ?? null })
       }
       // Bornage strict à la fenêtre demandée (au cas où le filtre serveur serait laxiste)
       const rows = list.map((d) => toRow(d, mapping)).filter((r) => {
