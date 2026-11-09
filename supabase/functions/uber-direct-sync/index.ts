@@ -205,6 +205,10 @@ Deno.serve(async (req) => {
       for (const r of uniq) if (r.external_store_id) seenStores.set(r.external_store_id, r.pickup_name)
       fetched += got
       if (uniq.length) {
+        for (const r of uniq) {
+          if (r.distance_km != null && !(r.distance_km >= 0 && r.distance_km < 1000)) { console.warn('distance hors bornes', r.id, r.distance_km); r.distance_km = null }
+          if (r.delivered_in_min != null && !(r.delivered_in_min >= 0 && r.delivered_in_min < 100000)) { console.warn('délai hors bornes', r.id, r.delivered_in_min); r.delivered_in_min = null }
+        }
         const { error } = await admin.from('uber_direct_deliveries').upsert(uniq, { onConflict: 'id' })
         if (error) throw new Error(`upsert: ${error.message}`)
         upserted += uniq.length
