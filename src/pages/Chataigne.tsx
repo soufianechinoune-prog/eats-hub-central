@@ -247,7 +247,8 @@ export default function Chataigne() {
     tabParam === "orders" ||
     tabParam === "daily" ||
     tabParam === "weekday" ||
-    tabParam === "service"
+    tabParam === "service" ||
+    tabParam === "uber-direct"
       ? tabParam
       : "overview";
   const setTab = (v: string) => {
