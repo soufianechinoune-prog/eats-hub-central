@@ -81,10 +81,10 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
           <Badge variant="outline">Attribution à vérifier : {int(t.n_a_verifier)} courses · reste à charge entre {eur(t.rac_a_verifier_min_cents)} et {eur(t.rac_a_verifier_max_cents)} (non inclus ci-dessus)</Badge>
         )}
         {t.n_produits_prouve > 0 && (
-          <Badge variant="secondary">Remise produits prouvée (écart de prix inclus) : {int(t.n_produits_prouve)} courses</Badge>
+          <Badge variant="secondary">Remise produits prouvée (prix manifeste Uber ambigu) : {int(t.n_produits_prouve)} courses</Badge>
         )}
         {t.n_ecart_prix > 0 && (
-          <Badge variant="outline">Écart de prix produits (sans promo) : {int(t.n_ecart_prix)} courses · frais intégralement encaissés</Badge>
+          <Badge variant="outline">Sans promo, prix manifeste Uber ambigu : {int(t.n_ecart_prix)} courses · frais intégralement encaissés</Badge>
         )}
         {t.n_detail_absent > 0 && (
           <Badge variant="secondary">Détail des lignes absent : {int(t.n_detail_absent)} courses (avant fin septembre) · non calculé</Badge>
@@ -131,7 +131,7 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Courses à surveiller</CardTitle>
-            <CardDescription>Écarts de prix produits entre Châtaigne et Uber (désynchronisation de prix à investiguer) et attributions à vérifier.</CardDescription>
+            <CardDescription>Courses où le manifeste Uber donne un prix de ligne au lieu d'un prix unitaire pour les quantités > 1 (Châtaigne fait foi, client a tout payé), et attributions à vérifier.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -142,7 +142,7 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
                   <TableHead>Code</TableHead>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Produits Uber</TableHead>
-                  <TableHead className="text-right">Écart / remise</TableHead>
+                  <TableHead className="text-right">Écart apparent</TableHead>
                   <TableHead className="text-right">Payé client</TableHead>
                   <TableHead className="text-right">Reste à charge</TableHead>
                 </TableRow>
@@ -151,7 +151,7 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
                 {attnQ.data.map((a) => (
                   <TableRow key={a.delivery_id}>
                     <TableCell>
-                      <Badge variant="outline">{a.attribution === "ecart_prix" ? "Écart de prix (sans promo)" : "À vérifier"}</Badge>
+                      <Badge variant="outline">{a.attribution === "ecart_prix" ? "Sans promo · prix manifeste ambigu" : "À vérifier"}</Badge>
                     </TableCell>
                     <TableCell>{names.get(a.restaurant_id) ?? "—"}</TableCell>
                     <TableCell className="font-mono text-xs">{a.external_id}</TableCell>
