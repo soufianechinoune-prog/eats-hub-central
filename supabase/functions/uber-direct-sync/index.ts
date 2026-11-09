@@ -147,11 +147,17 @@ Deno.serve(async (req) => {
     const { data } = await uc.rpc('is_super_admin')
     allowed = data === true
   }
-  if (!allowed) return json({ error: 'forbidden' }, 403)
-
+  // Tâche planifiée (clé publique) : seule la fenêtre quotidienne J-3 → maintenant est permise,
+  // au plus une fois toutes les 30 min, sans aucun paramètre.
   const parsed = Body.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400)
-  const p = parsed.data
+  let p = parsed.data
+  if (!allowed) {
+    const { data: recent } = await admin.from('uber_direct_sync_runs').select('id')
+      .gte('started_at', new Date(Date.now() - 30 * 60_000).toISOString()).limit(1)
+    if (recent?.length) return json({ error: 'throttled' }, 429)
+    p = { mode: 'sync', days_back: 3, max_pages: 200 }
+  }
   const end = p.end_dt ? new Date(p.end_dt) : new Date()
   const start = p.start_dt ? new Date(p.start_dt) : new Date(end.getTime() - (p.days_back ?? 3) * 86400_000)
   const customer = Deno.env.get('UBER_DIRECT_CUSTOMER_ID')
