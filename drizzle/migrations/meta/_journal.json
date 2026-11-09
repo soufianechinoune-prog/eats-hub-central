@@ -617,6 +617,27 @@
       "when": 1793446049906,
       "tag": "0087_payout_header_duplicate_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794259915423,
+      "tag": "0088_uber_direct_deliveries",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
+      "when": 1794260138094,
+      "tag": "0089_uber_direct_order_match",
+      "breakpoints": true
+    },
+    {
+      "idx": 90,
+      "version": "7",
+      "when": 1794260385075,
+      "tag": "0090_uber_direct_cron_and_docs",
+      "breakpoints": true
     }
   ]
 }

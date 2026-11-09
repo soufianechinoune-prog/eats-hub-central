@@ -177,3 +177,6 @@ import_map = "./functions/splash-stock-webhook/deno.json"
 
 [functions.splash-webhook]
 import_map = "./functions/splash-webhook/deno.json"
+
+[functions.uber-direct-sync]
+verify_jwt = true
