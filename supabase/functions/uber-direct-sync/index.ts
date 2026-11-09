@@ -164,39 +164,53 @@ Deno.serve(async (req) => {
     const { data: maps } = await admin.from('uber_direct_store_mapping').select('external_store_id, restaurant_id, chain_id')
     const mapping = new Map((maps ?? []).map((m) => [m.external_store_id, m]))
 
-    let offset = 0, fetched = 0, upserted = 0, pages = 0
+    // Constat : l'API plafonne la pagination à 500 courses par fenêtre (offset ≥ 500 → vide).
+    // On découpe donc en tranches de 6 h, redécoupées si une tranche atteint le plafond.
+    let fetched = 0, upserted = 0, pages = 0
     const seenStores = new Map<string, string | null>()
-    while (pages < p.max_pages) {
-      const q = new URLSearchParams({ limit: '100', offset: String(offset), start_dt: start.toISOString(), end_dt: end.toISOString() })
-      const res = await fetch(`${API}/${customer}/deliveries?${q}`, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) throw new Error(`deliveries ${res.status}: ${(await res.text()).slice(0, 200)}`)
-      const body = await res.json()
-      const list = (Array.isArray(body.data) ? body.data : []) as Rec[]
-      pages++
-      if (p.mode === 'probe') {
-        const s = list[0] ? sanitized(list[0]) : null
-        const d0 = obj(list[0])
-        const pk = obj(d0.pickup), dk = obj(d0.dropoff)
-        return json({ count_page: list.length, top_keys: list[0] ? Object.keys(list[0]) : [],
-          pickup_keys: Object.keys(pk), dropoff_keys: Object.keys(dk),
-          pickup_store: pk.external_store_id ?? null, pickup_loc_keys: Object.keys(obj(pk.location)),
-          dropoff_addr_keys: Object.keys(obj(dk.detailed_address)), dropoff_types: Object.fromEntries(Object.entries(dk).map(([k, v]) => [k, typeof v])),
-          state_changes: d0.state_changes ?? null, refunds_root: d0.refunds ?? null, batch_id: d0.batch_id ?? null, seq: d0.dropoff_sequence_number ?? null, external_store_id: list[0]?.external_store_id ?? null, sample: s, next_href: body.next_href ?? null })
+    const CAP = 500
+    const fetchWindow = async (ws: Date, we: Date): Promise<void> => {
+      let offset = 0, got = 0
+      const batch: Rec[] = []
+      while (true) {
+        const q = new URLSearchParams({ limit: '100', offset: String(offset), start_dt: ws.toISOString(), end_dt: we.toISOString() })
+        const res = await fetch(`${API}/${customer}/deliveries?${q}`, { headers: { Authorization: `Bearer ${token}` } })
+        if (!res.ok) throw new Error(`deliveries ${res.status}: ${(await res.text()).slice(0, 200)}`)
+        const body = await res.json()
+        const list = (Array.isArray(body.data) ? body.data : []) as Rec[]
+        pages++
+        batch.push(...list); got += list.length
+        if (list.length < 100) break
+        offset += 100
       }
-      // Bornage strict à la fenêtre demandée (au cas où le filtre serveur serait laxiste)
-      const rows = list.map((d) => toRow(d, mapping)).filter((r) => {
+      if (got >= CAP && we.getTime() - ws.getTime() > 15 * 60_000) {
+        const mid = new Date((ws.getTime() + we.getTime()) / 2)
+        await fetchWindow(ws, mid); await fetchWindow(mid, we); return
+      }
+      if (got >= CAP) throw new Error(`plafond atteint sur ${ws.toISOString()}`)
+      const rows = batch.map((d) => toRow(d, mapping)).filter((r) => {
         const t = r.created_at_uber ? Date.parse(r.created_at_uber) : NaN
-        return t >= start.getTime() && t < end.getTime()
+        return t >= ws.getTime() && t < we.getTime()
       })
-      for (const r of rows) if (r.external_store_id) seenStores.set(r.external_store_id, r.pickup_name)
-      fetched += list.length
-      if (rows.length) {
-        const { error } = await admin.from('uber_direct_deliveries').upsert(rows, { onConflict: 'id' })
+      const uniq = [...new Map(rows.map((r) => [r.id, r])).values()]
+      for (const r of uniq) if (r.external_store_id) seenStores.set(r.external_store_id, r.pickup_name)
+      fetched += got
+      if (uniq.length) {
+        const { error } = await admin.from('uber_direct_deliveries').upsert(uniq, { onConflict: 'id' })
         if (error) throw new Error(`upsert: ${error.message}`)
-        upserted += rows.length
+        upserted += uniq.length
       }
-      if (list.length < 100) break
-      offset += 100
+    }
+    if (p.mode === 'probe') {
+      const q = new URLSearchParams({ limit: '1', offset: '0', start_dt: start.toISOString(), end_dt: end.toISOString() })
+      const res = await fetch(`${API}/${customer}/deliveries?${q}`, { headers: { Authorization: `Bearer ${token}` } })
+      const body = await res.json()
+      const d0 = obj((body.data ?? [])[0])
+      return json({ dropoff_addr_keys: Object.keys(obj(obj(d0.dropoff).detailed_address)), sample: d0.id ? sanitized(d0) : null })
+    }
+    const STEP = 6 * 3600_000
+    for (let t = start.getTime(); t < end.getTime(); t += STEP) {
+      await fetchWindow(new Date(t), new Date(Math.min(t + STEP, end.getTime())))
     }
     // Magasins inconnus : enregistrés non mappés (restaurant_id NULL), jamais devinés
     const unknown = [...seenStores].filter(([k]) => !mapping.has(k)).map(([k, n]) => ({ external_store_id: k, pickup_name: n, chain_id: CS_CHAIN_ID }))
