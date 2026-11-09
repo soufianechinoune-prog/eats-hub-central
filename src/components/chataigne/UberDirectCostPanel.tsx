@@ -131,7 +131,7 @@ export function UberDirectCostPanel({ start, end, restaurantIds, restaurants }: 
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Courses à surveiller</CardTitle>
-            <CardDescription>Courses où le manifeste Uber donne un prix de ligne au lieu d'un prix unitaire pour les quantités > 1 (Châtaigne fait foi, client a tout payé), et attributions à vérifier.</CardDescription>
+            <CardDescription>Courses où le manifeste Uber donne un prix de ligne au lieu d'un prix unitaire pour les quantités supérieures à 1 (Châtaigne fait foi, client a tout payé), et attributions à vérifier.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
