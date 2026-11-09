@@ -617,6 +617,13 @@
       "when": 1793446049906,
       "tag": "0087_payout_header_duplicate_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1794259915423,
+      "tag": "0088_uber_direct_deliveries",
+      "breakpoints": true
     }
   ]
 }

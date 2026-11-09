@@ -13286,6 +13286,222 @@ export type Database = {
           },
         ]
       }
+      uber_direct_deliveries: {
+        Row: {
+          basket_value_cents: number | null
+          batch_id: string | null
+          chain_id: string
+          client_delivery_fee_cents: number | null
+          client_service_fee_cents: number | null
+          complete: boolean | null
+          created_at_uber: string | null
+          currency: string | null
+          delivered_in_min: number | null
+          discount_cents: number | null
+          distance_km: number | null
+          dropoff_city: string | null
+          dropoff_sequence_number: number | null
+          dropoff_zip: string | null
+          external_id: string | null
+          external_store_id: string | null
+          fee_cents: number | null
+          first_seen_at: string
+          id: string
+          pickup_name: string | null
+          products_gross_cents: number | null
+          raw_sanitized: Json | null
+          refunds: Json | null
+          restaurant_id: string | null
+          status: string | null
+          synced_at: string
+          tip_cents: number | null
+          undeliverable_reason: string | null
+          updated_at_uber: string | null
+        }
+        Insert: {
+          basket_value_cents?: number | null
+          batch_id?: string | null
+          chain_id: string
+          client_delivery_fee_cents?: number | null
+          client_service_fee_cents?: number | null
+          complete?: boolean | null
+          created_at_uber?: string | null
+          currency?: string | null
+          delivered_in_min?: number | null
+          discount_cents?: number | null
+          distance_km?: number | null
+          dropoff_city?: string | null
+          dropoff_sequence_number?: number | null
+          dropoff_zip?: string | null
+          external_id?: string | null
+          external_store_id?: string | null
+          fee_cents?: number | null
+          first_seen_at?: string
+          id: string
+          pickup_name?: string | null
+          products_gross_cents?: number | null
+          raw_sanitized?: Json | null
+          refunds?: Json | null
+          restaurant_id?: string | null
+          status?: string | null
+          synced_at?: string
+          tip_cents?: number | null
+          undeliverable_reason?: string | null
+          updated_at_uber?: string | null
+        }
+        Update: {
+          basket_value_cents?: number | null
+          batch_id?: string | null
+          chain_id?: string
+          client_delivery_fee_cents?: number | null
+          client_service_fee_cents?: number | null
+          complete?: boolean | null
+          created_at_uber?: string | null
+          currency?: string | null
+          delivered_in_min?: number | null
+          discount_cents?: number | null
+          distance_km?: number | null
+          dropoff_city?: string | null
+          dropoff_sequence_number?: number | null
+          dropoff_zip?: string | null
+          external_id?: string | null
+          external_store_id?: string | null
+          fee_cents?: number | null
+          first_seen_at?: string
+          id?: string
+          pickup_name?: string | null
+          products_gross_cents?: number | null
+          raw_sanitized?: Json | null
+          refunds?: Json | null
+          restaurant_id?: string | null
+          status?: string | null
+          synced_at?: string
+          tip_cents?: number | null
+          undeliverable_reason?: string | null
+          updated_at_uber?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_direct_deliveries_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_direct_deliveries_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uber_direct_store_mapping: {
+        Row: {
+          chain_id: string
+          created_at: string
+          external_store_id: string
+          match_method: string | null
+          pickup_name: string | null
+          restaurant_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          created_at?: string
+          external_store_id: string
+          match_method?: string | null
+          pickup_name?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          created_at?: string
+          external_store_id?: string
+          match_method?: string | null
+          pickup_name?: string | null
+          restaurant_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_direct_store_mapping_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_direct_store_mapping_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      uber_direct_sync_runs: {
+        Row: {
+          error: string | null
+          fetched: number | null
+          finished_at: string | null
+          id: number
+          mode: string | null
+          pages: number | null
+          started_at: string
+          status: string
+          upserted: number | null
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          error?: string | null
+          fetched?: number | null
+          finished_at?: string | null
+          id?: number
+          mode?: string | null
+          pages?: number | null
+          started_at?: string
+          status?: string
+          upserted?: number | null
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          error?: string | null
+          fetched?: number | null
+          finished_at?: string | null
+          id?: number
+          mode?: string | null
+          pages?: number | null
+          started_at?: string
+          status?: string
+          upserted?: number | null
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
+      uber_direct_token_cache: {
+        Row: {
+          access_token: string
+          expires_at: string
+          id: number
+        }
+        Insert: {
+          access_token: string
+          expires_at: string
+          id: number
+        }
+        Update: {
+          access_token?: string
+          expires_at?: string
+          id?: number
+        }
+        Relationships: []
+      }
       uber_live_orders: {
         Row: {
           chain_id: string | null
