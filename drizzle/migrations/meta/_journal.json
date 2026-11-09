@@ -666,6 +666,13 @@
       "when": 1794262816997,
       "tag": "0094_uber_direct_ecart_prix",
       "breakpoints": true
+    },
+    {
+      "idx": 95,
+      "version": "7",
+      "when": 1794262884768,
+      "tag": "0095_idx_chataigne_orders_short_resto",
+      "breakpoints": true
     }
   ]
 }
