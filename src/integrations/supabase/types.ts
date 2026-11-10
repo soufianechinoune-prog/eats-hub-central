@@ -13608,6 +13608,39 @@ export type Database = {
           },
         ]
       }
+      uber_direct_resync_queue: {
+        Row: {
+          attempts: number
+          id: number
+          pass: string
+          result: Json | null
+          status: string
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          id?: number
+          pass: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          attempts?: number
+          id?: number
+          pass?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       uber_direct_store_mapping: {
         Row: {
           chain_id: string
@@ -14994,6 +15027,25 @@ export type Database = {
           status: string
           total_amount: number
           total_count: number
+        }[]
+      }
+      get_chataigne_orders_uber_costs: {
+        Args: { p_chataigne_order_ids: string[] }
+        Returns: {
+          attribution: string
+          chataigne_order_id: string
+          delivery_id: string
+          discount_cents: number
+          dlv_collected_cents: number
+          dlv_displayed_cents: number
+          fee_cents: number
+          fees_collected_cents: number
+          match_status: string
+          products_gross_cents: number
+          reste_a_charge_cents: number
+          svc_collected_cents: number
+          svc_displayed_cents: number
+          total_paid_cents: number
         }[]
       }
       get_chataigne_overview: {
@@ -16797,6 +16849,7 @@ export type Database = {
       splash360_reset_stuck_runs: { Args: never; Returns: number }
       stage_payout_adjustment_lines: { Args: { p_rows: Json }; Returns: number }
       uber_direct_promo_target: { Args: { _name: string }; Returns: string }
+      uber_direct_resync_stop: { Args: never; Returns: undefined }
       unaccent: { Args: { "": string }; Returns: string }
       update_splash_mapping: {
         Args: { p_restaurant_id: string; p_splash_id: number }

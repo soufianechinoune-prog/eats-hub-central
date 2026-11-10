@@ -152,7 +152,20 @@ Deno.serve(async (req) => {
   const parsed = Body.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400)
   let p = parsed.data
+  let queueId: number | null = null
   if (!allowed) {
+    // Relecture planifiée : une fenêtre de la file par appel, puis arrêt automatique de la tâche quand la file est vide.
+    const { data: next } = await admin.from('uber_direct_resync_queue').select('id, window_start, window_end, attempts')
+      .in('status', ['pending', 'error']).lt('attempts', 3).order('window_start').limit(1).maybeSingle()
+    if (next) {
+      queueId = next.id
+      await admin.from('uber_direct_resync_queue').update({ status: 'running', attempts: next.attempts + 1, updated_at: new Date().toISOString() }).eq('id', next.id)
+      p = { mode: 'sync', start_dt: next.window_start, end_dt: next.window_end, max_pages: 200 } as typeof p
+    }
+  }
+  if (!allowed && queueId == null) {
+    const { count } = await admin.from('uber_direct_resync_queue').select('id', { count: 'exact', head: true }).in('status', ['pending', 'running'])
+    if (!count) await admin.rpc('uber_direct_resync_stop')
     const { data: recent } = await admin.from('uber_direct_sync_runs').select('id')
       .gte('started_at', new Date(Date.now() - 30 * 60_000).toISOString()).limit(1)
     if (recent?.length) return json({ error: 'throttled' }, 429)
@@ -240,10 +253,12 @@ Deno.serve(async (req) => {
     await admin.from('uber_direct_sync_runs').update({ finished_at: new Date().toISOString(), status: 'ok', fetched, upserted, pages }).eq('id', runRow?.id)
     const { error: refreshErr } = await admin.rpc('refresh_uber_direct_cost_mv')
     if (refreshErr) console.error('cost projection refresh failed', refreshErr.message)
+    if (queueId != null) await admin.from('uber_direct_resync_queue').update({ status: 'done', result: { fetched, upserted, pages }, updated_at: new Date().toISOString() }).eq('id', queueId)
     return json({ ok: true, fetched, upserted, pages, new_unmapped_stores: unknown.length })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     await admin.from('uber_direct_sync_runs').update({ finished_at: new Date().toISOString(), status: 'error', error: msg }).eq('id', runRow?.id)
+    if (queueId != null) await admin.from('uber_direct_resync_queue').update({ status: 'error', result: { error: msg }, updated_at: new Date().toISOString() }).eq('id', queueId)
     return json({ error: msg }, 502)
   }
 })
