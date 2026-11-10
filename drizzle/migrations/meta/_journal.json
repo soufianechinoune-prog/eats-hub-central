@@ -680,6 +680,13 @@
       "when": 1794263011949,
       "tag": "0096_uber_direct_cost_matview",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1794305798601,
+      "tag": "0097_chataigne_profitability_settings",
+      "breakpoints": true
     }
   ]
 }

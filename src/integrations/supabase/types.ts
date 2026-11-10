@@ -7210,6 +7210,104 @@ export type Database = {
         }
         Relationships: []
       }
+      channel_cost_settings: {
+        Row: {
+          chain_id: string
+          cost_key: string
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          id: string
+          notes: string | null
+          restaurant_id: string | null
+          source: string | null
+          status: string
+          unit: string
+          value: number
+        }
+        Insert: {
+          chain_id: string
+          cost_key: string
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          restaurant_id?: string | null
+          source?: string | null
+          status?: string
+          unit: string
+          value: number
+        }
+        Update: {
+          chain_id?: string
+          cost_key?: string
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          restaurant_id?: string | null
+          source?: string | null
+          status?: string
+          unit?: string
+          value?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_cost_settings_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "channel_cost_settings_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      channel_pricing_regimes: {
+        Row: {
+          chain_id: string
+          code: string
+          ends_at: string | null
+          evidence: string | null
+          id: string
+          label: string
+          starts_at: string
+        }
+        Insert: {
+          chain_id: string
+          code: string
+          ends_at?: string | null
+          evidence?: string | null
+          id?: string
+          label: string
+          starts_at: string
+        }
+        Update: {
+          chain_id?: string
+          code?: string
+          ends_at?: string | null
+          evidence?: string | null
+          id?: string
+          label?: string
+          starts_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "channel_pricing_regimes_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       channel_restaurant_prices: {
         Row: {
           chain_id: string
@@ -7714,6 +7812,54 @@ export type Database = {
           },
           {
             foreignKeyName: "chataigne_orders_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chataigne_product_mapping: {
+        Row: {
+          caisse_name_norm: string
+          chain_id: string
+          chataigne_name_norm: string
+          id: string
+          notes: string | null
+          restaurant_id: string | null
+          validated_at: string
+          validated_by: string
+        }
+        Insert: {
+          caisse_name_norm: string
+          chain_id: string
+          chataigne_name_norm: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string | null
+          validated_at?: string
+          validated_by: string
+        }
+        Update: {
+          caisse_name_norm?: string
+          chain_id?: string
+          chataigne_name_norm?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string | null
+          validated_at?: string
+          validated_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_product_mapping_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chataigne_product_mapping_restaurant_id_fkey"
             columns: ["restaurant_id"]
             isOneToOne: false
             referencedRelation: "restaurants"
@@ -8423,6 +8569,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      delivery_fee_grid: {
+        Row: {
+          certified: boolean
+          fee_ttc_cents: number
+          grid_code: string
+          id: string
+          max_km: number
+          notes: string | null
+        }
+        Insert: {
+          certified?: boolean
+          fee_ttc_cents: number
+          grid_code: string
+          id?: string
+          max_km: number
+          notes?: string | null
+        }
+        Update: {
+          certified?: boolean
+          fee_ttc_cents?: number
+          grid_code?: string
+          id?: string
+          max_km?: number
+          notes?: string | null
+        }
+        Relationships: []
       }
       delivery_stats: {
         Row: {
@@ -11599,6 +11772,44 @@ export type Database = {
           },
         ]
       }
+      restaurant_delivery_grid: {
+        Row: {
+          created_at: string
+          effective_from: string
+          effective_to: string | null
+          grid_type: string
+          id: string
+          notes: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          created_at?: string
+          effective_from: string
+          effective_to?: string | null
+          grid_type: string
+          id?: string
+          notes?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          created_at?: string
+          effective_from?: string
+          effective_to?: string | null
+          grid_type?: string
+          id?: string
+          notes?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "restaurant_delivery_grid_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurant_documents: {
         Row: {
           created_at: string
@@ -13841,6 +14052,16 @@ export type Database = {
         }
         Relationships: []
       }
+      caisse_product_names_mv: {
+        Row: {
+          chain_id: string | null
+          name_norm: string | null
+          qty: number | null
+          restaurant_id: string | null
+          sample_name: string | null
+        }
+        Relationships: []
+      }
       caisse_storage_by_month: {
         Row: {
           chain_id: string | null
@@ -14481,6 +14702,15 @@ export type Database = {
           week_start: string
         }[]
       }
+      get_caisse_product_candidates: {
+        Args: { p_chain_id: string }
+        Returns: {
+          n_restaurants: number
+          name_norm: string
+          qty: number
+          sample_name: string
+        }[]
+      }
       get_caisse_product_movers: {
         Args: {
           p_bucket?: string
@@ -14686,6 +14916,15 @@ export type Database = {
           commandes: number
           heure: number
           panier_moyen: number
+        }[]
+      }
+      get_chataigne_mapping_coverage: {
+        Args: { p_chain_id: string; p_end: string; p_start: string }
+        Returns: {
+          ca_mapped: number
+          ca_ttc: number
+          n_lines: number
+          n_mapped: number
         }[]
       }
       get_chataigne_markup: {
@@ -14953,6 +15192,17 @@ export type Database = {
       get_chataigne_service_recurrence: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: Json
+      }
+      get_chataigne_unmapped_products: {
+        Args: { p_chain_id: string; p_end: string; p_start: string }
+        Returns: {
+          ca_ttc: number
+          chataigne_name_norm: string
+          n_lines: number
+          n_restaurants: number
+          n_restaurants_unmapped: number
+          sample_name: string
+        }[]
       }
       get_daily_chataigne: {
         Args: {
@@ -16317,6 +16567,7 @@ export type Database = {
         }
         Returns: number
       }
+      norm_product_name: { Args: { t: string }; Returns: string }
       normalize_city_name: { Args: { input: string }; Returns: string }
       normalize_resto_name: { Args: { input: string }; Returns: string }
       ods_backfill_step: { Args: never; Returns: string }
@@ -16381,6 +16632,7 @@ export type Database = {
         }
         Returns: number
       }
+      refresh_caisse_product_names_mv: { Args: never; Returns: undefined }
       refresh_caisse_rollups: {
         Args: { p_from: string; p_restaurant_id: string; p_to: string }
         Returns: undefined
@@ -16448,6 +16700,15 @@ export type Database = {
           p_product_key: string
           p_product_label: string
           p_restaurant_id: string
+        }
+        Returns: undefined
+      }
+      set_chataigne_product_mapping: {
+        Args: {
+          p_caisse_name_norm: string
+          p_chain_id: string
+          p_chataigne_name_norm: string
+          p_restaurant_id?: string
         }
         Returns: undefined
       }
