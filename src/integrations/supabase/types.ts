@@ -13608,6 +13608,39 @@ export type Database = {
           },
         ]
       }
+      uber_direct_resync_queue: {
+        Row: {
+          attempts: number
+          id: number
+          pass: string
+          result: Json | null
+          status: string
+          updated_at: string
+          window_end: string
+          window_start: string
+        }
+        Insert: {
+          attempts?: number
+          id?: number
+          pass: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          window_end: string
+          window_start: string
+        }
+        Update: {
+          attempts?: number
+          id?: number
+          pass?: string
+          result?: Json | null
+          status?: string
+          updated_at?: string
+          window_end?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
       uber_direct_store_mapping: {
         Row: {
           chain_id: string
@@ -16797,6 +16830,7 @@ export type Database = {
       splash360_reset_stuck_runs: { Args: never; Returns: number }
       stage_payout_adjustment_lines: { Args: { p_rows: Json }; Returns: number }
       uber_direct_promo_target: { Args: { _name: string }; Returns: string }
+      uber_direct_resync_stop: { Args: never; Returns: undefined }
       unaccent: { Args: { "": string }; Returns: string }
       update_splash_mapping: {
         Args: { p_restaurant_id: string; p_splash_id: number }

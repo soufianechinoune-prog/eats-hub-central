@@ -687,6 +687,13 @@
       "when": 1794305798601,
       "tag": "0097_chataigne_profitability_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1794306554814,
+      "tag": "0098_uber_direct_resync_queue",
+      "breakpoints": true
     }
   ]
 }
