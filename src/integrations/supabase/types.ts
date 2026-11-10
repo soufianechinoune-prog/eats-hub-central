@@ -15029,6 +15029,25 @@ export type Database = {
           total_count: number
         }[]
       }
+      get_chataigne_orders_uber_costs: {
+        Args: { p_chataigne_order_ids: string[] }
+        Returns: {
+          attribution: string
+          chataigne_order_id: string
+          delivery_id: string
+          discount_cents: number
+          dlv_collected_cents: number
+          dlv_displayed_cents: number
+          fee_cents: number
+          fees_collected_cents: number
+          match_status: string
+          products_gross_cents: number
+          reste_a_charge_cents: number
+          svc_collected_cents: number
+          svc_displayed_cents: number
+          total_paid_cents: number
+        }[]
+      }
       get_chataigne_overview: {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: {
