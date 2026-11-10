@@ -157,7 +157,7 @@ export default function AdminChataigneProductMapping() {
           ) : (
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Produit Châtaigne</TableHead><TableHead className="text-right">CA TTC</TableHead>
+                <TableHead>Produit Châtaigne</TableHead><TableHead className="text-right">CA TTC (tous restos)</TableHead>
                 <TableHead className="text-right">Lignes</TableHead><TableHead className="text-right">Restos</TableHead>
                 <TableHead>Produit caisse correspondant</TableHead>
               </TableRow></TableHeader>
