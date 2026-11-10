@@ -56,6 +56,76 @@ import {
   type RestaurantScope,
 } from "@/hooks/useChataigne";
 import { ChataigneCustomerDrawer } from "./ChataigneCustomerDrawer";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+
+export interface UberCostRow {
+  chataigne_order_id: string;
+  delivery_id: string;
+  attribution: string | null;
+  fee_cents: number | null;
+  dlv_displayed_cents: number | null;
+  svc_displayed_cents: number | null;
+  discount_cents: number | null;
+  total_paid_cents: number | null;
+  products_gross_cents: number | null;
+  fees_collected_cents: number | null;
+  dlv_collected_cents: number | null;
+  svc_collected_cents: number | null;
+}
+
+const fmtCents = (c: number | null | undefined) => (c == null ? "—" : fmtEur(c / 100));
+
+/** À charge resto = (frais livraison + service encaissés) − fee Uber TTC ; null si incalculable. */
+export function restoBalanceCents(c: UberCostRow | undefined): number | null {
+  if (!c || c.fees_collected_cents == null || c.fee_cents == null) return null;
+  return c.fees_collected_cents - c.fee_cents;
+}
+
+function NotFoundBadge() {
+  return (
+    <Badge variant="outline" className="whitespace-nowrap border-amber-500/40 bg-amber-500/10 text-[10px] text-amber-600">
+      course non trouvée
+    </Badge>
+  );
+}
+
+function UberCostDetail({ cost }: { cost: UberCostRow | undefined }) {
+  if (!cost) {
+    return (
+      <div className="rounded-lg border bg-background p-3 text-sm text-muted-foreground">
+        Aucune course Uber Direct appariée de façon unique à cette commande : aucun coût n'est affiché, rien n'est estimé.
+      </div>
+    );
+  }
+  const bal = restoBalanceCents(cost);
+  const prodNet = cost.products_gross_cents == null ? null : cost.products_gross_cents - (cost.discount_cents ?? 0);
+  const line = (label: string, v: string, cls?: string) => (
+    <div className="flex justify-between"><span className="text-muted-foreground">{label}</span><span className={cn("tabular-nums", cls)}>{v}</span></div>
+  );
+  return (
+    <div className="space-y-2 rounded-lg border bg-background p-3 text-sm">
+      {line("Payé par le client (Uber)", fmtCents(cost.total_paid_cents))}
+      {line("Produits avant remise", fmtCents(cost.products_gross_cents))}
+      {line("Remise", cost.discount_cents ? `-${fmtCents(cost.discount_cents)}` : fmtCents(0))}
+      {line("Produits nets", fmtCents(prodNet))}
+      {line("Frais affichés (livr. + service)", `${fmtCents(cost.dlv_displayed_cents)} + ${fmtCents(cost.svc_displayed_cents)}`)}
+      <div className="border-t pt-2" />
+      {line("Frais encaissés = min(affichés, payé − produits nets)", fmtCents(cost.fees_collected_cents))}
+      {line("  dont livraison", fmtCents(cost.dlv_collected_cents))}
+      {line("  dont service", fmtCents(cost.svc_collected_cents))}
+      {line("Coût livreur (fee Uber TTC)", `-${fmtCents(cost.fee_cents)}`)}
+      <div className="flex justify-between border-t pt-2 font-semibold">
+        <span>À charge resto</span>
+        <span className={cn("tabular-nums", bal == null ? "" : bal >= 0 ? "text-emerald-600" : "text-destructive")}>{bal == null ? "—" : fmtCents(bal)}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Une remise sur les frais est imputée d'abord sur la livraison. Attribution : {cost.attribution ?? "—"}. Course {cost.delivery_id}.
+      </p>
+      {cost.fees_collected_cents == null && <p className="text-xs text-amber-600">Calcul impossible pour cette course (détail Uber absent ou remise à vérifier).</p>}
+    </div>
+  );
+}
 
 const fmtEur = (v: number, digits = 2) =>
   new Intl.NumberFormat("fr-FR", {
@@ -214,7 +284,7 @@ function ItemRows({ nodes, level = 0 }: { nodes: ItemNode[]; level?: number }) {
   );
 }
 
-function OrderDetail({ order }: { order: ChataigneOrderRow }) {
+function OrderDetail({ order, cost }: { order: ChataigneOrderRow; cost?: UberCostRow }) {
   const itemsQ = useChataigneOrderItems(order.chataigne_order_id);
   const tree = useMemo(() => buildTree(itemsQ.data ?? []), [itemsQ.data]);
   const discounts = order.discounts ?? [];
@@ -278,10 +348,12 @@ function OrderDetail({ order }: { order: ChataigneOrderRow }) {
             <span className="text-muted-foreground">Total TTC</span>
             <span className="font-semibold">{fmtEur(order.total_amount)}</span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">Frais de livraison</span>
-            <span>{fmtEur(order.delivery_fee_amount)}</span>
-          </div>
+          {order.service_type !== "delivery" && (
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Frais de livraison</span>
+              <span>{fmtEur(order.delivery_fee_amount)}</span>
+            </div>
+          )}
           <div className="flex justify-between">
             <span className="text-muted-foreground">Frais de service</span>
             <span>{fmtEur(order.service_charge_amount)}</span>
@@ -312,6 +384,12 @@ function OrderDetail({ order }: { order: ChataigneOrderRow }) {
             <span>{dt(order.expected_delivery_time)}</span>
           </div>
         </div>
+        {order.service_type === "delivery" && (
+          <div className="mt-4">
+            <h4 className="mb-2 flex items-center gap-2 text-sm font-semibold"><Bike className="h-4 w-4 text-muted-foreground" /> Course Uber Direct</h4>
+            <UberCostDetail cost={cost} />
+          </div>
+        )}
         <p className="mt-2 text-xs text-muted-foreground">
           Chataigne ne transmet ni HT/TVA ni commission : seuls le TTC et les frais réellement
           facturés sont affichés.
@@ -359,6 +437,17 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
   });
 
   const rows = query.data?.rows ?? [];
+  const deliveryIds = rows.filter((r) => r.service_type === "delivery").map((r) => r.chataigne_order_id);
+  const costsQ = useQuery({
+    queryKey: ["chataigne-orders-uber-costs", deliveryIds],
+    enabled: deliveryIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_chataigne_orders_uber_costs", { p_chataigne_order_ids: deliveryIds });
+      if (error) throw error;
+      return new Map(((data ?? []) as UberCostRow[]).map((c) => [c.chataigne_order_id, c]));
+    },
+  });
+  const costs = costsQ.data;
   const total = query.data?.total ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
@@ -473,8 +562,10 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                   <TableHead>Statut</TableHead>
                   <TableHead className="text-right">Articles</TableHead>
                   <SortHead field="total_amount" label="TTC" align="right" />
-                  <SortHead field="delivery_fee_amount" label="Frais livraison" align="right" />
+                  <TableHead className="text-right">Frais livraison</TableHead>
                   <TableHead className="text-right">Frais service</TableHead>
+                  <TableHead className="text-right">Coût livreur</TableHead>
+                  <TableHead className="text-right">À charge resto</TableHead>
                   <SortHead field="discount_total_amount" label="Promo" align="right" />
                   <TableHead className="text-right">Paiement</TableHead>
                 </TableRow>
@@ -532,12 +623,39 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                         <TableCell className="text-right font-medium">
                           {fmtEur(r.total_amount)}
                         </TableCell>
-                        <TableCell className="text-right">
-                          {fmtEur(r.delivery_fee_amount)}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {fmtEur(r.service_charge_amount)}
-                        </TableCell>
+                        {r.service_type === "delivery" ? (() => {
+                          const c = costs?.get(r.chataigne_order_id);
+                          const bal = restoBalanceCents(c);
+                          if (!c) {
+                            return (
+                              <>
+                                <TableCell className="text-right">
+                                  {costsQ.isLoading ? "…" : <div className="flex flex-col items-end gap-0.5"><span>—</span><NotFoundBadge /></div>}
+                                </TableCell>
+                                <TableCell className="text-right">—</TableCell>
+                                <TableCell className="text-right">—</TableCell>
+                                <TableCell className="text-right">—</TableCell>
+                              </>
+                            );
+                          }
+                          return (
+                            <>
+                              <TableCell className="text-right tabular-nums">{fmtCents(c.dlv_collected_cents)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmtCents(c.svc_collected_cents)}</TableCell>
+                              <TableCell className="text-right tabular-nums">{fmtCents(c.fee_cents)}</TableCell>
+                              <TableCell className={cn("text-right font-medium tabular-nums", bal == null ? "text-muted-foreground" : bal >= 0 ? "text-emerald-600" : "text-destructive")}>
+                                {bal == null ? "—" : fmtCents(bal)}
+                              </TableCell>
+                            </>
+                          );
+                        })() : (
+                          <>
+                            <TableCell className="text-right">{fmtEur(r.delivery_fee_amount)}</TableCell>
+                            <TableCell className="text-right">{fmtEur(r.service_charge_amount)}</TableCell>
+                            <TableCell className="text-right text-muted-foreground">—</TableCell>
+                            <TableCell className="text-right text-muted-foreground">—</TableCell>
+                          </>
+                        )}
                         <TableCell
                           className={cn(
                             "text-right",
@@ -554,8 +672,8 @@ export function ChataigneOrdersTable({ start, end, restaurantIds }: Props) {
                       </TableRow>
                         {isOpen && (
                           <TableRow className="hover:bg-transparent">
-                            <TableCell colSpan={14} className="p-0">
-                              <OrderDetail order={r} />
+                            <TableCell colSpan={16} className="p-0">
+                              <OrderDetail order={r} cost={costs?.get(r.chataigne_order_id)} />
                             </TableCell>
                           </TableRow>
                         )}
