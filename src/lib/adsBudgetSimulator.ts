@@ -170,13 +170,16 @@ type RuleRow = { label: string; min_ads_ratio: number; hq_extra_rate: number; gr
 
 export async function fetchAdsSimulatorData(chainId: string): Promise<AdsSimData> {
   // Fonction et table ajoutées par la migration 20261113170000 (pas encore dans les types générés).
-  const rpc = supabase.rpc as unknown as (fn: string, args: Record<string, unknown>) => Promise<{ data: SimRpcRow[] | null; error: Error | null }>;
-  const from = supabase.from as unknown as (t: string) => {
-    select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => Promise<{ data: RuleRow | null; error: Error | null }> } };
+  // On garde l'appel sur l'objet client (supabase.rpc(...)) : extraire la méthode lui fait perdre son contexte.
+  const client = supabase as unknown as {
+    rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: SimRpcRow[] | null; error: Error | null }>;
+    from: (t: string) => {
+      select: (c: string) => { eq: (k: string, v: string) => { maybeSingle: () => PromiseLike<{ data: RuleRow | null; error: Error | null }> } };
+    };
   };
   const [sim, rule] = await Promise.all([
-    rpc("get_ads_budget_simulator", { p_chain_id: chainId }),
-    from("ads_contract_rules").select("label, min_ads_ratio, hq_extra_rate, growth_penalty_eur").eq("chain_id", chainId).maybeSingle(),
+    client.rpc("get_ads_budget_simulator", { p_chain_id: chainId }),
+    client.from("ads_contract_rules").select("label, min_ads_ratio, hq_extra_rate, growth_penalty_eur").eq("chain_id", chainId).maybeSingle(),
   ]);
   if (sim.error) throw sim.error;
   // Les règles de contrat sont facultatives : sans elles, pas d'alerte contrat, mais le simulateur fonctionne.
