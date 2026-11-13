@@ -3,12 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subWeeks, differenceInCalendarDays, addDays } from "date-fns";
 import { fr } from "date-fns/locale";
-import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown } from "lucide-react";
+import { ArrowLeft, Megaphone, TrendingDown, TrendingUp, Users, Wallet, Search, ArrowUpDown, SlidersHorizontal } from "lucide-react";
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip as RTooltip, ReferenceArea } from "recharts";
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
-import { AdsBudgetSimulator } from "@/components/ads/AdsBudgetSimulator";
 import { fetchAdsEfficiency } from "@/lib/adsEfficiency";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { ADS_CONSOLIDATION_DAYS } from "@/lib/adsConsolidation";
@@ -335,7 +334,16 @@ export default function AdsSpendAnalysis() {
         </Card>
       </div>
 
-      <AdsBudgetSimulator />
+      <button type="button" onClick={() => navigate("/analytics/ads-return")} className="w-full flex flex-wrap items-center justify-between gap-3 rounded-xl border border-uber/30 bg-uber/5 px-5 py-4 text-left hover:bg-uber/10 transition-colors">
+        <span className="flex items-center gap-3 min-w-0">
+          <SlidersHorizontal className="h-5 w-5 text-uber shrink-0" />
+          <span>
+            <span className="block font-semibold">Rendement de la pub : où mettre chaque euro ?</span>
+            <span className="block text-sm text-muted-foreground">Pour chaque restaurant : augmenter, garder ou baisser la pub, selon ce qu'elle rapporte vraiment.</span>
+          </span>
+        </span>
+        <span className="text-sm font-medium text-uber">Ouvrir →</span>
+      </button>
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
