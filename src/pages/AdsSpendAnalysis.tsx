@@ -13,6 +13,7 @@ import { AdsIncrementalPanel } from "@/components/ads/AdsIncrementalPanel";
 import { computeIncrementalAll } from "@/lib/adsIncremental";
 import { fetchAdsEfficiency, lastClosedQuarters } from "@/lib/adsEfficiency";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
+import { ADS_CONSOLIDATION_DAYS } from "@/lib/adsConsolidation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -187,7 +188,7 @@ export default function AdsSpendAnalysis() {
 
   const chartData = weeks.map((w, i) => {
     const s = sumRows(weekly[i]?.data ?? [], mode);
-    const consolidating = differenceInCalendarDays(today, w.end) < 14;
+    const consolidating = differenceInCalendarDays(today, w.end) < ADS_CONSOLIDATION_DAYS;
     return { label: format(w.start, "d MMM", { locale: fr }), ads: Math.round(s.ads), revenue: Math.round(s.revenue), pct: s.pct != null ? Number(s.pct.toFixed(2)) : null, consolidating };
   });
   const firstConsolidating = chartData.find((d) => d.consolidating)?.label;

@@ -17,7 +17,7 @@ export function AdsConsolidationBadge({ endDate }: { endDate: Date }) {
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs">
           Chiffres provisoires : Uber transmet les frais publicitaires avec un décalage par rapport aux ventes.
-          Les remontées et le rattrapage automatique peuvent encore modifier le budget et le ratio.
+          Les lignes pub arrivent en plusieurs vagues jusqu'à ~14 jours après la fin de la période : le budget et le ratio peuvent encore augmenter.
           Cet indicateur signale une période récente, pas une vérification de complétude.
         </TooltipContent>
       </Tooltip>
