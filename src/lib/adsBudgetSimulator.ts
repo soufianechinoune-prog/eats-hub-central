@@ -179,7 +179,8 @@ export async function fetchAdsSimulatorData(chainId: string): Promise<AdsSimData
     from("ads_contract_rules").select("label, min_ads_ratio, hq_extra_rate, growth_penalty_eur").eq("chain_id", chainId).maybeSingle(),
   ]);
   if (sim.error) throw sim.error;
-  if (rule.error) throw rule.error;
+  // Les règles de contrat sont facultatives : sans elles, pas d'alerte contrat, mais le simulateur fonctionne.
+  if (rule.error) console.warn("[ads-simulator] règles de contrat indisponibles", rule.error);
   const data = sim.data ?? [];
   return {
     rows: data.map((d) => ({
@@ -191,7 +192,7 @@ export async function fetchAdsSimulatorData(chainId: string): Promise<AdsSimData
     })),
     periodStart: data[0]?.period_start ?? null,
     periodEnd: data[0]?.period_end ?? null,
-    rule: rule.data
+    rule: !rule.error && rule.data
       ? { label: rule.data.label, minAdsRatio: Number(rule.data.min_ads_ratio), hqExtraRate: Number(rule.data.hq_extra_rate), growthPenaltyEur: rule.data.growth_penalty_eur == null ? null : Number(rule.data.growth_penalty_eur) }
       : null,
   };

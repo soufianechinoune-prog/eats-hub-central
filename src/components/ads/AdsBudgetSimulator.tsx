@@ -55,6 +55,7 @@ export function AdsBudgetSimulator() {
     enabled: !!selectedChainId,
     queryFn: () => fetchAdsSimulatorData(selectedChainId as string),
     staleTime: 600000,
+    retry: 1,
   });
 
   const result = useMemo(
@@ -143,10 +144,12 @@ export function AdsBudgetSimulator() {
         </div>
 
         {/* Résultat */}
-        {sim.isLoading || !result ? (
+        {sim.isError ? (
+          <p className="text-sm text-destructive">Les données du simulateur n'ont pas pu être chargées ({sim.error instanceof Error ? sim.error.message : "erreur inconnue"}). Rechargez la page ; si le problème continue, prévenez l'administrateur.</p>
+        ) : sim.isLoading || !result ? (
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-24" />)}</div>
-        ) : sim.isError ? (
-          <p className="text-sm text-destructive">Les données du simulateur n'ont pas pu être chargées. Rechargez la page ; si le problème continue, prévenez l'administrateur.</p>
+        ) : !result.rows.length ? (
+          <p className="text-sm text-muted-foreground">Aucun restaurant avec assez de semaines de ventes Uber sur la période pour faire le calcul.</p>
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
