@@ -1,5 +1,12 @@
 export type AdsRatioMode = "uber" | "comptable";
 
+/**
+ * TVA sur la pub Uber. Les fonctions SQL renvoient la pub HT (coût réel, TVA récupérée).
+ * Uber la prélève TTC sur le versement : pour la trésorerie (« Net en banque »),
+ * il faut donc remultiplier par ce taux.
+ */
+export const ADS_VAT_RATE = 1.2;
+
 export const ADS_RATIO_MODES: Record<AdsRatioMode, { label: string; short: string; formula: string; what: string; note: string }> = {
   uber: {
     label: "Uber officiel",

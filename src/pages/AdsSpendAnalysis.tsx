@@ -8,10 +8,8 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, CartesianG
 import type { DateRange } from "react-day-picker";
 import { fetchAdsRatio, fetchAdsQuarters, cachedAdsQuarters, sumAdsRows, type AdsRatioRow } from "@/lib/adsRatioFetch";
 import { AdsQuarterCards, type QuarterStat } from "@/components/ads/AdsQuarterCards";
-import { AdsEfficiencyPanel } from "@/components/ads/AdsEfficiencyPanel";
-import { AdsIncrementalPanel } from "@/components/ads/AdsIncrementalPanel";
-import { computeIncrementalAll } from "@/lib/adsIncremental";
-import { fetchAdsEfficiency, lastClosedQuarters } from "@/lib/adsEfficiency";
+import { AdsBudgetSimulator } from "@/components/ads/AdsBudgetSimulator";
+import { fetchAdsEfficiency } from "@/lib/adsEfficiency";
 import { AdsConsolidationBadge } from "@/components/ads/AdsConsolidationBadge";
 import { ADS_CONSOLIDATION_DAYS } from "@/lib/adsConsolidation";
 import { Button } from "@/components/ui/button";
@@ -38,7 +36,7 @@ function InfoTip({ text }: { text: string }) {
     </TooltipProvider>
   );
 }
-import { ADS_RATIO_MODES, computeAdsRatio, type AdsRatioMode } from "@/lib/adsRatioModes";
+import { ADS_RATIO_MODES, ADS_VAT_RATE, computeAdsRatio, type AdsRatioMode } from "@/lib/adsRatioModes";
 import { ADS_EFFORT_TIERS, getAdsEffortTier, median, quarterRange, type AdsEffortTier } from "@/lib/adsEffortTiers";
 import { UberEatsLogo } from "@/components/icons/PlatformIcons";
 
@@ -125,21 +123,15 @@ export default function AdsSpendAnalysis() {
     placeholderData: () => cachedAdsQuarters(quarterYear, ids),
     enabled: ready, staleTime: 600000, retry: false,
   });
-  const effQ = useMemo(() => lastClosedQuarters(today), [today]);
-  const effRes = useQuery({
-    queryKey: ["ads-eff-q", format(effQ.cur.start, "yyyy-MM-dd"), ids],
-    queryFn: () => fetchAdsEfficiency(effQ.cur, effQ.prev, ids), enabled: ready, staleTime: 600000, retry: false,
-  });
   const netRes = useQuery({
     queryKey: ["ads-eff-range", ...key(range.start, range.end), ids],
     queryFn: () => fetchAdsEfficiency(range, prevRange, ids), enabled: ready, staleTime: 300000, retry: false,
   });
   const netById = useMemo(() => {
     const m = new Map<string, number | null>();
-    (netRes.data ?? []).forEach((r) => { const rev = Number(r.rev_ttc); m.set(r.restaurant_id, rev > 0 ? ((Number(r.payout) - Number(r.ads_ht)) / rev) * 100 : null); });
+    (netRes.data ?? []).forEach((r) => { const rev = Number(r.rev_ttc); m.set(r.restaurant_id, rev > 0 ? ((Number(r.payout) - Number(r.ads_ht) * ADS_VAT_RATE) / rev) * 100 : null); });
     return m;
   }, [netRes.data]);
-  const incById = useMemo(() => computeIncrementalAll(netRes.data ?? []), [netRes.data]);
   const qStats: QuarterStat[] = quarters.map((r, i) => {
     const y = i === 0 ? quarterYear - 1 : quarterYear;
     const q = i === 0 ? 4 : i;
@@ -343,9 +335,7 @@ export default function AdsSpendAnalysis() {
         </Card>
       </div>
 
-      <AdsEfficiencyPanel rows={effRes.data} loading={!ready || effRes.isLoading} curLabel={effQ.cur.label} prevLabel={effQ.prev.label} />
-
-      <AdsIncrementalPanel rows={effRes.data} loading={!ready || effRes.isLoading} curLabel={effQ.cur.label} prevLabel={effQ.prev.label} />
+      <AdsBudgetSimulator />
 
       <Card>
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3 pb-3">
@@ -373,8 +363,7 @@ export default function AdsSpendAnalysis() {
                   <SortHead k="revenue" right>{revLabel}</SortHead>
                   <SortHead k="pct">Pub / CA</SortHead>
                   <SortHead k="delta" right>Évol.</SortHead>
-                  <th className="px-3 py-2 text-right font-medium" title="(Versement Uber − pub) ÷ CA net TTC">Net en banque</th>
-                  <th className="px-3 py-2 text-right font-medium" title="Versement réel − versement attendu au rythme médian des 5 restaurants les plus proches en taille">Impact vs jumeaux</th>
+                  <th className="px-3 py-2 text-right font-medium" title="(Versement Uber − pub prélevée TTC) ÷ CA net TTC : ce qui arrive réellement sur le compte">Net en banque</th>
                 </tr>
               </thead>
               <tbody>
@@ -398,10 +387,9 @@ export default function AdsSpendAnalysis() {
                       {r.delta == null ? "—" : `${r.delta > 0 ? "+" : ""}${r.delta.toFixed(2).replace(".", ",")} pt`}
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{(() => { const v = netById.get(r.id); return v == null ? "—" : pctFmt(v, 1); })()}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums text-xs">{(() => { const inc = incById.get(r.id); if (inc?.incremental == null) return <span className="text-muted-foreground">—</span>; const v = inc.incremental; return <span className={v >= 0 ? "text-success font-medium" : "text-destructive font-medium"} title={`Rythme médian des ${inc.twins.length} jumeaux : ${inc.twinsGrowth != null ? `${(inc.twinsGrowth * 100).toFixed(1).replace(".", ",")} %` : "—"}`}>{v > 0 ? "+" : ""}{eur(v)}</span>; })()}</td>
                   </tr>
                 ))}
-                {!tableRows.length && <tr><td colSpan={9} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
+                {!tableRows.length && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">Aucun restaurant</td></tr>}
               </tbody>
             </table>
           )}
