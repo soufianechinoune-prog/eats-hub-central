@@ -14,6 +14,16 @@ export const isChunkLoadError = (error: unknown) => {
   return CHUNK_LOAD_ERROR_PATTERN.test(message);
 };
 
+// An already-open preview can mix old provider modules with newly loaded pages
+// after dependency replacement. A full reload restores one router instance.
+export const isRouterContextError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return /use(?:Navigate|Location|Routes)\(\) may be used only in the context of a <Router> component/.test(message);
+};
+
+export const isRecoverableModuleError = (error: unknown) =>
+  isChunkLoadError(error) || isRouterContextError(error);
+
 export const reloadOnceForChunkError = () => {
   if (typeof window === "undefined") return false;
 

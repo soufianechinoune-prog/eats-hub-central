@@ -11,7 +11,8 @@ import { useUserRole } from "./hooks/useUserRole";
 import { useToast } from "./hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { isChunkLoadError, reloadOnceForChunkError } from "@/lib/chunkRecovery";
+import { isRecoverableModuleError, reloadOnceForChunkError } from "@/lib/chunkRecovery";
+import { Button } from "@/components/ui/button";
 
 // Static imports (critical for startup)
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
@@ -92,12 +93,12 @@ class ChunkLoadBoundary extends React.Component<{ children: React.ReactNode }, {
   }
 
   componentDidCatch(error: unknown) {
-    if (isChunkLoadError(error)) reloadOnceForChunkError();
+    if (isRecoverableModuleError(error)) reloadOnceForChunkError();
   }
 
   render() {
     if (this.state.error) {
-      if (!isChunkLoadError(this.state.error)) throw this.state.error;
+      if (!isRecoverableModuleError(this.state.error)) throw this.state.error;
 
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
@@ -106,9 +107,9 @@ class ChunkLoadBoundary extends React.Component<{ children: React.ReactNode }, {
             <p className="text-sm font-medium">Mise à jour de l'application en cours…</p>
             <p className="text-xs text-muted-foreground">La page va se recharger automatiquement.</p>
           </div>
-          <button type="button" className="text-sm font-medium text-primary underline" onClick={() => window.location.reload()}>
+          <Button variant="link" onClick={() => window.location.reload()}>
             Recharger maintenant
-          </button>
+          </Button>
         </div>
       );
     }
