@@ -1,5 +1,10 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## Corrections Rennes et versements 2026 — validation avant chaque étape
+- [ ] Étape 1 : inventaire préalable livré, sans écriture : 3 980 commandes, 5 565 directes, 1 698 historiques prouvés, 16 ajustements, 147 rapports, 170 tâches. Reste à attribuer 315 commandes, 3 historiques, 480 erreurs et 1 752 disponibilités ; contrôle résiduel Villejean 87 971,15 € vs cible 86 764,85 €. Attend preuves complémentaires puis validation utilisateur avant transfert ; préserver caisse/Splash/Châtaigne et les deux vues interdites.
+- [ ] Étape 1 après validation : transférer seulement les lignes prouvées Colombier ; contrôle Villejean 01/01–17/11/2026 : ventes brutes 86 764,85 €, éco prélevée/remboursée 400,00 €/400,00 €.
+- [ ] Étape 2 après étape 1 : chiffrer et faire valider la réimportation ligne à ligne des versements 2026 réseau, sans suppression ; doublons inter-rapports uniquement. Contrôle Dijon : 552,18 € prélevés et 847,20 € remboursés.
+
 ## Éco-contribution — contrôle historique
 - [x] Contre-vérification 31/10 : recette Angers sur stockage actuel inchangée (1 226,46 / 1 108,38 / 379,05 €, 62 lignes, zéro doublon Angers) ; 2 992 paires vérifiées par même hash, colonnes positionnelles et ligne CSV physique ; trois exemples et clés livrés. Écart 02/02 de −54,54 € expliqué par publicité du 31/01 et 01/02 ; jalon 1 complet et lot actuel identiques. Aucun lancement réseau.
 - [x] Documenter anomalies CS/TC Argenteuil : couverture 2026 sans trous et mappings confirmés, absence de libellés éco explicites ; cause financière réelle non établie, pas de conclusion de non-facturation.
