@@ -117,7 +117,7 @@ Deno.serve(async (req) => {
       const { error, count } = await supabase
         .from("uber_conversion_funnel")
         .upsert(chunk, { onConflict: "uber_store_uuid,window_label", count: "exact" })
-        .select("id", { count: "exact", head: true });
+        .select("id");
       if (error) {
         console.error("[ingest-uber-funnel] upsert error", error);
         throw error;

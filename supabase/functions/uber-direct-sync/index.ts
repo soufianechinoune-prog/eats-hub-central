@@ -1,7 +1,7 @@
 // Uber Direct — ingestion LECTURE SEULE des courses (GET /deliveries uniquement).
 // Interdit : create/update/cancel delivery, webhooks. Aucune donnée client/coursier stockée.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
-import { createClient } from 'npm:@supabase/supabase-js@2'
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { z } from 'npm:zod@3'
 
 const CS_CHAIN_ID = '110e05b8-5136-45cc-a385-265360104844'
@@ -113,7 +113,7 @@ function toRow(d: Rec, mapping: Map<string, { restaurant_id: string | null; chai
   }
 }
 
-async function getToken(admin: ReturnType<typeof createClient>): Promise<string> {
+async function getToken(admin: SupabaseClient): Promise<string> {
   const { data } = await admin.from('uber_direct_token_cache').select('access_token, expires_at').eq('id', 1).maybeSingle()
   if (data && Date.parse(data.expires_at) - Date.now() > 3600_000) return data.access_token
   const res = await fetch(TOKEN_URL, {
