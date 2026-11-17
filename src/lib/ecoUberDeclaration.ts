@@ -55,3 +55,16 @@ export function buildUberDeclarationUrl(p: {
   set("entry.1636463119", p.idu);
   return `${FORM_BASE}?${params.toString()}`;
 }
+
+/** « le 17/11/2026 à 12:30 » à l'heure de Paris. */
+export function formatDeclarationDate(iso: string): string {
+  const d = new Date(iso);
+  const day = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
+  const time = new Intl.DateTimeFormat("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }).format(d);
+  return `le ${day} à ${time}`;
+}
+
+/** Nombre de jours pleins écoulés depuis la déclaration. */
+export function daysSinceDeclaration(iso: string, now: Date = new Date()): number {
+  return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86400000));
+}

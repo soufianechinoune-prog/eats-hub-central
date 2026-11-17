@@ -21,7 +21,8 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { deduceUberDeclarationStatus, buildUberDeclarationUrl, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
+import { deduceUberDeclarationStatus, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
+import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger } from "@/components/ui/tooltip";
@@ -86,6 +87,9 @@ export function EcoContributionSection({
     : restaurants.length > 0
       ? restaurants.map(r => r.id)
       : undefined;
+
+  // Déclarations envoyées à Uber, confirmées par l'utilisateur (traçabilité)
+  const ecoDecl = useEcoUberDeclarations(restaurantIds);
 
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
@@ -757,6 +761,10 @@ export function EcoContributionSection({
                           details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
                           newLinesDelta={ecoLineDeltas.get(r.restaurant_id)}
+                          declaration={ecoDecl.byRestaurant.get(r.restaurant_id)}
+                          onDeclare={ecoDecl.declare}
+                          onCancelDeclaration={ecoDecl.cancel}
+                          declPending={ecoDecl.pending}
                           scanClass={
                             scanningId === r.restaurant_id
                               ? "bodacc-scanning"
@@ -972,17 +980,46 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
-function UberDeclarationCell({ status, url, hasIdu }: { status: UberDeclarationStatus; url: string; hasIdu: boolean }) {
+function UberDeclarationCell({ status, url, hasIdu, declaration, onDeclare, onCancel, pending = false }: {
+  status: UberDeclarationStatus; url: string; hasIdu: boolean;
+  declaration?: EcoUberDeclaration; onDeclare?: () => void; onCancel?: () => void; pending?: boolean;
+}) {
+  const [opened, setOpened] = useState(false);
+  const trace = declaration
+    ? `Déclaré ${formatDeclarationDate(declaration.declared_at)}${declaration.declared_by_name ? ` par ${declaration.declared_by_name}` : ""}`
+    : null;
   if (status === "regularise") {
-    return <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Remboursement reçu ou aucun prélèvement sur l'année : Uber a pris en compte la déclaration.">Régularisé</Badge>;
+    return (
+      <div className="flex flex-col items-center gap-1">
+        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Remboursement reçu ou aucun prélèvement sur l'année : Uber a pris en compte la déclaration.">Régularisé</Badge>
+        {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+      </div>
+    );
+  }
+  if (status === "a_declarer" && declaration) {
+    const days = daysSinceDeclaration(declaration.declared_at);
+    return (
+      <div className="flex flex-col items-center gap-1 max-w-[180px]">
+        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15" title="Formulaire envoyé à Uber. Le statut passera à « Régularisé » quand Uber arrêtera le prélèvement ou remboursera.">Déclaré, en attente d'Uber</Badge>
+        <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>
+        <span className="text-[10px] text-muted-foreground">{days === 0 ? "aujourd'hui" : `depuis ${days} jour${days > 1 ? "s" : ""}`}</span>
+        {onCancel && <button type="button" disabled={pending} onClick={onCancel} className="text-[10px] text-muted-foreground underline hover:text-foreground disabled:opacity-50">Annuler</button>}
+      </div>
+    );
   }
   if (status === "a_declarer") {
     return (
       <div className="flex flex-col items-center gap-1">
         <Badge variant="destructive" className="text-[10px]" title="Adhérent REP mais toujours prélevé, sans remboursement sur l'année.">À déclarer</Badge>
         <Button asChild size="sm" variant="outline" className="h-6 text-[10px] px-2">
-          <a href={url} target="_blank" rel="noopener noreferrer" title={hasIdu ? "Formulaire Uber pré-rempli (IDU inclus) : il reste nom, prénom et case à cocher." : "Formulaire Uber pré-rempli, IDU à saisir."}>Déclarer à Uber</a>
+          <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)} title={hasIdu ? "Formulaire Uber pré-rempli (IDU inclus) : il reste nom, prénom et case à cocher." : "Formulaire Uber pré-rempli, IDU à saisir."}>Déclarer à Uber</a>
         </Button>
+        {onDeclare && (
+          <Button size="sm" variant={opened ? "default" : "ghost"} disabled={pending} onClick={onDeclare} className="h-6 text-[10px] px-2"
+            title="Cliquez une fois le formulaire Uber envoyé : la date, l'heure et votre nom seront enregistrés.">
+            {opened ? "Oui, je l'ai envoyé" : "Déjà envoyé ?"}
+          </Button>
+        )}
       </div>
     );
   }
@@ -1137,7 +1174,15 @@ function RestaurantDrilldown({
   newLinesDelta,
   scanClass,
   details,
+  declaration,
+  onDeclare,
+  onCancelDeclaration,
+  declPending = false,
 }: {
+  declaration?: EcoUberDeclaration;
+  onDeclare?: (restaurantId: string) => void;
+  onCancelDeclaration?: (declarationId: string) => void;
+  declPending?: boolean;
   details?: { uber_store_id: string | null; postal_code: string | null; denomination_sociale: string | null; siret: string | null; name: string | null };
   restaurant: { restaurant_id: string; refund: number; charge: number; net: number; count: number };
   name: string;
@@ -1271,7 +1316,9 @@ function RestaurantDrilldown({
         )}
         {showRepColumn && (
           <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
-            <UberDeclarationCell status={declStatus} url={declUrl} hasIdu={!!firstIdu} />
+            <UberDeclarationCell status={declStatus} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
+              onDeclare={onDeclare ? () => onDeclare(r.restaurant_id) : undefined}
+              onCancel={onCancelDeclaration && declaration ? () => onCancelDeclaration(declaration.id) : undefined} />
           </TableCell>
         )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
