@@ -31,6 +31,8 @@ export interface CiteoAccount {
   contract_label: string | null;
   /** Jour où le contrat a été signé (lu une fois dans le contrat lui-même). */
   contract_signed_date: string | null;
+  /** SIRET lu dans le contrat : sert à relier la société à son restaurant. */
+  siret: string | null;
   checked_at: string;
 }
 

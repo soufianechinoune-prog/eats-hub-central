@@ -8,7 +8,7 @@ import { citeoDaysLate, describeCiteoAccount, fetchCiteoAccounts, findCiteoAccou
 const base: CiteoAccount = {
   id: "a1", chain_id: "c1", company_name: "CS REIMS", contract_number: "50028167", idu: "FR418884_01FQUK",
   restaurant_id: null, adhesion_status: "adherent", unpaid_count: 0, unpaid_total_ttc: 0, oldest_due_date: null,
-  invoices: [], einvoicing_missing: false, contract_effective_date: "2024-01-01", contract_label: "Contrat EMP_CG_2024 (V1)", contract_signed_date: "2024-12-04", checked_at: "2026-11-17T12:35:00Z",
+  invoices: [], einvoicing_missing: false, contract_effective_date: "2024-01-01", contract_label: "Contrat EMP_CG_2024 (V1)", contract_signed_date: "2024-12-04", siret: null, checked_at: "2026-11-17T12:35:00Z",
 };
 const now = new Date("2026-11-17T12:00:00Z");
 
