@@ -8023,6 +8023,81 @@ export type Database = {
           },
         ]
       }
+      citeo_accounts: {
+        Row: {
+          adhesion_status: string
+          chain_id: string
+          checked_at: string
+          company_name: string
+          contract_effective_date: string | null
+          contract_label: string | null
+          contract_number: string | null
+          contract_signed_date: string | null
+          einvoicing_missing: boolean
+          id: string
+          idu: string | null
+          invoices: Json
+          oldest_due_date: string | null
+          restaurant_id: string | null
+          siret: string | null
+          unpaid_count: number
+          unpaid_total_ttc: number
+        }
+        Insert: {
+          adhesion_status?: string
+          chain_id: string
+          checked_at?: string
+          company_name: string
+          contract_effective_date?: string | null
+          contract_label?: string | null
+          contract_number?: string | null
+          contract_signed_date?: string | null
+          einvoicing_missing?: boolean
+          id?: string
+          idu?: string | null
+          invoices?: Json
+          oldest_due_date?: string | null
+          restaurant_id?: string | null
+          siret?: string | null
+          unpaid_count?: number
+          unpaid_total_ttc?: number
+        }
+        Update: {
+          adhesion_status?: string
+          chain_id?: string
+          checked_at?: string
+          company_name?: string
+          contract_effective_date?: string | null
+          contract_label?: string | null
+          contract_number?: string | null
+          contract_signed_date?: string | null
+          einvoicing_missing?: boolean
+          id?: string
+          idu?: string | null
+          invoices?: Json
+          oldest_due_date?: string | null
+          restaurant_id?: string | null
+          siret?: string | null
+          unpaid_count?: number
+          unpaid_total_ttc?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "citeo_accounts_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "citeo_accounts_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       csv_imports: {
         Row: {
           bulk_import_id: string | null
