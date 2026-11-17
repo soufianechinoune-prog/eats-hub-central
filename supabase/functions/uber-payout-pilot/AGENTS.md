@@ -1,0 +1,2 @@
+- This function is restricted to the three approved pilot stores and six fixed windows; archive inspection precedes any report creation, and staging never writes legacy adjustments or order tables.
+- Source previews reuse the payment parser in a service-only exact-store dry-run mode; apply groups by payout only after source collection, preserving immutable identities and cross-report occurrence slots.

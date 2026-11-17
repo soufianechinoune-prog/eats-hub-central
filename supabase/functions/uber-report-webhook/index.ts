@@ -162,6 +162,17 @@ Deno.serve(async (req) => {
       console.log('Ignoring non-success event:', body.event_type);
       return new Response(null, { status: 200, headers: corsHeaders });
     }
+    // Dedicated pilot inbox: never dispatch these reports through the normal order importer.
+    const { data: pilotReport, error: pilotError } = await supabase.from('payout_pilot_reports')
+      .select('id').eq('workflow_id', body.job_id).maybeSingle();
+    if (pilotError) throw new Error('Pilot inbox lookup failed');
+    if (pilotReport) {
+      const { error } = await supabase.from('payout_pilot_reports').update({
+        status: 'received', sections: body.report_metadata.sections, completed_at: new Date().toISOString(),
+      }).eq('id', pilotReport.id);
+      if (error) throw new Error('Pilot inbox update failed');
+      return new Response(null, { status: 200, headers: corsHeaders });
+    }
     
     // Strict match: Uber returns the SAME composite job_id as the workflow_id stored at POST.
     // The previous LIKE prefix fallback caused races (multiple reports share the same root).

@@ -11215,6 +11215,56 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_pilot_reports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          end_date: string
+          id: string
+          refusal_status: number | null
+          restaurant_id: string
+          sections: Json | null
+          start_date: string
+          status: string
+          uber_store_id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          end_date: string
+          id?: string
+          refusal_status?: number | null
+          restaurant_id: string
+          sections?: Json | null
+          start_date: string
+          status?: string
+          uber_store_id: string
+          workflow_id?: string | null
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          end_date?: string
+          id?: string
+          refusal_status?: number | null
+          restaurant_id?: string
+          sections?: Json | null
+          start_date?: string
+          status?: string
+          uber_store_id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_pilot_reports_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payout_source_transitions: {
         Row: {
           evidence: string

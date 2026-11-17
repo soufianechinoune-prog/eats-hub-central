@@ -2,6 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
 import { findPaymentHeader } from './headerRecognition.ts';
+import { pilotLineAllowed, PILOT_STORES } from '../_shared/payoutPilotScope.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -611,8 +612,10 @@ Deno.serve(async (req) => {
       if (role !== 'super_admin' && role !== 'importer') return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: corsHeaders });
       lookupClient = scoped;
     }
-    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv', adjustmentsOnly = false } = await req.json();
+    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv', adjustmentsOnly = false, pilotStore, previewSourceRows = false } = await req.json();
     if (typeof csvContent !== 'string' || csvContent.length > 50000000 || typeof dryRun !== 'boolean' || typeof adjustmentsOnly !== 'boolean') throw new Error('Invalid import request');
+    if (pilotStore !== undefined && (token !== supabaseServiceKey || typeof pilotStore !== 'string' || !PILOT_STORES[pilotStore] || !adjustmentsOnly || !dryRun || previewSourceRows !== true)) throw new Error('Invalid service-only pilot scope');
+    if (previewSourceRows && !pilotStore) throw new Error('Source preview requires pilot scope');
 
     if (!csvContent) {
       throw new Error('Missing csvContent in request body');
@@ -651,6 +654,7 @@ Deno.serve(async (req) => {
           dateRange: { start: null, end: null },
           restaurants: [],
           message: 'Le fichier CSV est vide (pas de données après les en-têtes)',
+          ...(previewSourceRows ? { sourceRows: [] } : {}),
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -933,6 +937,17 @@ Deno.serve(async (req) => {
           for (const candidate of storeIdCandidates) {
             const m = restaurantMap.get(candidate);
             if (m) { matchedRestaurant = m; uberStoreIdVal = candidate; break; }
+          }
+          if (pilotStore) {
+            if (!storeIdCandidates.includes(pilotStore)) throw new Error('Archive contains a different or missing store identity');
+            const exact = restaurantMap.get(pilotStore);
+            if (!exact || exact.id !== PILOT_STORES[pilotStore]) throw new Error('Pilot store mapping mismatch');
+            matchedRestaurant = exact;
+            uberStoreIdVal = pilotStore;
+            const lineDate = parseDate(getValue('order_date'));
+            if (!lineDate) throw new Error('Pilot adjustment has no interpretable order date');
+            if (!pilotLineAllowed(pilotStore, exact.id, lineDate)) continue;
+            if (payoutRefId === '05G2PXLG9Z79FXQ' || payoutRefId === '2OAJXO4XY0LOBRE') continue;
           }
 
           const otherPaymentsInclVat = parseNumber(getValue('other_payments_incl_vat'));
@@ -1524,6 +1539,7 @@ Deno.serve(async (req) => {
         sampleCriticalValues,
       },
       errorDetails: errors.slice(0, 10),
+      ...(previewSourceRows ? { sourceRows: deduplicatedAdjustments } : {}),
     };
 
     console.log('Processing completed:', result.stats);
