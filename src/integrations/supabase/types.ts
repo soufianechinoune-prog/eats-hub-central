@@ -32,6 +32,41 @@ export type Database = {
         }
         Relationships: []
       }
+      ads_contract_rules: {
+        Row: {
+          chain_id: string
+          growth_penalty_eur: number | null
+          hq_extra_rate: number
+          label: string
+          min_ads_ratio: number
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          growth_penalty_eur?: number | null
+          hq_extra_rate?: number
+          label: string
+          min_ads_ratio: number
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          growth_penalty_eur?: number | null
+          hq_extra_rate?: number
+          label?: string
+          min_ads_ratio?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ads_contract_rules_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: true
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_conversations: {
         Row: {
           chain_id: string | null
@@ -9208,6 +9243,54 @@ export type Database = {
           },
         ]
       }
+      eco_uber_declarations: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          chain_id: string | null
+          declared_at: string
+          declared_by: string | null
+          declared_by_name: string | null
+          id: string
+          restaurant_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          chain_id?: string | null
+          declared_at?: string
+          declared_by?: string | null
+          declared_by_name?: string | null
+          id?: string
+          restaurant_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          chain_id?: string | null
+          declared_at?: string
+          declared_by?: string | null
+          declared_by_name?: string | null
+          id?: string
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eco_uber_declarations_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "eco_uber_declarations_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -14059,6 +14142,17 @@ export type Database = {
       }
     }
     Views: {
+      ads_advertising_lines: {
+        Row: {
+          amount: number | null
+          category: string | null
+          payout_date: string | null
+          payout_reference_id: string | null
+          restaurant_id: string | null
+          source_kind: string | null
+        }
+        Relationships: []
+      }
       backfill_jobs_stats: {
         Row: {
           done: number | null
@@ -14528,6 +14622,19 @@ export type Database = {
               total_revenue: number
             }[]
           }
+      get_ads_budget_simulator: {
+        Args: { p_chain_id: string }
+        Returns: {
+          ads_week_ht: number
+          payout_ratio: number
+          period_end: string
+          period_start: string
+          restaurant_id: string
+          restaurant_name: string
+          revenue_week: number
+          weeks: number
+        }[]
+      }
       get_ads_efficiency: {
         Args: {
           p_end: string
