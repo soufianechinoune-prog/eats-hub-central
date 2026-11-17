@@ -12,7 +12,8 @@ export default defineConfig(({ mode }) => ({
   },
   plugins: [react(), mode === "development" && componentTagger(), mcpPlugin()].filter(Boolean),
   resolve: {
-    dedupe: ["react", "react-dom", "react/jsx-runtime"],
+    // Lazy pages and the route provider must share the same router contexts.
+    dedupe: ["react", "react-dom", "react/jsx-runtime", "react-router", "react-router-dom"],
     alias: {
       "@": path.resolve(__dirname, "./src"),
     },

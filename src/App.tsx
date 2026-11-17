@@ -180,6 +180,7 @@ const SmartHome = () => {
 
 const App = () => {
   return (
+    <BrowserRouter>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
         <TooltipProvider>
@@ -187,7 +188,6 @@ const App = () => {
             <AnalyticsProvider>
               <Toaster />
               <Sonner />
-              <BrowserRouter>
                 <ChunkLoadBoundary>
                   <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>}>
                     <Routes>
@@ -267,12 +267,12 @@ const App = () => {
                     </Routes>
                   </Suspense>
                 </ChunkLoadBoundary>
-              </BrowserRouter>
             </AnalyticsProvider>
           </AIAdvisorProvider>
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
+    </BrowserRouter>
   );
 };
 
