@@ -14298,6 +14298,23 @@ export type Database = {
           },
         ]
       }
+      eco_contribution_lines: {
+        Row: {
+          amount: number | null
+          description: string | null
+          eco_kind: string | null
+          id: string | null
+          is_mirror: boolean | null
+          is_rate_multiple: boolean | null
+          is_single_line: boolean | null
+          payout_date: string | null
+          payout_reference_id: string | null
+          restaurant_id: string | null
+          restaurant_name: string | null
+          source_kind: string | null
+        }
+        Relationships: []
+      }
       payout_adjustments_effective: {
         Row: {
           amount: number | null
