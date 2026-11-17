@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { requireCaller } from "../_shared/requireCaller.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -97,6 +98,10 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Sécurité : compte connecté ou appel serveur uniquement.
+  const refused = await requireCaller(req);
+  if (refused) return refused;
 
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireCaller } from "../_shared/requireCaller.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,10 @@ serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  // Sécurité : compte connecté ou appel serveur uniquement.
+  const refused = await requireCaller(req);
+  if (refused) return refused;
 
   try {
     const { csvContent, restaurantId, dryRun = false, deleteExisting = false } = await req.json();
