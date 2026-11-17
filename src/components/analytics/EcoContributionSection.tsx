@@ -24,6 +24,9 @@ import { cn } from "@/lib/utils";
 import { deduceUberDeclarationStatus, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
 import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
+import { useCiteoAccounts } from "@/hooks/useCiteoAccounts";
+import { findCiteoAccount, summarizeCiteo, type CiteoAccount } from "@/lib/citeoStatus";
+import { CiteoCell, CiteoSummaryStrip } from "./CiteoStatus";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tooltip as UITooltip, TooltipContent as UITooltipContent, TooltipProvider as UITooltipProvider, TooltipTrigger as UITooltipTrigger } from "@/components/ui/tooltip";
 
@@ -90,6 +93,7 @@ export function EcoContributionSection({
 
   // Déclarations envoyées à Uber, confirmées par l'utilisateur (traçabilité)
   const ecoDecl = useEcoUberDeclarations(restaurantIds);
+  const citeo = useCiteoAccounts(selectedChainId);
 
   // REP check state
   const { data: repData, loading: repLoading, errors: repErrors, progress: repProgress, checkMultiple } = useEcoOrganismCheck();
@@ -239,6 +243,22 @@ export function EcoContributionSection({
     }
     return map;
   }, [restaurantIds, repData, repLoading, repErrors, repChecked, latestSnapshot]);
+
+  // Société CITEO de chaque restaurant (lien direct, sinon identifiant unique ADEME).
+  const citeoByRestaurant = useMemo(() => {
+    const map = new Map<string, CiteoAccount>();
+    for (const rId of restaurantIds) {
+      const idus = (repByRestaurant.get(rId)?.iduEntries ?? []).map(i => i.identifiant_unique);
+      const account = findCiteoAccount(citeo.accounts, rId, idus);
+      if (account) map.set(rId, account);
+    }
+    return map;
+  }, [restaurantIds, repByRestaurant, citeo.accounts]);
+  const citeoSummary = useMemo(
+    () => summarizeCiteo(citeo.accounts, new Set([...citeoByRestaurant.values()].map(a => a.id))),
+    [citeo.accounts, citeoByRestaurant],
+  );
+  const showCiteo = citeo.accounts.length > 0;
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
@@ -708,6 +728,8 @@ export function EcoContributionSection({
                 Source ADEME — Données mises à jour <span className="font-medium">tous les 3 mois</span>. Dernière MàJ : fév. 2026. Inutile d'actualiser quotidiennement.
               </p>
 
+              <CiteoSummaryStrip summary={citeoSummary} />
+
             <div className="flex items-center justify-between gap-3 mb-3">
               <p className="text-[11px] text-muted-foreground">
                 {filteredRestaurants.length} restaurant{filteredRestaurants.length > 1 ? "s" : ""} affiché{filteredRestaurants.length > 1 ? "s" : ""}
@@ -733,6 +755,7 @@ export function EcoContributionSection({
                         <TableHead>Restaurant</TableHead>
                         {repChecked && <TableHead className="text-center w-[80px]">REP</TableHead>}
                         {repChecked && <TableHead className="text-center w-[150px]">Déclaration Uber</TableHead>}
+                        {showCiteo && <TableHead className="text-center w-[150px]">CITEO</TableHead>}
                         <TableHead className="text-right cursor-pointer hover:text-foreground" onClick={() => handleSort("refund")}>
                           Remb. {sortKey === "refund" && (sortDir === "desc" ? "↓" : "↑")}
                         </TableHead>
@@ -758,6 +781,8 @@ export function EcoContributionSection({
                           isEvenRow={idx % 2 === 0}
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
+                          showCiteoColumn={showCiteo}
+                          citeoAccount={citeoByRestaurant.get(r.restaurant_id)}
                           details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
                           newLinesDelta={ecoLineDeltas.get(r.restaurant_id)}
@@ -1178,7 +1203,11 @@ function RestaurantDrilldown({
   onDeclare,
   onCancelDeclaration,
   declPending = false,
+  showCiteoColumn = false,
+  citeoAccount,
 }: {
+  showCiteoColumn?: boolean;
+  citeoAccount?: CiteoAccount;
   declaration?: EcoUberDeclaration;
   onDeclare?: (restaurantId: string) => void;
   onCancelDeclaration?: (declarationId: string) => void;
@@ -1205,7 +1234,7 @@ function RestaurantDrilldown({
   const refundPct = total > 0 ? Math.round((r.refund / total) * 100) : 0;
 
   const hasRepDetail = repData && repData.status === "inscrit" && repData.entries.length > 0;
-  const colSpan = showRepColumn ? 7 : 5;
+  const colSpan = 5 + (showRepColumn ? 2 : 0) + (showCiteoColumn ? 1 : 0);
   const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({ refund: r.refund, charge: r.charge, repStatus: repData?.status });
   const firstIdu = repData?.iduEntries?.[0];
   const declUrl = buildUberDeclarationUrl({
@@ -1319,6 +1348,11 @@ function RestaurantDrilldown({
             <UberDeclarationCell status={declStatus} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
               onDeclare={onDeclare ? () => onDeclare(r.restaurant_id) : undefined}
               onCancel={onCancelDeclaration && declaration ? () => onCancelDeclaration(declaration.id) : undefined} />
+          </TableCell>
+        )}
+        {showCiteoColumn && (
+          <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
+            <CiteoCell account={citeoAccount} />
           </TableCell>
         )}
         <TableCell className="text-right text-green-600 text-sm py-3">{fmt(r.refund)}</TableCell>
