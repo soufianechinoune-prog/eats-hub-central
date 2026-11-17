@@ -1,22 +1,24 @@
 /**
  * Déduction du statut de déclaration IDU auprès d'Uber Eats, sur une année civile,
  * à partir des flux financiers d'éco-contribution et de l'adhésion REP (ADEME).
- * Un remboursement ou l'absence de prélèvement vaut preuve qu'Uber a reçu la déclaration.
+ * Un remboursement d'Uber est le miroir exact d'un prélèvement (même période, même nombre de commandes) :
+ * on juge donc la régularisation à la part rendue, jamais à un montant minimum.
  */
 export type UberDeclarationStatus =
-  | "regularise"      // vrai remboursement reçu OU adhérent sans aucun prélèvement : Uber a reçu le formulaire
-  | "arrete_non_rembourse" // Uber ne prélève plus, mais n'a pas remboursé ce qu'il a déjà pris
-  | "a_declarer"      // adhérent REP (IDU connu) mais toujours prélevé, sans remboursement
-  | "non_adherent"    // prélevé et aucune adhésion REP connue
-  | "inconnu";        // REP non vérifié ou aucune donnée
+  | "regularise"           // Uber a rendu ce qu'il a pris (ou n'a jamais rien pris)
+  | "rembourse_partiel"    // Uber a rendu une partie seulement : le reste est à réclamer
+  | "arrete_non_rembourse" // Uber ne prélève plus, mais n'a rien rendu
+  | "a_declarer"           // adhérent REP (IDU connu) mais toujours prélevé, sans remboursement
+  | "non_adherent"         // prélevé et aucune adhésion REP connue
+  | "inconnu";             // REP non vérifié ou aucune donnée
 
 /**
- * Montant à partir duquel une ligne positive est un vrai remboursement d'Uber.
- * Constat sur 2026 (toutes enseignes) : les vrais remboursements font tous plus de 89 € (une seule ligne
- * par restaurant, plusieurs semaines de prélèvements d'un coup) ; les petits crédits hebdomadaires
- * (quelques centimes à 38 €) ne sont pas une régularisation et ne prouvent rien.
+ * Part des prélèvements qu'Uber doit avoir rendue pour parler de régularisation.
+ * C'est une proportion, pas un montant : la règle vaut pour un gros restaurant comme pour un petit
+ * ou pour un lancement. (Les lignes reçues sont déjà triées en base : seuls les remboursements
+ * miroirs d'un prélèvement arrivent ici, voir la vue eco_contribution_lines.)
  */
-export const ECO_REAL_REFUND_MIN = 50;
+export const ECO_FULL_REFUND_SHARE = 0.9;
 /** Sans prélèvement depuis ce nombre de jours, on considère qu'Uber a arrêté de prélever. */
 export const ECO_CHARGE_STOPPED_DAYS = 35;
 
@@ -26,50 +28,64 @@ export interface EcoLineLike {
 }
 
 export interface EcoFlowSummary {
-  /** Somme des vrais remboursements (lignes d'au moins ECO_REAL_REFUND_MIN). */
-  realRefund: number;
-  /** Petits crédits qui ne sont pas une régularisation. */
-  smallCredits: number;
+  /** Remboursements d'éco-contribution reçus. */
+  refund: number;
   charge: number;
+  /** Ce qu'Uber a pris et pas rendu (jamais négatif). */
+  remaining: number;
   lastChargeDate: string | null;
+  lastRefundDate: string | null;
   /** Vrai si le dernier prélèvement est ancien par rapport à la dernière semaine connue. */
   chargesStopped: boolean;
+  /** Prélèvements postérieurs au dernier remboursement : Uber a recommencé à prélever. */
+  chargedAfterRefund: number;
 }
+
+const round2 = (v: number) => Math.round(v * 100) / 100;
+const day = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).getTime();
 
 /** Résume les lignes d'éco-contribution d'un restaurant. `referenceDate` = dernière semaine connue du réseau. */
 export function summarizeEcoFlows(lines: EcoLineLike[], referenceDate: string | null): EcoFlowSummary {
-  let realRefund = 0, smallCredits = 0, charge = 0;
-  let lastChargeDate: string | null = null;
+  let refund = 0, charge = 0;
+  let lastChargeDate: string | null = null, lastRefundDate: string | null = null;
   for (const l of lines) {
     const amount = Number(l.amount) || 0;
-    if (amount >= ECO_REAL_REFUND_MIN) realRefund += amount;
-    else if (amount > 0) smallCredits += amount;
-    else if (amount < 0) {
+    if (amount > 0) {
+      refund += amount;
+      if (l.payout_date && (!lastRefundDate || l.payout_date > lastRefundDate)) lastRefundDate = l.payout_date;
+    } else if (amount < 0) {
       charge += -amount;
       if (l.payout_date && (!lastChargeDate || l.payout_date > lastChargeDate)) lastChargeDate = l.payout_date;
     }
   }
-  let chargesStopped = false;
-  if (lastChargeDate && referenceDate) {
-    const days = (new Date(`${referenceDate.slice(0, 10)}T12:00:00`).getTime() - new Date(`${lastChargeDate.slice(0, 10)}T12:00:00`).getTime()) / 86_400_000;
-    chargesStopped = days >= ECO_CHARGE_STOPPED_DAYS;
+  let chargedAfterRefund = 0;
+  if (lastRefundDate) {
+    for (const l of lines) {
+      const amount = Number(l.amount) || 0;
+      if (amount < 0 && l.payout_date && l.payout_date > lastRefundDate) chargedAfterRefund += -amount;
+    }
   }
-  const round = (v: number) => Math.round(v * 100) / 100;
-  return { realRefund: round(realRefund), smallCredits: round(smallCredits), charge: round(charge), lastChargeDate, chargesStopped };
+  const chargesStopped = !!lastChargeDate && !!referenceDate
+    && (day(referenceDate) - day(lastChargeDate)) / 86_400_000 >= ECO_CHARGE_STOPPED_DAYS;
+  return {
+    refund: round2(refund), charge: round2(charge), remaining: round2(Math.max(0, charge - refund)),
+    lastChargeDate, lastRefundDate, chargesStopped, chargedAfterRefund: round2(chargedAfterRefund),
+  };
 }
 
 export function deduceUberDeclarationStatus(input: {
-  /** Vrais remboursements uniquement (voir summarizeEcoFlows) : les petits crédits ne comptent pas. */
   refund: number;
   charge: number;
   repStatus?: string;
   chargesStopped?: boolean;
 }): UberDeclarationStatus {
   const refund = Math.max(0, input.refund || 0);
-  const charged = Math.abs(input.charge || 0) > 0.005;
+  const charge = Math.abs(input.charge || 0);
+  const charged = charge > 0.005;
   if (input.repStatus === "inscrit") {
-    if (refund >= ECO_REAL_REFUND_MIN) return "regularise";
     if (!charged) return "regularise";
+    if (refund >= ECO_FULL_REFUND_SHARE * charge) return "regularise";
+    if (refund > 0.005) return "rembourse_partiel";
     return input.chargesStopped ? "arrete_non_rembourse" : "a_declarer";
   }
   if (input.repStatus === "non_trouve" || input.repStatus === "sans_siret") return charged ? "non_adherent" : "inconnu";

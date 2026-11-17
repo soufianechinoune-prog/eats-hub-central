@@ -26,33 +26,42 @@ describe("buildUberDeclarationUrl", () => {
   });
 });
 
-describe("petits crédits et arrêt des prélèvements", () => {
-  it("un petit crédit (0,56 €) n'est pas une régularisation", () => {
-    expect(deduceUberDeclarationStatus({ refund: 0.56, charge: -1800.85, repStatus: "inscrit" })).toBe("a_declarer");
+describe("régularisation jugée à la part rendue", () => {
+  it("rien de rendu et encore prélevé : à déclarer", () => {
+    const s = summarizeEcoFlows([{ amount: -40, payout_date: "2026-09-21" }, { amount: -38, payout_date: "2026-11-09" }], "2026-11-16");
+    expect(s).toMatchObject({ refund: 0, charge: 78, remaining: 78, lastChargeDate: "2026-11-09", chargesStopped: false });
+    expect(deduceUberDeclarationStatus({ ...s, repStatus: "inscrit" })).toBe("a_declarer");
   });
 
-  it("summarizeEcoFlows sépare vrais remboursements et petits crédits", () => {
-    const s = summarizeEcoFlows([
-      { amount: -40, payout_date: "2026-09-21" },
-      { amount: 0.56, payout_date: "2026-09-28" },
-      { amount: -38, payout_date: "2026-10-26" },
-    ], "2026-11-09");
-    expect(s).toMatchObject({ realRefund: 0, smallCredits: 0.56, charge: 78, lastChargeDate: "2026-10-26", chargesStopped: false });
-    expect(deduceUberDeclarationStatus({ refund: s.realRefund, charge: s.charge, repStatus: "inscrit", chargesStopped: s.chargesStopped })).toBe("a_declarer");
-  });
-
-  it("prélèvements arrêtés depuis longtemps, sans remboursement : statut à part", () => {
-    const s = summarizeEcoFlows([
-      { amount: -120, payout_date: "2026-05-11" },
-      { amount: 1.91, payout_date: "2026-06-08" },
-    ], "2026-11-09");
+  it("prélèvements arrêtés depuis longtemps, rien de rendu : statut à part", () => {
+    const s = summarizeEcoFlows([{ amount: -120, payout_date: "2026-05-11" }], "2026-11-16");
     expect(s.chargesStopped).toBe(true);
-    expect(deduceUberDeclarationStatus({ refund: s.realRefund, charge: s.charge, repStatus: "inscrit", chargesStopped: s.chargesStopped })).toBe("arrete_non_rembourse");
+    expect(deduceUberDeclarationStatus({ ...s, repStatus: "inscrit" })).toBe("arrete_non_rembourse");
   });
 
-  it("un vrai remboursement régularise, même s'il reste des prélèvements", () => {
-    const s = summarizeEcoFlows([{ amount: -300, payout_date: "2026-03-02" }, { amount: 1074.91, payout_date: "2026-06-01" }], "2026-11-09");
-    expect(s.realRefund).toBe(1074.91);
-    expect(deduceUberDeclarationStatus({ refund: s.realRefund, charge: s.charge, repStatus: "inscrit" })).toBe("regularise");
+  it("petit restaurant remboursé de quelques euros : régularisé quand même", () => {
+    const s = summarizeEcoFlows([
+      { amount: -3.66, payout_date: "2026-09-07" }, { amount: -1.83, payout_date: "2026-09-14" },
+      { amount: 3.66, payout_date: "2026-10-26" }, { amount: 1.83, payout_date: "2026-10-26" },
+    ], "2026-11-16");
+    expect(s).toMatchObject({ refund: 5.49, charge: 5.49, remaining: 0 });
+    expect(deduceUberDeclarationStatus({ ...s, repStatus: "inscrit" })).toBe("regularise");
+  });
+
+  it("une partie seulement rendue : remboursé en partie, avec le reste à réclamer", () => {
+    const s = summarizeEcoFlows([
+      { amount: -91.45, payout_date: "2026-07-06" }, { amount: -126.2, payout_date: "2026-07-27" }, { amount: -257.16, payout_date: "2026-08-24" },
+      { amount: 91.45, payout_date: "2026-08-31" },
+    ], "2026-11-16");
+    expect(s.remaining).toBe(383.36);
+    expect(deduceUberDeclarationStatus({ ...s, repStatus: "inscrit" })).toBe("rembourse_partiel");
+  });
+
+  it("remboursé puis prélevé de nouveau : on le voit", () => {
+    const s = summarizeEcoFlows([
+      { amount: -300, payout_date: "2026-03-02" }, { amount: 300, payout_date: "2026-10-26" }, { amount: -20, payout_date: "2026-11-09" },
+    ], "2026-11-16");
+    expect(s).toMatchObject({ lastRefundDate: "2026-10-26", chargedAfterRefund: 20 });
+    expect(deduceUberDeclarationStatus({ ...s, repStatus: "inscrit" })).toBe("regularise");
   });
 });

@@ -4,6 +4,18 @@ import { useMemo } from "react";
 import { endOfMonth, format } from "date-fns";
 
 
+type EcoRow = Omit<EcoDetailLine, "platform">;
+// Requête minimale sur la vue eco_contribution_lines (migration 20261117210000, pas encore dans les types générés).
+// On garde les appels sur l'objet client : extraire ses méthodes leur fait perdre leur contexte.
+type EcoQuery = PromiseLike<{ data: EcoRow[] | null; error: Error | null }> & {
+  in: (column: string, values: readonly string[]) => EcoQuery;
+  order: (column: string, options?: { ascending: boolean }) => EcoQuery;
+  gte: (column: string, value: string) => EcoQuery;
+  lte: (column: string, value: string) => EcoQuery;
+  range: (from: number, to: number) => EcoQuery;
+};
+const ecoClient = supabase as unknown as { from: (table: string) => { select: (columns: string) => EcoQuery } };
+
 interface EcoDetailLine {
   id: string;
   restaurant_id: string;
@@ -39,10 +51,13 @@ export function useEcoContribution({
       const batchSize = 1000;
 
       while (true) {
-        let query = supabase
-          .from("payout_adjustments_effective")
+        // La vue donne la nature de chaque ligne (eco_kind). On ne garde que les vrais prélèvements et
+        // remboursements d'éco-contribution : les titres-restaurant et les petits crédits sans rapport
+        // (commande annulée, annulation de remboursement client) sont écartés.
+        let query = ecoClient
+          .from("eco_contribution_lines")
           .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount")
-          .eq("category", "eco_contribution")
+          .in("eco_kind", ["prelevement", "remboursement"])
           .order("payout_date", { ascending: false }).order("id");
 
         if (year) {

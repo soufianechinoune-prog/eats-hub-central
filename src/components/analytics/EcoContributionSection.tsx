@@ -1019,16 +1019,34 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
   const trace = declaration
     ? `Déclaré ${formatDeclarationDate(declaration.declared_at)}${declaration.declared_by_name ? ` par ${declaration.declared_by_name}` : ""}`
     : null;
+  const dateFr = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("fr-FR");
   if (status === "regularise") {
+    const again = flows && fmt && flows.chargedAfterRefund > 0.005 && flows.lastRefundDate ? flows : null;
     return (
-      <div className="flex flex-col items-center gap-1">
-        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Remboursement reçu ou aucun prélèvement sur l'année : Uber a pris en compte la déclaration.">Régularisé</Badge>
+      <div className="flex flex-col items-center gap-1 max-w-[180px]">
+        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Uber a rendu ce qu'il avait prélevé (ou n'a rien prélevé) sur la période : la déclaration est prise en compte.">Régularisé</Badge>
+        {again && fmt && (
+          <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight"
+            title="Uber a recommencé à prélever après avoir remboursé : à signaler à Uber.">
+            Prélevé de nouveau : {fmt(again.chargedAfterRefund)} depuis le {dateFr(again.lastRefundDate!)}
+          </span>
+        )}
+        {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+      </div>
+    );
+  }
+  if (status === "rembourse_partiel") {
+    return (
+      <div className="flex flex-col items-center gap-1 max-w-[180px]">
+        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
+          title="Uber a remboursé une partie seulement de ce qu'il avait prélevé. Le reste est à réclamer à Uber.">Remboursé en partie</Badge>
+        {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.remaining)} restent à réclamer</span>}
         {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
       </div>
     );
   }
   if (status === "arrete_non_rembourse") {
-    const since = flows?.lastChargeDate ? new Date(`${flows.lastChargeDate.slice(0, 10)}T12:00:00`).toLocaleDateString("fr-FR") : null;
+    const since = flows?.lastChargeDate ? dateFr(flows.lastChargeDate) : null;
     return (
       <div className="flex flex-col items-center gap-1 max-w-[180px]">
         <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
@@ -1255,13 +1273,13 @@ function RestaurantDrilldown({
 
   const hasRepDetail = repData && repData.status === "inscrit" && repData.entries.length > 0;
   const colSpan = 5 + (showRepColumn ? 2 : 0) + (showCiteoColumn ? 1 : 0);
-  // Statut calculé sur les lignes Uber : seuls les vrais remboursements comptent, pas les petits crédits.
+  // Statut calculé sur les lignes Uber, déjà triées en base (remboursements miroirs d'un prélèvement).
   const ecoFlows = useMemo(
     () => summarizeEcoFlows(detailLines.filter(l => l.platform !== "deliveroo"), ecoReferenceDate ?? null),
     [detailLines, ecoReferenceDate],
   );
   const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({
-    refund: ecoFlows.realRefund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
+    refund: ecoFlows.refund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
   });
   const firstIdu = repData?.iduEntries?.[0];
   const declUrl = buildUberDeclarationUrl({
