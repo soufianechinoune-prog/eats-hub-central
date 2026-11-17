@@ -12224,6 +12224,39 @@ export type Database = {
           },
         ]
       }
+      restaurant_uber_reassignment_audit: {
+        Row: {
+          after_values: Json
+          batch_id: string
+          before_values: Json
+          chain_id: string
+          id: string
+          recorded_at: string
+          source_row_id: string
+          source_table: string
+        }
+        Insert: {
+          after_values: Json
+          batch_id: string
+          before_values: Json
+          chain_id: string
+          id?: string
+          recorded_at?: string
+          source_row_id: string
+          source_table: string
+        }
+        Update: {
+          after_values?: Json
+          batch_id?: string
+          before_values?: Json
+          chain_id?: string
+          id?: string
+          recorded_at?: string
+          source_row_id?: string
+          source_table?: string
+        }
+        Relationships: []
+      }
       restaurant_visibility_grants: {
         Row: {
           created_at: string | null

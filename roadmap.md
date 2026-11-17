@@ -1,8 +1,8 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
 ## Corrections Rennes et versements 2026 — validation avant chaque étape
-- [ ] Étape 1 : inventaire préalable livré, sans écriture : 3 980 commandes, 5 565 directes, 1 698 historiques prouvés, 16 ajustements, 147 rapports, 170 tâches. Reste à attribuer 315 commandes, 3 historiques, 480 erreurs et 1 752 disponibilités ; contrôle résiduel Villejean 87 971,15 € vs cible 86 764,85 €. Attend preuves complémentaires puis validation utilisateur avant transfert ; préserver caisse/Splash/Châtaigne et les deux vues interdites.
-- [ ] Étape 1 après validation : transférer seulement les lignes prouvées Colombier ; contrôle Villejean 01/01–17/11/2026 : ventes brutes 86 764,85 €, éco prélevée/remboursée 400,00 €/400,00 €.
+- [x] Étape 1 périmètre prouvé appliqué en transaction : 1 mapping, 1 fiche, 5 565 directes, 3 980 commandes, 1 698 historiques depuis inactive, 16 ajustements, 147 rapports, 170 tâches ; 11 578 lignes dans restaurant_uber_reassignment_audit, batch 7231a2e7-88f2-4a19-9b12-28f63db50368. Synthèses ventes et historiques recalculées sur les trois fiches ; écarts ventes/synthèses zéro.
+- [ ] Contrôle utilisateur avant étape 2 : Villejean 5 081 commandes / 87 971,15 € TTC / éco 346,78 € prélevés et 400 € remboursés ; Colombier 3 980 / 67 089,75 € / 580,34 € prélevés, 0 € remboursé. Exclusions conservées, fiche inactive intacte ; deux versements juillet attendent identification Soufiane. Caisse/Splash/Châtaigne et définitions des vues interdites inchangées.
 - [ ] Étape 2 après étape 1 : chiffrer et faire valider la réimportation ligne à ligne des versements 2026 réseau, sans suppression ; doublons inter-rapports uniquement. Contrôle Dijon : 552,18 € prélevés et 847,20 € remboursés.
 
 ## Éco-contribution — contrôle historique
