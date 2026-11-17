@@ -155,7 +155,7 @@ export function CatalogComparison({ menuItems, onRefresh }: CatalogComparisonPro
 
     const { error } = await supabase
       .from("menu_items")
-      .update({ [fieldToUpdate]: newPrice })
+      .update(fieldToUpdate === "price_deliveroo" ? { price_deliveroo: newPrice } : { price_uber: newPrice })
       .eq("id", item.id);
 
     if (error) {

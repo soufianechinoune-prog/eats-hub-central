@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -107,7 +108,7 @@ const RestaurantDetail = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: async (updates: Record<string, string | null | boolean>) => {
+    mutationFn: async (updates: TablesUpdate<"restaurants">) => {
       const { error } = await supabase
         .from("restaurants")
         .update(updates)
@@ -128,7 +129,7 @@ const RestaurantDetail = () => {
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (isActive: boolean) => {
-      const updates: Record<string, unknown> = { is_active: isActive };
+      const updates: TablesUpdate<"restaurants"> = { is_active: isActive };
       if (isActive) {
         updates.uber_closing_date = null;
         updates.deliveroo_closing_date = null;

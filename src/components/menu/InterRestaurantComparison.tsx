@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef } from "react";
+import type { TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -375,6 +376,9 @@ export function InterRestaurantComparison({
     const tvaField = platform === "uber" ? "tva_uber" : "tva_deliveroo";
     const priceValue = editPriceValue ? parseFloat(editPriceValue) : null;
     const tvaValue = editTvaValue ? parseFloat(editTvaValue) : null;
+    const priceUpdates: TablesUpdate<"restaurant_menu_prices"> = platform === "uber"
+      ? { price_uber: priceValue, tva_uber: tvaValue }
+      : { price_deliveroo: priceValue, tva_deliveroo: tvaValue };
 
     try {
       // Check if record exists
@@ -388,14 +392,13 @@ export function InterRestaurantComparison({
       if (existing) {
         await supabase
           .from("restaurant_menu_prices")
-          .update({ [priceField]: priceValue, [tvaField]: tvaValue })
+          .update(priceUpdates)
           .eq("id", existing.id);
       } else {
         await supabase.from("restaurant_menu_prices").insert({
           menu_item_id: editPriceData.menuItemId,
           restaurant_id: editPriceData.restaurantId,
-          [priceField]: priceValue,
-          [tvaField]: tvaValue,
+          ...priceUpdates,
           is_available: true,
         });
       }
@@ -526,7 +529,7 @@ export function InterRestaurantComparison({
       // Create prices for each restaurant
       const pricesToInsert = Object.entries(newProductPrices)
         .filter(([_, price]) => price !== "")
-        .map(([restaurantId, price]) => ({
+        .map(([restaurantId, price]): TablesInsert<"restaurant_menu_prices"> => ({
           menu_item_id: menuItem.id,
           restaurant_id: restaurantId,
           [platform === "uber" ? "price_uber" : "price_deliveroo"]: parseFloat(price),

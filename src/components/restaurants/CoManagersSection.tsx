@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -76,7 +77,7 @@ export function CoManagersSection({ restaurantId }: CoManagersSectionProps) {
       if (existing) {
         managerId = existing.id;
         // Update name/email if provided
-        const updates: Record<string, string | null> = {};
+        const updates: TablesUpdate<"managers"> = {};
         if (form.first_name) updates.first_name = form.first_name;
         if (form.last_name) updates.last_name = form.last_name;
         if (form.email) updates.email = form.email;

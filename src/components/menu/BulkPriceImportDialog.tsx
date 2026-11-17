@@ -19,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
+import type { TablesInsert } from "@/integrations/supabase/types";
 import { Upload, Check, AlertCircle, Loader2, FileSpreadsheet } from "lucide-react";
 import { toast } from "sonner";
 import { calculateSimilarity, normalizeName } from "@/lib/fuzzyMatch";
@@ -181,7 +182,7 @@ export function BulkPriceImportDialog({ onImportComplete }: { onImportComplete?:
     setIsLoading(true);
 
     const priceField = platform === "uber" ? "price_uber" : "price_deliveroo";
-    const records: { menu_item_id: string; restaurant_id: string; [key: string]: string | number | null }[] = [];
+    const records: TablesInsert<"restaurant_menu_prices">[] = [];
 
     for (const row of csvRows) {
       if (!row.matchedMenuItem) continue;

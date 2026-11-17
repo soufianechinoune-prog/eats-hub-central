@@ -1,4 +1,5 @@
 import { useState } from "react";
+import type { TablesUpdate } from "@/integrations/supabase/types";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -300,7 +301,7 @@ export function DeliverooImportDialog({
 
     // Update existing items
     for (const item of toUpdate) {
-      const updateData: Record<string, any> = { 
+      const updateData: TablesUpdate<"menu_items"> = { 
         price_deliveroo: item.price,
         description_deliveroo: item.description || null,
       };
