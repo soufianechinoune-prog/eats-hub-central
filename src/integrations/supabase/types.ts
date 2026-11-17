@@ -11050,6 +11050,7 @@ export type Database = {
           created_at: string
           description: string | null
           id: string
+          order_date_key: string | null
           payout_date: string | null
           payout_reference_id: string
           raw_columns: Json
@@ -11067,6 +11068,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          order_date_key?: string | null
           payout_date?: string | null
           payout_reference_id: string
           raw_columns?: Json
@@ -11084,6 +11086,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           id?: string
+          order_date_key?: string | null
           payout_date?: string | null
           payout_reference_id?: string
           raw_columns?: Json
@@ -16731,6 +16734,13 @@ export type Database = {
         Returns: Json
       }
       is_super_admin: { Args: never; Returns: boolean }
+      mark_cross_report_payout_duplicates: {
+        Args: { p_payout_refs: string[]; p_restaurant_ids: string[] }
+        Returns: {
+          category: string
+          marked: number
+        }[]
+      }
       mark_uber_live_orders_consolidated: {
         Args: { _date_paris: string; _restaurant_id: string }
         Returns: number

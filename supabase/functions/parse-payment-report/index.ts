@@ -994,6 +994,8 @@ Deno.serve(async (req) => {
               category,
               amount: candidateAmount,
               raw_columns: buildRawColumns(row),
+              // Same order date whatever Uber header set (short or descriptive) the report uses.
+              order_date_key: getValue('order_date') || null,
               source_record_index: rowIndex,
             });
           } else {
