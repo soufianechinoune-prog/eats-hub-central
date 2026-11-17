@@ -3,6 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
 import { findPaymentHeader } from './headerRecognition.ts';
 import { pilotLineAllowed, PILOT_STORES } from '../_shared/payoutPilotScope.ts';
+import { WAVE_CHAIN, waveLineAllowed } from '../_shared/payoutWaveScope.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -612,10 +613,19 @@ Deno.serve(async (req) => {
       if (role !== 'super_admin' && role !== 'importer') return new Response(JSON.stringify({ success: false, error: 'Forbidden' }), { status: 403, headers: corsHeaders });
       lookupClient = scoped;
     }
-    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv', adjustmentsOnly = false, pilotStore, previewSourceRows = false } = await req.json();
+    const { csvContent, reportType = 'payment_order_level', dryRun = false, dataSource = 'uber_csv', adjustmentsOnly = false, pilotStore, waveStore, previewSourceRows = false } = await req.json();
     if (typeof csvContent !== 'string' || csvContent.length > 50000000 || typeof dryRun !== 'boolean' || typeof adjustmentsOnly !== 'boolean') throw new Error('Invalid import request');
     if (pilotStore !== undefined && (token !== supabaseServiceKey || typeof pilotStore !== 'string' || !PILOT_STORES[pilotStore] || !adjustmentsOnly || !dryRun || previewSourceRows !== true)) throw new Error('Invalid service-only pilot scope');
-    if (previewSourceRows && !pilotStore) throw new Error('Source preview requires pilot scope');
+    let waveRestaurant: string | undefined;
+    if (waveStore !== undefined) {
+      if (token !== supabaseServiceKey || typeof waveStore !== 'string' || pilotStore || !adjustmentsOnly || !dryRun || previewSourceRows !== true) throw new Error('Invalid service-only wave scope');
+      const { data: job } = await supabase.from('payout_adjustment_backfill_requests').select('restaurant_id').eq('uber_store_id', waveStore).limit(1).maybeSingle();
+      if (!job) throw new Error('Store outside queued wave');
+      const { data: r } = await supabase.from('restaurants').select('chain_id').eq('id', job.restaurant_id).single();
+      if (r?.chain_id !== WAVE_CHAIN) throw new Error('Wave chain mismatch');
+      waveRestaurant = job.restaurant_id;
+    }
+    if (previewSourceRows && !pilotStore && !waveStore) throw new Error('Source preview requires dedicated scope');
 
     if (!csvContent) {
       throw new Error('Missing csvContent in request body');
@@ -937,6 +947,17 @@ Deno.serve(async (req) => {
           for (const candidate of storeIdCandidates) {
             const m = restaurantMap.get(candidate);
             if (m) { matchedRestaurant = m; uberStoreIdVal = candidate; break; }
+          }
+          if (waveStore) {
+            if (!storeIdCandidates.includes(waveStore)) throw new Error('Report contains a different or missing store identity');
+            const exact = restaurantMap.get(waveStore);
+            if (!exact || exact.id !== waveRestaurant) throw new Error('Wave store mapping mismatch');
+            matchedRestaurant = exact;
+            uberStoreIdVal = waveStore;
+            const lineDate = parseDate(getValue('order_date'));
+            if (!lineDate) throw new Error('Wave adjustment has no interpretable order date');
+            if (!waveLineAllowed(WAVE_CHAIN, waveStore, lineDate)) continue;
+            if (payoutRefId === '05G2PXLG9Z79FXQ' || payoutRefId === '2OAJXO4XY0LOBRE') continue;
           }
           if (pilotStore) {
             if (!storeIdCandidates.includes(pilotStore)) throw new Error('Archive contains a different or missing store identity');

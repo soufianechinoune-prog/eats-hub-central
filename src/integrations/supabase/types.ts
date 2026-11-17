@@ -11019,6 +11019,116 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_adjustment_backfill_requests: {
+        Row: {
+          already_present_lines: number
+          attempts: number
+          chain_id: string
+          completed_at: string | null
+          created_at: string
+          end_date: string
+          error: string | null
+          id: string
+          inserted_lines: number
+          received_at: string | null
+          refusal_status: number | null
+          requested_at: string | null
+          restaurant_id: string
+          sections: Json | null
+          source_rows: Json | null
+          start_date: string
+          status: string
+          uber_store_id: string
+          workflow_id: string | null
+        }
+        Insert: {
+          already_present_lines?: number
+          attempts?: number
+          chain_id: string
+          completed_at?: string | null
+          created_at?: string
+          end_date: string
+          error?: string | null
+          id?: string
+          inserted_lines?: number
+          received_at?: string | null
+          refusal_status?: number | null
+          requested_at?: string | null
+          restaurant_id: string
+          sections?: Json | null
+          source_rows?: Json | null
+          start_date: string
+          status?: string
+          uber_store_id: string
+          workflow_id?: string | null
+        }
+        Update: {
+          already_present_lines?: number
+          attempts?: number
+          chain_id?: string
+          completed_at?: string | null
+          created_at?: string
+          end_date?: string
+          error?: string | null
+          id?: string
+          inserted_lines?: number
+          received_at?: string | null
+          refusal_status?: number | null
+          requested_at?: string | null
+          restaurant_id?: string
+          sections?: Json | null
+          source_rows?: Json | null
+          start_date?: string
+          status?: string
+          uber_store_id?: string
+          workflow_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_adjustment_backfill_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_adjustment_backfill_state: {
+        Row: {
+          consecutive_refusals: number
+          finished_at: string | null
+          id: boolean
+          lease_token: string | null
+          lease_until: string | null
+          next_dispatch_at: string | null
+          pause_reason: string | null
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          consecutive_refusals?: number
+          finished_at?: string | null
+          id?: boolean
+          lease_token?: string | null
+          lease_until?: string | null
+          next_dispatch_at?: string | null
+          pause_reason?: string | null
+          started_at?: string | null
+          status?: string
+        }
+        Update: {
+          consecutive_refusals?: number
+          finished_at?: string | null
+          id?: boolean
+          lease_token?: string | null
+          lease_until?: string | null
+          next_dispatch_at?: string | null
+          pause_reason?: string | null
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       payout_adjustment_legacy_archive: {
         Row: {
           archived_at: string
@@ -16936,6 +17046,8 @@ export type Database = {
         Args: { p_category: string; p_description: string }
         Returns: string
       }
+      payout_wave_finish: { Args: { p_token: string }; Returns: undefined }
+      payout_wave_lock: { Args: { p_token: string }; Returns: boolean }
       pick_next_backfill_job: {
         Args: { p_limit?: number }
         Returns: {

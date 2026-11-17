@@ -162,6 +162,19 @@ Deno.serve(async (req) => {
       console.log('Ignoring non-success event:', body.event_type);
       return new Response(null, { status: 200, headers: corsHeaders });
     }
+    // Dedicated wave inbox: never dispatch through normal order ingestion.
+    const { data: waveReport, error: waveError } = await supabase.from('payout_adjustment_backfill_requests')
+      .select('id,status').eq('workflow_id', body.job_id).maybeSingle();
+    if (waveError) throw new Error('Wave inbox lookup failed');
+    if (waveReport) {
+      if (waveReport.status !== 'completed') {
+        const { error } = await supabase.from('payout_adjustment_backfill_requests').update({
+          status: 'received', sections: body.report_metadata.sections, received_at: new Date().toISOString(),
+        }).eq('id', waveReport.id);
+        if (error) throw new Error('Wave inbox update failed');
+      }
+      return new Response(null, { status: 200, headers: corsHeaders });
+    }
     // Dedicated pilot inbox: never dispatch these reports through the normal order importer.
     const { data: pilotReport, error: pilotError } = await supabase.from('payout_pilot_reports')
       .select('id').eq('workflow_id', body.job_id).maybeSingle();
