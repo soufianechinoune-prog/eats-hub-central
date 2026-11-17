@@ -1,0 +1,1 @@
+- Payout line duplicates are marked (source_duplicate_of, never deleted) at staging time only when an identical restaurant/payout/category/amount/order_date_key line exists in a different report, slot by slot; identical lines within one report are real, because Uber repeats genuine same-amount entries.
