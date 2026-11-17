@@ -1,4 +1,5 @@
 {
+  "nodeModulesDir": "auto",
   "imports": {
     "npm:@supabase/supabase-js@2/cors": "npm:@supabase/supabase-js@2.119.0/cors"
   }
