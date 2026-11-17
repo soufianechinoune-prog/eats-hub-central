@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS public.citeo_accounts (
   -- [{ "label": "Contribution annuelle 2024", "due": "2025-01-31", "ttc": 96 }]
   invoices jsonb NOT NULL DEFAULT '[]'::jsonb,
   einvoicing_missing boolean NOT NULL DEFAULT false,
+  -- Date de prise d'effet du contrat, telle qu'affichée dans l'espace client (page Contrats).
+  contract_effective_date date,
+  contract_label text,
   checked_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (chain_id, company_name)
 );

@@ -26,6 +26,9 @@ export interface CiteoAccount {
   oldest_due_date: string | null;
   invoices: CiteoInvoice[];
   einvoicing_missing: boolean;
+  /** Prise d'effet du contrat, telle qu'affichée par CITEO (toujours un 1er janvier). */
+  contract_effective_date: string | null;
+  contract_label: string | null;
   checked_at: string;
 }
 
