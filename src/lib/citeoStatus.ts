@@ -29,6 +29,8 @@ export interface CiteoAccount {
   /** Prise d'effet du contrat, telle qu'affichée par CITEO (toujours un 1er janvier). */
   contract_effective_date: string | null;
   contract_label: string | null;
+  /** Jour où le contrat a été signé (lu une fois dans le contrat lui-même). */
+  contract_signed_date: string | null;
   checked_at: string;
 }
 

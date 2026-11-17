@@ -37,8 +37,9 @@ export function CiteoBadge({ account }: { account: CiteoAccount }) {
         </TooltipTrigger>
         <TooltipContent className="max-w-xs text-xs space-y-1.5">
           <p className="font-medium">{account.company_name}{account.contract_number ? ` · contrat ${account.contract_number}` : ""}</p>
+          {account.contract_signed_date && <p>Contrat signé le {dateFr(account.contract_signed_date)}.</p>}
           {account.contract_effective_date && (
-            <p>Contrat en vigueur depuis le {dateFr(account.contract_effective_date)}{account.contract_label ? ` (${account.contract_label})` : ""}.</p>
+            <p>Prise d'effet au {dateFr(account.contract_effective_date)}{account.contract_label ? ` (${account.contract_label})` : ""}.</p>
           )}
           <p>{d.detail}</p>
           {account.invoices.length > 0 && (
@@ -67,9 +68,11 @@ export function CiteoCell({ account }: { account?: CiteoAccount }) {
       {account.unpaid_count > 0 && (
         <span className="text-[10px] text-muted-foreground">{eur(Number(account.unpaid_total_ttc))} TTC</span>
       )}
-      {account.contract_effective_date && (
-        <span className="text-[10px] text-muted-foreground">Contrat depuis le {dateFr(account.contract_effective_date)}</span>
-      )}
+      {account.contract_signed_date ? (
+        <span className="text-[10px] text-muted-foreground">Signé le {dateFr(account.contract_signed_date)}</span>
+      ) : account.contract_effective_date ? (
+        <span className="text-[10px] text-muted-foreground">Effet au {dateFr(account.contract_effective_date)}</span>
+      ) : null}
     </div>
   );
 }
