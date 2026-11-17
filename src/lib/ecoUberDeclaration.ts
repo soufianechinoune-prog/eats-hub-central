@@ -4,21 +4,73 @@
  * Un remboursement ou l'absence de prélèvement vaut preuve qu'Uber a reçu la déclaration.
  */
 export type UberDeclarationStatus =
-  | "regularise"      // remboursement reçu OU adhérent sans aucun prélèvement : Uber a reçu le formulaire
+  | "regularise"      // vrai remboursement reçu OU adhérent sans aucun prélèvement : Uber a reçu le formulaire
+  | "arrete_non_rembourse" // Uber ne prélève plus, mais n'a pas remboursé ce qu'il a déjà pris
   | "a_declarer"      // adhérent REP (IDU connu) mais toujours prélevé, sans remboursement
   | "non_adherent"    // prélevé et aucune adhésion REP connue
   | "inconnu";        // REP non vérifié ou aucune donnée
 
+/**
+ * Montant à partir duquel une ligne positive est un vrai remboursement d'Uber.
+ * Constat sur 2026 (toutes enseignes) : les vrais remboursements font tous plus de 89 € (une seule ligne
+ * par restaurant, plusieurs semaines de prélèvements d'un coup) ; les petits crédits hebdomadaires
+ * (quelques centimes à 38 €) ne sont pas une régularisation et ne prouvent rien.
+ */
+export const ECO_REAL_REFUND_MIN = 50;
+/** Sans prélèvement depuis ce nombre de jours, on considère qu'Uber a arrêté de prélever. */
+export const ECO_CHARGE_STOPPED_DAYS = 35;
+
+export interface EcoLineLike {
+  amount: number;
+  payout_date: string | null;
+}
+
+export interface EcoFlowSummary {
+  /** Somme des vrais remboursements (lignes d'au moins ECO_REAL_REFUND_MIN). */
+  realRefund: number;
+  /** Petits crédits qui ne sont pas une régularisation. */
+  smallCredits: number;
+  charge: number;
+  lastChargeDate: string | null;
+  /** Vrai si le dernier prélèvement est ancien par rapport à la dernière semaine connue. */
+  chargesStopped: boolean;
+}
+
+/** Résume les lignes d'éco-contribution d'un restaurant. `referenceDate` = dernière semaine connue du réseau. */
+export function summarizeEcoFlows(lines: EcoLineLike[], referenceDate: string | null): EcoFlowSummary {
+  let realRefund = 0, smallCredits = 0, charge = 0;
+  let lastChargeDate: string | null = null;
+  for (const l of lines) {
+    const amount = Number(l.amount) || 0;
+    if (amount >= ECO_REAL_REFUND_MIN) realRefund += amount;
+    else if (amount > 0) smallCredits += amount;
+    else if (amount < 0) {
+      charge += -amount;
+      if (l.payout_date && (!lastChargeDate || l.payout_date > lastChargeDate)) lastChargeDate = l.payout_date;
+    }
+  }
+  let chargesStopped = false;
+  if (lastChargeDate && referenceDate) {
+    const days = (new Date(`${referenceDate.slice(0, 10)}T12:00:00`).getTime() - new Date(`${lastChargeDate.slice(0, 10)}T12:00:00`).getTime()) / 86_400_000;
+    chargesStopped = days >= ECO_CHARGE_STOPPED_DAYS;
+  }
+  const round = (v: number) => Math.round(v * 100) / 100;
+  return { realRefund: round(realRefund), smallCredits: round(smallCredits), charge: round(charge), lastChargeDate, chargesStopped };
+}
+
 export function deduceUberDeclarationStatus(input: {
+  /** Vrais remboursements uniquement (voir summarizeEcoFlows) : les petits crédits ne comptent pas. */
   refund: number;
   charge: number;
   repStatus?: string;
+  chargesStopped?: boolean;
 }): UberDeclarationStatus {
   const refund = Math.max(0, input.refund || 0);
   const charged = Math.abs(input.charge || 0) > 0.005;
   if (input.repStatus === "inscrit") {
-    if (refund > 0.005) return "regularise";
-    return charged ? "a_declarer" : "regularise";
+    if (refund >= ECO_REAL_REFUND_MIN) return "regularise";
+    if (!charged) return "regularise";
+    return input.chargesStopped ? "arrete_non_rembourse" : "a_declarer";
   }
   if (input.repStatus === "non_trouve" || input.repStatus === "sans_siret") return charged ? "non_adherent" : "inconnu";
   return "inconnu";

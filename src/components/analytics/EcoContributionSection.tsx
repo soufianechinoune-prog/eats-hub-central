@@ -21,7 +21,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { deduceUberDeclarationStatus, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
+import { deduceUberDeclarationStatus, summarizeEcoFlows, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type EcoFlowSummary, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
 import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
 import { useCiteoAccounts } from "@/hooks/useCiteoAccounts";
@@ -259,6 +259,11 @@ export function EcoContributionSection({
     [citeo.accounts, citeoByRestaurant],
   );
   const showCiteo = citeo.accounts.length > 0;
+  // Dernière semaine Uber connue : sert à dire si un restaurant n'est plus prélevé.
+  const ecoReferenceDate = useMemo(
+    () => detailLines.reduce<string | null>((max, l) => (l.platform !== "deliveroo" && l.payout_date && (!max || l.payout_date > max) ? l.payout_date : max), null),
+    [detailLines],
+  );
 
   const chartData = useMemo(() => {
     return monthlyData.map(d => ({
@@ -782,6 +787,7 @@ export function EcoContributionSection({
                           repData={repChecked ? repByRestaurant.get(r.restaurant_id) : undefined}
                           showRepColumn={repChecked}
                           showCiteoColumn={showCiteo}
+                          ecoReferenceDate={ecoReferenceDate}
                           citeoAccount={citeoByRestaurant.get(r.restaurant_id)}
                           details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
@@ -1005,8 +1011,8 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
-function UberDeclarationCell({ status, url, hasIdu, declaration, onDeclare, onCancel, pending = false }: {
-  status: UberDeclarationStatus; url: string; hasIdu: boolean;
+function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false }: {
+  status: UberDeclarationStatus; flows?: EcoFlowSummary; fmt?: (v: number) => string; url: string; hasIdu: boolean;
   declaration?: EcoUberDeclaration; onDeclare?: () => void; onCancel?: () => void; pending?: boolean;
 }) {
   const [opened, setOpened] = useState(false);
@@ -1017,6 +1023,18 @@ function UberDeclarationCell({ status, url, hasIdu, declaration, onDeclare, onCa
     return (
       <div className="flex flex-col items-center gap-1">
         <Badge variant="outline" className="text-[10px] border-primary/40 text-primary" title="Remboursement reçu ou aucun prélèvement sur l'année : Uber a pris en compte la déclaration.">Régularisé</Badge>
+        {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+      </div>
+    );
+  }
+  if (status === "arrete_non_rembourse") {
+    const since = flows?.lastChargeDate ? new Date(`${flows.lastChargeDate.slice(0, 10)}T12:00:00`).toLocaleDateString("fr-FR") : null;
+    return (
+      <div className="flex flex-col items-center gap-1 max-w-[180px]">
+        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
+          title="Uber ne prélève plus ce restaurant, mais n'a pas remboursé ce qu'il avait déjà prélevé. À réclamer à Uber.">Arrêté, non remboursé</Badge>
+        {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.charge)} à réclamer</span>}
+        {since && <span className="text-[10px] text-muted-foreground text-center leading-tight">Dernier prélèvement le {since}</span>}
         {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
       </div>
     );
@@ -1205,7 +1223,9 @@ function RestaurantDrilldown({
   declPending = false,
   showCiteoColumn = false,
   citeoAccount,
+  ecoReferenceDate,
 }: {
+  ecoReferenceDate?: string | null;
   showCiteoColumn?: boolean;
   citeoAccount?: CiteoAccount;
   declaration?: EcoUberDeclaration;
@@ -1235,7 +1255,14 @@ function RestaurantDrilldown({
 
   const hasRepDetail = repData && repData.status === "inscrit" && repData.entries.length > 0;
   const colSpan = 5 + (showRepColumn ? 2 : 0) + (showCiteoColumn ? 1 : 0);
-  const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({ refund: r.refund, charge: r.charge, repStatus: repData?.status });
+  // Statut calculé sur les lignes Uber : seuls les vrais remboursements comptent, pas les petits crédits.
+  const ecoFlows = useMemo(
+    () => summarizeEcoFlows(detailLines.filter(l => l.platform !== "deliveroo"), ecoReferenceDate ?? null),
+    [detailLines, ecoReferenceDate],
+  );
+  const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({
+    refund: ecoFlows.realRefund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
+  });
   const firstIdu = repData?.iduEntries?.[0];
   const declUrl = buildUberDeclarationUrl({
     uberStoreId: details?.uber_store_id, name: details?.name || name, postalCode: details?.postal_code,
@@ -1345,7 +1372,7 @@ function RestaurantDrilldown({
         )}
         {showRepColumn && (
           <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
-            <UberDeclarationCell status={declStatus} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
+            <UberDeclarationCell status={declStatus} flows={ecoFlows} fmt={fmt} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
               onDeclare={onDeclare ? () => onDeclare(r.restaurant_id) : undefined}
               onCancel={onCancelDeclaration && declaration ? () => onCancelDeclaration(declaration.id) : undefined} />
           </TableCell>
