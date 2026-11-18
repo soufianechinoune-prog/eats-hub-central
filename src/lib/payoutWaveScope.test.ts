@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed } from '../../supabase/functions/_shared/payoutWaveScope';
 describe('Tasty payout wave', () => {
-  it('never dispatches a restaurant marked without Uber API access', () => {
-    expect(uberApiAccessAllowed(false)).toBe(false);
-    expect(uberApiAccessAllowed(true)).toBe(true);
+  it('never dispatches a restaurant with RPC status refuse', () => {
+    expect(uberApiAccessAllowed('refuse')).toBe(false);
+    expect(uberApiAccessAllowed('ok')).toBe(true);
+    expect(uberApiAccessAllowed('silencieux')).toBe(true);
+    expect(uberApiAccessAllowed('non_configure')).toBe(false);
     expect(uberApiAccessAllowed(undefined)).toBe(false);
     expect(uberApiAccessAllowed(null)).toBe(false);
   });

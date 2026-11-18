@@ -1,1 +1,1 @@
-- Check restaurant Uber API access before dispatch and confirm the guarded reservation; missing or denied access never sends a request, so deferred stores cannot pause an authorized wave.
+- Read get_uber_api_access_status before dispatch and confirm the guarded reservation; refuse or missing status never sends a request. Never use a separate access field or modify existing awaiting_access requests.

@@ -52,9 +52,12 @@ Deno.serve(async req => {
         for (const job of jobs) {
           const { data: guard } = await db.from('payout_adjustment_backfill_state').select('status').eq('id', true).single();
           if (guard?.status !== 'running') break;
-          const { data: r } = await db.from('restaurants').select('chain_id,uber_store_id,uber_api_access_granted').eq('id', job.restaurant_id).single();
+          const { data: r } = await db.from('restaurants').select('chain_id,uber_store_id').eq('id', job.restaurant_id).single();
           if (r?.chain_id !== WAVE_CHAIN || r.uber_store_id !== job.uber_store_id) throw new Error('Store mapping changed');
-          if (!uberApiAccessAllowed(r.uber_api_access_granted)) {
+          const { data: access, error: accessError } = await db.rpc('get_uber_api_access_status', { p_chain_id: WAVE_CHAIN });
+          if (accessError) throw new Error('Uber access status unavailable');
+          const accessStatus = access?.find((row: { restaurant_id: string; status: string }) => row.restaurant_id === job.restaurant_id)?.status;
+          if (!uberApiAccessAllowed(accessStatus)) {
             await update(job.id, { status: 'awaiting_access', error: 'Awaiting Uber API access approval' });
             continue;
           }
