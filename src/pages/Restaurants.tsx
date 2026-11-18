@@ -31,6 +31,9 @@ import { useNavigate } from "react-router-dom";
 import { RestaurantFormDialog } from "@/components/restaurants/RestaurantFormDialog";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { RestaurantShareActions } from "@/components/restaurants/RestaurantShareActions";
+import { UberApiAccessBadge } from "@/components/restaurants/UberApiAccessBadge";
+import { useUberApiAccess } from "@/hooks/useUberApiAccess";
+import { countAccessToFollow, uberApiAccessDisplay } from "@/lib/uberApiAccess";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -43,46 +46,6 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
 const STORAGE_KEY = "restaurants-preferences";
-
-const UberApiBadge = ({ restaurant }: { restaurant: any }) => {
-  if (restaurant.uber_pos_activated_at) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge className="gap-1.5 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 whitespace-nowrap">
-              <UberEatsLogo size={12} />
-              Connecté API
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>
-            Store provisionné par Uber le {new Date(restaurant.uber_pos_activated_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })} (POS Reporting actif)
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-  if (restaurant.uber_store_id) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Badge className="gap-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 whitespace-nowrap">
-              <UberEatsLogo size={12} />
-              En attente Uber
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>UUID enregistré, provisioning Uber pas encore actif</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    );
-  }
-  return (
-    <Badge variant="outline" className="text-muted-foreground whitespace-nowrap">
-      Non connecté
-    </Badge>
-  );
-};
 
 const Restaurants = () => {
   const navigate = useNavigate();
@@ -101,7 +64,7 @@ const Restaurants = () => {
     }
   }, []);
 
-  const [statusFilter, setStatusFilter] = useState<string>(savedPrefs?.statusFilter ?? "all");
+  const [statusFilter, setStatusFilter] = useState<string>(["all","ok","refuse","demande","silencieux","non_configure"].includes(savedPrefs?.statusFilter) ? savedPrefs.statusFilter : "all");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortColumn, setSortColumn] = useState<string | null>(savedPrefs?.sortColumn ?? null);
@@ -151,6 +114,9 @@ const Restaurants = () => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
   }, [statusFilter, sortColumn, sortDirection]);
 
+  const apiAccess = useUberApiAccess(selectedChainId);
+  const apiToFollow = countAccessToFollow(apiAccess.rows);
+
   const { data: restaurants, refetch, isError, error: fetchError } = useQuery({
     queryKey: ["restaurants", selectedChainId],
     queryFn: async () => {
@@ -177,12 +143,8 @@ const Restaurants = () => {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   });
 
-  // Helper to get Uber API provisioning status (POS Reporting activated by Uber)
-  const getUberStatus = (r: typeof restaurants[0]) => {
-    if ((r as any).uber_pos_activated_at) return "connected";
-    if (r.uber_store_id) return "pending";
-    return "disconnected";
-  };
+  // Accès API Uber constaté (commandes reçues ou refus d'Uber), pas seulement la date de provisionnement.
+  const getUberStatus = (r: typeof restaurants[0]) => uberApiAccessDisplay(apiAccess.byRestaurant.get(r.id));
 
   // Helper to get Deliveroo status
   const getDeliverooStatus = (r: typeof restaurants[0]) => {
@@ -216,7 +178,8 @@ const Restaurants = () => {
     }
     
     return filtered;
-  }, [restaurants, statusFilter, searchQuery]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurants, statusFilter, searchQuery, apiAccess.byRestaurant]);
 
   // Sort restaurants - pinned first, then by column
   const sortedRestaurants = useMemo(() => {
@@ -292,9 +255,11 @@ const Restaurants = () => {
     restaurants?.filter(r => r.is_pinned).length || 0
   , [restaurants]);
 
+  // Restaurants dont Uber renvoie vraiment les commandes par l'API.
   const connectedApiCount = useMemo(
-    () => restaurants?.filter((r) => (r as any).uber_pos_activated_at).length || 0,
-    [restaurants]
+    () => restaurants?.filter((r) => apiAccess.byRestaurant.get(r.id)?.status === "ok").length || 0,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [restaurants, apiAccess.byRestaurant]
   );
 
   const togglePin = async (id: string, currentPinned: boolean) => {
@@ -389,6 +354,19 @@ const Restaurants = () => {
               <UberEatsLogo size={12} />
               {connectedApiCount}/{restaurants?.length || 0} connectés API
             </Badge>
+            {apiToFollow.toRequest > 0 && (
+              <Badge className="gap-1.5 bg-destructive/10 text-destructive border-destructive/30 cursor-pointer" onClick={() => setStatusFilter("refuse")}
+                title="Uber refuse l'accès API : demander l'accès, puis le noter sur la ligne du restaurant">
+                <ShieldAlert className="h-3 w-3" />
+                {apiToFollow.toRequest} accès API à demander
+              </Badge>
+            )}
+            {apiToFollow.waiting > 0 && (
+              <Badge className="gap-1.5 bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30 cursor-pointer" onClick={() => setStatusFilter("demande")}
+                title="Demandes d'accès envoyées à Uber, toujours sans réponse">
+                {apiToFollow.waiting} demande{apiToFollow.waiting > 1 ? "s" : ""} d'accès en attente
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -408,9 +386,11 @@ const Restaurants = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="connected">Connecté API</SelectItem>
-                  <SelectItem value="pending">En attente Uber</SelectItem>
-                  <SelectItem value="disconnected">Non connecté</SelectItem>
+                  <SelectItem value="ok">Accès API OK</SelectItem>
+                  <SelectItem value="refuse">Accès refusé par Uber</SelectItem>
+                  <SelectItem value="demande">Accès demandé</SelectItem>
+                  <SelectItem value="silencieux">Pas de données API</SelectItem>
+                  <SelectItem value="non_configure">Non connecté</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -739,7 +719,12 @@ const Restaurants = () => {
                     </TableCell>
 
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
-                      <UberApiBadge restaurant={restaurant} />
+                      <UberApiAccessBadge
+                        access={apiAccess.byRestaurant.get(restaurant.id)}
+                        onRequest={() => apiAccess.request(restaurant.id)}
+                        onCancel={() => { const id = apiAccess.byRestaurant.get(restaurant.id)?.request_id; if (id) apiAccess.cancel(id); }}
+                        pending={apiAccess.pending}
+                      />
                     </TableCell>
                     <TableCell onClick={() => navigate(`/restaurants/${restaurant.id}`)}>
                       {restaurant.is_active === false && !(restaurant as any).uber_opening_date && !(restaurant as any).uber_closing_date ? (
