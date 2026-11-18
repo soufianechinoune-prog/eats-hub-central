@@ -1056,40 +1056,23 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
       </div>
     );
   }
-  if (status === "rembourse_partiel") {
+  // Une seule règle d'affichage pour tout ce qu'Uber n'a pas (entièrement) rendu :
+  // pas encore déclaré → rouge « À déclarer » ; déclaré → orange « Déclaré, en attente d'Uber ».
+  // La situation précise (encore prélevé, arrêté, remboursé en partie) n'est qu'une ligne d'information.
+  if (status === "a_declarer" || status === "arrete_non_rembourse" || status === "rembourse_partiel") {
+    const detail =
+      status === "rembourse_partiel" ? (flows && fmt ? `Remboursé en partie : ${fmt(flows.remaining)} restent à réclamer` : "Remboursé en partie")
+      : status === "arrete_non_rembourse" ? `${flows && fmt ? `${fmt(flows.charge)} à réclamer. ` : ""}Uber ne prélève plus${flows?.lastChargeDate ? ` depuis le ${dateFr(flows.lastChargeDate)}` : ""}`
+      : flows && fmt && flows.charge > 0 ? `Toujours prélevé : ${fmt(flows.charge)} sur la période` : null;
     return (
       <div className="flex flex-col items-center gap-1 max-w-[180px]">
-        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
-          title="Uber a remboursé une partie seulement de ce qu'il avait prélevé. Le reste est à réclamer à Uber.">Remboursé en partie</Badge>
-        {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.remaining)} restent à réclamer</span>}
-        {declareActions}
-      </div>
-    );
-  }
-  if (status === "arrete_non_rembourse") {
-    const since = flows?.lastChargeDate ? dateFr(flows.lastChargeDate) : null;
-    return (
-      <div className="flex flex-col items-center gap-1 max-w-[180px]">
-        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
-          title="Uber ne prélève plus ce restaurant, mais n'a pas remboursé ce qu'il avait déjà prélevé. À réclamer à Uber.">Arrêté, non remboursé</Badge>
-        {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.charge)} à réclamer</span>}
-        {since && <span className="text-[10px] text-muted-foreground text-center leading-tight">Dernier prélèvement le {since}</span>}
-        {declareActions}
-      </div>
-    );
-  }
-  if (status === "a_declarer" && declaration) {
-    return (
-      <div className="flex flex-col items-center gap-1 max-w-[180px]">
-        <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15" title="Formulaire envoyé à Uber. Le statut passera à « Régularisé » quand Uber arrêtera le prélèvement ou remboursera.">Déclaré, en attente d'Uber</Badge>
-        {declareActions}
-      </div>
-    );
-  }
-  if (status === "a_declarer") {
-    return (
-      <div className="flex flex-col items-center gap-1">
-        <Badge variant="destructive" className="text-[10px]" title="Adhérent REP mais toujours prélevé, sans remboursement sur l'année.">À déclarer</Badge>
+        {declaration ? (
+          <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
+            title="Formulaire envoyé à Uber. Le statut passera à « Régularisé » quand Uber aura remboursé.">Déclaré, en attente d'Uber</Badge>
+        ) : (
+          <Badge variant="destructive" className="text-[10px]" title="Adhérent REP, et Uber n'a pas rendu ce qu'il a prélevé : déclarer l'IDU à Uber.">À déclarer</Badge>
+        )}
+        {detail && <span className="text-[10px] text-muted-foreground text-center leading-tight">{detail}</span>}
         {declareActions}
       </div>
     );
