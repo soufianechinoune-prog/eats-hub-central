@@ -1020,6 +1020,27 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
     ? `Déclaré ${formatDeclarationDate(declaration.declared_at)}${declaration.declared_by_name ? ` par ${declaration.declared_by_name}` : ""}`
     : null;
   const dateFr = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString("fr-FR");
+  // Tant qu'Uber n'a pas tout rendu, il faut pouvoir lui déclarer l'IDU (c'est ce qui déclenche le remboursement),
+  // puis garder la trace de l'envoi.
+  const declareActions = declaration ? (
+    <>
+      <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>
+      <span className="text-[10px] text-muted-foreground">{(() => { const d = daysSinceDeclaration(declaration.declared_at); return d === 0 ? "aujourd'hui" : `depuis ${d} jour${d > 1 ? "s" : ""}`; })()}</span>
+      {onCancel && <button type="button" disabled={pending} onClick={onCancel} className="text-[10px] text-muted-foreground underline hover:text-foreground disabled:opacity-50">Annuler</button>}
+    </>
+  ) : (
+    <>
+      <Button asChild size="sm" variant="outline" className="h-6 text-[10px] px-2">
+        <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)} title={hasIdu ? "Formulaire Uber pré-rempli (IDU inclus) : il reste nom, prénom et case à cocher." : "Formulaire Uber pré-rempli, IDU à saisir."}>Déclarer à Uber</a>
+      </Button>
+      {onDeclare && (
+        <Button size="sm" variant={opened ? "default" : "ghost"} disabled={pending} onClick={onDeclare} className="h-6 text-[10px] px-2"
+          title="Cliquez une fois le formulaire Uber envoyé : la date, l'heure et votre nom seront enregistrés.">
+          {opened ? "Oui, je l'ai envoyé" : "Déjà envoyé ?"}
+        </Button>
+      )}
+    </>
+  );
   if (status === "regularise") {
     const again = flows && fmt && flows.chargedAfterRefund > 0.005 && flows.lastRefundDate ? flows : null;
     return (
@@ -1041,7 +1062,7 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
         <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15 whitespace-normal text-center"
           title="Uber a remboursé une partie seulement de ce qu'il avait prélevé. Le reste est à réclamer à Uber.">Remboursé en partie</Badge>
         {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.remaining)} restent à réclamer</span>}
-        {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+        {declareActions}
       </div>
     );
   }
@@ -1053,18 +1074,15 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
           title="Uber ne prélève plus ce restaurant, mais n'a pas remboursé ce qu'il avait déjà prélevé. À réclamer à Uber.">Arrêté, non remboursé</Badge>
         {flows && fmt && <span className="text-[10px] text-muted-foreground text-center leading-tight">{fmt(flows.charge)} à réclamer</span>}
         {since && <span className="text-[10px] text-muted-foreground text-center leading-tight">Dernier prélèvement le {since}</span>}
-        {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+        {declareActions}
       </div>
     );
   }
   if (status === "a_declarer" && declaration) {
-    const days = daysSinceDeclaration(declaration.declared_at);
     return (
       <div className="flex flex-col items-center gap-1 max-w-[180px]">
         <Badge className="text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/15" title="Formulaire envoyé à Uber. Le statut passera à « Régularisé » quand Uber arrêtera le prélèvement ou remboursera.">Déclaré, en attente d'Uber</Badge>
-        <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>
-        <span className="text-[10px] text-muted-foreground">{days === 0 ? "aujourd'hui" : `depuis ${days} jour${days > 1 ? "s" : ""}`}</span>
-        {onCancel && <button type="button" disabled={pending} onClick={onCancel} className="text-[10px] text-muted-foreground underline hover:text-foreground disabled:opacity-50">Annuler</button>}
+        {declareActions}
       </div>
     );
   }
@@ -1072,15 +1090,7 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
     return (
       <div className="flex flex-col items-center gap-1">
         <Badge variant="destructive" className="text-[10px]" title="Adhérent REP mais toujours prélevé, sans remboursement sur l'année.">À déclarer</Badge>
-        <Button asChild size="sm" variant="outline" className="h-6 text-[10px] px-2">
-          <a href={url} target="_blank" rel="noopener noreferrer" onClick={() => setOpened(true)} title={hasIdu ? "Formulaire Uber pré-rempli (IDU inclus) : il reste nom, prénom et case à cocher." : "Formulaire Uber pré-rempli, IDU à saisir."}>Déclarer à Uber</a>
-        </Button>
-        {onDeclare && (
-          <Button size="sm" variant={opened ? "default" : "ghost"} disabled={pending} onClick={onDeclare} className="h-6 text-[10px] px-2"
-            title="Cliquez une fois le formulaire Uber envoyé : la date, l'heure et votre nom seront enregistrés.">
-            {opened ? "Oui, je l'ai envoyé" : "Déjà envoyé ?"}
-          </Button>
-        )}
+        {declareActions}
       </div>
     );
   }
