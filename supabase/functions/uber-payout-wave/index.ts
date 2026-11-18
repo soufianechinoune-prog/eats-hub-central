@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { authenticateCronRequest } from '../_shared/cron-auth.ts';
-import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, waveLineAllowed } from '../_shared/payoutWaveScope.ts';
+import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, waveLineAllowed, uberApiAccessAllowed } from '../_shared/payoutWaveScope.ts';
 import { pilotDate } from '../_shared/payoutPilotScope.ts';
 type SourceRow = { restaurant_id: string; uber_store_id: string; payout_reference_id: string; order_date_key: string; source_line_key: string; [key: string]: unknown };
 Deno.serve(async req => {
@@ -52,9 +52,15 @@ Deno.serve(async req => {
         for (const job of jobs) {
           const { data: guard } = await db.from('payout_adjustment_backfill_state').select('status').eq('id', true).single();
           if (guard?.status !== 'running') break;
-          const { data: r } = await db.from('restaurants').select('chain_id,uber_store_id').eq('id', job.restaurant_id).single();
+          const { data: r } = await db.from('restaurants').select('chain_id,uber_store_id,uber_api_access_granted').eq('id', job.restaurant_id).single();
           if (r?.chain_id !== WAVE_CHAIN || r.uber_store_id !== job.uber_store_id) throw new Error('Store mapping changed');
-          await update(job.id, { status: 'dispatching', attempts: job.attempts + 1, requested_at: new Date().toISOString() });
+          if (!uberApiAccessAllowed(r.uber_api_access_granted)) {
+            await update(job.id, { status: 'awaiting_access', error: 'Awaiting Uber API access approval' });
+            continue;
+          }
+          const { data: reservation, error: reservationError } = await db.from('payout_adjustment_backfill_requests').update({ status: 'dispatching', attempts: job.attempts + 1, requested_at: new Date().toISOString() }).eq('id', job.id).eq('status', 'queued').select('status').maybeSingle();
+          if (reservationError) throw new Error(reservationError.message);
+          if (reservation?.status !== 'dispatching') continue;
           let response: Response;
           try {
             response = await fetch('https://api.uber.com/v1/eats/report', {

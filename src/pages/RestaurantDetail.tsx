@@ -628,6 +628,15 @@ const RestaurantDetail = () => {
                   <UberEatsIcon className="h-5 w-5" />
                   <span className="font-medium text-green-600">Uber Eats</span>
                 </div>
+                <div className="flex items-center justify-between gap-3">
+                  <Label htmlFor="uber-api-access">Accès API Uber accordé : {restaurant.uber_api_access_granted ? "oui" : "non"}</Label>
+                  <Switch
+                    id="uber-api-access"
+                    checked={restaurant.uber_api_access_granted}
+                    disabled={updateMutation.isPending}
+                    onCheckedChange={(granted) => updateMutation.mutate({ uber_api_access_granted: granted })}
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   {renderField("Ouverture", "uber_opening_date", "date")}
                   {renderField("Fermeture", "uber_closing_date", "date")}

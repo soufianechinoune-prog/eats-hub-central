@@ -1,3 +1,1 @@
-- The queue is restricted to remaining Tasty Crousty stores and the approved fixed date range; use the payment parser in exact-store service-only preview mode, then stage only raw adjustment lines after collection.
-- Acquire the persisted lease before work; dispatch at most three requests per rolling minute, stop after three consecutive refusals, and unschedule after pause or drainage so this bounded backfill cannot become permanent polling.
-- Preserve all legacy adjustments and protected views; unknown POST outcomes require manual review instead of automatic resend.
+- Check restaurant Uber API access before dispatch and confirm the guarded reservation; missing or denied access never sends a request, so deferred stores cannot pause an authorized wave.
