@@ -43,7 +43,7 @@ export function useEcoOrganismCheck() {
 
     try {
       const { data: result, error } = await supabase.functions.invoke("check-eco-organism", {
-        body: { siret },
+        body: { siret, restaurant_id: restaurantId },
       });
 
       if (error) throw error;
@@ -66,7 +66,7 @@ export function useEcoOrganismCheck() {
     for (let i = 0; i < withSiret.length; i++) {
       const r = withSiret[i];
       onScanningId?.(r.id);
-      await checkSiret(r.id, r.siret!);
+      if (r.siret) await checkSiret(r.id, r.siret);
       setProgress({ done: i + 1, total: withSiret.length });
       if (i < withSiret.length - 1) {
         await new Promise(res => setTimeout(res, 200));

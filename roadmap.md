@@ -1,5 +1,9 @@
 # Roadmap — Données clients Chataigne (5 chantiers)
 
+## ADEME — repli SIREN réseau
+- [x] Repli SIREN réseau déployé et six restaurants actualisés avec IDU ADEME ; aucun changement CITEO. Quatre tests réussis et sept appels connectés réels vérifiés.
+- [x] Tasty Saint-Priest 10922326300012 : aucun résultat SIRET/SIREN ni IDU. Trois paires de SIRET actifs partagés listées sans modification ; derniers instantanés Non trouvé : CS 25, TC 11, BF 1. Page Éco TC connectée affiche 78 inscrits / 11 non trouvés / 5 sans SIRET.
+
 ## Corrections Rennes et versements 2026 — validation avant chaque étape
 - [x] Reprise vague 1 : 227 demandes autorisées remises en traitement autonome ; 12 demandes restantes et 36 refus historiques des quatre magasins préservés en awaiting_access. Champ uber_api_access_granted et garde serveur ajoutés ; fiche Cachan vérifiée en session Tasty, 26 tests réussis. Tâche 120 rétablie, premiers retours HTTP 429 : estimation conditionnelle aux limites Uber, arrêt après trois refus maintenu. Insertion automatique des magasins intégralement collectés inchangée.
 - [x] Étape 1 périmètre prouvé appliqué en transaction : 1 mapping, 1 fiche, 5 565 directes, 3 980 commandes, 1 698 historiques depuis inactive, 16 ajustements, 147 rapports, 170 tâches ; 11 578 lignes dans restaurant_uber_reassignment_audit, batch 7231a2e7-88f2-4a19-9b12-28f63db50368. Synthèses ventes et historiques recalculées sur les trois fiches ; écarts ventes/synthèses zéro.
