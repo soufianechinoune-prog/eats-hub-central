@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed, rateLimitBackoffMs, countsAsRefusal } from '../../supabase/functions/_shared/payoutWaveScope';
+import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed, rateLimitBackoffMs, countsAsRefusal, waveRequestReadyToStage } from '../../supabase/functions/_shared/payoutWaveScope';
 describe('Tasty payout wave', () => {
+  it('stages a complete collected report even while other windows remain queued', () => {
+    const requests = ['collected', 'queued', 'awaiting_access', 'received', 'collecting', 'completed'];
+    expect(requests.filter(waveRequestReadyToStage)).toEqual(['collected']);
+  });
   it('never dispatches a restaurant with RPC status refuse', () => {
     expect(uberApiAccessAllowed('refuse')).toBe(false);
     expect(uberApiAccessAllowed('ok')).toBe(true);

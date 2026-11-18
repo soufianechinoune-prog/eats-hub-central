@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { authenticateCronRequest } from '../_shared/cron-auth.ts';
-import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, rateLimitBackoffMs, countsAsRefusal, waveLineAllowed, uberApiAccessAllowed } from '../_shared/payoutWaveScope.ts';
+import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, rateLimitBackoffMs, countsAsRefusal, waveLineAllowed, uberApiAccessAllowed, waveRequestReadyToStage } from '../_shared/payoutWaveScope.ts';
 import { pilotDate } from '../_shared/payoutPilotScope.ts';
 type SourceRow = { restaurant_id: string; uber_store_id: string; payout_reference_id: string; order_date_key: string; source_line_key: string; [key: string]: unknown };
 Deno.serve(async req => {
@@ -11,7 +11,8 @@ Deno.serve(async req => {
   if (denied) return new Response(denied.body, { status: denied.status, headers: corsHeaders });
   if (req.method !== 'POST') return reply({ error: 'POST required' }, 405);
   const input = await req.json().catch(() => null);
-  if (!input || input.action !== 'tick') return reply({ error: 'Invalid action' }, 400);
+  if (!input || !['tick', 'stage'].includes(input.action)) return reply({ error: 'Invalid action' }, 400);
+  const stageOnly = input.action === 'stage';
   const url = Deno.env.get('SUPABASE_URL'), key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!url || !key) return reply({ error: 'Missing configuration' }, 500);
   const db = createClient(url, key);
@@ -39,7 +40,7 @@ Deno.serve(async req => {
       return reply({ paused: true });
     }
     // Dispatch first; reservation time limits all runs to MAX_REQUESTS per minute.
-    if (!state.next_dispatch_at || Date.parse(state.next_dispatch_at) <= Date.now()) {
+    if (!stageOnly && (!state.next_dispatch_at || Date.parse(state.next_dispatch_at) <= Date.now())) {
       const { data: jobs, error } = await db.from('payout_adjustment_backfill_requests').select('*').eq('status', 'queued').order('start_date').order('uber_store_id').limit(MAX_REQUESTS);
       if (error) throw new Error(error.message);
       if (jobs?.length) {
@@ -102,7 +103,7 @@ Deno.serve(async req => {
       }
     }
     // Collect all sections before any staging; a failed section never causes partial import.
-    const { data: received } = await db.from('payout_adjustment_backfill_requests').select('*').eq('status', 'received').order('received_at').limit(3);
+    const { data: received } = stageOnly ? { data: [] } : await db.from('payout_adjustment_backfill_requests').select('*').eq('status', 'received').order('received_at').limit(3);
     for (const job of received ?? []) {
       if (Date.now() >= deadline) break;
       await update(job.id, { status: 'collecting' });
@@ -125,40 +126,40 @@ Deno.serve(async req => {
         await update(job.id, { status: 'failed', error: e instanceof Error ? e.message : 'Collection failed' });
       }
     }
-    // A store stages only once every window is fully collected; overlap slots cannot be lost.
-    const { data: candidate } = await db.from('payout_adjustment_backfill_requests').select('uber_store_id').eq('status', 'collected').order('start_date').limit(100);
+    // A collected request contains all its validated sections. Stable occurrence keys
+    // and the staging RPC make overlapping windows safe without a store-wide barrier.
+    const { data: jobs, error: stagingQueryError } = await db.from('payout_adjustment_backfill_requests').select('*').eq('chain_id', WAVE_CHAIN).eq('status', 'collected').order('received_at').limit(stageOnly ? 50 : 10);
+    if (stagingQueryError) throw new Error(stagingQueryError.message);
     let stagedRequests = 0;
-    for (const store of [...new Set((candidate ?? []).map(r => r.uber_store_id))]) {
-      if (stagedRequests >= 3 || Date.now() >= deadline) break;
-      const { data: jobs } = await db.from('payout_adjustment_backfill_requests').select('*').eq('uber_store_id', store);
-      if (jobs?.some(j => ['failed','refused','uncertain'].includes(j.status))) {
-        await db.from('payout_adjustment_backfill_requests').update({ status: 'blocked', error: 'Incomplete store collection; no partial staging' }).eq('uber_store_id', store).eq('status', 'collected');
-        continue;
-      }
-      if (!jobs?.length || jobs.some(j => !['collected', 'completed'].includes(j.status))) continue;
-      for (const job of jobs.filter(j => j.status === 'collected')) {
-        if (stagedRequests >= 3 || Date.now() >= deadline) break;
+    let addedLines = 0;
+    for (const job of jobs ?? []) {
+        if (Date.now() >= deadline) break;
+        if (!waveRequestReadyToStage(job.status)) continue;
         stagedRequests++;
-        const unique = [...new Map((job.source_rows as SourceRow[]).map(r => [r.source_line_key, r])).values()];
-        const groups = new Map<string, SourceRow[]>();
-        for (const r of unique) groups.set(r.payout_reference_id, [...(groups.get(r.payout_reference_id) ?? []), r]);
         let inserted = 0;
         try {
-          for (const rows of groups.values()) {
+          if (!Array.isArray(job.source_rows)) throw new Error('Missing collected source');
+          const unique = [...new Map((job.source_rows as SourceRow[]).map(r => [r.source_line_key, r])).values()];
+          if (unique.some(r => r.restaurant_id !== job.restaurant_id || r.uber_store_id !== job.uber_store_id || !waveLineAllowed(job.chain_id, r.uber_store_id, pilotDate(r.order_date_key)) || ['05G2PXLG9Z79FXQ', '2OAJXO4XY0LOBRE'].includes(r.payout_reference_id))) throw new Error('Source outside approved scope');
+          const groups = new Map<string, SourceRow[]>();
+          for (const r of unique) groups.set(r.payout_reference_id, [...(groups.get(r.payout_reference_id) ?? []), r]);
+          // Most complete requests fit a single atomic RPC; large ones retain full payout groups.
+          const batches = unique.length <= 1000 ? (unique.length ? [unique] : []) : [...groups.values()];
+          for (const rows of batches) {
             if (rows.length > 1000) throw new Error('Payout exceeds atomic limit');
             const { data, error } = await db.rpc('stage_payout_adjustment_lines', { p_rows: rows });
             if (error) throw new Error(error.message);
             inserted += Number(data);
           }
           await update(job.id, { status: 'completed', completed_at: new Date().toISOString(), inserted_lines: inserted, already_present_lines: unique.length - inserted });
+          addedLines += inserted;
         } catch (e) {
-          await update(job.id, { status: 'failed', error: e instanceof Error ? e.message : 'Staging failed' });
+          await update(job.id, { status: 'failed', inserted_lines: inserted, error: e instanceof Error ? e.message : 'Staging failed' });
         }
-      }
     }
     // Missing callbacks and crashed reservations are explicit terminal states, never endless polling.
     await db.from('payout_adjustment_backfill_requests').update({ status: 'failed', error: 'Callback not received within two hours' }).eq('status', 'requested').lt('requested_at', new Date(Date.now() - 7200000).toISOString());
-    return reply({ success: true });
+    return reply({ success: true, stagedRequests, addedLines });
   } catch (e) {
     const message = e instanceof Error ? e.message : 'Wave failed';
     await pause(message);
