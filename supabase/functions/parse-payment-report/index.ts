@@ -273,6 +273,9 @@ function normalizeHeader(h: string): string {
 // ============================================================================
 
 const ECO_MIN_ABS = 5; // Requested screening floor, not a tariff or VAT claim.
+// Les lignes sous ce seuil ne sont pas perdues : à l'écriture, stage_payout_adjustment_lines appelle
+// reclassify_small_payout_lines (migration 20261118230000), qui reconnaît une petite éco-contribution
+// par son miroir (même montant en sens inverse) et range les retours de titres-restaurant à part.
 
 export type AdjustmentCategory =
   | 'advertising'
