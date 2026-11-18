@@ -13664,6 +13664,57 @@ export type Database = {
         }
         Relationships: []
       }
+      uber_api_access_requests: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          chain_id: string | null
+          id: string
+          note: string | null
+          requested_at: string
+          requested_by: string | null
+          requested_by_name: string | null
+          restaurant_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          chain_id?: string | null
+          id?: string
+          note?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          requested_by_name?: string | null
+          restaurant_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          chain_id?: string | null
+          id?: string
+          note?: string | null
+          requested_at?: string
+          requested_by?: string | null
+          requested_by_name?: string | null
+          restaurant_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "uber_api_access_requests_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "uber_api_access_requests_restaurant_id_fkey"
+            columns: ["restaurant_id"]
+            isOneToOne: false
+            referencedRelation: "restaurants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       uber_app_token: {
         Row: {
           access_token: string
@@ -16783,6 +16834,20 @@ export type Database = {
           min_time: number
           order_count: number
           restaurant_id: string
+        }[]
+      }
+      get_uber_api_access_status: {
+        Args: { p_chain_id?: string }
+        Returns: {
+          chain_id: string
+          last_api_order_at: string
+          last_refusal_at: string
+          refusal_reason: string
+          request_id: string
+          requested_at: string
+          requested_by_name: string
+          restaurant_id: string
+          status: string
         }[]
       }
       get_uber_available_weeks: {
