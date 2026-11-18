@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { deduceUberDeclarationStatus, summarizeEcoFlows, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type EcoFlowSummary, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
+import { priorYearOf, priorYearShare, type PriorYearShare } from "@/lib/ecoRateYear";
 import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
 import { useCiteoAccounts } from "@/hooks/useCiteoAccounts";
@@ -451,6 +452,12 @@ export function EcoContributionSection({
 
   const isExempt = totals.net >= 0;
 
+  // Semaines d'une année antérieure (taux de l'année d'avant) versées sur l'année affichée : simple rappel.
+  const networkPrior = useMemo<PriorYearShare>(
+    () => (isHistorique ? { year: null, charge: 0, refund: 0 } : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
+    [detailLines, isHistorique],
+  );
+
   // REP summary stats
   const repStats = useMemo(() => {
     if (!repChecked) return null;
@@ -484,6 +491,12 @@ export function EcoContributionSection({
                 <div>
                   <p className="text-sm font-semibold leading-tight">{isExempt ? "Situation exonérée" : "Défaut d'exonération — action requise"}</p>
                   <p className="text-[11px] text-muted-foreground">{yearLabel} · {totals.lineCount} lignes · {byRestaurant.length} restaurants</p>
+                  {networkPrior.year && networkPrior.charge + networkPrior.refund > 0.005 && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400"
+                      title={`Semaines de ${networkPrior.year} qu'Uber a prélevées ou remboursées en ${yearLabel}. Elles restent comptées à la date du versement.`}>
+                      Dont {[networkPrior.charge > 0.005 ? `${fmt(networkPrior.charge)} prélevés` : null, networkPrior.refund > 0.005 ? `${fmt(networkPrior.refund)} remboursés` : null].filter(Boolean).join(" et ")} concernant {networkPrior.year}
+                    </p>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -1011,11 +1024,19 @@ interface DetailLine {
   platform?: "uber_eats" | "deliveroo";
 }
 
-function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false }: {
+function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false, prior }: {
   status: UberDeclarationStatus; flows?: EcoFlowSummary; fmt?: (v: number) => string; url: string; hasIdu: boolean;
   declaration?: EcoUberDeclaration; onDeclare?: () => void; onCancel?: () => void; pending?: boolean;
+  prior?: PriorYearShare;
 }) {
   const [opened, setOpened] = useState(false);
+  // Semaines d'une année antérieure versées sur la période : simple rappel, les montants ne changent pas.
+  const priorNote = prior?.year && fmt && (prior.charge > 0.005 || prior.refund > 0.005) ? (
+    <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight"
+      title={`Uber a prélevé ou remboursé sur la période des semaines de ${prior.year} (taux de ${prior.year}). Elles sont comptées ici à la date du versement.`}>
+      Dont {[prior.charge > 0.005 ? `${fmt(prior.charge)} prélevés` : null, prior.refund > 0.005 ? `${fmt(prior.refund)} remboursés` : null].filter(Boolean).join(" et ")} pour {prior.year}
+    </span>
+  ) : null;
   const trace = declaration
     ? `Déclaré ${formatDeclarationDate(declaration.declared_at)}${declaration.declared_by_name ? ` par ${declaration.declared_by_name}` : ""}`
     : null;
@@ -1053,6 +1074,7 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
           </span>
         )}
         {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
+        {priorNote}
       </div>
     );
   }
@@ -1073,6 +1095,7 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
           <Badge variant="destructive" className="text-[10px]" title="Adhérent REP, et Uber n'a pas rendu ce qu'il a prélevé : déclarer l'IDU à Uber.">À déclarer</Badge>
         )}
         {detail && <span className="text-[10px] text-muted-foreground text-center leading-tight">{detail}</span>}
+        {priorNote}
         {declareActions}
       </div>
     );
@@ -1271,6 +1294,10 @@ function RestaurantDrilldown({
     () => summarizeEcoFlows(detailLines.filter(l => l.platform !== "deliveroo"), ecoReferenceDate ?? null),
     [detailLines, ecoReferenceDate],
   );
+  const prior = useMemo(
+    () => (isHistorique ? undefined : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
+    [detailLines, isHistorique],
+  );
   const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({
     refund: ecoFlows.refund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
   });
@@ -1383,7 +1410,7 @@ function RestaurantDrilldown({
         )}
         {showRepColumn && (
           <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
-            <UberDeclarationCell status={declStatus} flows={ecoFlows} fmt={fmt} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
+            <UberDeclarationCell status={declStatus} flows={ecoFlows} fmt={fmt} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending} prior={prior}
               onDeclare={onDeclare ? () => onDeclare(r.restaurant_id) : undefined}
               onCancel={onCancelDeclaration && declaration ? () => onCancelDeclaration(declaration.id) : undefined} />
           </TableCell>
@@ -1513,6 +1540,15 @@ function MonthDrilldownRow({
                 : <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-green-500 text-green-600 font-normal">Uber</Badge>
             )}
             {fmtDate(line.payout_date)} — {line.description || "-"}
+            {line.platform !== "deliveroo" && (() => {
+              const y = priorYearOf(line);
+              return y ? (
+                <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1.5 border-amber-500/50 text-amber-700 dark:text-amber-400 font-normal"
+                  title={`Le taux de cette ligne est celui de ${y} : la semaine concernée est en ${y}, même si Uber l'a versée plus tard.`}>
+                  Concerne {y}
+                </Badge>
+              ) : null;
+            })()}
           </TableCell>
           <TableCell />
           <TableCell />
