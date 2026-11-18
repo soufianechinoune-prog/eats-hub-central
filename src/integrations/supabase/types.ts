@@ -11102,6 +11102,7 @@ export type Database = {
           lease_until: string | null
           next_dispatch_at: string | null
           pause_reason: string | null
+          rate_limit_streak: number
           started_at: string | null
           status: string
         }
@@ -11113,6 +11114,7 @@ export type Database = {
           lease_until?: string | null
           next_dispatch_at?: string | null
           pause_reason?: string | null
+          rate_limit_streak?: number
           started_at?: string | null
           status?: string
         }
@@ -11124,6 +11126,7 @@ export type Database = {
           lease_until?: string | null
           next_dispatch_at?: string | null
           pause_reason?: string | null
+          rate_limit_streak?: number
           started_at?: string | null
           status?: string
         }
