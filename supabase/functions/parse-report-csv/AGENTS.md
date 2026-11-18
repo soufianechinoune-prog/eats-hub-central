@@ -1,0 +1,1 @@
+- Feedback report ingestion propagates parser failures so signed Uber webhook retries can replay idempotently; daily queue inserts ignore existing restaurant/start/type jobs to avoid duplicate scheduled runs aborting ingestion.

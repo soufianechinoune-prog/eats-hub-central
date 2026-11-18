@@ -1,0 +1,1 @@
+- Uber Direct is read-only (GET deliveries only), fetched in 6 h slices (API caps 500 per window), no personal data; order matching needs same code + restaurant + ≤6 h and exactly one candidate.
