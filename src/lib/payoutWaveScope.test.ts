@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed } from '../../supabase/functions/_shared/payoutWaveScope';
+import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed, rateLimitBackoffMs, countsAsRefusal } from '../../supabase/functions/_shared/payoutWaveScope';
 describe('Tasty payout wave', () => {
   it('never dispatches a restaurant with RPC status refuse', () => {
     expect(uberApiAccessAllowed('refuse')).toBe(false);
@@ -20,8 +20,16 @@ describe('Tasty payout wave', () => {
     expect(waveLineAllowed('110e05b8-5136-45cc-a385-265360104844', 'remaining', '2026-06-01')).toBe(false);
     expect(waveLineAllowed('a9e46481-d1e7-4f9c-bb70-02af281048e6', 'remaining', '2026-06-01')).toBe(false);
   });
-  it('caps requests at three and stops at three consecutive refusals', () => {
-    expect(MAX_REQUESTS).toBe(3);
+  it('treats 429 as rate limiting with 15/30/60 min backoff, only 403 counts as refusal', () => {
+    expect(countsAsRefusal(429)).toBe(false);
+    expect(countsAsRefusal(403)).toBe(true);
+    expect(rateLimitBackoffMs(1)).toBe(15 * 60000);
+    expect(rateLimitBackoffMs(2)).toBe(30 * 60000);
+    expect(rateLimitBackoffMs(3)).toBe(60 * 60000);
+    expect(rateLimitBackoffMs(9)).toBe(60 * 60000);
+  });
+  it('caps requests at two per minute and stops at three consecutive refusals', () => {
+    expect(MAX_REQUESTS).toBe(2);
     expect(REFUSAL_LIMIT).toBe(3);
   });
 });

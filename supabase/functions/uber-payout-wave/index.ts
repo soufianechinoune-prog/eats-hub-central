@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { authenticateCronRequest } from '../_shared/cron-auth.ts';
-import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, waveLineAllowed, uberApiAccessAllowed } from '../_shared/payoutWaveScope.ts';
+import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, rateLimitBackoffMs, countsAsRefusal, waveLineAllowed, uberApiAccessAllowed } from '../_shared/payoutWaveScope.ts';
 import { pilotDate } from '../_shared/payoutPilotScope.ts';
 type SourceRow = { restaurant_id: string; uber_store_id: string; payout_reference_id: string; order_date_key: string; source_line_key: string; [key: string]: unknown };
 Deno.serve(async req => {
@@ -38,7 +38,7 @@ Deno.serve(async req => {
       await pause('Previous dispatch interrupted; outcome requires manual review');
       return reply({ paused: true });
     }
-    // Dispatch first; reservation time limits all runs to three requests in a rolling minute.
+    // Dispatch first; reservation time limits all runs to MAX_REQUESTS per minute.
     if (!state.next_dispatch_at || Date.parse(state.next_dispatch_at) <= Date.now()) {
       const { data: jobs, error } = await db.from('payout_adjustment_backfill_requests').select('*').eq('status', 'queued').order('start_date').order('uber_store_id').limit(MAX_REQUESTS);
       if (error) throw new Error(error.message);
@@ -77,16 +77,27 @@ Deno.serve(async req => {
           }
           const result = await response.json().catch(() => ({}));
           if (!response.ok || typeof result.workflow_id !== 'string') {
-            refusals++;
-            const retrySeconds = Number(response.headers.get('retry-after'));
-            await update(job.id, { status: response.status === 429 || response.status >= 500 ? 'queued' : 'refused', refusal_status: response.status, error: `Uber refused HTTP ${response.status}` });
-            await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: refusals, next_dispatch_at: new Date(Date.now() + Math.max(60000, Number.isFinite(retrySeconds) ? retrySeconds * 1000 : 0)).toISOString() }).eq('id', true);
-            if (refusals >= REFUSAL_LIMIT) await pause('Three consecutive Uber refusals');
+            if (response.status === 429) {
+              const streak = (state.rate_limit_streak ?? 0) + 1;
+              await update(job.id, { status: 'queued', refusal_status: 429, error: 'Uber rate limited (429); retry after backoff' });
+              await db.from('payout_adjustment_backfill_state').update({ rate_limit_streak: streak, next_dispatch_at: new Date(Date.now() + rateLimitBackoffMs(streak)).toISOString() }).eq('id', true);
+              break;
+            }
+            if (countsAsRefusal(response.status)) {
+              refusals++;
+              await update(job.id, { status: 'awaiting_access', refusal_status: 403, error: 'Uber refused HTTP 403; awaiting API access' });
+              await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: refusals, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
+              if (refusals >= REFUSAL_LIMIT) { await pause('Three consecutive Uber 403 refusals'); break; }
+              continue;
+            }
+            const transient = response.status >= 500;
+            await update(job.id, { status: transient ? 'queued' : 'refused', refusal_status: response.status, error: `Uber HTTP ${response.status}` });
+            await db.from('payout_adjustment_backfill_state').update({ next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
             break;
           }
           refusals = 0;
           await update(job.id, { workflow_id: result.workflow_id, status: 'requested', error: null });
-          await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: 0, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
+          await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: 0, rate_limit_streak: 0, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
         }
       }
     }
