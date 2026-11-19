@@ -28,6 +28,8 @@ interface EcoDetailLine {
   platform: "uber_eats" | "deliveroo";
   /** Date réelle du versement quand la ligne est rangée dans une année antérieure (payout_date = 31/12 de cette année). */
   paid_on?: string;
+  /** Date de commande inscrite par Uber sur la ligne (sert à trancher l'année quand le taux est ambigu). */
+  order_date?: string | null;
 }
 
 export function useEcoContribution({
@@ -59,7 +61,7 @@ export function useEcoContribution({
         // (commande annulée, annulation de remboursement client) sont écartés.
         let query = ecoClient
           .from("eco_contribution_lines")
-          .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount")
+          .select("id, restaurant_id, restaurant_name, payout_reference_id, payout_date, description, amount, order_date")
           .in("eco_kind", ["prelevement", "remboursement"])
           .order("payout_date", { ascending: false }).order("id");
 

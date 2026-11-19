@@ -19,18 +19,42 @@ const fitsRate = (abs: number, rate: number) => {
   return n >= 1 && Math.abs(abs - n * rate) <= 0.0051;
 };
 
-/** Année dont le taux explique ce montant, ou null si aucun ou plusieurs. */
-export function ecoRateYear(amount: number): number | null {
+/** Années dont un taux explique ce montant. */
+function fittingYears(amount: number): number[] {
   const abs = Math.abs(Number(amount) || 0);
-  if (abs < 0.005) return null;
-  const years = ECO_RATES_BY_YEAR.filter((y) => y.rates.some((r) => fitsRate(abs, r))).map((y) => y.year);
-  return years.length === 1 ? years[0] : null;
+  if (abs < 0.005) return [];
+  return ECO_RATES_BY_YEAR.filter((y) => y.rates.some((r) => fitsRate(abs, r))).map((y) => y.year);
 }
 
+/** Année d'une date de commande Uber (« 29/12/2025 » ou « 2025-12-29 »), ou null. */
+function orderDateYear(orderDate?: string | null): number | null {
+  if (!orderDate) return null;
+  const m = /(\d{4})/.exec(orderDate);
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * Année dont le taux explique ce montant, ou null si aucun.
+ * Si les deux taux collent, on tranche avec la date de commande de la ligne quand elle désigne l'une des deux
+ * années (Chevilly-Larue : −42,25 € = 310 × 0,1363 et 231 × 0,1829, commande du 29/12/2025 → 2025).
+ */
+export function ecoRateYear(amount: number, orderDate?: string | null): number | null {
+  const years = fittingYears(amount);
+  if (years.length === 1) return years[0];
+  if (years.length > 1) {
+    const y = orderDateYear(orderDate);
+    if (y !== null && years.includes(y)) return y;
+  }
+  return null;
+}
+
+type EcoYearLine = { amount: number; payout_date: string | null; order_date?: string | null };
+
 /** Année antérieure concernée, si la ligne a été versée une année plus tard que la semaine qu'elle couvre. */
-export function priorYearOf(line: { amount: number; payout_date: string | null }): number | null {
+export function priorYearOf(line: EcoYearLine): number | null {
   if (!line.payout_date) return null;
-  const rateYear = ecoRateYear(line.amount);
+  // La date de commande d'un remboursement est celle du remboursement : on ne s'en sert que pour un prélèvement.
+  const rateYear = ecoRateYear(line.amount, line.amount < 0 ? line.order_date : null);
   const payoutYear = Number(line.payout_date.slice(0, 4));
   return rateYear !== null && rateYear < payoutYear ? rateYear : null;
 }
@@ -42,14 +66,28 @@ export function priorYearOf(line: { amount: number; payout_date: string | null }
  * - versée plus tard avec le taux de Y → entre dans Y, rangée au 31/12 de Y, date réelle gardée dans paid_on.
  * Les montants ne changent pas ; seule l'année d'affichage change, et uniquement pour les lignes au taux sûr.
  */
-export function assignEcoLinesToYear<T extends { amount: number; payout_date: string | null }>(
+export function assignEcoLinesToYear<T extends EcoYearLine & { restaurant_id?: string }>(
   lines: T[], year: number,
 ): { kept: (T & { paid_on?: string })[]; movedOut: T[] } {
   const kept: (T & { paid_on?: string })[] = [];
   const movedOut: T[] = [];
+  // Un remboursement au taux ambigu suit le prélèvement qu'il rembourse (même restaurant, même montant).
+  const key = (l: T) => `${l.restaurant_id ?? ""}|${Math.round(Math.abs(l.amount) * 100)}`;
+  const chargeYear = new Map<string, number>();
+  for (const l of lines) {
+    if (l.amount >= 0) continue;
+    const y = priorYearOf(l);
+    if (y !== null) chargeYear.set(key(l), y);
+  }
+  const yearOf = (l: T) => {
+    const y = priorYearOf(l);
+    if (y !== null || l.amount <= 0 || fittingYears(l.amount).length < 2) return y;
+    const c = chargeYear.get(key(l));
+    return c !== undefined && l.payout_date && c < Number(l.payout_date.slice(0, 4)) ? c : null;
+  };
   for (const l of lines) {
     const payoutYear = l.payout_date ? Number(l.payout_date.slice(0, 4)) : null;
-    const prior = priorYearOf(l);
+    const prior = yearOf(l);
     if (payoutYear === year) {
       if (prior === null) kept.push(l); else movedOut.push(l);
     } else if (prior === year && l.payout_date) {

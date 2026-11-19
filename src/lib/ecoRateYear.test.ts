@@ -23,6 +23,35 @@ describe("assignEcoLinesToYear", () => {
 });
 
 // Relevé Uber du Kremlin-Bicêtre (Tasty Crousty), vérifié le 18/11/2026.
+describe("date de commande quand les deux taux collent", () => {
+  // Relevé Uber de Chevilly-Larue : « Éco-contribution du 15/12/2025 au 21/12/2025 : 310 commandes x 0,1363 EUR ».
+  const chevilly = { restaurant_id: "chev", amount: -42.25, payout_date: "2026-03-16", order_date: "29/12/2025" };
+  it("−42,25 € colle aux deux taux : sans date, pas d'année", () => {
+    expect(ecoRateYear(-42.25)).toBeNull();
+  });
+  it("la date de commande tranche pour 2025", () => {
+    expect(ecoRateYear(-42.25, "29/12/2025")).toBe(2025);
+    expect(priorYearOf(chevilly)).toBe(2025);
+  });
+  it("une date qui ne désigne aucun des deux taux ne tranche pas", () => {
+    expect(ecoRateYear(-42.25, "03/01/2024")).toBeNull();
+  });
+  it("onglet 2026 : Chevilly n'a plus rien à réclamer ; onglet 2025 : la ligne y entre", () => {
+    expect(assignEcoLinesToYear([chevilly], 2026)).toMatchObject({ kept: [], movedOut: [chevilly] });
+    expect(assignEcoLinesToYear([chevilly], 2025).kept[0]).toMatchObject({ payout_date: "2025-12-31", paid_on: "2026-03-16" });
+  });
+  it("un remboursement ambigu suit son prélèvement", () => {
+    const refund = { restaurant_id: "chev", amount: 42.25, payout_date: "2026-05-11", order_date: "04/05/2026" };
+    const { kept, movedOut } = assignEcoLinesToYear([chevilly, refund], 2026);
+    expect(kept).toEqual([]);
+    expect(movedOut).toHaveLength(2);
+  });
+  it("un remboursement ambigu sans prélèvement correspondant reste à sa date", () => {
+    const refund = { restaurant_id: "autre", amount: 42.25, payout_date: "2026-05-11", order_date: "04/05/2026" };
+    expect(assignEcoLinesToYear([chevilly, refund], 2026).kept).toEqual([refund]);
+  });
+});
+
 describe("crossYearNotes", () => {
   const fmt = (v: number) => `${v.toFixed(2)} €`;
   it("onglet 2026 : rappelle ce qui part dans 2025", () => {
