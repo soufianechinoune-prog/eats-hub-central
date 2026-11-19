@@ -3,7 +3,7 @@ import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { identifyAdjustmentLines, sha256, batchAdjustmentGroups } from './lineIdentity.ts';
 import { findPaymentHeader } from './headerRecognition.ts';
 import { pilotLineAllowed, PILOT_STORES } from '../_shared/payoutPilotScope.ts';
-import { WAVE_CHAIN, waveLineAllowed } from '../_shared/payoutWaveScope.ts';
+import { waveChainAllowed, waveLineAllowed } from '../_shared/payoutWaveScope.ts';
 
 // Column mapping from French CSV headers to database fields
 const COLUMN_MAPPING: Record<string, string> = {
@@ -620,13 +620,15 @@ Deno.serve(async (req) => {
     if (typeof csvContent !== 'string' || csvContent.length > 50000000 || typeof dryRun !== 'boolean' || typeof adjustmentsOnly !== 'boolean') throw new Error('Invalid import request');
     if (pilotStore !== undefined && (token !== supabaseServiceKey || typeof pilotStore !== 'string' || !PILOT_STORES[pilotStore] || !adjustmentsOnly || !dryRun || previewSourceRows !== true)) throw new Error('Invalid service-only pilot scope');
     let waveRestaurant: string | undefined;
+    let waveChain: string | undefined;
     if (waveStore !== undefined) {
       if (token !== supabaseServiceKey || typeof waveStore !== 'string' || pilotStore || !adjustmentsOnly || !dryRun || previewSourceRows !== true) throw new Error('Invalid service-only wave scope');
       const { data: job } = await supabase.from('payout_adjustment_backfill_requests').select('restaurant_id').eq('uber_store_id', waveStore).limit(1).maybeSingle();
       if (!job) throw new Error('Store outside queued wave');
       const { data: r } = await supabase.from('restaurants').select('chain_id').eq('id', job.restaurant_id).single();
-      if (r?.chain_id !== WAVE_CHAIN) throw new Error('Wave chain mismatch');
+      if (!r || !waveChainAllowed(r.chain_id)) throw new Error('Wave chain mismatch');
       waveRestaurant = job.restaurant_id;
+      waveChain = r.chain_id;
     }
     if (previewSourceRows && !pilotStore && !waveStore) throw new Error('Source preview requires dedicated scope');
 
@@ -959,7 +961,7 @@ Deno.serve(async (req) => {
             uberStoreIdVal = waveStore;
             const lineDate = parseDate(getValue('order_date'));
             if (!lineDate) throw new Error('Wave adjustment has no interpretable order date');
-            if (!waveLineAllowed(WAVE_CHAIN, waveStore, lineDate)) continue;
+            if (!waveChain || !waveLineAllowed(waveChain, waveStore, lineDate)) continue;
             if (payoutRefId === '05G2PXLG9Z79FXQ' || payoutRefId === '2OAJXO4XY0LOBRE') continue;
           }
           if (pilotStore) {

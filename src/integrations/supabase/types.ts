@@ -11103,6 +11103,7 @@ export type Database = {
           next_dispatch_at: string | null
           pause_reason: string | null
           rate_limit_streak: number
+          schedule_job_id: number | null
           started_at: string | null
           status: string
         }
@@ -11115,6 +11116,7 @@ export type Database = {
           next_dispatch_at?: string | null
           pause_reason?: string | null
           rate_limit_streak?: number
+          schedule_job_id?: number | null
           started_at?: string | null
           status?: string
         }
@@ -11127,6 +11129,7 @@ export type Database = {
           next_dispatch_at?: string | null
           pause_reason?: string | null
           rate_limit_streak?: number
+          schedule_job_id?: number | null
           started_at?: string | null
           status?: string
         }

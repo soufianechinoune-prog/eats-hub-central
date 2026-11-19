@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, REFUSAL_LIMIT, uberApiAccessAllowed, rateLimitBackoffMs, countsAsRefusal, waveRequestReadyToStage } from '../../supabase/functions/_shared/payoutWaveScope';
+import { WAVE_CHAIN, CHICKEN_WAVE_CHAIN, EXCLUDED_STORES, waveLineAllowed, MAX_REQUESTS, uberApiAccessAllowed, rateLimitBackoffMs, countsAsRefusal, waveRequestReadyToStage } from '../../supabase/functions/_shared/payoutWaveScope';
 describe('Tasty payout wave', () => {
   it('stages a complete collected report even while other windows remain queued', () => {
     const requests = ['collected', 'queued', 'awaiting_access', 'received', 'collecting', 'completed'];
@@ -21,7 +21,7 @@ describe('Tasty payout wave', () => {
   });
   it('excludes pilot stores and other chains', () => {
     for (const store of EXCLUDED_STORES) expect(waveLineAllowed(WAVE_CHAIN, store, '2026-06-01')).toBe(false);
-    expect(waveLineAllowed('110e05b8-5136-45cc-a385-265360104844', 'remaining', '2026-06-01')).toBe(false);
+    expect(waveLineAllowed(CHICKEN_WAVE_CHAIN, 'remaining', '2026-06-01')).toBe(true);
     expect(waveLineAllowed('a9e46481-d1e7-4f9c-bb70-02af281048e6', 'remaining', '2026-06-01')).toBe(false);
   });
   it('treats 429 as rate limiting with 15/30/60 min backoff, only 403 counts as refusal', () => {
@@ -32,8 +32,17 @@ describe('Tasty payout wave', () => {
     expect(rateLimitBackoffMs(3)).toBe(60 * 60000);
     expect(rateLimitBackoffMs(9)).toBe(60 * 60000);
   });
-  it('caps requests at two per minute and stops at three consecutive refusals', () => {
+  it('recognizes user_not_allowed regardless of HTTP code', () => {
+    expect(countsAsRefusal(400, { code: 'user_not_allowed' })).toBe(true);
+    expect(countsAsRefusal(500, { code: 'temporary_error' })).toBe(false);
+  });
+  it('enforces the Chicken Street period boundaries', () => {
+    expect(waveLineAllowed(CHICKEN_WAVE_CHAIN, 'store', '2025-12-01')).toBe(true);
+    expect(waveLineAllowed(CHICKEN_WAVE_CHAIN, 'store', '2026-11-15')).toBe(true);
+    expect(waveLineAllowed(CHICKEN_WAVE_CHAIN, 'store', '2025-11-30')).toBe(false);
+    expect(waveLineAllowed(CHICKEN_WAVE_CHAIN, 'store', '2026-11-16')).toBe(false);
+  });
+  it('caps requests at two per minute', () => {
     expect(MAX_REQUESTS).toBe(2);
-    expect(REFUSAL_LIMIT).toBe(3);
   });
 });

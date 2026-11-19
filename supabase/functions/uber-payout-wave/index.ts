@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
 import { authenticateCronRequest } from '../_shared/cron-auth.ts';
-import { WAVE_CHAIN, MAX_REQUESTS, REFUSAL_LIMIT, rateLimitBackoffMs, countsAsRefusal, waveLineAllowed, uberApiAccessAllowed, waveRequestReadyToStage } from '../_shared/payoutWaveScope.ts';
+import { MAX_REQUESTS, rateLimitBackoffMs, countsAsRefusal, waveChainAllowed, waveLineAllowed, uberApiAccessAllowed, waveRequestReadyToStage } from '../_shared/payoutWaveScope.ts';
 import { pilotDate } from '../_shared/payoutPilotScope.ts';
 type SourceRow = { restaurant_id: string; uber_store_id: string; payout_reference_id: string; order_date_key: string; source_line_key: string; [key: string]: unknown };
 Deno.serve(async req => {
@@ -49,13 +49,12 @@ Deno.serve(async req => {
           await pause('Cached Uber token unavailable');
           return reply({ paused: true });
         }
-        let refusals = state.consecutive_refusals;
         for (const job of jobs) {
           const { data: guard } = await db.from('payout_adjustment_backfill_state').select('status').eq('id', true).single();
           if (guard?.status !== 'running') break;
           const { data: r } = await db.from('restaurants').select('chain_id,uber_store_id').eq('id', job.restaurant_id).single();
-          if (r?.chain_id !== WAVE_CHAIN || r.uber_store_id !== job.uber_store_id) throw new Error('Store mapping changed');
-          const { data: access, error: accessError } = await db.rpc('get_uber_api_access_status', { p_chain_id: WAVE_CHAIN });
+          if (!waveChainAllowed(job.chain_id) || r?.chain_id !== job.chain_id || r.uber_store_id !== job.uber_store_id) throw new Error('Store mapping changed');
+          const { data: access, error: accessError } = await db.rpc('get_uber_api_access_status', { p_chain_id: job.chain_id });
           if (accessError) throw new Error('Uber access status unavailable');
           const accessStatus = access?.find((row: { restaurant_id: string; status: string }) => row.restaurant_id === job.restaurant_id)?.status;
           if (!uberApiAccessAllowed(accessStatus)) {
@@ -84,11 +83,9 @@ Deno.serve(async req => {
               await db.from('payout_adjustment_backfill_state').update({ rate_limit_streak: streak, next_dispatch_at: new Date(Date.now() + rateLimitBackoffMs(streak)).toISOString() }).eq('id', true);
               break;
             }
-            if (countsAsRefusal(response.status)) {
-              refusals++;
+            if (countsAsRefusal(response.status, result)) {
               await update(job.id, { status: 'awaiting_access', refusal_status: 403, error: 'Uber refused HTTP 403; awaiting API access' });
-              await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: refusals, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
-              if (refusals >= REFUSAL_LIMIT) { await pause('Three consecutive Uber 403 refusals'); break; }
+              await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: 0, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
               continue;
             }
             const transient = response.status >= 500;
@@ -96,7 +93,6 @@ Deno.serve(async req => {
             await db.from('payout_adjustment_backfill_state').update({ next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
             break;
           }
-          refusals = 0;
           await update(job.id, { workflow_id: result.workflow_id, status: 'requested', error: null });
           await db.from('payout_adjustment_backfill_state').update({ consecutive_refusals: 0, rate_limit_streak: 0, next_dispatch_at: new Date(Date.now() + 60000).toISOString() }).eq('id', true);
         }
@@ -128,7 +124,7 @@ Deno.serve(async req => {
     }
     // A collected request contains all its validated sections. Stable occurrence keys
     // and the staging RPC make overlapping windows safe without a store-wide barrier.
-    const { data: jobs, error: stagingQueryError } = await db.from('payout_adjustment_backfill_requests').select('*').eq('chain_id', WAVE_CHAIN).eq('status', 'collected').order('received_at').limit(stageOnly ? 50 : 10);
+    const { data: jobs, error: stagingQueryError } = await db.from('payout_adjustment_backfill_requests').select('*').eq('status', 'collected').order('received_at').limit(stageOnly ? 50 : 10);
     if (stagingQueryError) throw new Error(stagingQueryError.message);
     let stagedRequests = 0;
     let addedLines = 0;
