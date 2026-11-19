@@ -11328,6 +11328,41 @@ export type Database = {
         }
         Relationships: []
       }
+      payout_line_reclassifications: {
+        Row: {
+          id: number
+          line_id: string
+          new_category: string
+          old_category: string
+          reclassified_at: string
+          rule: string
+        }
+        Insert: {
+          id?: number
+          line_id: string
+          new_category: string
+          old_category: string
+          reclassified_at?: string
+          rule: string
+        }
+        Update: {
+          id?: number
+          line_id?: string
+          new_category?: string
+          old_category?: string
+          reclassified_at?: string
+          rule?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_line_reclassifications_line_id_fkey"
+            columns: ["line_id"]
+            isOneToOne: false
+            referencedRelation: "payout_adjustment_lines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       payout_pilot_reports: {
         Row: {
           completed_at: string | null
@@ -14560,6 +14595,7 @@ export type Database = {
           is_mirror: boolean | null
           is_rate_multiple: boolean | null
           is_single_line: boolean | null
+          order_date: string | null
           payout_date: string | null
           payout_reference_id: string | null
           restaurant_id: string | null
@@ -17113,6 +17149,15 @@ export type Database = {
       }
       parse_uber_csv_date: { Args: { _value: string }; Returns: string }
       parse_uber_csv_numeric: { Args: { _value: string }; Returns: number }
+      payout_line_was_eco: { Args: { p_line_id: string }; Returns: boolean }
+      payout_raw_autres_frais_total: {
+        Args: { p_payout_ref: string; p_restaurant_id: string }
+        Returns: number
+      }
+      payout_raw_num: {
+        Args: { p_long: string; p_raw: Json; p_short: string }
+        Returns: number
+      }
       payout_reporting_family: {
         Args: { p_category: string; p_description: string }
         Returns: string
@@ -17158,6 +17203,13 @@ export type Database = {
           p_start: string
         }
         Returns: number
+      }
+      reclassify_small_payout_lines: {
+        Args: { p_restaurant_ids?: string[] }
+        Returns: {
+          lines: number
+          rule: string
+        }[]
       }
       refresh_caisse_product_names_mv: { Args: never; Returns: undefined }
       refresh_caisse_rollups: {
