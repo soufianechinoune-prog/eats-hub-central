@@ -35,6 +35,64 @@ export function priorYearOf(line: { amount: number; payout_date: string | null }
   return rateYear !== null && rateYear < payoutYear ? rateYear : null;
 }
 
+/**
+ * Range les lignes d'un onglet annuel dans l'année qu'elles concernent.
+ * - versée l'année Y, taux de Y (ou ambigu) → reste dans Y ;
+ * - versée l'année Y avec le taux d'une année antérieure → sort de Y (movedOut), elle s'affiche dans son année ;
+ * - versée plus tard avec le taux de Y → entre dans Y, rangée au 31/12 de Y, date réelle gardée dans paid_on.
+ * Les montants ne changent pas ; seule l'année d'affichage change, et uniquement pour les lignes au taux sûr.
+ */
+export function assignEcoLinesToYear<T extends { amount: number; payout_date: string | null }>(
+  lines: T[], year: number,
+): { kept: (T & { paid_on?: string })[]; movedOut: T[] } {
+  const kept: (T & { paid_on?: string })[] = [];
+  const movedOut: T[] = [];
+  for (const l of lines) {
+    const payoutYear = l.payout_date ? Number(l.payout_date.slice(0, 4)) : null;
+    const prior = priorYearOf(l);
+    if (payoutYear === year) {
+      if (prior === null) kept.push(l); else movedOut.push(l);
+    } else if (prior === year && l.payout_date) {
+      kept.push({ ...l, payout_date: `${year}-12-31`, paid_on: l.payout_date });
+    }
+  }
+  return { kept, movedOut };
+}
+
+const r2 = (v: number) => Math.round(v * 100) / 100;
+const sumSides = (lines: { amount: number }[]) => {
+  let charge = 0, refund = 0;
+  for (const l of lines) { const a = Number(l.amount) || 0; if (a < 0) charge += -a; else refund += a; }
+  return { charge: r2(charge), refund: r2(refund) };
+};
+const sides = (s: { charge: number; refund: number }, fmt: (v: number) => string) =>
+  [s.charge > 0.005 ? `${fmt(s.charge)} prélevés` : null, s.refund > 0.005 ? `${fmt(s.refund)} remboursés` : null].filter(Boolean).join(" et ");
+
+/**
+ * Rappels affichés dans un onglet annuel : ce qui y est rangé alors qu'Uber l'a versé l'année suivante,
+ * et ce qui a été versé cette année mais rangé dans l'année antérieure qu'il concerne.
+ */
+export function crossYearNotes(
+  kept: { amount: number; paid_on?: string }[],
+  movedOut: { amount: number; payout_date: string | null }[],
+  year: number,
+  fmt: (v: number) => string,
+): string[] {
+  const notes: string[] = [];
+  const movedIn = kept.filter((l) => l.paid_on);
+  if (movedIn.length) {
+    const s = sumSides(movedIn);
+    const paidYear = Math.max(...movedIn.map((l) => Number(l.paid_on!.slice(0, 4))));
+    if (s.charge + s.refund > 0.005) notes.push(`Dont ${sides(s, fmt)} en ${paidYear}, concernant ${year}`);
+  }
+  if (movedOut.length) {
+    const s = sumSides(movedOut);
+    const toYear = Math.max(...movedOut.map((l) => priorYearOf(l) ?? year - 1));
+    if (s.charge + s.refund > 0.005) notes.push(`+ ${sides(s, fmt)} en ${year} pour ${toYear} : voir l'onglet ${toYear}`);
+  }
+  return notes;
+}
+
 export interface PriorYearShare {
   /** Année antérieure concernée (la plus récente s'il y en a plusieurs), null si aucune ligne. */
   year: number | null;

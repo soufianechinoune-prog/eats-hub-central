@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { endOfMonth, format } from "date-fns";
+import { assignEcoLinesToYear } from "@/lib/ecoRateYear";
 
 
 type EcoRow = Omit<EcoDetailLine, "platform">;
@@ -25,6 +26,8 @@ interface EcoDetailLine {
   description: string | null;
   amount: number;
   platform: "uber_eats" | "deliveroo";
+  /** Date réelle du versement quand la ligne est rangée dans une année antérieure (payout_date = 31/12 de cette année). */
+  paid_on?: string;
 }
 
 export function useEcoContribution({
@@ -43,9 +46,9 @@ export function useEcoContribution({
   const isUberEnabled = !hasEmptyScope && (platform === "uber_eats" || platform === "global");
   const isDeliverooEnabled = !hasEmptyScope && (platform === "deliveroo" || platform === "global");
   // ── Uber Eats: payout_adjustments detail lines ──
-  const { data: uberDetailLines, isLoading: loadingUberDetail } = useQuery({
+  const { data: uberData, isLoading: loadingUberDetail } = useQuery({
     queryKey: ["eco_contribution_detail", restaurantIds, year, month, platform],
-    queryFn: async () => {
+    queryFn: async (): Promise<{ lines: EcoDetailLine[]; movedOut: EcoDetailLine[] }> => {
       const allData: EcoDetailLine[] = [];
       let offset = 0;
       const batchSize = 1000;
@@ -60,19 +63,14 @@ export function useEcoContribution({
           .in("eco_kind", ["prelevement", "remboursement"])
           .order("payout_date", { ascending: false }).order("id");
 
+        // Année Y : on lit aussi Y+1, où Uber verse en retard des semaines de Y (taux de Y).
+        // assignEcoLinesToYear range ensuite chaque ligne dans l'année qu'elle concerne.
         if (year) {
-          query = query.gte("payout_date", `${year}-01-01`).lte("payout_date", `${year}-12-31`);
+          query = query.gte("payout_date", `${year}-01-01`).lte("payout_date", `${year + 1}-12-31`);
         }
 
         if (restaurantIds && restaurantIds.length > 0) {
           query = query.in("restaurant_id", restaurantIds);
-        }
-
-        if (month && year) {
-          const monthStr = String(month).padStart(2, "0");
-          query = query
-            .gte("payout_date", `${year}-${monthStr}-01`)
-            .lte("payout_date", format(endOfMonth(new Date(year, month - 1, 1)), "yyyy-MM-dd"));
         }
 
         const { data, error } = await query.range(offset, offset + batchSize - 1);
@@ -87,12 +85,19 @@ export function useEcoContribution({
         }
       }
 
-      return allData;
+      if (!year) return { lines: allData, movedOut: [] };
+      const { kept, movedOut } = assignEcoLinesToYear(allData, year);
+      if (!month) return { lines: kept, movedOut };
+      const inMonth = (d: string | null) => !!d && Number(d.slice(5, 7)) === month;
+      return { lines: kept.filter((l) => inMonth(l.payout_date)), movedOut: movedOut.filter((l) => inMonth(l.payout_date)) };
     },
     enabled: isUberEnabled,
     staleTime: 60_000,
     retry: false,
   });
+  const uberDetailLines = uberData?.lines;
+  // Lignes versées cette année mais qui concernent une année antérieure : affichées dans leur année.
+  const movedOutLines = useMemo(() => uberData?.movedOut ?? [], [uberData]);
 
   // ── Deliveroo: deliveroo_orders with eco-contribution type ──
   const { data: deliverooEcoData, isLoading: loadingDeliveroo } = useQuery({
@@ -280,6 +285,7 @@ export function useEcoContribution({
     byRestaurant,
     totals,
     detailLines: allDetailLines,
+    movedOutLines,
     isLoading: loadingUberDetail || loadingDeliveroo,
   };
 }

@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { deduceUberDeclarationStatus, summarizeEcoFlows, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type EcoFlowSummary, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
-import { priorYearOf, priorYearShare, type PriorYearShare } from "@/lib/ecoRateYear";
+import { crossYearNotes, priorYearOf, priorYearShare, type PriorYearShare } from "@/lib/ecoRateYear";
 import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
 import { useCiteoAccounts } from "@/hooks/useCiteoAccounts";
@@ -149,7 +149,7 @@ export function EcoContributionSection({
     })();
   }, [selectedChainId]);
 
-  const { monthlyData, byRestaurant, totals, detailLines, isLoading } = useEcoContribution({
+  const { monthlyData, byRestaurant, totals, detailLines, movedOutLines, isLoading } = useEcoContribution({
     restaurantIds: restaurantIdsForFetch,
     year: isHistorique ? null : effectiveYear,
     month: isHistorique ? null : selectedMonth,
@@ -452,11 +452,18 @@ export function EcoContributionSection({
 
   const isExempt = totals.net >= 0;
 
-  // Semaines d'une année antérieure (taux de l'année d'avant) versées sur l'année affichée : simple rappel.
-  const networkPrior = useMemo<PriorYearShare>(
-    () => (isHistorique ? { year: null, charge: 0, refund: 0 } : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
-    [detailLines, isHistorique],
+  // Semaines versées une autre année que celle qu'elles concernent : chaque ligne est rangée dans son année
+  // (d'après son taux) ; on rappelle ce qui est entré et ce qui est sorti de l'année affichée.
+  const networkNotes = useMemo<string[]>(
+    () => (isHistorique || !effectiveYear ? [] : crossYearNotes(detailLines.filter(l => l.platform !== "deliveroo"), movedOutLines, effectiveYear, fmt)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [detailLines, movedOutLines, isHistorique, effectiveYear],
   );
+  const movedOutByRestaurant = useMemo(() => {
+    const m = new Map<string, typeof movedOutLines>();
+    for (const l of movedOutLines) m.set(l.restaurant_id, [...(m.get(l.restaurant_id) ?? []), l]);
+    return m;
+  }, [movedOutLines]);
 
   // REP summary stats
   const repStats = useMemo(() => {
@@ -491,12 +498,12 @@ export function EcoContributionSection({
                 <div>
                   <p className="text-sm font-semibold leading-tight">{isExempt ? "Situation exonérée" : "Défaut d'exonération — action requise"}</p>
                   <p className="text-[11px] text-muted-foreground">{yearLabel} · {totals.lineCount} lignes · {byRestaurant.length} restaurants</p>
-                  {networkPrior.year && networkPrior.charge + networkPrior.refund > 0.005 && (
-                    <p className="text-[11px] text-amber-700 dark:text-amber-400"
-                      title={`Semaines de ${networkPrior.year} qu'Uber a prélevées ou remboursées en ${yearLabel}. Elles restent comptées à la date du versement.`}>
-                      Dont {[networkPrior.charge > 0.005 ? `${fmt(networkPrior.charge)} prélevés` : null, networkPrior.refund > 0.005 ? `${fmt(networkPrior.refund)} remboursés` : null].filter(Boolean).join(" et ")} concernant {networkPrior.year}
+                  {networkNotes.map((n) => (
+                    <p key={n} className="text-[11px] text-amber-700 dark:text-amber-400"
+                      title="Uber verse certaines semaines en retard. Chaque ligne est rangée dans l'année qu'elle concerne, d'après son taux.">
+                      {n}
                     </p>
-                  )}
+                  ))}
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -801,6 +808,8 @@ export function EcoContributionSection({
                           showRepColumn={repChecked}
                           showCiteoColumn={showCiteo}
                           ecoReferenceDate={ecoReferenceDate}
+                          movedOutLines={movedOutByRestaurant.get(r.restaurant_id)}
+                          selectedYear={isHistorique ? null : effectiveYear}
                           citeoAccount={citeoByRestaurant.get(r.restaurant_id)}
                           details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
@@ -1022,16 +1031,26 @@ interface DetailLine {
   description: string | null;
   amount: number;
   platform?: "uber_eats" | "deliveroo";
+  /** Date réelle du versement quand la ligne est rangée dans l'année qu'elle concerne (payout_date = 31/12). */
+  paid_on?: string;
 }
 
 function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false, prior }: {
   status: UberDeclarationStatus; flows?: EcoFlowSummary; fmt?: (v: number) => string; url: string; hasIdu: boolean;
   declaration?: EcoUberDeclaration; onDeclare?: () => void; onCancel?: () => void; pending?: boolean;
-  prior?: PriorYearShare;
+  prior?: PriorYearShare | string[];
 }) {
   const [opened, setOpened] = useState(false);
-  // Semaines d'une année antérieure versées sur la période : simple rappel, les montants ne changent pas.
-  const priorNote = prior?.year && fmt && (prior.charge > 0.005 || prior.refund > 0.005) ? (
+  // Semaines versées une autre année que celle qu'elles concernent : simple rappel.
+  // Onglet annuel : liste de rappels (rangées dans la bonne année). Historique : part de l'année précédente.
+  const priorNote = Array.isArray(prior) ? (
+    prior.length ? (
+      <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight flex flex-col"
+        title="Uber verse certaines semaines en retard. Chaque ligne est rangée dans l'année qu'elle concerne, d'après son taux.">
+        {prior.map((n) => <span key={n}>{n}</span>)}
+      </span>
+    ) : null
+  ) : prior?.year && fmt && (prior.charge > 0.005 || prior.refund > 0.005) ? (
     <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight"
       title={`Uber a prélevé ou remboursé sur la période des semaines de ${prior.year} (taux de ${prior.year}). Elles sont comptées ici à la date du versement.`}>
       Dont {[prior.charge > 0.005 ? `${fmt(prior.charge)} prélevés` : null, prior.refund > 0.005 ? `${fmt(prior.refund)} remboursés` : null].filter(Boolean).join(" et ")} pour {prior.year}
@@ -1258,7 +1277,11 @@ function RestaurantDrilldown({
   showCiteoColumn = false,
   citeoAccount,
   ecoReferenceDate,
+  movedOutLines = [],
+  selectedYear = null,
 }: {
+  movedOutLines?: DetailLine[];
+  selectedYear?: number | null;
   ecoReferenceDate?: string | null;
   showCiteoColumn?: boolean;
   citeoAccount?: CiteoAccount;
@@ -1295,8 +1318,10 @@ function RestaurantDrilldown({
     [detailLines, ecoReferenceDate],
   );
   const prior = useMemo(
-    () => (isHistorique ? undefined : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
-    [detailLines, isHistorique],
+    () => (isHistorique ? undefined
+      : selectedYear ? crossYearNotes(detailLines.filter(l => l.platform !== "deliveroo"), movedOutLines, selectedYear, fmt)
+      : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
+    [detailLines, isHistorique, selectedYear, movedOutLines, fmt],
   );
   const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({
     refund: ecoFlows.refund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
@@ -1539,8 +1564,14 @@ function MonthDrilldownRow({
                 ? <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-cyan-500 text-cyan-600 font-normal">Deliveroo</Badge>
                 : <Badge variant="outline" className="text-[9px] h-4 px-1 mr-1.5 border-green-500 text-green-600 font-normal">Uber</Badge>
             )}
-            {fmtDate(line.payout_date)} — {line.description || "-"}
-            {line.platform !== "deliveroo" && (() => {
+            {fmtDate(line.paid_on ?? line.payout_date)} — {line.description || "-"}
+            {line.paid_on && (
+              <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1.5 border-amber-500/50 text-amber-700 dark:text-amber-400 font-normal"
+                title={`Semaine de ${line.payout_date?.slice(0, 4)} (d'après son taux) qu'Uber a versée le ${fmtDate(line.paid_on)}. Elle est rangée ici, dans l'année qu'elle concerne.`}>
+                Versé en {line.paid_on.slice(0, 4)}
+              </Badge>
+            )}
+            {line.platform !== "deliveroo" && !line.paid_on && (() => {
               const y = priorYearOf(line);
               return y ? (
                 <Badge variant="outline" className="text-[9px] h-4 px-1 ml-1.5 border-amber-500/50 text-amber-700 dark:text-amber-400 font-normal"
