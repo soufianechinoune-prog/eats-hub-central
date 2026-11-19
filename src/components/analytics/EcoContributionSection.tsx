@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { deduceUberDeclarationStatus, summarizeEcoFlows, buildUberDeclarationUrl, formatDeclarationDate, daysSinceDeclaration, type EcoFlowSummary, type UberDeclarationStatus } from "@/lib/ecoUberDeclaration";
-import { crossYearNotes, priorYearOf, priorYearShare, type PriorYearShare } from "@/lib/ecoRateYear";
+import { crossYearNotes, priorYearOf } from "@/lib/ecoRateYear";
 import { useEcoUberDeclarations, type EcoUberDeclaration } from "@/hooks/useEcoUberDeclarations";
 import { Badge } from "@/components/ui/badge";
 import { useCiteoAccounts } from "@/hooks/useCiteoAccounts";
@@ -459,11 +459,6 @@ export function EcoContributionSection({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [detailLines, movedOutLines, isHistorique, effectiveYear],
   );
-  const movedOutByRestaurant = useMemo(() => {
-    const m = new Map<string, typeof movedOutLines>();
-    for (const l of movedOutLines) m.set(l.restaurant_id, [...(m.get(l.restaurant_id) ?? []), l]);
-    return m;
-  }, [movedOutLines]);
 
   // REP summary stats
   const repStats = useMemo(() => {
@@ -808,8 +803,6 @@ export function EcoContributionSection({
                           showRepColumn={repChecked}
                           showCiteoColumn={showCiteo}
                           ecoReferenceDate={ecoReferenceDate}
-                          movedOutLines={movedOutByRestaurant.get(r.restaurant_id)}
-                          selectedYear={isHistorique ? null : effectiveYear}
                           citeoAccount={citeoByRestaurant.get(r.restaurant_id)}
                           details={restoDetails.get(r.restaurant_id)}
                           repChangeType={repChangesMap.get(r.restaurant_id)}
@@ -1035,27 +1028,11 @@ interface DetailLine {
   paid_on?: string;
 }
 
-function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false, prior }: {
+function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onDeclare, onCancel, pending = false }: {
   status: UberDeclarationStatus; flows?: EcoFlowSummary; fmt?: (v: number) => string; url: string; hasIdu: boolean;
   declaration?: EcoUberDeclaration; onDeclare?: () => void; onCancel?: () => void; pending?: boolean;
-  prior?: PriorYearShare | string[];
 }) {
   const [opened, setOpened] = useState(false);
-  // Semaines versées une autre année que celle qu'elles concernent : simple rappel.
-  // Onglet annuel : liste de rappels (rangées dans la bonne année). Historique : part de l'année précédente.
-  const priorNote = Array.isArray(prior) ? (
-    prior.length ? (
-      <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight flex flex-col"
-        title="Uber verse certaines semaines en retard. Chaque ligne est rangée dans l'année qu'elle concerne, d'après son taux.">
-        {prior.map((n) => <span key={n}>{n}</span>)}
-      </span>
-    ) : null
-  ) : prior?.year && fmt && (prior.charge > 0.005 || prior.refund > 0.005) ? (
-    <span className="text-[10px] text-amber-700 dark:text-amber-400 text-center leading-tight"
-      title={`Uber a prélevé ou remboursé sur la période des semaines de ${prior.year} (taux de ${prior.year}). Elles sont comptées ici à la date du versement.`}>
-      Dont {[prior.charge > 0.005 ? `${fmt(prior.charge)} prélevés` : null, prior.refund > 0.005 ? `${fmt(prior.refund)} remboursés` : null].filter(Boolean).join(" et ")} pour {prior.year}
-    </span>
-  ) : null;
   const trace = declaration
     ? `Déclaré ${formatDeclarationDate(declaration.declared_at)}${declaration.declared_by_name ? ` par ${declaration.declared_by_name}` : ""}`
     : null;
@@ -1093,7 +1070,6 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
           </span>
         )}
         {trace && <span className="text-[10px] text-muted-foreground text-center leading-tight">{trace}</span>}
-        {priorNote}
       </div>
     );
   }
@@ -1114,7 +1090,6 @@ function UberDeclarationCell({ status, flows, fmt, url, hasIdu, declaration, onD
           <Badge variant="destructive" className="text-[10px]" title="Adhérent REP, et Uber n'a pas rendu ce qu'il a prélevé : déclarer l'IDU à Uber.">À déclarer</Badge>
         )}
         {detail && <span className="text-[10px] text-muted-foreground text-center leading-tight">{detail}</span>}
-        {priorNote}
         {declareActions}
       </div>
     );
@@ -1277,11 +1252,7 @@ function RestaurantDrilldown({
   showCiteoColumn = false,
   citeoAccount,
   ecoReferenceDate,
-  movedOutLines = [],
-  selectedYear = null,
 }: {
-  movedOutLines?: DetailLine[];
-  selectedYear?: number | null;
   ecoReferenceDate?: string | null;
   showCiteoColumn?: boolean;
   citeoAccount?: CiteoAccount;
@@ -1317,12 +1288,7 @@ function RestaurantDrilldown({
     () => summarizeEcoFlows(detailLines.filter(l => l.platform !== "deliveroo"), ecoReferenceDate ?? null),
     [detailLines, ecoReferenceDate],
   );
-  const prior = useMemo(
-    () => (isHistorique ? undefined
-      : selectedYear ? crossYearNotes(detailLines.filter(l => l.platform !== "deliveroo"), movedOutLines, selectedYear, fmt)
-      : priorYearShare(detailLines.filter(l => l.platform !== "deliveroo"))),
-    [detailLines, isHistorique, selectedYear, movedOutLines, fmt],
-  );
+
   const declStatus: UberDeclarationStatus = deduceUberDeclarationStatus({
     refund: ecoFlows.refund, charge: ecoFlows.charge, repStatus: repData?.status, chargesStopped: ecoFlows.chargesStopped,
   });
@@ -1435,7 +1401,7 @@ function RestaurantDrilldown({
         )}
         {showRepColumn && (
           <TableCell className="py-3 text-center" onClick={(e) => e.stopPropagation()}>
-            <UberDeclarationCell status={declStatus} flows={ecoFlows} fmt={fmt} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending} prior={prior}
+            <UberDeclarationCell status={declStatus} flows={ecoFlows} fmt={fmt} url={declUrl} hasIdu={!!firstIdu} declaration={declaration} pending={declPending}
               onDeclare={onDeclare ? () => onDeclare(r.restaurant_id) : undefined}
               onCancel={onCancelDeclaration && declaration ? () => onCancelDeclaration(declaration.id) : undefined} />
           </TableCell>
