@@ -6,6 +6,7 @@ import { format, startOfMonth, endOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
+import { detectConsolidation, replaceMonthWithPartial, type ConsolidationRow } from "@/lib/dataConsolidation";
 import { Loader2, FileDown, Zap, ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -811,10 +812,39 @@ export default function Analytics() {
           p_year: prevYear,
           p_restaurant_ids: restaurantFilter || null,
         });
-        return data || [];
+        // Année en cours : le mois en cours de N-1 est ramené aux mêmes jours que N (ex. 1er → 19 nov. 2025),
+        // pour comparer à date égale. Les mois suivants de N-1 restent entiers (courbe de référence).
+        const isPartialYear = endDate.getFullYear() === selectedYear && endDate < new Date(selectedYear, 11, 31);
+        if (!isPartialYear) return data || [];
+        const prevMonthStart = subYears(startOfMonth(endDate), 1);
+        const prevCutoff = subYears(endDate, 1);
+        const daily = await fetchAllDailyRows<any>('get_daily_revenue_from_orders', {
+          p_start_date: format(prevMonthStart, "yyyy-MM-dd"),
+          p_end_date: format(prevCutoff, "yyyy-MM-dd"),
+          p_restaurant_ids: restaurantFilter || null,
+        });
+        return replaceMonthWithPartial(data || [], daily, prevYear, endDate.getMonth() + 1);
       }
     },
     enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
+  });
+
+  // Vue année de l'année en cours : jours récents encore incomplets dans le mois en cours (zone grisée).
+  const isCurrentPeriod = granularity !== "daily" && endDate.getFullYear() === selectedYear
+    && endDate.getTime() >= Date.now() - 8 * 24 * 3600 * 1000;
+  const { data: currentMonthConsolidation } = useQuery({
+    queryKey: ["analytics_current_month_consolidation", restaurantFilter, format(endDate, "yyyy-MM-dd")],
+    queryFn: async () => {
+      const rows = await fetchAllDailyRows<ConsolidationRow>('get_daily_revenue_from_orders', {
+        p_start_date: format(startOfMonth(endDate), "yyyy-MM-dd"),
+        p_end_date: format(endDate, "yyyy-MM-dd"),
+        p_restaurant_ids: restaurantFilter || null,
+      });
+      const today = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
+      return detectConsolidation(rows, today, format(endDate, "yyyy-MM-dd"));
+    },
+    enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber && isCurrentPeriod,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: uberPrevConversionData } = useQuery({
@@ -1427,6 +1457,7 @@ export default function Analytics() {
                   />
                 )}
                 <AnalyticsCharts
+                  periodConsolidation={isCurrentPeriod ? currentMonthConsolidation ?? null : null}
                   revenueData={currentRevenueData}
                   conversionData={currentConversionData}
                   feesData={currentFeesData}

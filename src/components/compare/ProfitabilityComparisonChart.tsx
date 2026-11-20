@@ -3,8 +3,9 @@ import { format, eachMonthOfInterval, eachDayOfInterval, startOfMonth, subYears,
 import { fr } from "date-fns/locale";
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, 
-  Tooltip, ResponsiveContainer, ReferenceLine, Legend
+  Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, Legend
 } from "recharts";
+import { consolidationRange } from "@/lib/dataConsolidation";
 import { Button } from "@/components/ui/button";
 import { 
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow 
@@ -82,6 +83,8 @@ interface ProfitabilityComparisonChartProps {
   // Detailed mode: per-restaurant data
   dailyOrdersDataByRestaurant?: Record<string, DailyOrderData[]>;
   restaurantDetails?: RestaurantInfo[];
+  /** Premier jour dont les ventes Uber arrivent encore (yyyy-MM-dd) : zone grisée jusqu'à la fin. */
+  consolidationFrom?: string | null;
 }
 
 type ViewMode = "chart" | "table";
@@ -140,6 +143,7 @@ export const ProfitabilityComparisonChart = ({
   rollingPeriodRanges,
   dailyOrdersDataByRestaurant,
   restaurantDetails = [],
+  consolidationFrom = null,
 }: ProfitabilityComparisonChartProps) => {
   // Get profitability base from context
   const { profitabilityBase, setProfitabilityBase } = useAnalyticsContext();
@@ -1164,6 +1168,26 @@ export const ProfitabilityComparisonChart = ({
                 tickFormatter={(v) => `${v}%`}
               />
               <Tooltip content={<CustomTooltip />} />
+              {(() => {
+                const area = consolidationRange(
+                  displayChartData as any[],
+                  consolidationFrom,
+                  (r: any) => r.date ?? r.month,
+                  (r: any) => r.monthLabel,
+                );
+                return area ? (
+                  <ReferenceArea
+                    x1={area.x1}
+                    x2={area.x2}
+                    fill="hsl(var(--muted-foreground))"
+                    fillOpacity={0.12}
+                    stroke="hsl(var(--muted-foreground))"
+                    strokeOpacity={0.4}
+                    strokeDasharray="4 4"
+                    label={{ value: "Données en cours de remontée", position: "insideTopRight", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                  />
+                ) : null;
+              })()}
               
               {/* Action markers as ReferenceLine */}
               {showActions && chartData.map((dataPoint) => {

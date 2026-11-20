@@ -69,3 +69,70 @@ export function detectConsolidation(
   }
   return { start, lastDataDate, missingDays };
 }
+
+/** Premier jour concerné par la remontée : jour incomplet, sinon lendemain du dernier jour reçu s'il en manque. */
+export function consolidationFrom(info: ConsolidationInfo | null | undefined): string | null {
+  if (!info) return null;
+  if (info.start) return info.start;
+  if (info.missingDays > 0 && info.lastDataDate) return addDays(info.lastDataDate, 1);
+  return null;
+}
+
+/**
+ * Zone à griser sur une courbe : du point qui précède la période touchée jusqu'au dernier point.
+ * periodOf donne pour chaque point sa période ("yyyy-MM-dd" pour un jour, "yyyy-MM" pour un mois).
+ */
+export function consolidationRange<T>(
+  rows: T[],
+  from: string | null,
+  periodOf: (row: T) => string | null | undefined,
+  labelOf: (row: T) => string,
+): { x1: string; x2: string } | null {
+  if (!from || rows.length === 0) return null;
+  const i = rows.findIndex((r) => {
+    const p = periodOf(r);
+    if (!p) return false;
+    return p.length === 7 ? p === from.slice(0, 7) : p >= from;
+  });
+  if (i < 0) return null;
+  return { x1: labelOf(rows[Math.max(0, i - 1)]), x2: labelOf(rows[rows.length - 1]) };
+}
+
+export interface MonthlyRevenueRow {
+  restaurant_id: string;
+  year: number;
+  month: number;
+  platform?: string;
+  revenue_ttc: number | string;
+  order_count: number | string;
+  average_basket?: number | string;
+}
+
+/**
+ * Comparaison N-1 à date égale : remplace le mois en cours de N-1 par la somme de ses seuls premiers jours
+ * (ceux qui existent aussi en N). Les autres mois de N-1 restent entiers.
+ */
+export function replaceMonthWithPartial(
+  monthly: MonthlyRevenueRow[],
+  daily: { restaurant_id: string; revenue_ttc: number | string; order_count: number | string }[],
+  year: number,
+  month: number,
+): MonthlyRevenueRow[] {
+  const byResto = new Map<string, { revenue: number; orders: number }>();
+  for (const d of daily) {
+    const cur = byResto.get(d.restaurant_id) ?? { revenue: 0, orders: 0 };
+    cur.revenue += Number(d.revenue_ttc) || 0;
+    cur.orders += Number(d.order_count) || 0;
+    byResto.set(d.restaurant_id, cur);
+  }
+  const partial: MonthlyRevenueRow[] = [...byResto.entries()].map(([restaurant_id, v]) => ({
+    restaurant_id,
+    year,
+    month,
+    platform: "uber_eats",
+    revenue_ttc: Math.round(v.revenue * 100) / 100,
+    order_count: v.orders,
+    average_basket: v.orders > 0 ? Math.round((v.revenue / v.orders) * 100) / 100 : 0,
+  }));
+  return [...monthly.filter((r) => Number(r.month) !== month), ...partial];
+}

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { format, startOfWeek, endOfWeek, parseISO, subWeeks, addDays, isSameMonth } from "date-fns";
 import { fr } from "date-fns/locale";
 import { deduplicateWeeklyConversion } from "@/lib/deduplicateWeeklyConversion";
-import { detectConsolidation, type ConsolidationRow } from "@/lib/dataConsolidation";
+import { consolidationFrom, consolidationRange, detectConsolidation, type ConsolidationInfo, type ConsolidationRow } from "@/lib/dataConsolidation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -303,6 +303,8 @@ interface AnalyticsChartsProps {
   // Direct date range props for cross-year periods
   startDate?: Date;
   endDate?: Date;
+  /** Vue année de l'année en cours : jours récents encore incomplets (calculé par la page). */
+  periodConsolidation?: ConsolidationInfo | null;
   showComparison?: boolean;
   actions?: RestaurantAction[];
   chartActionsConfig?: ChartActionsConfig;
@@ -608,6 +610,7 @@ export function AnalyticsCharts({
   selectedYear,
   startDate: propStartDate,
   endDate: propEndDate,
+  periodConsolidation,
   showComparison = true,
   actions,
   chartActionsConfig,
@@ -1779,19 +1782,24 @@ export function AnalyticsCharts({
 
   // Jours récents dont les ventes Uber ne sont pas encore toutes arrivées (rapports reçus restaurant par restaurant).
   const consolidation = useMemo(() => {
-    if (!revenueData?.length || !("date" in revenueData[0])) return null;
+    // Vue jour : calcul sur les lignes reçues. Vue année : information fournie par la page (mois en cours).
+    if (!revenueData?.length || !("date" in revenueData[0])) {
+      return periodConsolidation && (periodConsolidation.start || periodConsolidation.missingDays > 0) ? periodConsolidation : null;
+    }
     const today = new Intl.DateTimeFormat("fr-CA", { timeZone: "Europe/Paris" }).format(new Date());
     const info = detectConsolidation(revenueData as unknown as ConsolidationRow[], today, format(profitEndDate, "yyyy-MM-dd"));
     return info.start || info.missingDays > 0 ? info : null;
-  }, [revenueData, profitEndDate]);
+  }, [revenueData, profitEndDate, periodConsolidation]);
+  const consolidationStart = consolidationFrom(consolidation);
 
-  /** Zone grisée : du dernier jour complet jusqu'à la fin de la courbe. */
-  const consolidationArea = (rows: any[]) => {
-    if (!consolidation?.start || rows.length === 0) return null;
-    const i = rows.findIndex((r) => r.fullDate === consolidation.start);
-    if (i < 0) return null;
-    return { x1: rows[Math.max(0, i - 1)].month, x2: rows[rows.length - 1].month };
-  };
+  /** Zone grisée : du dernier point complet jusqu'à la fin de la courbe (jour ou mois touché). */
+  const consolidationArea = (rows: any[]) =>
+    consolidationRange(
+      rows,
+      consolidationStart,
+      (r: any) => r.fullDate ?? (r.monthNum ? `${selectedYear}-${String(r.monthNum).padStart(2, "0")}` : null),
+      (r: any) => r.month,
+    );
 
   const renderConsolidationArea = (rows: any[]) => {
     const area = consolidationArea(rows);
@@ -1835,6 +1843,7 @@ export function AnalyticsCharts({
     return displayRevenueData.map((item: any) => ({
       month: item.month,
       monthNum: item.monthNum,
+      fullDate: item.fullDate,
       avgBasket: item.revenue != null && item.orders != null && item.orders > 0
         ? item.revenue / item.orders
         : 0,
@@ -3070,6 +3079,7 @@ export function AnalyticsCharts({
               <LineChart data={chartAvgBasketData}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                 <XAxis dataKey="month" className="text-xs" />
+                {renderConsolidationArea(chartAvgBasketData)}
                 <YAxis 
                   className="text-xs" 
                   domain={avgBasketDomain}
@@ -3190,6 +3200,7 @@ export function AnalyticsCharts({
               showActions={chartActionsConfig?.global}
               selectedActionIds={selectedActionIds}
               rollingPeriodRanges={rollingPeriodDateRanges}
+              consolidationFrom={consolidationStart}
             />
           </CardContent>
         </Card>
