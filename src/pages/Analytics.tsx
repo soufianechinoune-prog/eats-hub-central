@@ -507,16 +507,12 @@ export default function Analytics() {
 
 
       const t0 = performance.now();
-      const { data, error } = await supabase.rpc(profitabilityRpcName, {
+      const data = await fetchAllDailyRows<any>(profitabilityRpcName, {
         p_restaurant_ids: ids,
         p_start_date: format(startDate, "yyyy-MM-dd"),
         p_end_date: format(endDate, "yyyy-MM-dd"),
       });
       console.log(`[Analytics] ${profitabilityRpcName} took ${Math.round(performance.now() - t0)}ms`, { rows: data?.length });
-      if (error) {
-        console.error(`[Analytics] ${profitabilityRpcName} error:`, error);
-        throw error;
-      }
       return data || [];
     },
     enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,
@@ -532,15 +528,11 @@ export default function Analytics() {
       if (!ids.length) return [];
 
 
-      const { data, error } = await supabase.rpc(profitabilityRpcName, {
+      const data = await fetchAllDailyRows<any>(profitabilityRpcName, {
         p_restaurant_ids: ids,
         p_start_date: format(profitabilityPrevRange.start, "yyyy-MM-dd"),
         p_end_date: format(profitabilityPrevRange.end, "yyyy-MM-dd"),
       });
-      if (error) {
-        console.error(`[Analytics] ${profitabilityRpcName} prev error:`, error);
-        throw error;
-      }
       return data || [];
     },
     enabled: needsProfitability && isRestaurantScopeReady && (restaurants?.length || 0) > 0,

@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 import { useMemo } from "react";
 
 interface ProfitabilityRow {
@@ -40,13 +40,12 @@ export function useOfferFeesCorrelation(
     staleTime: 5 * 60 * 1000,
     enabled: ready,
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_profitability_monthly", {
+      // 1 ligne par restaurant et par mois : au-delà de 1 000 lignes, lecture par paquets.
+      return fetchAllDailyRows<ProfitabilityRow>("get_profitability_monthly", {
         p_restaurant_ids: restaurantIds,
         p_start_date: startDate,
         p_end_date: endDate,
       });
-      if (error) throw error;
-      return (data || []) as ProfitabilityRow[];
     },
   });
 
