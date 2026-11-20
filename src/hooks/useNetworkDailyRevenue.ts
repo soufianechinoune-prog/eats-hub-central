@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
+import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 
 /**
  * CA journalier réseau par canal (Uber Eats, Deliveroo, Caisse, Chataigne).
@@ -36,27 +36,14 @@ interface DailyRow {
   platform?: string | null;
 }
 
-async function callDailyRpc(
+function callDailyRpc(
   fn: string,
   start: string,
   end: string,
   restaurantIds: string[],
 ): Promise<DailyRow[]> {
   // 1 ligne par restaurant et par jour : l'API tronque à 1000 lignes → pagination.
-  const PAGE_SIZE = 1000;
-  const all: DailyRow[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await (supabase.rpc as any)(fn, {
-      p_start_date: start,
-      p_end_date: end,
-      p_restaurant_ids: restaurantIds,
-    }).range(from, from + PAGE_SIZE - 1);
-    if (error) throw error;
-    const rows = (data ?? []) as DailyRow[];
-    all.push(...rows);
-    if (rows.length < PAGE_SIZE) break;
-  }
-  return all;
+  return fetchAllDailyRows<DailyRow>(fn, { p_start_date: start, p_end_date: end, p_restaurant_ids: restaurantIds });
 }
 
 export function useNetworkDailyRevenue(

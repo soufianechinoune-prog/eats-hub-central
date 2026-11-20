@@ -5,6 +5,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { format, startOfMonth, endOfMonth, subYears, subWeeks } from "date-fns";
 import { fr } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 import { Loader2, FileDown, Zap, ArrowLeft } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -554,15 +555,11 @@ export default function Analytics() {
       console.log("[Analytics] Fetching uber revenue data from orders", { selectedYear, granularity, restaurantFilter });
       
       if (granularity === "daily") {
-        const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        const data = await fetchAllDailyRows<any>('get_daily_revenue_from_orders', {
           p_start_date: format(startDate, "yyyy-MM-dd"),
           p_end_date: format(endDate, "yyyy-MM-dd"),
           p_restaurant_ids: restaurantFilter || null,
         });
-        if (error) {
-          console.error("[Analytics] get_daily_revenue_from_orders error:", error);
-          throw error;
-        }
         return (data || []).map((item: any) => ({
           ...item,
           month: new Date(item.date).getMonth() + 1,
@@ -782,12 +779,11 @@ export default function Analytics() {
         prevEndDate.setDate(prevEndDate.getDate() - 28);
         
         if (granularity === "daily") {
-          const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+          const data = await fetchAllDailyRows<any>('get_daily_revenue_from_orders', {
             p_start_date: format(prevStartDate, "yyyy-MM-dd"),
             p_end_date: format(prevEndDate, "yyyy-MM-dd"),
             p_restaurant_ids: restaurantFilter || null,
           });
-          if (error) throw error;
           return (data || []).map((item: any) => ({
             ...item,
             month: new Date(item.date).getMonth() + 1,
@@ -810,12 +806,11 @@ export default function Analytics() {
         const prevEndDate = new Date(endDate);
         prevEndDate.setFullYear(prevEndDate.getFullYear() - 1);
         
-        const { data, error } = await supabase.rpc('get_daily_revenue_from_orders', {
+        const data = await fetchAllDailyRows<any>('get_daily_revenue_from_orders', {
           p_start_date: format(prevStartDate, "yyyy-MM-dd"),
           p_end_date: format(prevEndDate, "yyyy-MM-dd"),
           p_restaurant_ids: restaurantFilter || null,
         });
-        if (error) throw error;
         return (data || []).map((item: any) => ({
           ...item,
           month: new Date(item.date).getMonth() + 1,

@@ -6,6 +6,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useWeatherData, useSyncWeatherData } from "@/hooks/useWeatherData";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SimpleWeatherGauge } from "./SimpleWeatherGauge";
@@ -41,14 +42,11 @@ export function WeatherCorrelation({ startDate, endDate }: WeatherCorrelationPro
       const startStr = format(startDate, "yyyy-MM-dd");
       const endStr = format(endDate, "yyyy-MM-dd");
 
-      const { data, error } = await supabase
-        .rpc("get_daily_revenue_from_orders", {
+      const data = await fetchAllDailyRows<any>("get_daily_revenue_from_orders", {
           p_start_date: startStr,
           p_end_date: endStr,
           p_restaurant_ids: restaurantIds.length > 0 ? restaurantIds : null,
         });
-
-      if (error) throw error;
       return (data || []).map((d: any) => ({
         date: d.date,
         revenue_ttc: Number(d.revenue_ttc),

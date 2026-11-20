@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -80,14 +81,11 @@ const InaccurateOrdersComparison = () => {
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
 
-      const { data, error } = await supabase
-        .rpc("get_daily_revenue_from_orders", {
+      const data = await fetchAllDailyRows<any>("get_daily_revenue_from_orders", {
           p_start_date: format(dateRange.start, "yyyy-MM-dd"),
           p_end_date: format(dateRange.end, "yyyy-MM-dd"),
           p_restaurant_ids: selectedRestaurants.map(r => r.id),
         });
-
-      if (error) throw error;
       return (data || []).map((d: any) => ({
         restaurant_id: d.restaurant_id,
         date: d.date,
