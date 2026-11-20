@@ -1175,6 +1175,17 @@ export const ProfitabilityComparisonChart = ({
                   (r: any) => r.date ?? r.month,
                   (r: any) => r.monthLabel,
                 );
+                if (area && area.x1 === area.x2) {
+                  return (
+                    <ReferenceLine
+                      x={area.x1}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeOpacity={0.15}
+                      strokeWidth={28}
+                      label={{ value: "En cours de remontée", position: "insideTop", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+                    />
+                  );
+                }
                 return area ? (
                   <ReferenceArea
                     x1={area.x1}

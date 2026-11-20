@@ -48,9 +48,9 @@ describe("consolidationFrom / consolidationRange", () => {
     expect(consolidationFrom({ start: null, lastDataDate: "2026-11-17", missingDays: 2 })).toBe("2026-11-18");
     expect(consolidationFrom({ start: null, lastDataDate: "2026-10-31", missingDays: 0 })).toBeNull();
   });
-  it("vue année : grise d'octobre à novembre", () => {
-    const rows = [{ m: "2026-09", l: "Sep" }, { m: "2026-10", l: "Oct" }, { m: "2026-11", l: "Nov" }];
-    expect(consolidationRange(rows, "2026-11-18", (r) => r.m, (r) => r.l)).toEqual({ x1: "Oct", x2: "Nov" });
+  it("vue année : seulement novembre, pas octobre ni décembre N-1", () => {
+    const rows = [{ m: "2026-10", l: "Oct" }, { m: "2026-11", l: "Nov" }, { m: "2026-12", l: "Déc" }];
+    expect(consolidationRange(rows, "2026-11-18", (r) => r.m, (r) => r.l)).toEqual({ x1: "Nov", x2: "Nov" });
   });
   it("vue mois : grise du 17 au 18", () => {
     const rows = [{ d: "2026-11-16" }, { d: "2026-11-17" }, { d: "2026-11-18" }];

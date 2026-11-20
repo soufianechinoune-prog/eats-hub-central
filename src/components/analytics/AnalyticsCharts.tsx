@@ -1804,6 +1804,18 @@ export function AnalyticsCharts({
   const renderConsolidationArea = (rows: any[]) => {
     const area = consolidationArea(rows);
     if (!area) return null;
+    // Vue année : un seul mois touché → bande légère centrée sur ce mois.
+    if (area.x1 === area.x2) {
+      return (
+        <ReferenceLine
+          x={area.x1}
+          stroke="hsl(var(--muted-foreground))"
+          strokeOpacity={0.15}
+          strokeWidth={28}
+          label={{ value: "En cours de remontée", position: "insideTop", fill: "hsl(var(--muted-foreground))", fontSize: 11 }}
+        />
+      );
+    }
     return (
       <ReferenceArea
         x1={area.x1}

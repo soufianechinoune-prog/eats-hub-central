@@ -79,7 +79,10 @@ export function consolidationFrom(info: ConsolidationInfo | null | undefined): s
 }
 
 /**
- * Zone à griser sur une courbe : du point qui précède la période touchée jusqu'au dernier point.
+ * Zone à griser sur une courbe.
+ * - Courbe par jour : du dernier jour complet jusqu'au dernier point (1 à 2 jours en pratique).
+ * - Courbe par mois : uniquement le mois en cours (x1 = x2 → bande légère sur ce seul mois) ;
+ *   jamais les mois suivants affichés pour l'année précédente.
  * periodOf donne pour chaque point sa période ("yyyy-MM-dd" pour un jour, "yyyy-MM" pour un mois).
  */
 export function consolidationRange<T>(
@@ -95,6 +98,7 @@ export function consolidationRange<T>(
     return p.length === 7 ? p === from.slice(0, 7) : p >= from;
   });
   if (i < 0) return null;
+  if (periodOf(rows[i])!.length === 7) return { x1: labelOf(rows[i]), x2: labelOf(rows[i]) };
   return { x1: labelOf(rows[Math.max(0, i - 1)]), x2: labelOf(rows[rows.length - 1]) };
 }
 
