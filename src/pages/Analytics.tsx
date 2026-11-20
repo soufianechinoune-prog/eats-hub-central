@@ -558,19 +558,18 @@ export default function Analytics() {
           year: new Date(item.date).getFullYear(),
         }));
       } else {
-        const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+        const data = await fetchAllDailyRows<any>('get_monthly_revenue_from_orders', {
           p_year: selectedYear,
           p_restaurant_ids: restaurantFilter || null,
         });
-        if (error) {
-          console.error("[Analytics] get_monthly_revenue_from_orders error:", error);
-          throw error;
-        }
         return data || [];
       }
     },
     retry: (count: number, error: any) => error?.code !== "57014" && count < 1,
-    placeholderData: (previousData: any) => previousData,
+    // On garde l'ancienne courbe pendant le chargement uniquement si l'échelle est la même :
+    // sinon l'année affichait le détail du mois précédent (constat du 20/11/2026).
+    placeholderData: (previousData: any, previousQuery: any) =>
+      previousQuery?.queryKey?.[3] === granularity ? previousData : undefined,
     enabled: needsRevenue && isRestaurantScopeReady && shouldLoadUber,
   });
 
@@ -782,11 +781,10 @@ export default function Analytics() {
             year: new Date(item.date).getFullYear(),
           }));
         } else {
-          const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+          const data = await fetchAllDailyRows<any>('get_monthly_revenue_from_orders', {
             p_year: prevStartDate.getFullYear(),
             p_restaurant_ids: restaurantFilter || null,
           });
-          if (error) throw error;
           return data || [];
         }
       }
@@ -809,11 +807,10 @@ export default function Analytics() {
           year: new Date(item.date).getFullYear(),
         }));
       } else {
-        const { data, error } = await supabase.rpc('get_monthly_revenue_from_orders', {
+        const data = await fetchAllDailyRows<any>('get_monthly_revenue_from_orders', {
           p_year: prevYear,
           p_restaurant_ids: restaurantFilter || null,
         });
-        if (error) throw error;
         return data || [];
       }
     },
@@ -978,7 +975,8 @@ export default function Analytics() {
       const rows = await fetchAllDeliverooOrderRows(format(startDate, "yyyy-MM-dd"), format(endDate, "yyyy-MM-dd"));
       return aggregateDeliverooRevenue(rows, granularity);
     },
-    placeholderData: (previousData: any) => previousData,
+    placeholderData: (previousData: any, previousQuery: any) =>
+      previousQuery?.queryKey?.[3] === granularity ? previousData : undefined,
     enabled: needsRevenue && isRestaurantScopeReady && shouldLoadDeliveroo,
   });
 
