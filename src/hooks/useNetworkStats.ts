@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { format } from "date-fns";
+import { errorTotalsByRestaurant, fetchOrderErrorsSummary } from "@/lib/orderErrors";
 import { filterActiveRestaurants, isActiveForPeriod, getEffectiveOpeningDate } from "@/lib/restaurantActivityFilter";
 
 export interface PlatformBreakdown {
@@ -271,6 +272,20 @@ export function useNetworkStats({
     ...RETRY_CONFIG,
   });
 
+  // Commandes en erreur comptées côté base (même clé que la Vue d'ensemble → une seule requête).
+  // daily_order_accuracy est vide pour toutes les enseignes (constat 20/11/2026) : sans ce résumé,
+  // le tableau affichait 0,0 % partout.
+  const { data: errorSummaryData, isLoading: errorsLoading } = useQuery({
+    queryKey: ["overview-errors-summary", restaurantIds, startDateStr, endDateStr],
+    queryFn: async () => {
+      const rows = await fetchOrderErrorsSummary(restaurantIds, startDateStr, endDateStr);
+      return rows.filter((r) => r.level === "total");
+    },
+    enabled: hasIds && wave1Done,
+    ...RETRY_CONFIG,
+  });
+  const errorOrdersByResto = useMemo(() => errorTotalsByRestaurant(errorSummaryData ?? []), [errorSummaryData]);
+
   // Orders payout via RPC — shared cache key with useOverviewData (overview-sales)
   const { data: ordersPayoutData, isLoading: ordersPayoutLoading } = useQuery({
     queryKey: ["overview-sales", restaurantIds, startDateStr, endDateStr],
@@ -419,7 +434,10 @@ export function useNetworkStats({
         (sum, a) => sum + Number(a.incorrect_orders_count || 0),
         0
       );
-      const errorRate = orders > 0 ? (totalIncorrect / orders) * 100 : null;
+      // Rapport Uber « commandes incorrectes » s'il existe, sinon commandes avec au moins un article en erreur.
+      // Les erreurs ne concernent qu'Uber Eats : on les rapporte aux commandes Uber.
+      const errorOrders = totalIncorrect > 0 ? totalIncorrect : (errorOrdersByResto.get(resto.id)?.orders ?? 0);
+      const errorRate = errorSummaryData && uberOrders > 0 ? (errorOrders / uberOrders) * 100 : null;
 
       // Availability from RPC summary
       const restoAvail = availabilityData?.find((a) => a.restaurant_id === resto.id);
@@ -529,6 +547,8 @@ export function useNetworkStats({
     negotiatedCofinData,
     prepTimeSummaryData,
     accuracyData,
+    errorSummaryData,
+    errorOrdersByResto,
     availabilityData,
     profitabilityBase,
     includeN1Comparison,
@@ -572,11 +592,13 @@ export function useNetworkStats({
           validTotalDeliveryTimes.length
         : null;
 
-    const validErrorRates = stats.filter((s) => s.errorRate != null);
+    // Moyenne pondérée par le nombre de commandes Uber (un petit restaurant ne pèse pas autant qu'un gros).
+    const validErrorRates = stats.filter((s) => s.errorRate != null && s.platformBreakdown.uber.orders > 0);
+    const errorOrdersWeight = validErrorRates.reduce((sum, s) => sum + s.platformBreakdown.uber.orders, 0);
     const avgErrorRate =
-      validErrorRates.length > 0
-        ? validErrorRates.reduce((sum, s) => sum + (s.errorRate ?? 0), 0) /
-          validErrorRates.length
+      errorOrdersWeight > 0
+        ? validErrorRates.reduce((sum, s) => sum + (s.errorRate ?? 0) * s.platformBreakdown.uber.orders, 0) /
+          errorOrdersWeight
         : null;
 
     const validDowntimes = stats.filter((s) => s.downtime != null);
@@ -639,6 +661,7 @@ export function useNetworkStats({
     ordersPayoutLoading ||
     historyLoading ||
     accuracyLoading ||
+    errorsLoading ||
     availabilityLoading;
 
   return {

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { fetchOrderErrorsSummary } from "@/lib/orderErrors";
 
 const PAGE_SIZE = 1000;
 const RETRY_CONFIG = {
@@ -320,50 +321,21 @@ function useOverviewDeliverooSales(
   });
 }
 
-function useOverviewConversion(
+// Commandes incorrectes comptées côté base (l'API ne rendait que 1 000 lignes d'erreur sur 62 000).
+function useOverviewErrors(
   restaurantIds: string[],
   startDateStr: string,
   endDateStr: string,
   enabled: boolean,
 ) {
   return useQuery({
-    queryKey: ["overview-conversion", restaurantIds, startDateStr, endDateStr],
+    queryKey: ["overview-errors-summary", restaurantIds, startDateStr, endDateStr],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("daily_conversion")
-        .select("restaurant_id, visits, menu_views, add_to_cart, orders, date")
-        .gte("date", startDateStr)
-        .lte("date", endDateStr)
-        .in("restaurant_id", restaurantIds)
-        .range(0, 10000);
-      if (error) throw error;
-      return data || [];
+      const rows = await fetchOrderErrorsSummary(restaurantIds, startDateStr, endDateStr);
+      return rows.filter((r) => r.level === "total");
     },
     enabled,
-    ...RETRY_CONFIG,
-  });
-}
-
-function useOverviewErrors(
-  restaurantIds: string[],
-  startDate: Date,
-  endDate: Date,
-  enabled: boolean,
-) {
-  return useQuery({
-    queryKey: ["overview-errors", restaurantIds, startDate.toISOString(), endDate.toISOString()],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("order_errors")
-        .select("restaurant_id, error_date, financial_impact, uber_order_id")
-        .gte("error_date", startDate.toISOString())
-        .lte("error_date", endDate.toISOString())
-        .in("restaurant_id", restaurantIds)
-        .range(0, 10000);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled,
+    ...pastPeriodCache(endDateStr),
     ...RETRY_CONFIG,
   });
 }
@@ -439,11 +411,10 @@ export function useOverviewData(
   // All remaining queries in parallel (no wave dependencies needed)
   const reviews = useOverviewReviews(restaurantIds, startDateStr, endDateStr, hasIds);
   const accuracy = useOverviewAccuracy(restaurantIds, startDateStr, endDateStr, hasIds);
-  const errors = useOverviewErrors(restaurantIds, startDate, endDate, hasIds);
+  const errors = useOverviewErrors(restaurantIds, startDateStr, endDateStr, hasIds);
   const prepTimes = useOverviewPrepTimes(restaurantIds, startDate, endDate, hasIds);
   const availability = useOverviewAvailability(restaurantIds, startDate, endDate, hasIds);
   const products = useOverviewProducts(restaurantIds, startDate, endDate, startDateStr, endDateStr, hasIds);
-  const conversion = useOverviewConversion(restaurantIds, startDateStr, endDateStr, hasIds);
 
   // Compute aggregated data
   const computedData = (): OverviewData | null => {
@@ -458,7 +429,6 @@ export function useOverviewData(
     const availabilityData = availability.data || [];
     const menuReviewsData = products.data?.menuReviews || [];
     const orderItemsData = products.data?.orderItems || [];
-    const conversionData = conversion.data || [];
     const restos = filterRestaurantIds && filterRestaurantIds.length > 0
       ? restaurants.data.filter(r => filterRestaurantIds.includes(r.id))
       : restaurants.data;
@@ -486,20 +456,15 @@ export function useOverviewData(
     const totalWaitCount = prepTimesData.reduce((sum: number, d: any) => sum + (d.avoidable_wait_count || 0), 0);
     const avgCourierWait = totalWaitCount > 0 ? totalWaitSum / totalWaitCount : null;
 
-    const totalErrors = errorsData.length;
-    const errorRate = totalOrders > 0 ? (totalErrors / totalOrders) * 100 : null;
+    // Une commande avec plusieurs articles en erreur compte une seule fois.
+    const totalErrors = errorsData.reduce((sum, e) => sum + e.error_orders, 0);
+    const errorRate = totalOrders > 0 && errorsData.length > 0 ? (totalErrors / totalOrders) * 100 : null;
 
+    // Rapport Uber « commandes incorrectes » (daily_order_accuracy) s'il existe, sinon les erreurs importées.
     const totalIncorrectOrders = accuracyData.reduce((sum, a: any) => sum + Number(a.incorrect_orders_count || 0), 0);
-
-    let incorrectOrderRate: number | null = null;
-    if (totalIncorrectOrders > 0 && totalOrders > 0) {
-      incorrectOrderRate = (totalIncorrectOrders / totalOrders) * 100;
-    } else if (errorsData.length > 0 && totalOrders > 0) {
-      const distinctErrorOrderIds = new Set(
-        errorsData.map((e: any) => e.uber_order_id).filter(Boolean)
-      );
-      incorrectOrderRate = (distinctErrorOrderIds.size / totalOrders) * 100;
-    }
+    const incorrectOrderRate = totalIncorrectOrders > 0 && totalOrders > 0
+      ? (totalIncorrectOrders / totalOrders) * 100
+      : errorRate;
 
     const productApprovalRate = menuReviewsData.length > 0
       ? (menuReviewsData.filter((r: any) => r.thumb_up === 1).length / menuReviewsData.length) * 100
@@ -547,7 +512,7 @@ export function useOverviewData(
       // Revenue from aggregated RPC (one row per restaurant)
       const restoSales = dailySalesData.find((d) => d.restaurant_id === resto.id);
       const restoReviewAggs = reviewsData.filter((r: any) => r.restaurant_id === resto.id);
-      const restoErrors = errorsData.filter((e: any) => e.restaurant_id === resto.id);
+      const restoErrorOrders = errorsData.find((e) => e.restaurant_id === resto.id)?.error_orders ?? 0;
       const restoPayouts = payoutsData.filter((p: any) => p.restaurant_id === resto.id);
 
       const revenue = restoSales?.revenue_ttc || 0;
@@ -560,7 +525,7 @@ export function useOverviewData(
       const restoPrepSummary = prepTimesData.find((h: any) => h.restaurant_id === resto.id);
       const prepTime = restoPrepSummary?.avg_prep_time ?? null;
 
-      const restoErrorRate = orders > 0 ? (restoErrors.length / orders) * 100 : null;
+      const restoErrorRate = orders > 0 ? (restoErrorOrders / orders) * 100 : null;
       const restoPayoutSales = restoPayouts.reduce((sum, p: any) => sum + Number(p.sales_incl_vat || 0), 0);
       const restoNetPayout = restoPayouts.reduce((sum, p: any) => sum + Number(p.net_payout || 0) + Number(p.meal_voucher_amount || 0), 0);
       const profitability = restoPayoutSales > 0 ? (restoNetPayout / restoPayoutSales) * 100 : null;
@@ -594,20 +559,10 @@ export function useOverviewData(
     const topByProfitability = sortedByProfitability.slice(0, 5);
     const flopByProfitability = sortedByProfitability.slice(-5).reverse();
 
-    // Conversion ranking
-    const conversionMetrics = restos
-      .map((resto) => {
-        const restoConv = conversionData.filter((c: any) => c.restaurant_id === resto.id);
-        const visits = restoConv.reduce((sum, c: any) => sum + (c.visits || 0), 0);
-        const orders = restoConv.reduce((sum, c: any) => sum + (c.orders || 0), 0);
-        const conversionRate = visits > 0 ? (orders / visits) * 100 : 0;
-        return { id: resto.id, name: resto.name, city: resto.city, visits, orders, conversionRate: parseFloat(conversionRate.toFixed(2)) };
-      })
-      .filter((r) => r.visits > 0);
-
-    const sortedByConversion = [...conversionMetrics].sort((a, b) => b.conversionRate - a.conversionRate);
-    const topByConversion = sortedByConversion.slice(0, 5);
-    const flopByConversion = sortedByConversion.slice(-5).reverse();
+    // Conversion : la table daily_conversion est vide pour toutes les enseignes (constat 20/11/2026).
+    // Ces classements ne sont affichés nulle part ; on ne télécharge plus rien.
+    const topByConversion: any[] = [];
+    const flopByConversion: any[] = [];
 
     // Platform-specific: sales data is Uber-only (from get_network_orders_summary on orders table)
     const uberOrders = totalOrders; // orders table = Uber only
@@ -674,7 +629,7 @@ export function useOverviewData(
         rating: uberRating,
         prepTime: uberPrepTime != null ? Math.round(uberPrepTime) : null,
         courierWaitTime: avgCourierWait,
-        errorRate: uberOrders > 0 ? (errorsData.length / uberOrders) * 100 : null,
+        errorRate: uberOrders > 0 && errorsData.length > 0 ? (totalErrors / uberOrders) * 100 : null,
         incorrectOrderRate,
         profitability: uberProfitability,
         downtime: uberDowntimeHours,
@@ -711,7 +666,7 @@ export function useOverviewData(
   const wave1Loading = restaurants.isLoading || sales.isLoading || deliverooSales.isLoading;
   const wave2Loading = reviews.isLoading || accuracy.isLoading || errors.isLoading;
   const wave3Loading = prepTimes.isLoading || availability.isLoading;
-  const wave4Loading = products.isLoading || conversion.isLoading;
+  const wave4Loading = products.isLoading;
   const isFullyLoaded = !wave1Loading && !wave2Loading && !wave3Loading && !wave4Loading;
 
   // Any critical error (wave 1)
@@ -736,11 +691,10 @@ export function useOverviewData(
       ["overview-deliveroo-sales"],
       ["overview-reviews"],
       ["overview-accuracy"],
-      ["overview-errors"],
+      ["overview-errors-summary"],
       ["overview-prep-times"],
       ["overview-availability"],
       ["overview-products"],
-      ["overview-conversion"],
     ],
   };
 }

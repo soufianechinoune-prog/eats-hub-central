@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchOrderErrorsSummary, type OrderErrorSummaryRow } from "@/lib/orderErrors";
 import { fetchAllDailyRows } from "@/lib/fetchAllDailyRows";
 import { usePinnedRestaurants, useActiveRestaurants } from "@/hooks/useChainRestaurants";
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, parseISO } from "date-fns";
@@ -56,21 +57,16 @@ const InaccurateOrdersComparison = () => {
 
   const selectedRestaurants = isNetworkView ? allActiveRestaurants : pinnedRestaurants;
 
-  // Fetch order errors from order_errors table
+  // Commandes en erreur comptées côté base (avant : lignes téléchargées, coupées à 1 000).
   const { data: orderErrorsData, isLoading: errorsLoading } = useQuery({
-    queryKey: ["inaccurate-orders-comparison-errors", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
+    queryKey: ["inaccurate-orders-comparison-errors-summary", selectedRestaurants?.map(r => r.id), dateRange.start, dateRange.end, isNetworkView],
     queryFn: async () => {
       if (!selectedRestaurants?.length) return [];
-
-      const { data, error } = await supabase
-        .from("order_errors")
-        .select("restaurant_id, uber_order_id, financial_impact, error_date, error_category")
-        .in("restaurant_id", selectedRestaurants.map(r => r.id))
-        .gte("error_date", format(dateRange.start, "yyyy-MM-dd"))
-        .lte("error_date", format(dateRange.end, "yyyy-MM-dd"));
-
-      if (error) throw error;
-      return data || [];
+      return fetchOrderErrorsSummary(
+        selectedRestaurants.map(r => r.id),
+        format(dateRange.start, "yyyy-MM-dd"),
+        format(dateRange.end, "yyyy-MM-dd"),
+      );
     },
     enabled: !!selectedRestaurants?.length,
   });
@@ -115,51 +111,36 @@ const InaccurateOrdersComparison = () => {
       }
     });
 
-    // Group order_errors by restaurant
-    const errorsByRestaurant: Record<string, typeof orderErrorsData> = {};
+    // Résumé par restaurant : total, jour de semaine, catégorie
+    const errorsByRestaurant: Record<string, OrderErrorSummaryRow[]> = {};
     orderErrorsData.forEach((row) => {
-      if (!errorsByRestaurant[row.restaurant_id]) {
-        errorsByRestaurant[row.restaurant_id] = [];
-      }
-      errorsByRestaurant[row.restaurant_id].push(row);
+      (errorsByRestaurant[row.restaurant_id] ??= []).push(row);
     });
 
     const stats = selectedRestaurants.map((restaurant) => {
-      const errors = errorsByRestaurant[restaurant.id] || [];
+      const rows = errorsByRestaurant[restaurant.id] || [];
       const orderData = orderCountsByRestaurant[restaurant.id] || { total: 0, weekday: {} };
+      const total = rows.find((r) => r.level === "total");
 
-      // Count distinct orders with errors
-      const distinctOrderIds = new Set(errors.map((e) => e.uber_order_id).filter(Boolean));
-      const errorCount = distinctOrderIds.size;
-
-      // Sum financial impact
-      const totalFinancialImpact = errors.reduce((sum, e) => sum + (e.financial_impact || 0), 0);
+      // Commandes distinctes en erreur et impact financier
+      const errorCount = total?.error_orders ?? 0;
+      const totalFinancialImpact = total?.financial_impact ?? 0;
 
       const orderCount = orderData.total;
       const errorRate = orderCount > 0 ? (errorCount / orderCount) * 100 : 0;
 
-      // Group errors by day of week
       const weekdayData: Record<number, { errors: number; orders: number }> = {};
       for (let i = 0; i <= 6; i++) {
         weekdayData[i] = { errors: 0, orders: orderData.weekday[i] || 0 };
       }
-      // Count distinct uber_order_ids per weekday
-      const orderIdsByWeekday: Record<number, Set<string>> = {};
-      for (let i = 0; i <= 6; i++) orderIdsByWeekday[i] = new Set();
-      errors.forEach((e) => {
-        if (!e.error_date || !e.uber_order_id) return;
-        const weekday = parseISO(e.error_date).getDay();
-        orderIdsByWeekday[weekday].add(e.uber_order_id);
+      rows.forEach((r) => {
+        if (r.level === "weekday" && r.weekday != null) weekdayData[r.weekday].errors = r.error_orders;
       });
-      for (let i = 0; i <= 6; i++) {
-        weekdayData[i].errors = orderIdsByWeekday[i].size;
-      }
 
-      // Category breakdown from error_category
+      // Répartition par catégorie (en articles en erreur, comme avant)
       const categoryCounts: Record<string, number> = {};
-      errors.forEach((e) => {
-        const cat = e.error_category || "Autre";
-        categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+      rows.forEach((r) => {
+        if (r.level === "category") categoryCounts[r.category || "Autre"] = r.error_lines;
       });
 
       return {
