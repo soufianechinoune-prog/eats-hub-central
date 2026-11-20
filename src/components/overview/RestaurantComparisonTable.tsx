@@ -21,7 +21,7 @@ import { Info } from "lucide-react";
 import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
-import { revenueChange, isLaunchN1 } from "@/lib/overviewN1";
+import { revenueChange, isLaunchN1, isNewSinceN1 } from "@/lib/overviewN1";
 import { summarizeUberRatings, type RatingAggregate } from "@/lib/uberRatings";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "rating90" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
@@ -507,7 +507,7 @@ export function RestaurantComparisonTable({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
-                    Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants ouverts à la fois sur la période sélectionnée et sur la même période l'année précédente. Les autres restaurants restent visibles mais sans variation.
+                    Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants déjà ouverts au début de la période N-1. Les ouvertures plus récentes restent visibles avec le badge « Nouveau », sans variation.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -711,7 +711,25 @@ export function RestaurantComparisonTable({
                     {showN1Column && (() => {
                       const od = resto.openingDates;
                       const opening = channelTab === "uber" ? (od?.uber ?? od?.effective) : channelTab === "deliveroo" ? (od?.deliveroo ?? od?.effective) : od?.effective;
-                      const launch = isLaunchN1(opening, startDateStr, endDateStr);
+                      const isNew = isNewSinceN1(opening, startDateStr);
+                      const launch = !isNew && isLaunchN1(opening, startDateStr, endDateStr);
+                      if (isNew && opening) {
+                        // N-1 incomplet : pas de pourcentage (ex. Antony +15 928 %), et hors évolution du réseau
+                        return (
+                          <TableCell className="text-right">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge variant="secondary" className="text-[11px] px-2 py-0 whitespace-nowrap cursor-help">Nouveau</Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs text-xs">
+                                  Ouvert le {opening.split("-").reverse().join("/")}, après le début de la période N-1 : pas de comparaison possible. Ce restaurant n'entre pas dans l'évolution du réseau à périmètre constant.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </TableCell>
+                        );
+                      }
                       return (
                         <TableCell className="text-right">
                           <div className="flex flex-col items-end gap-0.5">
@@ -720,10 +738,10 @@ export function RestaurantComparisonTable({
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap cursor-help">Ouverture N-1</Badge>
+                                    <Badge variant="outline" className="text-[10px] px-1.5 py-0 whitespace-nowrap cursor-help">Lancement N-1</Badge>
                                   </TooltipTrigger>
                                   <TooltipContent className="max-w-xs text-xs">
-                                    Restaurant ouvert le {opening.split("-").reverse().join("/")} — la période de référence N-1 correspondait à son lancement, la variation est donc gonflée.
+                                    Restaurant ouvert le {opening.split("-").reverse().join("/")}, peu avant la période N-1 : il était encore en lancement, la variation peut être faussée.
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>

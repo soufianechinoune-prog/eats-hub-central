@@ -34,3 +34,18 @@ export function isLaunchN1(openingDate: string | null | undefined, start: string
   const windowStart = shift(start, -1, -3);
   return openingDate > windowStart && openingDate <= prevEnd;
 }
+
+const shiftYears = (d: string, years: number) => {
+  const [y, m, day] = d.split("-").map(Number);
+  return format(new Date(y + years, m - 1, day, 12), "yyyy-MM-dd");
+};
+
+/**
+ * Restaurant « nouveau » : ouvert après le début de la période N-1 (ou pas d'ouverture connue avant).
+ * Son N-1 est incomplet : la variation (ex. Antony +15 928 %) ne veut rien dire et ne doit pas
+ * peser dans l'évolution du réseau à périmètre constant.
+ */
+export function isNewSinceN1(openingDate: string | null | undefined, start: string): boolean {
+  if (!openingDate || !start) return false;
+  return openingDate > shiftYears(start, -1);
+}

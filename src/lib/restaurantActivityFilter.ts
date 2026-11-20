@@ -27,30 +27,26 @@ function formatDateLocal(date: Date): string {
 }
 
 /**
- * Date d'ouverture effective d'un restaurant.
- * Priorité: date saisie manuellement (Uber / Deliveroo), sinon première activité réelle détectée.
+ * Date d'ouverture effective d'un restaurant : la plus ancienne date connue entre
+ * - les dates saisies (Uber / Deliveroo) ;
+ * - la première activité réelle détectée (caisse, Uber ≥ 10 commandes ou Deliveroo, calculée en base).
+ * Avant le 20/11/2026, le premier jour de caisse primait : or l'historique caisse commence parfois
+ * des mois après l'ouverture (Tasty Crousty Nanterre : caisse 04/2026, Uber dès 04/2025).
+ * Les dates impossibles (avant 2015) sont ignorées.
  */
 export function getEffectiveOpeningDate(restaurant: RestaurantWithDates): {
   date: string | null;
   isAuto: boolean;
   source: string | null;
 } {
-  // Le premier jour de caisse fait foi : c'est la vraie ouverture du restaurant.
-  if (restaurant.first_activity_date && (restaurant.first_activity_source || 'cash') === 'cash') {
-    return { date: restaurant.first_activity_date, isAuto: true, source: 'cash' };
+  const valid = (d: string | null | undefined): d is string => !!d && d >= "2015-01-01";
+  const manual = [restaurant.uber_opening_date, restaurant.deliveroo_opening_date].filter(valid).sort();
+  const auto = valid(restaurant.first_activity_date) ? restaurant.first_activity_date : null;
+  if (auto && (manual.length === 0 || auto < manual[0])) {
+    return { date: auto, isAuto: true, source: restaurant.first_activity_source || 'cash' };
   }
-  const manual = [restaurant.uber_opening_date, restaurant.deliveroo_opening_date]
-    .filter((d): d is string => !!d)
-    .sort();
   if (manual.length > 0) {
     return { date: manual[0], isAuto: false, source: 'manual' };
-  }
-  if (restaurant.first_activity_date) {
-    return {
-      date: restaurant.first_activity_date,
-      isAuto: true,
-      source: restaurant.first_activity_source || 'cash',
-    };
   }
   return { date: null, isAuto: false, source: null };
 }

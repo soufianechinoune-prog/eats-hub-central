@@ -428,7 +428,14 @@ export function NetworkComparisonTable({
                     </TableCell>
                     {comparisonMode && (
                     <TableCell className="text-right">
-                      {row.variation != null ? (
+                      {row.resto.isNewSinceN1 ? (
+                        <span
+                          className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                          title={`Ouvert le ${(row.resto.openingDates?.effective ?? "").split("-").reverse().join("/")}, après le début de la période N-1 : pas de comparaison possible.`}
+                        >
+                          Nouveau
+                        </span>
+                      ) : row.variation != null ? (
                         <span
                           className={cn(
                             "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums",

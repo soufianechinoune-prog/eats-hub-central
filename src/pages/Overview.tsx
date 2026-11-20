@@ -506,9 +506,8 @@ const Overview = () => {
 
   const error = overviewError;
   // Vue simple (défaut) vs vue Comparaison : les variations N-1, le périmètre
-  // constant et l'exclusion du mois d'ouverture ne s'affichent qu'en mode Comparaison.
+  // constant (ouvertures récentes exclues d'office) ne s'affichent qu'en mode Comparaison.
   const [comparisonMode, setComparisonMode] = useState(false);
-  const [excludeOpeningMonth, setExcludeOpeningMonth] = useState(false);
   const [excludeZeroRevenue, setExcludeZeroRevenue] = useState(false);
 
   const { stats: comparisonStats, networkTotals, isLoading: statsLoading } = useNetworkStats({
@@ -518,7 +517,6 @@ const Overview = () => {
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
     comparisonScope: analyticsCtx.comparisonScope,
-    excludeOpeningMonth,
     reviewsData: overviewReviewsData,
   });
 
@@ -1628,8 +1626,6 @@ const Overview = () => {
               onToggleConstantScope={(v) => analyticsCtx.setComparisonScope(v ? "constant" : "extended")}
               comparedRestaurantCount={comparedCount}
               totalRestaurantCount={networkTotals.totalRestaurantCount}
-              excludeOpeningMonth={excludeOpeningMonth}
-              onToggleExcludeOpeningMonth={setExcludeOpeningMonth}
               zeroRevenueCount={statsLoading ? 0 : zeroRevenueRestaurants.length}
               excludeZeroRevenue={excludeZeroRevenue}
               onToggleExcludeZeroRevenue={setExcludeZeroRevenue}

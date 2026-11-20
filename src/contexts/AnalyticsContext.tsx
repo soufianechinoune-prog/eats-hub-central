@@ -98,7 +98,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   );
 
   const [comparisonScope, setComparisonScope] = useState<ComparisonScope>(
-    () => storedState?.comparisonScope || "extended"
+    // Périmètre constant par défaut (20/11/2026) : sans lui, les ouvertures récentes masquent l'évolution
+    // réelle (Chicken Street 2026 : −3,8 % réseau complet, −20,4 % à périmètre constant).
+    // Nouvelle clé de sauvegarde : l'ancienne valeur « extended », enregistrée par défaut, est ignorée une fois.
+    () => storedState?.comparisonScopeV2 || "constant"
   );
 
   const [profitabilityBase, setProfitabilityBase] = useState<ProfitabilityBase>(
@@ -216,7 +219,7 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       selectedMonth,
       periodMode,
       comparisonMode,
-      comparisonScope,
+      comparisonScopeV2: comparisonScope,
       profitabilityBase,
       selectedChainId,
       dateRange: dateRange

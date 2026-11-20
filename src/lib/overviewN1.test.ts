@@ -41,3 +41,18 @@ describe("isLaunchN1", () => {
     expect(launch("2026-01-10", "2026-10-01", "2026-10-28")).toBe(false);
   });
 });
+
+import { isNewSinceN1 } from "./overviewN1";
+describe("isNewSinceN1", () => {
+  it("Antony (13/11/2025) : nouveau en vue 2026 et en vue novembre 2026", () => {
+    expect(isNewSinceN1("2025-11-13", "2026-01-01")).toBe(true);
+    expect(isNewSinceN1("2025-11-13", "2026-11-01")).toBe(true);
+  });
+  it("ouvert avant le début de N-1 : comparable", () => {
+    expect(isNewSinceN1("2024-06-01", "2026-01-01")).toBe(false);
+    expect(isNewSinceN1("2025-01-01", "2026-01-01")).toBe(false);
+  });
+  it("date inconnue : pas de badge", () => {
+    expect(isNewSinceN1(null, "2026-01-01")).toBe(false);
+  });
+});

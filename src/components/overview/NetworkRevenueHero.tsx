@@ -59,7 +59,7 @@ function ScopeToggle({
     <div
       role="group"
       aria-label="Périmètre de comparaison"
-      title="Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
+      title="Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants déjà ouverts au début de la période N-1. Les ouvertures plus récentes sont affichées « Nouveau » et ne comptent pas dans l'évolution."
       className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
     >
       {options.map((o) => {
@@ -122,8 +122,6 @@ export interface NetworkRevenueHeroProps {
   onToggleConstantScope: (value: boolean) => void;
   comparedRestaurantCount?: number | null;
   totalRestaurantCount?: number | null;
-  excludeOpeningMonth?: boolean;
-  onToggleExcludeOpeningMonth?: (value: boolean) => void;
   zeroRevenueCount?: number;
   excludeZeroRevenue?: boolean;
   onToggleExcludeZeroRevenue?: (value: boolean) => void;
@@ -149,8 +147,6 @@ export function NetworkRevenueHero({
   onToggleConstantScope,
   comparedRestaurantCount,
   totalRestaurantCount,
-  excludeOpeningMonth = false,
-  onToggleExcludeOpeningMonth,
   zeroRevenueCount = 0,
   excludeZeroRevenue = false,
   onToggleExcludeZeroRevenue,
@@ -215,15 +211,6 @@ export function NetworkRevenueHero({
                   >
                     <Switch checked={excludeZeroRevenue} onCheckedChange={onToggleExcludeZeroRevenue} />
                     Exclure les restaurants à 0 € ({zeroRevenueCount})
-                  </label>
-                )}
-                {constantScope && onToggleExcludeOpeningMonth && (
-                  <label
-                    className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground"
-                    title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel (ouverture le 22 ou le 30) fausse la comparaison."
-                  >
-                    <Switch checked={excludeOpeningMonth} onCheckedChange={onToggleExcludeOpeningMonth} />
-                    Exclure le mois d'ouverture
                   </label>
                 )}
                 <ScopeToggle
