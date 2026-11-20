@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { CHANNEL_LABEL, frDate, n1StatusTooltip } from "@/lib/channelOpening";
 import { cn } from "@/lib/utils";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import type { RestaurantNetworkStats, NetworkTotals } from "@/hooks/useNetworkStats";
@@ -428,12 +429,12 @@ export function NetworkComparisonTable({
                     </TableCell>
                     {comparisonMode && (
                     <TableCell className="text-right">
-                      {row.resto.isNewSinceN1 ? (
+                      {row.resto.n1 && (row.resto.n1.status === "new" || row.resto.n1.status === "incomplete") ? (
                         <span
-                          className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                          title={`Ouvert le ${(row.resto.openingDates?.effective ?? "").split("-").reverse().join("/")}, après le début de la période N-1 : pas de comparaison possible.`}
+                          className="inline-flex items-center whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                          title={n1StatusTooltip(row.resto.n1)}
                         >
-                          Nouveau
+                          {row.resto.n1.status === "new" ? "Nouveau" : "Historique incomplet"}
                         </span>
                       ) : row.variation != null ? (
                         <span
@@ -450,6 +451,14 @@ export function NetworkComparisonTable({
                         </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
+                      )}
+                      {row.resto.n1?.status === "ok" && row.resto.n1.addedChannels.length > 0 && (
+                        <div
+                          className="mt-0.5 text-[10px] text-muted-foreground whitespace-nowrap"
+                          title="Canal ouvert pendant la période : une partie de la hausse vient de ce nouveau canal, pas d'une progression des canaux existants."
+                        >
+                          {row.resto.n1.addedChannels.map((a) => `${CHANNEL_LABEL[a.channel]} depuis le ${frDate(a.date)}`).join(" · ")}
+                        </div>
                       )}
                     </TableCell>
                     )}

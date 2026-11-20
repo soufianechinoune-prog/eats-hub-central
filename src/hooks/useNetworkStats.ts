@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { errorTotalsByRestaurant, fetchOrderErrorsSummary } from "@/lib/orderErrors";
-import { isNewSinceN1 } from "@/lib/overviewN1";
+import { CHANNEL_DATE_COLUMNS, restaurantN1Status, type RestaurantN1, type ScopeChannel } from "@/lib/channelOpening";
 import { filterActiveRestaurants, isActiveForPeriod, getEffectiveOpeningDate } from "@/lib/restaurantActivityFilter";
 
 export interface PlatformBreakdown {
@@ -24,6 +24,8 @@ export interface RestaurantNetworkStats {
   openingDates?: { effective: string | null; uber: string | null; deliveroo: string | null };
   /** Ouvert après le début de la période N-1 : pas de variation affichée (« Nouveau »). */
   isNewSinceN1?: boolean;
+  /** Statut N-1 pour le canal affiché (Nouveau / Historique incomplet / comparable). */
+  n1?: RestaurantN1;
   // Financial metrics
   revenue: number;
   orders: number;
@@ -83,6 +85,8 @@ interface UseNetworkStatsParams {
   profitabilityBase?: "gross" | "net";
   includeN1Comparison?: boolean;
   comparisonScope?: "extended" | "constant";
+  /** Canal affiché : chaque canal a sa propre date d'ouverture et son propre début d'historique. */
+  scopeChannel?: ScopeChannel;
   reviewsData?: any[] | null;
 }
 
@@ -108,6 +112,7 @@ export function useNetworkStats({
   profitabilityBase = "gross",
   includeN1Comparison = false,
   comparisonScope = "extended",
+  scopeChannel = "all",
   reviewsData: externalReviewsData = null,
 }: UseNetworkStatsParams) {
   const startDateStr = format(startDate, "yyyy-MM-dd");
@@ -133,7 +138,7 @@ export function useNetworkStats({
       if (!hasIds) return [];
       const { data, error } = await supabase
         .from("restaurants")
-        .select("id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source")
+        .select(`id, name, city, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source, ${CHANNEL_DATE_COLUMNS}`)
         .in("id", restaurantIds);
       if (error) throw error;
       return data || [];
@@ -147,9 +152,10 @@ export function useNetworkStats({
     return filterActiveRestaurants(restaurantsRaw, startDate, endDate);
   }, [restaurantsRaw, startDate, endDate]);
 
-  // Périmètre constant : restaurants ouverts sur TOUTE la période N-1 (ouverture au plus tard le premier
-  // jour de N-1) et encore actifs sur N. Un restaurant ouvert pendant N-1 (Antony, 13/11/2025) a un N-1
-  // incomplet : il est affiché « Nouveau » et sort de l'évolution du réseau.
+  // Périmètre constant : pour le canal affiché, restaurants dont le canal était ouvert ET suivi dans nos
+  // données dès le début de la période N-1 (dates par canal, voir src/lib/channelOpening.ts).
+  // Ouverture pendant N-1 (Antony, 13/11/2025) → « Nouveau » ; données qui commencent après le début de
+  // N-1 (Goussainville côté Uber) → « Historique incomplet ». Les deux sortent de l'évolution du réseau.
   const constantScopeIds = useMemo<Set<string>>(() => {
     if (!restaurantsRaw) return new Set();
     const prevStart = new Date(startDate);
@@ -159,11 +165,11 @@ export function useNetworkStats({
     const ids = new Set<string>();
     for (const r of restaurantsRaw) {
       if (!isActiveForPeriod(r, startDate, endDate) || !isActiveForPeriod(r, prevStart, prevEnd)) continue;
-      if (isNewSinceN1(getEffectiveOpeningDate(r).date, startDateStr)) continue;
+      if (restaurantN1Status(r, scopeChannel, startDateStr).status !== "ok") continue;
       ids.add(r.id);
     }
     return ids;
-  }, [restaurantsRaw, startDate, endDate, startDateStr]);
+  }, [restaurantsRaw, startDate, endDate, startDateStr, scopeChannel]);
 
 
   // Deliveroo sales via RPC — shared cache key with useOverviewData
@@ -440,8 +446,11 @@ export function useNetworkStats({
           : null;
 
       // En périmètre constant, on masque la variation pour les restos non éligibles (ouverts sur 1 seule période)
-      const isNew = isNewSinceN1(getEffectiveOpeningDate(resto).date, startDateStr);
-      const inConstantScope = !isNew && (comparisonScope === "extended" || constantScopeIds.has(resto.id));
+      // Statut N-1 du restaurant pour le canal affiché ; la variation « revenue » porte sur Uber + Deliveroo.
+      const n1 = restaurantN1Status(resto, scopeChannel, startDateStr);
+      const deliveryN1 = restaurantN1Status(resto, "all", startDateStr, ["uber", "deliveroo"]);
+      const isNew = n1.status === "new";
+      const inConstantScope = deliveryN1.status === "ok" && (comparisonScope === "extended" || constantScopeIds.has(resto.id));
       const revenueVariation =
         includeN1Comparison && inConstantScope && prevRevenue > 0
           ? ((revenue - prevRevenue) / prevRevenue) * 100
@@ -485,6 +494,7 @@ export function useNetworkStats({
           deliveroo: resto.deliveroo_opening_date ?? null,
         },
         isNewSinceN1: isNew,
+        n1,
         revenue,
         orders,
         avgBasket,
@@ -546,6 +556,8 @@ export function useNetworkStats({
     includeN1Comparison,
     comparisonScope,
     constantScopeIds,
+    scopeChannel,
+    startDateStr,
   ]);
 
   // Calculate network totals

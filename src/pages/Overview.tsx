@@ -517,6 +517,11 @@ const Overview = () => {
     profitabilityBase: "gross",
     includeN1Comparison: showN1Comparison,
     comparisonScope: analyticsCtx.comparisonScope,
+    // Chaque canal a sa propre date d'ouverture (caisse ≠ Uber Eats ≠ Deliveroo).
+    scopeChannel: activeChannel === "uber" || activeChannel === "uber-tr" ? "uber"
+      : activeChannel === "deliveroo" ? "deliveroo"
+      : activeChannel === "cash" ? "cash"
+      : "all",
     reviewsData: overviewReviewsData,
   });
 

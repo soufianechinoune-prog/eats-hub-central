@@ -12513,6 +12513,16 @@ export type Database = {
           dirigeant_legal: string | null
           first_activity_date: string | null
           first_activity_source: string | null
+          uber_first_date: string | null
+          uber_history_start: string | null
+          cash_first_date: string | null
+          cash_history_start: string | null
+          deliveroo_first_date: string | null
+          deliveroo_history_start: string | null
+          channel_dates_refreshed_at: string | null
+          uber_is_opening: boolean | null
+          cash_is_opening: boolean | null
+          deliveroo_is_opening: boolean | null
           id: string
           is_active: boolean | null
           is_pinned: boolean | null
@@ -12564,6 +12574,16 @@ export type Database = {
           dirigeant_legal?: string | null
           first_activity_date?: string | null
           first_activity_source?: string | null
+          uber_first_date?: string | null
+          uber_history_start?: string | null
+          cash_first_date?: string | null
+          cash_history_start?: string | null
+          deliveroo_first_date?: string | null
+          deliveroo_history_start?: string | null
+          channel_dates_refreshed_at?: string | null
+          uber_is_opening?: boolean | null
+          cash_is_opening?: boolean | null
+          deliveroo_is_opening?: boolean | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -12615,6 +12635,16 @@ export type Database = {
           dirigeant_legal?: string | null
           first_activity_date?: string | null
           first_activity_source?: string | null
+          uber_first_date?: string | null
+          uber_history_start?: string | null
+          cash_first_date?: string | null
+          cash_history_start?: string | null
+          deliveroo_first_date?: string | null
+          deliveroo_history_start?: string | null
+          channel_dates_refreshed_at?: string | null
+          uber_is_opening?: boolean | null
+          cash_is_opening?: boolean | null
+          deliveroo_is_opening?: boolean | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null

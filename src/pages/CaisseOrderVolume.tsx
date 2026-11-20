@@ -20,6 +20,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { getEffectiveOpeningDate, isActiveForPeriod, type RestaurantWithDates } from "@/lib/restaurantActivityFilter";
+import { CHANNEL_DATE_COLUMNS, channelN1Status, type ChannelDatesRow } from "@/lib/channelOpening";
 import { cn } from "@/lib/utils";
 
 const int = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -57,21 +58,19 @@ export default function CaisseOrderVolume() {
   const [excludeZeroRaw, setExcludeZero] = useState(false);
   const [comparisonMode, setComparisonMode] = useState(true);
   const [compareW4, setCompareW4] = useState(false);
-  const [excludeOpeningMonthRaw, setExcludeOpeningMonth] = useState(false);
   const isTargeted = (selectedRestaurants?.length ?? 0) > 0;
   const comparableOnly = isTargeted && comparableOnlyRaw;
-  const excludeOpeningMonth = !isTargeted && comparisonMode && constantScopeRaw && excludeOpeningMonthRaw;
   const excludeZero = !isTargeted && comparisonMode && excludeZeroRaw;
   const effGran: Gran = gran ?? (granularity === "daily" ? "day" : granularity === "weekly" ? "week" : "month");
 
   const { data: restaurants } = useQuery({
     queryKey: ["caisse-volume-restaurants-dates", selectedChainId],
     queryFn: async () => {
-      let q = supabase.from("restaurants").select("id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source").order("name");
+      let q = supabase.from("restaurants").select(`id, name, uber_opening_date, uber_closing_date, deliveroo_opening_date, deliveroo_closing_date, first_activity_date, first_activity_source, ${CHANNEL_DATE_COLUMNS}`).order("name");
       if (selectedChainId) q = q.eq("chain_id", selectedChainId);
       const { data, error } = await q;
       if (error) throw error;
-      return data as (RestaurantWithDates & { id: string; name: string })[];
+      return data as unknown as (RestaurantWithDates & ChannelDatesRow & { id: string; name: string })[];
     },
   });
   const allIds = useMemo<string[] | undefined>(() => {
@@ -79,26 +78,24 @@ export default function CaisseOrderVolume() {
     const all = restaurants.map((r) => r.id);
     return resolveBrandScopedRestaurantIds({ selectedRestaurantIds: selectedRestaurants, selectedChainId, chainRestaurantIds: all }) ?? all;
   }, [restaurants, selectedRestaurants, selectedChainId]);
-  // Périmètre constant strict : ouvert (1er jour de caisse) dès le premier jour de N-1, et actif sur N
+  // Périmètre constant strict, sur la date de la CAISSE (pas celle d'Uber) : caisse ouverte et suivie dans
+  // nos données dès le premier jour de N-1, et restaurant actif sur N. Une ouverture pendant N-1 est
+  // écartée d'office (l'ancien bouton « Exclure le mois d'ouverture » n'est plus utile).
   const prevStartDate = subYears(startDate, 1);
   const prevEndDate = subYears(endDate, 1);
   const constantIds = useMemo(() => {
     if (!restaurants || !allIds) return undefined;
     const set = new Set(allIds);
-    const prevStartStr = format(prevStartDate, "yyyy-MM-dd");
-    const prevEndStr = format(prevEndDate, "yyyy-MM-dd");
+    const startStr = format(startDate, "yyyy-MM-dd");
     return restaurants
       .filter((r) => {
         if (!set.has(r.id)) return false;
-        const open = getEffectiveOpeningDate(r).date;
-        // Ouvert au plus tard pendant N-1 (même logique que la Vue réseau)
-        if (!open || open > prevEndStr) return false;
-        // Option : écarter les restos dont le mois d'ouverture tombe dans N-1 (mois partiel)
-        if (excludeOpeningMonth && open >= prevStartStr.slice(0, 7) + "-01") return false;
+        if (channelN1Status(r, "cash", startStr) !== "ok") return false;
         return isActiveForPeriod(r, startDate, endDate) && isActiveForPeriod(r, prevStartDate, prevEndDate);
       })
       .map((r) => r.id);
-  }, [restaurants, allIds, startDate, endDate, excludeOpeningMonth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurants, allIds, startDate, endDate]);
   const constantScope = !isTargeted && comparisonMode && constantScopeRaw;
   const ids = constantScope ? constantIds : allIds;
   const enabled = !!ids && ids.length > 0;
@@ -136,7 +133,8 @@ export default function CaisseOrderVolume() {
 
   const openDateById = useMemo(() => {
     const m = new Map<string, string | null>();
-    (restaurants ?? []).forEach((r) => m.set(r.id, getEffectiveOpeningDate(r).date));
+    // Premier jour de caisse (à défaut, date d'ouverture générale)
+    (restaurants ?? []).forEach((r) => m.set(r.id, r.cash_first_date ?? getEffectiveOpeningDate(r).date));
     return m;
   }, [restaurants]);
 
@@ -258,16 +256,10 @@ export default function CaisseOrderVolume() {
                 Exclure les restaurants à 0 ({zeroIds.size})
               </label>
             )}
-            {!isTargeted && comparisonMode && constantScope && (
-              <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-muted-foreground" title="Écarte les restaurants dont le mois d'ouverture tombe dans la période N-1 : un mois partiel fausse la comparaison.">
-                <Switch checked={excludeOpeningMonthRaw} onCheckedChange={setExcludeOpeningMonth} />
-                Exclure le mois d'ouverture
-              </label>
-            )}
             {!isTargeted && comparisonMode && (<div
               role="group"
               aria-label="Périmètre de comparaison"
-              title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants ouverts sur les deux périodes."
+              title="Périmètre constant : la comparaison VS N-1 n'est calculée que sur les restaurants dont la caisse était ouverte (et suivie dans nos données) dès le début de la période N-1."
               className="inline-flex items-center gap-0.5 rounded-full border border-border bg-muted/50 p-0.5"
             >
               {([

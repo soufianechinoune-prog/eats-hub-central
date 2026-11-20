@@ -21,7 +21,8 @@ import { Info } from "lucide-react";
 import { NegotiatedCofinPopover } from "@/components/shared/NegotiatedCofinPopover";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { format } from "date-fns";
-import { revenueChange, isLaunchN1, isNewSinceN1 } from "@/lib/overviewN1";
+import { revenueChange, isLaunchN1 } from "@/lib/overviewN1";
+import { n1StatusTooltip } from "@/lib/channelOpening";
 import { summarizeUberRatings, type RatingAggregate } from "@/lib/uberRatings";
 
 type SortColumn = "name" | "city" | "revenue" | "orders" | "avgBasket" | "netPayout" | "mealVoucher" | "rating" | "rating90" | "profitability" | "totalDeliveryTime" | "errorRate" | "downtime" | "adsRatio" | "cashRevenue" | "uberRevenue" | "deliverooRevenue" | "dishopRevenue" | "chataigneRevenue";
@@ -507,7 +508,7 @@ export function RestaurantComparisonTable({
                     </div>
                   </TooltipTrigger>
                   <TooltipContent side="top" className="max-w-xs text-xs">
-                    Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants déjà ouverts au début de la période N-1. Les ouvertures plus récentes restent visibles avec le badge « Nouveau », sans variation.
+                    Périmètre constant : la variation VS N-1 n'est calculée que sur les restaurants déjà ouverts au début de la période N-1. Chaque canal a sa propre date d'ouverture. Les ouvertures plus récentes (« Nouveau ») et les restaurants dont nos données commencent après (« Historique incomplet ») restent visibles, sans variation.
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -711,20 +712,21 @@ export function RestaurantComparisonTable({
                     {showN1Column && (() => {
                       const od = resto.openingDates;
                       const opening = channelTab === "uber" ? (od?.uber ?? od?.effective) : channelTab === "deliveroo" ? (od?.deliveroo ?? od?.effective) : od?.effective;
-                      const isNew = isNewSinceN1(opening, startDateStr);
-                      const launch = !isNew && isLaunchN1(opening, startDateStr, endDateStr);
-                      if (isNew && opening) {
-                        // N-1 incomplet : pas de pourcentage (ex. Antony +15 928 %), et hors évolution du réseau
+                      // Statut calculé avec la date d'ouverture et l'historique du canal affiché
+                      const n1 = resto.n1;
+                      const launch = n1?.status === "ok" && isLaunchN1(opening, startDateStr, endDateStr);
+                      if (n1 && (n1.status === "new" || n1.status === "incomplete")) {
+                        // Pas de pourcentage (ex. Antony +15 928 %), et hors évolution du réseau
                         return (
                           <TableCell className="text-right">
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
-                                  <Badge variant="secondary" className="text-[11px] px-2 py-0 whitespace-nowrap cursor-help">Nouveau</Badge>
+                                  <Badge variant="secondary" className="text-[11px] px-2 py-0 whitespace-nowrap cursor-help">
+                                    {n1.status === "new" ? "Nouveau" : "Historique incomplet"}
+                                  </Badge>
                                 </TooltipTrigger>
-                                <TooltipContent className="max-w-xs text-xs">
-                                  Ouvert le {opening.split("-").reverse().join("/")}, après le début de la période N-1 : pas de comparaison possible. Ce restaurant n'entre pas dans l'évolution du réseau à périmètre constant.
-                                </TooltipContent>
+                                <TooltipContent className="max-w-xs text-xs">{n1StatusTooltip(n1)}</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           </TableCell>

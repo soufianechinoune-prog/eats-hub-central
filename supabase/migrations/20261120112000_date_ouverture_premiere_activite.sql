@@ -12,7 +12,7 @@
 --   - le premier jour Uber avec au moins 10 commandes (écarte les commandes de test avant ouverture) ;
 --   - la première commande Deliveroo.
 -- Les dates impossibles (avant 2015, ex. « an 1 ») sont ignorées.
--- Lancement nocturne automatique : EN ATTENTE de validation (non créé le 20/11/2026).
+-- Lancement nocturne automatique : créé dans 20261120120000_dates_ouverture_par_canal.sql (validé le 20/11/2026).
 -- Sauvegarde des anciennes valeurs : restaurants_first_activity_backup_20261120.
 
 CREATE TABLE IF NOT EXISTS public.restaurants_first_activity_backup_20261120 AS
@@ -82,5 +82,5 @@ $function$;
 
 SELECT public.refresh_restaurant_first_activity();
 
--- En attente de validation :
+-- Remplacé par la tâche restaurant-dates-nightly (voir 20261120120000) :
 -- SELECT cron.schedule('first-activity-nightly', '40 3 * * *', 'SELECT public.refresh_restaurant_first_activity()');
