@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useChataigneOrderItems, type ChataigneOrderItemRow } from "@/hooks/useChataigne";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
@@ -86,8 +88,140 @@ interface OrderRow {
 
 const num = (v: unknown) => (v == null ? null : Number(v));
 
+const Line = ({ label, value, strong, className }: { label: string; value: string; strong?: boolean; className?: string }) => (
+  <div className={cn("flex items-baseline justify-between gap-4 py-1 text-sm", strong && "font-semibold")}>
+    <span className={cn(!strong && "text-muted-foreground")}>{label}</span>
+    <span className={cn("tabular-nums", className)}>{value}</span>
+  </div>
+);
+
+/** Panneau latéral : la commande telle que le client l'a passée, puis le calcul du gain. */
+function OrderSheet({ order, restaurantName, hasReal, onClose }: { order: OrderRow | null; restaurantName: string; hasReal: boolean; onClose: () => void }) {
+  const { data: head, isLoading: headLoading } = useQuery({
+    queryKey: ["chataigne-gain-order-head", order?.order_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("chataigne_orders")
+        .select("chataigne_order_id, raw_payload")
+        .eq("id", order!.order_id)
+        .maybeSingle();
+      if (error) throw error;
+      const payload = (data?.raw_payload ?? null) as { charges?: unknown } | null;
+      const charges = (Array.isArray(payload?.charges) ? payload.charges : []) as { type?: string; amount?: { amount?: number } }[];
+      const charge = (t: string) => charges.filter((c) => c.type === t).reduce((sum, c) => sum + (Number(c.amount?.amount) || 0), 0);
+      return {
+        chataigneOrderId: data?.chataigne_order_id ?? null,
+        service: charge("service"),
+        delivery: charge("delivery"),
+      };
+    },
+    enabled: !!order,
+  });
+  const { data: items, isLoading: itemsLoading } = useChataigneOrderItems(head?.chataigneOrderId ?? null);
+
+  const tree = useMemo(() => {
+    const list = items ?? [];
+    const children = new Map<string, ChataigneOrderItemRow[]>();
+    for (const it of list) {
+      if (it.depth > 0 && it.parent_item_id) {
+        if (!children.has(it.parent_item_id)) children.set(it.parent_item_id, []);
+        children.get(it.parent_item_id)!.push(it);
+      }
+    }
+    // Deux lignes identiques dans la même commande partagent le même identifiant : leurs choix ne sont affichés qu'une fois.
+    const owner = new Map<string, string>();
+    for (const it of list) if (it.item_id && !owner.has(it.item_id)) owner.set(it.item_id, it.id);
+    return { roots: list.filter((it) => it.depth === 0), children, owner };
+  }, [items]);
+  const itemsTotal = (items ?? []).reduce((sum, it) => sum + it.quantity * it.unit_price_amount, 0);
+
+  const renderItem = (it: ChataigneOrderItemRow, level: number): React.ReactNode => (
+    <Fragment key={it.id}>
+      <div className={cn("flex items-baseline justify-between gap-4 py-1", level === 0 ? "text-sm font-medium" : "text-sm text-muted-foreground")} style={{ paddingLeft: level * 16 }}>
+        <span>
+          {it.quantity > 1 || level === 0 ? `${it.quantity} × ` : ""}
+          {it.item_name ?? "Article"}
+        </span>
+        <span className="whitespace-nowrap tabular-nums">
+          {it.unit_price_amount > 0 ? `${level > 0 ? "+ " : ""}${eur(it.quantity * it.unit_price_amount)}` : ""}
+        </span>
+      </div>
+      {(it.item_id && tree.owner.get(it.item_id) === it.id ? tree.children.get(it.item_id) ?? [] : []).map((c) => renderItem(c, level + 1))}
+    </Fragment>
+  );
+
+  return (
+    <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
+      <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
+        {order && (
+          <>
+            <SheetHeader className="text-left">
+              <SheetTitle>Commande {order.short_id ?? ""}</SheetTitle>
+              <SheetDescription>
+                {restaurantName} · {format(new Date(order.order_datetime), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })} · livraison
+              </SheetDescription>
+            </SheetHeader>
+
+            <div className="mt-6 space-y-6">
+              <section>
+                <h3 className="mb-2 text-sm font-semibold">Ce que le client a commandé</h3>
+                {headLoading || itemsLoading ? (
+                  <Skeleton className="h-32 w-full" />
+                ) : tree.roots.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Le détail des articles n'est pas disponible pour cette commande.</p>
+                ) : (
+                  <div className="divide-y rounded-md border px-3 py-1">
+                    {tree.roots.map((it) => (
+                      <div key={it.id} className="py-1.5">{renderItem(it, 0)}</div>
+                    ))}
+                  </div>
+                )}
+                <div className="mt-3">
+                  <Line label="Articles" value={eur(itemsTotal)} />
+                  <Line label="Frais de livraison" value={eur(head?.delivery ?? order.delivery_fee)} />
+                  <Line label="Frais de service" value={eur(head?.service ?? null)} />
+                  <div className="mt-1 border-t pt-1">
+                    <Line label="Total payé par le client" value={eur(order.total_amount)} strong />
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="mb-2 text-sm font-semibold">Ce que la livraison rapporte au restaurant</h3>
+                <div className="rounded-md border px-3 py-2">
+                  <Line label="Markup (prix livraison − prix emporté)" value={eur(order.markup, true)} />
+                  <Line label="Frais de livraison payés par le client" value={eur(order.delivery_fee, true)} />
+                  <Line label="Uber Direct facturé au restaurant" value={order.cap_cost == null ? "—" : eur(-order.cap_cost)} />
+                  <div className="mt-1 border-t pt-1">
+                    <Line label="Gain" value={eur(order.gain_cap, true)} strong className={tone(order.gain_cap)} />
+                  </div>
+                </div>
+                {order.items_without_ref > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Markup partiel : le prix emporté est inconnu pour {int(order.items_without_ref)} article{order.items_without_ref > 1 ? "s" : ""}, compté{order.items_without_ref > 1 ? "s" : ""} pour 0 €.
+                  </p>
+                )}
+                {hasReal && (
+                  <div className="mt-3 rounded-md border px-3 py-2">
+                    <Line
+                      label={`Vrai tarif Uber Direct${order.distance_km != null ? ` (course de ${order.distance_km.toFixed(1).replace(".", ",")} km)` : ""}`}
+                      value={order.real_cost == null ? "inconnu" : eur(order.real_cost)}
+                    />
+                    <Line label="Gain si on payait le vrai tarif" value={eur(order.gain_real, true)} strong className={tone(order.gain_real)} />
+                  </div>
+                )}
+              </section>
+            </div>
+          </>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 /** Détail commande par commande d'un restaurant (commandes livrées sans offre client, période sélectionnée). */
-function OrdersDetail({ restaurantId, start, end, hasReal }: { restaurantId: string; start: string; end: string; hasReal: boolean }) {
+function OrdersDetail({ restaurantId, restaurantName, start, end, hasReal }: { restaurantId: string; restaurantName: string; start: string; end: string; hasReal: boolean }) {
+  const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
     queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end],
     queryFn: async () => {
@@ -123,6 +257,7 @@ function OrdersDetail({ restaurantId, start, end, hasReal }: { restaurantId: str
 
   return (
     <div className="overflow-x-auto rounded-md border bg-background">
+      <OrderSheet order={selected} restaurantName={restaurantName} hasReal={hasReal} onClose={() => setSelected(null)} />
       <Table>
         <TableHeader>
           <TableRow>
@@ -140,7 +275,12 @@ function OrdersDetail({ restaurantId, start, end, hasReal }: { restaurantId: str
         </TableHeader>
         <TableBody>
           {data.map((o) => (
-            <TableRow key={o.order_id}>
+            <TableRow
+              key={o.order_id}
+              className={cn("cursor-pointer", selected?.order_id === o.order_id && "bg-muted")}
+              onClick={() => setSelected(o)}
+              title="Voir la commande du client"
+            >
               <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
               <TableCell className="whitespace-nowrap font-mono text-xs">
                 {o.short_id ?? "—"}
@@ -447,7 +587,7 @@ export default function ChataigneDeliveryGain() {
                                     <div className="mb-2 text-xs font-medium text-muted-foreground">
                                       Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name}
                                     </div>
-                                    <OrdersDetail restaurantId={r.restaurant_id} start={start} end={end} hasReal={r.real_orders > 0} />
+                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} hasReal={r.real_orders > 0} />
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -464,7 +604,7 @@ export default function ChataigneDeliveryGain() {
                   </div>
                 </Card>
                 <p className="text-xs text-muted-foreground">
-                  Cliquez sur un restaurant pour voir ses commandes une par une. « Gain » = markup + frais de livraison client − prix Uber Direct facturé au restaurant.
+                  Cliquez sur un restaurant pour voir ses commandes, puis sur une commande pour voir ce que le client a commandé. « Gain » = markup + frais de livraison client − prix Uber Direct facturé au restaurant.
                   {hasReal && " « Gain au vrai tarif » = même calcul avec le prix réel de chaque course."} Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
                 </p>
               </section>
