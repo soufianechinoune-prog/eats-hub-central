@@ -21,7 +21,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
-import { deliveryGainTotals, parseDeliveryGainRows, perOrder, type DeliveryGainRow } from "@/lib/deliveryGain";
+import { deliveryGainTotals, parseDeliveryGainRows, restaurantFigures, type DeliveryGainRow, type GainFigures } from "@/lib/deliveryGain";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const eur = (v: number | null | undefined, sign = false) => {
   if (v == null || !Number.isFinite(v)) return "—";
@@ -32,20 +34,6 @@ const eur = (v: number | null | undefined, sign = false) => {
 const int = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v || 0));
 const tone = (v: number | null | undefined) =>
   v == null ? "text-muted-foreground" : v < 0 ? "text-destructive" : "text-success";
-
-type SortKey = "name" | "orders" | "markup" | "fees" | "uber" | "gain" | "gainOrder";
-
-const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
-  switch (k) {
-    case "name": return r.restaurant_name.toLowerCase();
-    case "orders": return r.orders;
-    case "markup": return r.markup;
-    case "fees": return r.delivery_fees;
-    case "uber": return r.real_cost;
-    case "gain": return r.gain_real;
-    case "gainOrder": return perOrder(r.gain_real, r.real_orders);
-  }
-};
 
 function Chip({ label, value, highlight, sub }: { label: string; value: string; highlight?: "good" | "bad"; sub?: string }) {
   return (
@@ -230,8 +218,67 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
   );
 }
 
+/* ---------------- Colonnes « de bout en bout », communes aux restaurants et aux commandes ---------------- */
+
+type FigKey = keyof GainFigures;
+interface FigCol { key: FigKey; label: string; tip: string; sign?: boolean; strong?: boolean; est?: boolean; km?: boolean }
+
+const FIG_COLS: FigCol[] = [
+  { key: "art", label: "Articles livrés", tip: "Articles payés en livraison : somme (quantité × prix) de tous les articles et suppléments de la commande, au prix livraison." },
+  { key: "emp", label: "Au prix emporté", tip: "Les mêmes articles au prix que le client aurait payé en emporté sur WhatsApp." },
+  { key: "mk", label: "Markup", tip: "Articles livrés − mêmes articles au prix emporté : ce que le restaurant encaisse en plus parce que la commande est livrée.", sign: true },
+  { key: "liv", label: "Frais livr.", tip: "Frais de livraison payés par le client, lus dans la commande." },
+  { key: "svc", label: "Frais service", tip: "Frais de service payés par le client, lus dans la commande." },
+  { key: "tot", label: "Total payé", tip: "Total payé par le client = articles livrés + frais de livraison + frais de service." },
+  { key: "ud", label: "Uber Direct", tip: "Course facturée par Uber Direct, lue chez Uber Direct et rattachée à la commande. Aucun prix saisi à la main." },
+  { key: "km", label: "Distance", tip: "Distance de la course (moyenne pour un restaurant).", km: true },
+  { key: "gain", label: "Gain livraison", tip: "Markup + frais de livraison payés par le client − course facturée par Uber Direct.", sign: true, strong: true },
+  { key: "chat", label: "Châtaigne", tip: "Frais Châtaigne par commande. ESTIMATION réglée dans Mijotek : ce montant n'est pas lu dans la donnée.", est: true },
+  { key: "stripe", label: "Stripe", tip: "Frais de paiement Stripe. ESTIMATION réglée dans Mijotek (pourcentage du total payé + part fixe) : ce montant n'est pas lu dans la donnée.", est: true },
+  { key: "solde", label: "Solde service", tip: "Frais de service payés par le client − frais Châtaigne − frais Stripe.", sign: true },
+  { key: "res", label: "Résultat complet", tip: "Gain livraison + solde des frais de service : l'écart complet entre une commande livrée et la même commande en emporté.", sign: true, strong: true },
+];
+const FEE_KEYS: FigKey[] = ["chat", "stripe", "solde", "res"];
+
+const fmtFig = (c: FigCol, v: number | null) => (c.km ? (v == null ? "—" : `${v.toFixed(1).replace(".", ",")} km`) : eur(v, c.sign));
+
+function FigCell({ col, value, bold }: { col: FigCol; value: number | null; bold?: boolean }) {
+  return (
+    <TableCell
+      className={cn(
+        "whitespace-nowrap text-right tabular-nums",
+        (col.strong || bold) && "font-semibold",
+        col.sign && tone(value),
+        (col.est || col.km) && "text-muted-foreground",
+      )}
+    >
+      {fmtFig(col, value)}
+    </TableCell>
+  );
+}
+
+function HeadTip({ col, children, className }: { col: { label: string; tip: string; strong?: boolean }; children?: React.ReactNode; className?: string }) {
+  return (
+    <TableHead className={cn("whitespace-nowrap text-right text-xs", col.strong && "font-bold text-foreground", className)}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="inline-flex cursor-help items-center gap-1 underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">
+            {children ?? col.label}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-left text-xs font-normal normal-case">{col.tip}</TooltipContent>
+      </Tooltip>
+    </TableHead>
+  );
+}
+
+const orderFigures = (o: OrderRow): GainFigures => ({
+  art: o.items_delivery, emp: o.items_takeaway, mk: o.markup, liv: o.delivery_fee, svc: o.service_fee, tot: o.total_amount,
+  ud: o.real_cost, km: o.distance_km, gain: o.gain_real, chat: o.chataigne_fee, stripe: o.stripe_fee, solde: o.service_balance, res: o.full_result,
+});
+
 /** Détail commande par commande d'un restaurant (commandes livrées sans offre client, période sélectionnée). */
-function OrdersDetail({ restaurantId, restaurantName, start, end }: { restaurantId: string; restaurantName: string; start: string; end: string }) {
+function OrdersDetail({ restaurantId, restaurantName, start, end, cols }: { restaurantId: string; restaurantName: string; start: string; end: string; cols: FigCol[] }) {
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
     queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end],
@@ -273,111 +320,68 @@ function OrdersDetail({ restaurantId, restaurantName, start, end }: { restaurant
   if (error) return <p className="text-sm text-destructive">Le détail n'a pas pu être chargé : {error.message}</p>;
   if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">Aucune commande.</p>;
 
-  // Total et moyenne, comme dans l'export Excel. Une colonne incomplète (valeur inconnue) n'est pas additionnée.
-  const total = (f: (o: OrderRow) => number | null) => (data.every((o) => f(o) != null) ? data.reduce((sum, o) => sum + (f(o) as number), 0) : null);
-  const hasFees = data.some((o) => o.chataigne_fee != null);
-  const cols: { key: string; label: string; get: (o: OrderRow) => number | null; sign?: boolean; strong?: boolean; est?: boolean }[] = [
-    { key: "art", label: "Articles payés en livraison", get: (o) => o.items_delivery },
-    { key: "emp", label: "Mêmes articles au prix emporté", get: (o) => o.items_takeaway },
-    { key: "mk", label: "Markup", get: (o) => o.markup, sign: true },
-    { key: "liv", label: "Frais de livraison payés par le client", get: (o) => o.delivery_fee },
-    { key: "svc", label: "Frais de service payés par le client", get: (o) => o.service_fee },
-    { key: "tot", label: "Total payé par le client", get: (o) => o.total_amount },
-    { key: "ud", label: "Course facturée par Uber Direct", get: (o) => o.real_cost },
-    { key: "gain", label: "Gain livraison", get: (o) => o.gain_real, sign: true, strong: true },
-    ...(hasFees
-      ? [
-          { key: "chat", label: "Frais Châtaigne (estimé)", get: (o: OrderRow) => o.chataigne_fee, est: true },
-          { key: "stripe", label: "Frais Stripe (estimé)", get: (o: OrderRow) => o.stripe_fee, est: true },
-          { key: "solde", label: "Solde des frais de service", get: (o: OrderRow) => o.service_balance, sign: true },
-          { key: "res", label: "Résultat complet", get: (o: OrderRow) => o.full_result, sign: true, strong: true },
-        ]
-      : []),
-  ];
-  const head = "min-w-[92px] whitespace-normal text-right align-bottom text-xs leading-tight";
-  const kmAvg = data.every((o) => o.distance_km != null) ? data.reduce((sum, o) => sum + (o.distance_km as number), 0) / data.length : null;
-  const km = (v: number | null) => (v == null ? "—" : `${v.toFixed(1).replace(".", ",")} km`);
+  const figs = data.map((o) => ({ o, f: orderFigures(o) }));
+  // Comme la ligne du restaurant : total et moyenne sur les commandes dont la course Uber Direct est connue.
+  const priced = figs.filter((x) => x.f.ud != null);
+  const without = figs.length - priced.length;
+  const total = (k: FigKey) => (priced.length > 0 && priced.every((x) => x.f[k] != null) ? priced.reduce((sum, x) => sum + (x.f[k] as number), 0) : null);
 
   return (
-    <div className="space-y-2">
-      <div className="overflow-x-auto rounded-md border bg-background">
-        <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="whitespace-nowrap align-bottom text-xs">Date</TableHead>
-              <TableHead className="whitespace-nowrap align-bottom text-xs">Commande</TableHead>
-              {cols.slice(0, 7).map((c) => <TableHead key={c.key} className={head}>{c.label}</TableHead>)}
-              <TableHead className={head}>Distance</TableHead>
-              {cols.slice(7).map((c) => (
-                <TableHead key={c.key} className={cn(head, c.strong && "font-bold uppercase text-foreground")} title={c.est ? "Estimation réglée dans Mijotek : ce montant n'est pas lu dans la donnée." : undefined}>
-                  {c.label}
-                </TableHead>
-              ))}
+    <div className="overflow-x-auto rounded-md border bg-background">
+      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="whitespace-nowrap text-xs">Date</TableHead>
+            <TableHead className="whitespace-nowrap text-xs">Commande</TableHead>
+            {cols.map((c) => <HeadTip key={c.key} col={c} />)}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {figs.map(({ o, f }) => (
+            <TableRow
+              key={o.order_id}
+              className={cn("cursor-pointer", selected?.order_id === o.order_id && "bg-muted")}
+              onClick={() => setSelected(o)}
+              title="Voir la commande du client"
+            >
+              <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
+              <TableCell className="whitespace-nowrap font-mono text-xs">
+                {o.short_id ?? "—"}
+                {o.items_without_ref > 0 && (
+                  <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
+                    markup partiel
+                  </span>
+                )}
+              </TableCell>
+              {cols.map((c) => <FigCell key={c.key} col={c} value={f[c.key]} />)}
             </TableRow>
-          </TableHeader>
-          <TableBody>
-            {data.map((o) => {
-              const cell = (c: (typeof cols)[number]) => (
-                <TableCell
-                  key={c.key}
-                  className={cn("text-right tabular-nums", c.strong && "font-semibold", c.sign && tone(c.get(o)), c.est && "text-muted-foreground")}
-                >
-                  {eur(c.get(o), c.sign)}
-                </TableCell>
-              );
-              return (
-                <TableRow
-                  key={o.order_id}
-                  className={cn("cursor-pointer", selected?.order_id === o.order_id && "bg-muted")}
-                  onClick={() => setSelected(o)}
-                  title="Voir la commande du client"
-                >
-                  <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
-                  <TableCell className="whitespace-nowrap font-mono text-xs">
-                    {o.short_id ?? "—"}
-                    {o.items_without_ref > 0 && (
-                      <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
-                        markup partiel
-                      </span>
-                    )}
-                  </TableCell>
-                  {cols.slice(0, 7).map(cell)}
-                  <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">{km(o.distance_km)}</TableCell>
-                  {cols.slice(7).map(cell)}
-                </TableRow>
-              );
-            })}
-            {([["Total", 1], ["Moyenne par commande", data.length]] as const).map(([label, divisor]) => {
-              const cell = (c: (typeof cols)[number]) => {
-                const t = total(c.get);
-                const v = t == null ? null : t / divisor;
-                return (
-                  <TableCell key={c.key} className={cn("text-right font-semibold tabular-nums", c.sign && tone(v))}>{eur(v, c.sign)}</TableCell>
-                );
-              };
-              return (
-                <TableRow key={label} className="bg-muted/60 hover:bg-muted/60">
-                  <TableCell className="whitespace-nowrap text-sm font-semibold" colSpan={2}>
-                    {label}
-                    {divisor === 1 && <span className="ml-2 font-normal text-muted-foreground">{int(data.length)} commande{data.length > 1 ? "s" : ""}</span>}
-                  </TableCell>
-                  {cols.slice(0, 7).map(cell)}
-                  <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">{divisor === 1 ? "" : km(kmAvg)}</TableCell>
-                  {cols.slice(7).map(cell)}
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </div>
-      <p className="text-xs text-muted-foreground">
-        Gain livraison = markup + frais de livraison payés par le client − course facturée par Uber Direct.
-        {hasFees && " Solde des frais de service = frais de service payés par le client − frais Châtaigne − frais Stripe. Résultat complet = gain livraison + solde des frais de service. Les frais Châtaigne et Stripe sont des estimations réglées dans Mijotek, pas des montants lus dans la donnée."}
-      </p>
+          ))}
+          {([["Total", 1], ["Moyenne par commande", Math.max(priced.length, 1)]] as const).map(([label, divisor]) => (
+            <TableRow key={label} className="bg-muted/60 hover:bg-muted/60">
+              <TableCell className="whitespace-nowrap text-sm font-semibold" colSpan={2}>
+                {label}
+                {divisor === 1 && (
+                  <span className="ml-2 font-normal text-muted-foreground">
+                    {int(priced.length)} commande{priced.length > 1 ? "s" : ""}
+                    {without > 0 && ` (+ ${int(without)} sans course Uber, hors total)`}
+                  </span>
+                )}
+              </TableCell>
+              {cols.map((c) => {
+                const t = total(c.key);
+                const v = c.km ? (divisor === 1 ? null : t == null ? null : t / divisor) : t == null ? null : t / divisor;
+                return c.km && divisor === 1 ? <TableCell key={c.key} /> : <FigCell key={c.key} col={c} value={v} bold />;
+              })}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
+
+type SortKey = "name" | "orders" | FigKey;
 
 export default function ChataigneDeliveryGain() {
   const { selectedRestaurants, selectedChainId, selectedYear, selectedMonth, periodMode, dateRange } = useAnalyticsContext();
@@ -386,9 +390,10 @@ export default function ChataigneDeliveryGain() {
   const end = format(endDate, "yyyy-MM-dd");
 
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("gain");
+  const [sortKey, setSortKey] = useState<SortKey>("res");
   const [sortAsc, setSortAsc] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [mode, setMode] = useState<"total" | "order">("total");
 
   const { data: restaurants } = useQuery({
     queryKey: ["chataigne-gain-restaurants", selectedChainId],
@@ -425,68 +430,81 @@ export default function ChataigneDeliveryGain() {
   });
 
   const totals = useMemo(() => deliveryGainTotals(data ?? []), [data]);
+  const hasUber = totals.pricedOrders > 0;
+  const hasFees = totals.fullResult != null;
+  // Sans réglage de frais (ou sans Uber Direct relié), les colonnes correspondantes ne sont pas affichées.
+  const cols = useMemo(
+    () => FIG_COLS.filter((c) => (hasFees || !FEE_KEYS.includes(c.key)) && (hasUber || ["mk", "liv"].includes(c.key))),
+    [hasFees, hasUber],
+  );
+  const effectiveSort: SortKey = sortKey === "name" || sortKey === "orders" || cols.some((c) => c.key === sortKey) ? sortKey : hasUber ? "gain" : "mk";
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const list = (data ?? []).filter((r) => r.orders > 0 && (!q || r.restaurant_name.toLowerCase().includes(q)));
+    const list = (data ?? [])
+      .filter((r) => r.orders > 0 && (!q || r.restaurant_name.toLowerCase().includes(q)))
+      .map((r) => ({ r, f: restaurantFigures(r, mode === "order") }));
+    const val = (x: (typeof list)[number]): number | string | null =>
+      effectiveSort === "name" ? x.r.restaurant_name.toLowerCase() : effectiveSort === "orders" ? x.r.orders : x.f[effectiveSort];
     return [...list].sort((a, b) => {
-      const va = sortValue(a, sortKey);
-      const vb = sortValue(b, sortKey);
+      const va = val(a);
+      const vb = val(b);
       if (va == null && vb == null) return 0;
       if (va == null) return 1; // les valeurs inconnues toujours en bas
       if (vb == null) return -1;
       const c = typeof va === "string" ? va.localeCompare(String(vb), "fr") : (va as number) - (vb as number);
       return sortAsc ? c : -c;
     });
-  }, [data, search, sortKey, sortAsc]);
+  }, [data, search, effectiveSort, sortAsc, mode]);
 
   const onSort = (k: SortKey) => {
-    if (k === sortKey) setSortAsc((v) => !v);
+    if (k === effectiveSort) setSortAsc((v) => !v);
     else {
       setSortKey(k);
       setSortAsc(k === "name");
     }
   };
+  const arrow = (k: SortKey) => effectiveSort === k && (sortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />);
 
-  const hasUber = totals.pricedOrders > 0;
   const periodLabel = `du ${format(startDate, "d MMMM", { locale: fr })} au ${format(endDate, "d MMMM yyyy", { locale: fr })}`;
 
   const exportExcel = () => {
     const sheet = XLSX.utils.json_to_sheet(
-      rows.map((r) => ({
-        Restaurant: r.restaurant_name,
-        "Commandes livrées sans offre": r.orders,
-        "Commandes avec offre (non comptées)": r.orders_with_offer,
-        "Markup (€ TTC)": r.markup,
-        "Frais de livraison client (€ TTC)": r.delivery_fees,
-        "Commandes avec course Uber Direct retrouvée": r.real_orders,
-        "Facturé par Uber Direct (€ TTC)": r.real_cost,
-        "Gain (€)": r.gain_real,
-        "Gain par commande (€)": perOrder(r.gain_real, r.real_orders),
-        "Articles sans prix emporté connu": r.qty_no_ref,
-      })),
+      rows.map(({ r }) => {
+        const f = restaurantFigures(r);
+        return {
+          Restaurant: r.restaurant_name,
+          "Commandes livrées sans offre": r.orders,
+          "dont avec course Uber Direct (base des montants)": r.real_orders,
+          "Commandes avec offre (non comptées)": r.orders_with_offer,
+          "Articles payés en livraison (€ TTC)": f.art,
+          "Mêmes articles au prix emporté (€ TTC)": f.emp,
+          "Markup (€)": f.mk,
+          "Frais de livraison payés par le client (€)": f.liv,
+          "Frais de service payés par le client (€)": f.svc,
+          "Total payé par le client (€)": f.tot,
+          "Course facturée par Uber Direct (€)": f.ud,
+          "Distance moyenne (km)": f.km,
+          "Gain livraison (€)": f.gain,
+          "Frais Châtaigne, estimé (€)": f.chat,
+          "Frais Stripe, estimé (€)": f.stripe,
+          "Solde des frais de service (€)": f.solde,
+          "Résultat complet (€)": f.res,
+          "Articles sans prix emporté connu": r.qty_no_ref,
+        };
+      }),
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, "Gain livraison");
     XLSX.writeFile(wb, `gain-livraison-whatsapp_${start}_${end}.xlsx`);
   };
 
-  const Th = ({ k, children, right = true }: { k: SortKey; children: React.ReactNode; right?: boolean }) => (
-    <TableHead className={cn("whitespace-nowrap", right && "text-right")}>
-      <button
-        type="button"
-        onClick={() => onSort(k)}
-        className={cn("inline-flex items-center gap-1 text-xs font-semibold uppercase tracking-wide hover:text-foreground", sortKey === k && "text-foreground")}
-      >
-        {children}
-        {sortKey === k && (sortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
-      </button>
-    </TableHead>
-  );
+  const colCount = cols.length + 2;
 
   return (
     <AppLayout>
       <ChannelNavShell>
+        <TooltipProvider delayDuration={100}>
         <div className="space-y-6 p-4 md:p-6">
           <AnalyticsHeader />
 
@@ -535,10 +553,18 @@ export default function ChataigneDeliveryGain() {
                   <Chip label="Facturé par Uber Direct" value={eur(totals.uberPerOrder)} />
                   <Equal className="h-4 w-4 text-muted-foreground" aria-label="égale" />
                   <Chip
-                    label={(totals.gainPerOrder ?? 0) >= 0 ? "Gagné par le restaurant" : "Perdu par le restaurant"}
+                    label="Gain livraison"
                     value={eur(totals.gainPerOrder, true)}
                     highlight={totals.gainPerOrder == null ? undefined : totals.gainPerOrder >= 0 ? "good" : "bad"}
                   />
+                  {hasFees && (
+                    <Chip
+                      label="Résultat complet"
+                      value={eur(totals.fullResultPerOrder, true)}
+                      sub="avec frais de service, Châtaigne et Stripe"
+                      highlight={(totals.fullResultPerOrder ?? 0) >= 0 ? "good" : "bad"}
+                    />
+                  )}
                 </div>
               </section>
 
@@ -546,7 +572,7 @@ export default function ChataigneDeliveryGain() {
               {hasUber ? (
                 <Card className={cn((totals.gain ?? 0) < 0 ? "border-destructive/30 bg-destructive/10" : "border-success/30 bg-success/10")}>
                   <CardContent className="space-y-2 p-5">
-                    <div className="text-sm text-muted-foreground">Sur la période</div>
+                    <div className="text-sm text-muted-foreground">Gain livraison sur la période</div>
                     <div className={cn("text-3xl font-bold tabular-nums", tone(totals.gain))}>{eur(totals.gain, true)}</div>
                     <p className="text-sm text-muted-foreground">
                       {(totals.gain ?? 0) >= 0 ? "gagnés" : "perdus"} sur {int(totals.pricedOrders)} commandes, soit {eur(totals.gainPerOrder, true)} par commande.{" "}
@@ -557,9 +583,16 @@ export default function ChataigneDeliveryGain() {
                         ? "Aucune commande n'est à perte."
                         : `${int(totals.lossOrders)} commande${totals.lossOrders > 1 ? "s sont" : " est"} à perte.`}
                     </p>
+                    {hasFees && (
+                      <p className="text-sm">
+                        <span className="text-muted-foreground">Résultat complet, en ajoutant le solde des frais de service ({eur(totals.serviceBalance, true)}) : </span>
+                        <span className={cn("font-semibold tabular-nums", tone(totals.fullResult))}>{eur(totals.fullResult, true)}</span>
+                        <span className="text-muted-foreground">, soit {eur(totals.fullResultPerOrder, true)} par commande. Les frais Châtaigne et Stripe sont estimés.</span>
+                      </p>
+                    )}
                     {totals.ordersWithoutUber > 0 && (
                       <p className="text-xs text-muted-foreground">
-                        {int(totals.ordersWithoutUber)} commande{totals.ordersWithoutUber > 1 ? "s" : ""} sans course Uber Direct retrouvée : non comptée{totals.ordersWithoutUber > 1 ? "s" : ""} dans le gain.
+                        {int(totals.ordersWithoutUber)} commande{totals.ordersWithoutUber > 1 ? "s" : ""} sans course Uber Direct retrouvée : non comptée{totals.ordersWithoutUber > 1 ? "s" : ""}.
                       </p>
                     )}
                   </CardContent>
@@ -584,6 +617,12 @@ export default function ChataigneDeliveryGain() {
                     <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                     <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Chercher un restaurant" className="pl-8" />
                   </div>
+                  <Tabs value={mode} onValueChange={(v) => setMode(v as "total" | "order")}>
+                    <TabsList>
+                      <TabsTrigger value="total">Total</TabsTrigger>
+                      <TabsTrigger value="order">Par commande</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
                   <span className="text-sm text-muted-foreground">{int(rows.length)} restaurant{rows.length > 1 ? "s" : ""}</span>
                 </div>
                 <Card>
@@ -591,19 +630,27 @@ export default function ChataigneDeliveryGain() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <Th k="name" right={false}>Restaurant</Th>
-                          <Th k="orders">Commandes</Th>
-                          <Th k="markup">Markup</Th>
-                          <Th k="fees">Frais livraison client</Th>
-                          <Th k="uber">Facturé par Uber Direct</Th>
-                          <Th k="gain">Gain</Th>
-                          <Th k="gainOrder">Par commande</Th>
+                          <TableHead className="whitespace-nowrap text-xs">
+                            <button type="button" onClick={() => onSort("name")} className="inline-flex items-center gap-1 font-semibold hover:text-foreground">
+                              Restaurant {arrow("name")}
+                            </button>
+                          </TableHead>
+                          <HeadTip col={{ label: "Cmd", tip: "Commandes livrées sans offre client dont la course Uber Direct est connue : tous les montants de la ligne portent sur ces commandes." }}>
+                            <button type="button" onClick={() => onSort("orders")} className="inline-flex items-center gap-1">Cmd {arrow("orders")}</button>
+                          </HeadTip>
+                          {cols.map((c) => (
+                            <HeadTip key={c.key} col={c}>
+                              <button type="button" onClick={() => onSort(c.key)} className="inline-flex items-center gap-1">
+                                {c.label} {arrow(c.key)}
+                              </button>
+                            </HeadTip>
+                          ))}
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {rows.map((r) => {
-                          const gr = perOrder(r.gain_real, r.real_orders);
+                        {rows.map(({ r, f }) => {
                           const open = openId === r.restaurant_id || rows.length === 1;
+                          const without = r.orders - r.real_orders;
                           return (
                             <Fragment key={r.restaurant_id}>
                               <TableRow
@@ -617,20 +664,23 @@ export default function ChataigneDeliveryGain() {
                                     {r.restaurant_name}
                                   </span>
                                 </TableCell>
-                                <TableCell className="text-right tabular-nums">{int(r.orders)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{eur(r.markup)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{eur(r.delivery_fees)}</TableCell>
-                                <TableCell className="text-right tabular-nums">{eur(r.real_cost)}</TableCell>
-                                <TableCell className={cn("text-right font-semibold tabular-nums", tone(r.gain_real))}>{eur(r.gain_real, true)}</TableCell>
-                                <TableCell className={cn("text-right tabular-nums", tone(gr))}>{eur(gr, true)}</TableCell>
+                                <TableCell className="whitespace-nowrap text-right tabular-nums">
+                                  {int(hasUber ? r.real_orders : r.orders)}
+                                  {hasUber && without > 0 && (
+                                    <span className="ml-1 text-[11px] text-muted-foreground" title={`${without} commande(s) sans course Uber Direct retrouvée, non comptée(s)`}>
+                                      +{int(without)}
+                                    </span>
+                                  )}
+                                </TableCell>
+                                {cols.map((c) => <FigCell key={c.key} col={c} value={f[c.key]} />)}
                               </TableRow>
                               {open && (
                                 <TableRow className="hover:bg-transparent">
-                                  <TableCell colSpan={7} className="bg-muted/40 p-3">
+                                  <TableCell colSpan={colCount} className="bg-muted/40 p-3">
                                     <div className="mb-2 text-xs font-medium text-muted-foreground">
-                                      Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name}
+                                      Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name} — cliquez sur une commande pour voir ce que le client a commandé
                                     </div>
-                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} />
+                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} cols={cols} />
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -639,7 +689,7 @@ export default function ChataigneDeliveryGain() {
                         })}
                         {rows.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
+                            <TableCell colSpan={colCount} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -647,7 +697,8 @@ export default function ChataigneDeliveryGain() {
                   </div>
                 </Card>
                 <p className="text-xs text-muted-foreground">
-                  Cliquez sur un restaurant pour voir ses commandes, puis sur une commande pour voir ce que le client a commandé. « Gain » = markup + frais de livraison client − course facturée par Uber Direct. Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
+                  Passez la souris sur un intitulé de colonne pour voir comment il est calculé. Cliquez sur un restaurant pour voir ses commandes.
+                  Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
                 </p>
               </section>
 
@@ -671,23 +722,29 @@ export default function ChataigneDeliveryGain() {
                       )}
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">Frais de livraison client</span> : montant payé par le client, lu dans le détail de chaque commande WhatsApp.
+                      <span className="font-medium text-foreground">Frais de livraison et de service</span> : montants payés par le client, lus dans le détail de chaque commande WhatsApp.
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">Facturé par Uber Direct</span> : {hasUber
+                      <span className="font-medium text-foreground">Uber Direct</span> : {hasUber
                         ? <>prix de chaque course, lu chez Uber Direct chaque nuit et rattaché à la commande par son numéro. Aucun prix n'est saisi à la main.</>
                         : <>non relié pour cette enseigne.</>}
                     </li>
+                    {hasFees && (
+                      <li>
+                        <span className="font-medium text-foreground">Frais Châtaigne et Stripe</span> : estimations réglées dans Mijotek, pas des montants lus dans la donnée.
+                        Ils n'entrent pas dans le gain livraison, seulement dans le résultat complet.
+                      </li>
+                    )}
                     <li>
                       {int(totals.ordersWithOffer)} commandes livrées avec une offre client ne sont pas comptées : avec une offre, une partie du prix n'est pas payée par le client.
                     </li>
-                    <li>Non comptés : les frais de service, les frais Châtaigne et les frais de paiement.</li>
                   </ul>
                 </CollapsibleContent>
               </Collapsible>
             </>
           )}
         </div>
+        </TooltipProvider>
       </ChannelNavShell>
     </AppLayout>
   );
