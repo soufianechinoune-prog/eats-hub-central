@@ -1,9 +1,9 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import * as XLSX from "xlsx";
-import { ArrowDown, ArrowUp, ChevronDown, Equal, FileSpreadsheet, Minus, Plus, Search } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Equal, FileSpreadsheet, Minus, Plus, Search } from "lucide-react";
 
 import { AppLayout } from "@/components/layout/AppLayout";
 import { ChannelNavShell } from "@/components/overview/ChannelNavShell";
@@ -34,7 +34,7 @@ const int = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v ||
 const tone = (v: number | null | undefined) =>
   v == null ? "text-muted-foreground" : v < 0 ? "text-destructive" : "text-success";
 
-type SortKey = "name" | "orders" | "markup" | "fees" | "gainCap" | "gainCapOrder" | "gainReal" | "gainRealOrder";
+type SortKey = "name" | "orders" | "markup" | "fees" | "realCost" | "gainCap" | "gainCapOrder" | "gainReal" | "gainRealOrder";
 
 const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
   switch (k) {
@@ -42,6 +42,7 @@ const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
     case "orders": return r.orders;
     case "markup": return r.markup;
     case "fees": return r.delivery_fees;
+    case "realCost": return r.real_cost;
     case "gainCap": return r.gain_cap;
     case "gainCapOrder": return perOrder(r.gain_cap, r.cap_orders);
     case "gainReal": return r.gain_real;
@@ -49,7 +50,7 @@ const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
   }
 };
 
-function Chip({ label, value, highlight }: { label: string; value: string; highlight?: "good" | "bad" }) {
+function Chip({ label, value, highlight, sub }: { label: string; value: string; highlight?: "good" | "bad"; sub?: string }) {
   return (
     <div
       className={cn(
@@ -63,6 +64,108 @@ function Chip({ label, value, highlight }: { label: string; value: string; highl
       <div className={cn("mt-1 text-2xl font-bold tabular-nums", highlight === "good" && "text-success", highlight === "bad" && "text-destructive")}>
         {value}
       </div>
+      {sub && <div className="mt-0.5 text-xs text-muted-foreground">{sub}</div>}
+    </div>
+  );
+}
+
+interface OrderRow {
+  order_id: string;
+  short_id: string | null;
+  order_datetime: string;
+  total_amount: number | null;
+  markup: number | null;
+  delivery_fee: number | null;
+  real_cost: number | null;
+  cap_cost: number | null;
+  distance_km: number | null;
+  gain_cap: number | null;
+  gain_real: number | null;
+  items_without_ref: number;
+}
+
+const num = (v: unknown) => (v == null ? null : Number(v));
+
+/** Détail commande par commande d'un restaurant (commandes livrées sans offre client, période sélectionnée). */
+function OrdersDetail({ restaurantId, start, end, hasReal }: { restaurantId: string; start: string; end: string; hasReal: boolean }) {
+  const { data, isLoading, error } = useQuery<OrderRow[], Error>({
+    queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as unknown as (
+        fn: string,
+        params: Record<string, unknown>,
+      ) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>)("get_chataigne_delivery_gain_orders", {
+        p_start: start,
+        p_end: end,
+        p_restaurant_id: restaurantId,
+      });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        order_id: String(r.order_id),
+        short_id: r.short_id == null ? null : String(r.short_id),
+        order_datetime: String(r.order_datetime),
+        total_amount: num(r.total_amount),
+        markup: num(r.markup),
+        delivery_fee: num(r.delivery_fee),
+        real_cost: num(r.real_cost),
+        cap_cost: num(r.cap_cost),
+        distance_km: num(r.distance_km),
+        gain_cap: num(r.gain_cap),
+        gain_real: num(r.gain_real),
+        items_without_ref: Number(r.items_without_ref) || 0,
+      }));
+    },
+  });
+
+  if (isLoading) return <Skeleton className="h-24 w-full" />;
+  if (error) return <p className="text-sm text-destructive">Le détail n'a pas pu être chargé : {error.message}</p>;
+  if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">Aucune commande.</p>;
+
+  return (
+    <div className="overflow-x-auto rounded-md border bg-background">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead className="whitespace-nowrap text-xs">Date</TableHead>
+            <TableHead className="whitespace-nowrap text-xs">Commande</TableHead>
+            <TableHead className="whitespace-nowrap text-right text-xs">Payé par le client</TableHead>
+            <TableHead className="whitespace-nowrap text-right text-xs">Markup</TableHead>
+            <TableHead className="whitespace-nowrap text-right text-xs">Frais livraison client</TableHead>
+            <TableHead className="whitespace-nowrap text-right text-xs">Uber Direct facturé</TableHead>
+            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Uber Direct vrai tarif</TableHead>}
+            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Distance</TableHead>}
+            <TableHead className="whitespace-nowrap text-right text-xs">Gain</TableHead>
+            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Gain au vrai tarif</TableHead>}
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {data.map((o) => (
+            <TableRow key={o.order_id}>
+              <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
+              <TableCell className="whitespace-nowrap font-mono text-xs">
+                {o.short_id ?? "—"}
+                {o.items_without_ref > 0 && (
+                  <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
+                    markup partiel
+                  </span>
+                )}
+              </TableCell>
+              <TableCell className="text-right tabular-nums">{eur(o.total_amount)}</TableCell>
+              <TableCell className="text-right tabular-nums">{eur(o.markup)}</TableCell>
+              <TableCell className="text-right tabular-nums">{eur(o.delivery_fee)}</TableCell>
+              <TableCell className="text-right tabular-nums">{eur(o.cap_cost)}</TableCell>
+              {hasReal && <TableCell className="text-right tabular-nums">{eur(o.real_cost)}</TableCell>}
+              {hasReal && (
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {o.distance_km == null ? "—" : `${o.distance_km.toFixed(1).replace(".", ",")} km`}
+                </TableCell>
+              )}
+              <TableCell className={cn("text-right font-semibold tabular-nums", tone(o.gain_cap))}>{eur(o.gain_cap, true)}</TableCell>
+              {hasReal && <TableCell className={cn("text-right tabular-nums", tone(o.gain_real))}>{eur(o.gain_real, true)}</TableCell>}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
@@ -76,6 +179,7 @@ export default function ChataigneDeliveryGain() {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SortKey>("gainCap");
   const [sortAsc, setSortAsc] = useState(false);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const { data: restaurants } = useQuery({
     queryKey: ["chataigne-gain-restaurants", selectedChainId],
@@ -147,11 +251,11 @@ export default function ChataigneDeliveryGain() {
         "Commandes avec offre (non comptées)": r.orders_with_offer,
         "Markup (€ TTC)": r.markup,
         "Frais de livraison client (€ TTC)": r.delivery_fees,
-        "Coût Uber Direct avec offre (€ TTC)": r.cap_cost,
+        "Uber Direct facturé au restaurant (€ TTC)": r.cap_cost,
         "Gain avec offre (€)": r.gain_cap,
         "Gain avec offre par commande (€)": perOrder(r.gain_cap, r.cap_orders),
         "Commandes avec prix Uber réel connu": r.real_orders,
-        "Coût Uber Direct réel (€ TTC)": r.real_cost,
+        "Uber Direct vrai tarif (€ TTC)": r.real_cost,
         "Gain au vrai tarif (€)": r.gain_real,
         "Gain au vrai tarif par commande (€)": perOrder(r.gain_real, r.real_orders),
         "Articles sans prix emporté connu": r.qty_no_ref,
@@ -223,7 +327,11 @@ export default function ChataigneDeliveryGain() {
                   <Plus className="h-4 w-4 text-muted-foreground" aria-label="plus" />
                   <Chip label="Frais de livraison client" value={eur(totals.feesPerOrder)} />
                   <Minus className="h-4 w-4 text-muted-foreground" aria-label="moins" />
-                  <Chip label="Prélevé par Uber Direct" value={eur(totals.capCostPerOrder)} />
+                  <Chip
+                    label="Uber Direct facturé"
+                    value={eur(totals.capCostPerOrder)}
+                    sub={hasReal ? `vrai tarif : ${eur(totals.realCostPerOrder)}` : undefined}
+                  />
                   <Equal className="h-4 w-4 text-muted-foreground" aria-label="égale" />
                   <Chip
                     label="Gagné par le restaurant"
@@ -299,6 +407,7 @@ export default function ChataigneDeliveryGain() {
                           <Th k="orders">Commandes</Th>
                           <Th k="markup">Markup</Th>
                           <Th k="fees">Frais livraison client</Th>
+                          {hasReal && <Th k="realCost">Uber Direct vrai tarif</Th>}
                           <Th k="gainCap">Gain</Th>
                           <Th k="gainCapOrder">Par commande</Th>
                           {hasReal && <Th k="gainReal">Gain au vrai tarif</Th>}
@@ -309,22 +418,45 @@ export default function ChataigneDeliveryGain() {
                         {rows.map((r) => {
                           const gc = perOrder(r.gain_cap, r.cap_orders);
                           const gr = perOrder(r.gain_real, r.real_orders);
+                          const open = openId === r.restaurant_id || rows.length === 1;
                           return (
-                            <TableRow key={r.restaurant_id}>
-                              <TableCell className="whitespace-nowrap font-medium">{r.restaurant_name}</TableCell>
-                              <TableCell className="text-right tabular-nums">{int(r.orders)}</TableCell>
-                              <TableCell className="text-right tabular-nums">{eur(r.markup)}</TableCell>
-                              <TableCell className="text-right tabular-nums">{eur(r.delivery_fees)}</TableCell>
-                              <TableCell className={cn("text-right font-semibold tabular-nums", tone(r.gain_cap))}>{eur(r.gain_cap)}</TableCell>
-                              <TableCell className={cn("text-right tabular-nums", tone(gc))}>{eur(gc)}</TableCell>
-                              {hasReal && <TableCell className={cn("text-right tabular-nums", tone(r.gain_real))}>{eur(r.gain_real)}</TableCell>}
-                              {hasReal && <TableCell className={cn("text-right tabular-nums", tone(gr))}>{eur(gr)}</TableCell>}
-                            </TableRow>
+                            <Fragment key={r.restaurant_id}>
+                              <TableRow
+                                className="cursor-pointer"
+                                onClick={() => setOpenId(openId === r.restaurant_id ? null : r.restaurant_id)}
+                                aria-expanded={open}
+                              >
+                                <TableCell className="whitespace-nowrap font-medium">
+                                  <span className="inline-flex items-center gap-1.5">
+                                    {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                                    {r.restaurant_name}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right tabular-nums">{int(r.orders)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{eur(r.markup)}</TableCell>
+                                <TableCell className="text-right tabular-nums">{eur(r.delivery_fees)}</TableCell>
+                                {hasReal && <TableCell className="text-right tabular-nums">{eur(r.real_cost)}</TableCell>}
+                                <TableCell className={cn("text-right font-semibold tabular-nums", tone(r.gain_cap))}>{eur(r.gain_cap)}</TableCell>
+                                <TableCell className={cn("text-right tabular-nums", tone(gc))}>{eur(gc)}</TableCell>
+                                {hasReal && <TableCell className={cn("text-right tabular-nums", tone(r.gain_real))}>{eur(r.gain_real)}</TableCell>}
+                                {hasReal && <TableCell className={cn("text-right tabular-nums", tone(gr))}>{eur(gr)}</TableCell>}
+                              </TableRow>
+                              {open && (
+                                <TableRow className="hover:bg-transparent">
+                                  <TableCell colSpan={hasReal ? 9 : 6} className="bg-muted/40 p-3">
+                                    <div className="mb-2 text-xs font-medium text-muted-foreground">
+                                      Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name}
+                                    </div>
+                                    <OrdersDetail restaurantId={r.restaurant_id} start={start} end={end} hasReal={r.real_orders > 0} />
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                            </Fragment>
                           );
                         })}
                         {rows.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={hasReal ? 8 : 6} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
+                            <TableCell colSpan={hasReal ? 9 : 6} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -332,7 +464,7 @@ export default function ChataigneDeliveryGain() {
                   </div>
                 </Card>
                 <p className="text-xs text-muted-foreground">
-                  « Gain » = markup + frais de livraison client − prix Uber Direct facturé au restaurant.
+                  Cliquez sur un restaurant pour voir ses commandes une par une. « Gain » = markup + frais de livraison client − prix Uber Direct facturé au restaurant.
                   {hasReal && " « Gain au vrai tarif » = même calcul avec le prix réel de chaque course."} Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
                 </p>
               </section>
