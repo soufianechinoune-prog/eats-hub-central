@@ -79,6 +79,14 @@ interface OrderRow {
   gain_cap: number | null;
   gain_real: number | null;
   items_without_ref: number;
+  service_fee: number | null;
+  items_delivery: number | null;
+  items_takeaway: number | null;
+  /** Estimations (réglage par enseigne), absentes de la donnée. */
+  chataigne_fee: number | null;
+  stripe_fee: number | null;
+  service_balance: number | null;
+  full_result: number | null;
 }
 
 const num = (v: unknown) => (v == null ? null : Number(v));
@@ -191,9 +199,20 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
                     value={order.real_cost == null ? "inconnue" : eur(-order.real_cost)}
                   />
                   <div className="mt-1 border-t pt-1">
-                    <Line label="Gain" value={eur(order.gain_real, true)} strong className={tone(order.gain_real)} />
+                    <Line label="Gain livraison" value={eur(order.gain_real, true)} strong className={tone(order.gain_real)} />
                   </div>
                 </div>
+                {order.chataigne_fee != null && (
+                  <div className="mt-3 rounded-md border px-3 py-2">
+                    <Line label="Frais de service payés par le client" value={eur(order.service_fee, true)} />
+                    <Line label="Frais Châtaigne (estimé)" value={eur(-(order.chataigne_fee ?? 0))} />
+                    <Line label="Frais Stripe (estimé)" value={order.stripe_fee == null ? "—" : eur(-order.stripe_fee)} />
+                    <div className="mt-1 border-t pt-1">
+                      <Line label="Solde des frais de service" value={eur(order.service_balance, true)} className={tone(order.service_balance)} />
+                      <Line label="Résultat complet" value={eur(order.full_result, true)} strong className={tone(order.full_result)} />
+                    </div>
+                  </div>
+                )}
                 {order.real_cost == null && (
                   <p className="mt-2 text-xs text-muted-foreground">La course Uber Direct de cette commande n'a pas été retrouvée : le gain n'est pas calculé.</p>
                 )}
@@ -239,6 +258,13 @@ function OrdersDetail({ restaurantId, restaurantName, start, end }: { restaurant
         gain_cap: num(r.gain_cap),
         gain_real: num(r.gain_real),
         items_without_ref: Number(r.items_without_ref) || 0,
+        service_fee: num(r.service_fee),
+        items_delivery: num(r.items_delivery),
+        items_takeaway: num(r.items_takeaway),
+        chataigne_fee: num(r.chataigne_fee),
+        stripe_fee: num(r.stripe_fee),
+        service_balance: num(r.service_balance),
+        full_result: num(r.full_result),
       }));
     },
   });
@@ -247,51 +273,108 @@ function OrdersDetail({ restaurantId, restaurantName, start, end }: { restaurant
   if (error) return <p className="text-sm text-destructive">Le détail n'a pas pu être chargé : {error.message}</p>;
   if (!data || data.length === 0) return <p className="text-sm text-muted-foreground">Aucune commande.</p>;
 
+  // Total et moyenne, comme dans l'export Excel. Une colonne incomplète (valeur inconnue) n'est pas additionnée.
+  const total = (f: (o: OrderRow) => number | null) => (data.every((o) => f(o) != null) ? data.reduce((sum, o) => sum + (f(o) as number), 0) : null);
+  const hasFees = data.some((o) => o.chataigne_fee != null);
+  const cols: { key: string; label: string; get: (o: OrderRow) => number | null; sign?: boolean; strong?: boolean; est?: boolean }[] = [
+    { key: "art", label: "Articles payés en livraison", get: (o) => o.items_delivery },
+    { key: "emp", label: "Mêmes articles au prix emporté", get: (o) => o.items_takeaway },
+    { key: "mk", label: "Markup", get: (o) => o.markup, sign: true },
+    { key: "liv", label: "Frais de livraison payés par le client", get: (o) => o.delivery_fee },
+    { key: "svc", label: "Frais de service payés par le client", get: (o) => o.service_fee },
+    { key: "tot", label: "Total payé par le client", get: (o) => o.total_amount },
+    { key: "ud", label: "Course facturée par Uber Direct", get: (o) => o.real_cost },
+    { key: "gain", label: "Gain livraison", get: (o) => o.gain_real, sign: true, strong: true },
+    ...(hasFees
+      ? [
+          { key: "chat", label: "Frais Châtaigne (estimé)", get: (o: OrderRow) => o.chataigne_fee, est: true },
+          { key: "stripe", label: "Frais Stripe (estimé)", get: (o: OrderRow) => o.stripe_fee, est: true },
+          { key: "solde", label: "Solde des frais de service", get: (o: OrderRow) => o.service_balance, sign: true },
+          { key: "res", label: "Résultat complet", get: (o: OrderRow) => o.full_result, sign: true, strong: true },
+        ]
+      : []),
+  ];
+  const head = "min-w-[92px] whitespace-normal text-right align-bottom text-xs leading-tight";
+  const kmAvg = data.every((o) => o.distance_km != null) ? data.reduce((sum, o) => sum + (o.distance_km as number), 0) / data.length : null;
+  const km = (v: number | null) => (v == null ? "—" : `${v.toFixed(1).replace(".", ",")} km`);
+
   return (
-    <div className="overflow-x-auto rounded-md border bg-background">
-      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead className="whitespace-nowrap text-xs">Date</TableHead>
-            <TableHead className="whitespace-nowrap text-xs">Commande</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Payé par le client</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Markup</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Frais livraison client</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Facturé par Uber Direct</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Distance</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Gain</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((o) => (
-            <TableRow
-              key={o.order_id}
-              className={cn("cursor-pointer", selected?.order_id === o.order_id && "bg-muted")}
-              onClick={() => setSelected(o)}
-              title="Voir la commande du client"
-            >
-              <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
-              <TableCell className="whitespace-nowrap font-mono text-xs">
-                {o.short_id ?? "—"}
-                {o.items_without_ref > 0 && (
-                  <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
-                    markup partiel
-                  </span>
-                )}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{eur(o.total_amount)}</TableCell>
-              <TableCell className="text-right tabular-nums">{eur(o.markup)}</TableCell>
-              <TableCell className="text-right tabular-nums">{eur(o.delivery_fee)}</TableCell>
-              <TableCell className="text-right tabular-nums">{eur(o.real_cost)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                {o.distance_km == null ? "—" : `${o.distance_km.toFixed(1).replace(".", ",")} km`}
-              </TableCell>
-              <TableCell className={cn("text-right font-semibold tabular-nums", tone(o.gain_real))}>{eur(o.gain_real, true)}</TableCell>
+    <div className="space-y-2">
+      <div className="overflow-x-auto rounded-md border bg-background">
+        <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="whitespace-nowrap align-bottom text-xs">Date</TableHead>
+              <TableHead className="whitespace-nowrap align-bottom text-xs">Commande</TableHead>
+              {cols.slice(0, 7).map((c) => <TableHead key={c.key} className={head}>{c.label}</TableHead>)}
+              <TableHead className={head}>Distance</TableHead>
+              {cols.slice(7).map((c) => (
+                <TableHead key={c.key} className={cn(head, c.strong && "font-bold uppercase text-foreground")} title={c.est ? "Estimation réglée dans Mijotek : ce montant n'est pas lu dans la donnée." : undefined}>
+                  {c.label}
+                </TableHead>
+              ))}
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {data.map((o) => {
+              const cell = (c: (typeof cols)[number]) => (
+                <TableCell
+                  key={c.key}
+                  className={cn("text-right tabular-nums", c.strong && "font-semibold", c.sign && tone(c.get(o)), c.est && "text-muted-foreground")}
+                >
+                  {eur(c.get(o), c.sign)}
+                </TableCell>
+              );
+              return (
+                <TableRow
+                  key={o.order_id}
+                  className={cn("cursor-pointer", selected?.order_id === o.order_id && "bg-muted")}
+                  onClick={() => setSelected(o)}
+                  title="Voir la commande du client"
+                >
+                  <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
+                  <TableCell className="whitespace-nowrap font-mono text-xs">
+                    {o.short_id ?? "—"}
+                    {o.items_without_ref > 0 && (
+                      <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
+                        markup partiel
+                      </span>
+                    )}
+                  </TableCell>
+                  {cols.slice(0, 7).map(cell)}
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">{km(o.distance_km)}</TableCell>
+                  {cols.slice(7).map(cell)}
+                </TableRow>
+              );
+            })}
+            {([["Total", 1], ["Moyenne par commande", data.length]] as const).map(([label, divisor]) => {
+              const cell = (c: (typeof cols)[number]) => {
+                const t = total(c.get);
+                const v = t == null ? null : t / divisor;
+                return (
+                  <TableCell key={c.key} className={cn("text-right font-semibold tabular-nums", c.sign && tone(v))}>{eur(v, c.sign)}</TableCell>
+                );
+              };
+              return (
+                <TableRow key={label} className="bg-muted/60 hover:bg-muted/60">
+                  <TableCell className="whitespace-nowrap text-sm font-semibold" colSpan={2}>
+                    {label}
+                    {divisor === 1 && <span className="ml-2 font-normal text-muted-foreground">{int(data.length)} commande{data.length > 1 ? "s" : ""}</span>}
+                  </TableCell>
+                  {cols.slice(0, 7).map(cell)}
+                  <TableCell className="whitespace-nowrap text-right tabular-nums text-muted-foreground">{divisor === 1 ? "" : km(kmAvg)}</TableCell>
+                  {cols.slice(7).map(cell)}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Gain livraison = markup + frais de livraison payés par le client − course facturée par Uber Direct.
+        {hasFees && " Solde des frais de service = frais de service payés par le client − frais Châtaigne − frais Stripe. Résultat complet = gain livraison + solde des frais de service. Les frais Châtaigne et Stripe sont des estimations réglées dans Mijotek, pas des montants lus dans la donnée."}
+      </p>
     </div>
   );
 }
