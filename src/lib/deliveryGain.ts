@@ -1,6 +1,6 @@
 /**
  * Commande WhatsApp livrée : ce que la livraison rapporte au restaurant.
- * Gain = markup + frais de livraison payés par le client − coût de la course Uber Direct.
+ * Gain = markup + frais de livraison payés par le client − course facturée par Uber Direct.
  * Les lignes viennent de la fonction get_chataigne_delivery_gain (une ligne par restaurant,
  * commandes livrées sans offre client uniquement). Sources détaillées dans la migration 20261125120000.
  */
@@ -12,12 +12,12 @@ export interface DeliveryGainRow {
   orders_with_offer: number;
   markup: number;
   delivery_fees: number;
-  /** Avec l'offre Uber Direct (plafond par course). */
+  /** Anciens champs « avec plafond » : identiques aux champs real_* depuis la suppression du plafond (25/11/2026). */
   cap_orders: number;
   cap_cost: number | null;
   gain_cap: number | null;
   loss_orders_cap: number;
-  /** Au prix réel de chaque course (seulement les commandes dont on connaît le prix Uber). */
+  /** Au prix facturé par Uber Direct (seulement les commandes dont la course a été retrouvée). */
   real_orders: number;
   real_cost: number | null;
   gain_real: number | null;
@@ -61,20 +61,19 @@ export function parseDeliveryGainRows(data: unknown[] | null | undefined): Deliv
 
 export interface DeliveryGainTotals {
   restaurants: number;
+  /** Commandes livrées sans offre client. */
   orders: number;
   ordersWithOffer: number;
-  /** Moyennes par commande (null s'il n'y a aucune commande). */
+  /** Commandes dont on connaît le prix Uber Direct : le gain est calculé sur celles-ci. */
+  pricedOrders: number;
+  ordersWithoutUber: number;
+  /** Moyennes par commande, sur les commandes dont on connaît le prix Uber Direct. */
   markupPerOrder: number | null;
   feesPerOrder: number | null;
-  capCostPerOrder: number | null;
-  gainCap: number | null;
-  gainCapPerOrder: number | null;
-  capOrders: number;
-  lossOrdersCap: number;
-  realOrders: number;
-  realCostPerOrder: number | null;
-  gainReal: number | null;
-  gainRealPerOrder: number | null;
+  uberPerOrder: number | null;
+  gain: number | null;
+  gainPerOrder: number | null;
+  lossOrders: number;
   /** Part des articles dont on connaît le prix emporté (0 à 100). */
   refCoveragePct: number | null;
   itemsWithoutRef: number;
@@ -82,29 +81,30 @@ export interface DeliveryGainTotals {
 
 const div = (a: number, b: number) => (b > 0 ? a / b : null);
 
+/**
+ * Le coût de la course est celui facturé par Uber Direct, lu dans la donnée (aucun prix saisi à la main).
+ * Une commande sans course Uber retrouvée n'entre pas dans le gain. Sans aucun prix Uber (enseigne non
+ * reliée), les moyennes markup / frais portent sur toutes les commandes et le gain reste inconnu.
+ */
 export function deliveryGainTotals(rows: DeliveryGainRow[]): DeliveryGainTotals {
   const active = rows.filter((r) => r.orders > 0);
   const sum = (f: (r: DeliveryGainRow) => number | null) => active.reduce((s, r) => s + (f(r) ?? 0), 0);
   const orders = sum((r) => r.orders);
-  const capOrders = sum((r) => r.cap_orders);
-  const realOrders = sum((r) => r.real_orders);
+  const priced = sum((r) => r.real_orders);
   const itemQty = sum((r) => r.item_qty);
   const noRef = sum((r) => r.qty_no_ref);
   return {
     restaurants: active.length,
     orders,
     ordersWithOffer: rows.reduce((s, r) => s + r.orders_with_offer, 0),
-    markupPerOrder: div(sum((r) => r.markup), orders),
-    feesPerOrder: div(sum((r) => r.delivery_fees), orders),
-    capCostPerOrder: div(sum((r) => r.cap_cost), capOrders),
-    gainCap: capOrders > 0 ? sum((r) => r.gain_cap) : null,
-    gainCapPerOrder: div(sum((r) => r.gain_cap), capOrders),
-    capOrders,
-    lossOrdersCap: sum((r) => r.loss_orders_cap),
-    realOrders,
-    realCostPerOrder: div(sum((r) => r.real_cost), realOrders),
-    gainReal: realOrders > 0 ? sum((r) => r.gain_real) : null,
-    gainRealPerOrder: div(sum((r) => r.gain_real), realOrders),
+    pricedOrders: priced,
+    ordersWithoutUber: orders - priced,
+    markupPerOrder: priced > 0 ? div(sum((r) => r.real_markup), priced) : div(sum((r) => r.markup), orders),
+    feesPerOrder: priced > 0 ? div(sum((r) => r.real_delivery_fees), priced) : div(sum((r) => r.delivery_fees), orders),
+    uberPerOrder: div(sum((r) => r.real_cost), priced),
+    gain: priced > 0 ? sum((r) => r.gain_real) : null,
+    gainPerOrder: div(sum((r) => r.gain_real), priced),
+    lossOrders: sum((r) => r.loss_orders_cap),
     refCoveragePct: itemQty > 0 ? (100 * (itemQty - noRef)) / itemQty : null,
     itemsWithoutRef: noRef,
   };

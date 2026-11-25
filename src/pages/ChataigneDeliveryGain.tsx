@@ -23,9 +23,6 @@ import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import { deliveryGainTotals, parseDeliveryGainRows, perOrder, type DeliveryGainRow } from "@/lib/deliveryGain";
 
-/** Avant cette date, Uber Direct n'indiquait que le prix plafonné (3,60 €) : pas de « vrai tarif » lisible. */
-const UBER_REAL_PRICE_SINCE = "2026-09-29";
-
 const eur = (v: number | null | undefined, sign = false) => {
   if (v == null || !Number.isFinite(v)) return "—";
   const s = new Intl.NumberFormat("fr-FR", { style: "currency", currency: "EUR", minimumFractionDigits: 2 }).format(Math.abs(v));
@@ -36,7 +33,7 @@ const int = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v ||
 const tone = (v: number | null | undefined) =>
   v == null ? "text-muted-foreground" : v < 0 ? "text-destructive" : "text-success";
 
-type SortKey = "name" | "orders" | "markup" | "fees" | "realCost" | "gainCap" | "gainCapOrder" | "gainReal" | "gainRealOrder";
+type SortKey = "name" | "orders" | "markup" | "fees" | "uber" | "gain" | "gainOrder";
 
 const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
   switch (k) {
@@ -44,11 +41,9 @@ const sortValue = (r: DeliveryGainRow, k: SortKey): number | string | null => {
     case "orders": return r.orders;
     case "markup": return r.markup;
     case "fees": return r.delivery_fees;
-    case "realCost": return r.real_cost;
-    case "gainCap": return r.gain_cap;
-    case "gainCapOrder": return perOrder(r.gain_cap, r.cap_orders);
-    case "gainReal": return r.gain_real;
-    case "gainRealOrder": return perOrder(r.gain_real, r.real_orders);
+    case "uber": return r.real_cost;
+    case "gain": return r.gain_real;
+    case "gainOrder": return perOrder(r.gain_real, r.real_orders);
   }
 };
 
@@ -96,7 +91,7 @@ const Line = ({ label, value, strong, className }: { label: string; value: strin
 );
 
 /** Panneau latéral : la commande telle que le client l'a passée, puis le calcul du gain. */
-function OrderSheet({ order, restaurantName, hasReal, onClose }: { order: OrderRow | null; restaurantName: string; hasReal: boolean; onClose: () => void }) {
+function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null; restaurantName: string; onClose: () => void }) {
   const { data: head, isLoading: headLoading } = useQuery({
     queryKey: ["chataigne-gain-order-head", order?.order_id],
     queryFn: async () => {
@@ -191,24 +186,21 @@ function OrderSheet({ order, restaurantName, hasReal, onClose }: { order: OrderR
                 <div className="rounded-md border px-3 py-2">
                   <Line label="Markup (prix livraison − prix emporté)" value={eur(order.markup, true)} />
                   <Line label="Frais de livraison payés par le client" value={eur(order.delivery_fee, true)} />
-                  <Line label="Uber Direct facturé au restaurant" value={order.cap_cost == null ? "—" : eur(-order.cap_cost)} />
+                  <Line
+                    label={`Course facturée par Uber Direct${order.distance_km != null ? ` (${order.distance_km.toFixed(1).replace(".", ",")} km)` : ""}`}
+                    value={order.real_cost == null ? "inconnue" : eur(-order.real_cost)}
+                  />
                   <div className="mt-1 border-t pt-1">
-                    <Line label="Gain" value={eur(order.gain_cap, true)} strong className={tone(order.gain_cap)} />
+                    <Line label="Gain" value={eur(order.gain_real, true)} strong className={tone(order.gain_real)} />
                   </div>
                 </div>
+                {order.real_cost == null && (
+                  <p className="mt-2 text-xs text-muted-foreground">La course Uber Direct de cette commande n'a pas été retrouvée : le gain n'est pas calculé.</p>
+                )}
                 {order.items_without_ref > 0 && (
                   <p className="mt-2 text-xs text-muted-foreground">
                     Markup partiel : le prix emporté est inconnu pour {int(order.items_without_ref)} article{order.items_without_ref > 1 ? "s" : ""}, compté{order.items_without_ref > 1 ? "s" : ""} pour 0 €.
                   </p>
-                )}
-                {hasReal && (
-                  <div className="mt-3 rounded-md border px-3 py-2">
-                    <Line
-                      label={`Vrai tarif Uber Direct${order.distance_km != null ? ` (course de ${order.distance_km.toFixed(1).replace(".", ",")} km)` : ""}`}
-                      value={order.real_cost == null ? "inconnu" : eur(order.real_cost)}
-                    />
-                    <Line label="Gain si on payait le vrai tarif" value={eur(order.gain_real, true)} strong className={tone(order.gain_real)} />
-                  </div>
                 )}
               </section>
             </div>
@@ -220,7 +212,7 @@ function OrderSheet({ order, restaurantName, hasReal, onClose }: { order: OrderR
 }
 
 /** Détail commande par commande d'un restaurant (commandes livrées sans offre client, période sélectionnée). */
-function OrdersDetail({ restaurantId, restaurantName, start, end, hasReal }: { restaurantId: string; restaurantName: string; start: string; end: string; hasReal: boolean }) {
+function OrdersDetail({ restaurantId, restaurantName, start, end }: { restaurantId: string; restaurantName: string; start: string; end: string }) {
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
     queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end],
@@ -257,7 +249,7 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, hasReal }: { r
 
   return (
     <div className="overflow-x-auto rounded-md border bg-background">
-      <OrderSheet order={selected} restaurantName={restaurantName} hasReal={hasReal} onClose={() => setSelected(null)} />
+      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
       <Table>
         <TableHeader>
           <TableRow>
@@ -266,11 +258,9 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, hasReal }: { r
             <TableHead className="whitespace-nowrap text-right text-xs">Payé par le client</TableHead>
             <TableHead className="whitespace-nowrap text-right text-xs">Markup</TableHead>
             <TableHead className="whitespace-nowrap text-right text-xs">Frais livraison client</TableHead>
-            <TableHead className="whitespace-nowrap text-right text-xs">Uber Direct facturé</TableHead>
-            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Uber Direct vrai tarif</TableHead>}
-            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Distance</TableHead>}
+            <TableHead className="whitespace-nowrap text-right text-xs">Facturé par Uber Direct</TableHead>
+            <TableHead className="whitespace-nowrap text-right text-xs">Distance</TableHead>
             <TableHead className="whitespace-nowrap text-right text-xs">Gain</TableHead>
-            {hasReal && <TableHead className="whitespace-nowrap text-right text-xs">Gain au vrai tarif</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -293,15 +283,11 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, hasReal }: { r
               <TableCell className="text-right tabular-nums">{eur(o.total_amount)}</TableCell>
               <TableCell className="text-right tabular-nums">{eur(o.markup)}</TableCell>
               <TableCell className="text-right tabular-nums">{eur(o.delivery_fee)}</TableCell>
-              <TableCell className="text-right tabular-nums">{eur(o.cap_cost)}</TableCell>
-              {hasReal && <TableCell className="text-right tabular-nums">{eur(o.real_cost)}</TableCell>}
-              {hasReal && (
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {o.distance_km == null ? "—" : `${o.distance_km.toFixed(1).replace(".", ",")} km`}
-                </TableCell>
-              )}
-              <TableCell className={cn("text-right font-semibold tabular-nums", tone(o.gain_cap))}>{eur(o.gain_cap, true)}</TableCell>
-              {hasReal && <TableCell className={cn("text-right tabular-nums", tone(o.gain_real))}>{eur(o.gain_real, true)}</TableCell>}
+              <TableCell className="text-right tabular-nums">{eur(o.real_cost)}</TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
+                {o.distance_km == null ? "—" : `${o.distance_km.toFixed(1).replace(".", ",")} km`}
+              </TableCell>
+              <TableCell className={cn("text-right font-semibold tabular-nums", tone(o.gain_real))}>{eur(o.gain_real, true)}</TableCell>
             </TableRow>
           ))}
         </TableBody>
@@ -317,7 +303,7 @@ export default function ChataigneDeliveryGain() {
   const end = format(endDate, "yyyy-MM-dd");
 
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("gainCap");
+  const [sortKey, setSortKey] = useState<SortKey>("gain");
   const [sortAsc, setSortAsc] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
@@ -379,8 +365,7 @@ export default function ChataigneDeliveryGain() {
     }
   };
 
-  const hasReal = totals.realOrders > 0;
-  const beforeRealPrices = start < UBER_REAL_PRICE_SINCE;
+  const hasUber = totals.pricedOrders > 0;
   const periodLabel = `du ${format(startDate, "d MMMM", { locale: fr })} au ${format(endDate, "d MMMM yyyy", { locale: fr })}`;
 
   const exportExcel = () => {
@@ -391,13 +376,10 @@ export default function ChataigneDeliveryGain() {
         "Commandes avec offre (non comptées)": r.orders_with_offer,
         "Markup (€ TTC)": r.markup,
         "Frais de livraison client (€ TTC)": r.delivery_fees,
-        "Uber Direct facturé au restaurant (€ TTC)": r.cap_cost,
-        "Gain avec offre (€)": r.gain_cap,
-        "Gain avec offre par commande (€)": perOrder(r.gain_cap, r.cap_orders),
-        "Commandes avec prix Uber réel connu": r.real_orders,
-        "Uber Direct vrai tarif (€ TTC)": r.real_cost,
-        "Gain au vrai tarif (€)": r.gain_real,
-        "Gain au vrai tarif par commande (€)": perOrder(r.gain_real, r.real_orders),
+        "Commandes avec course Uber Direct retrouvée": r.real_orders,
+        "Facturé par Uber Direct (€ TTC)": r.real_cost,
+        "Gain (€)": r.gain_real,
+        "Gain par commande (€)": perOrder(r.gain_real, r.real_orders),
         "Articles sans prix emporté connu": r.qty_no_ref,
       })),
     );
@@ -467,66 +449,49 @@ export default function ChataigneDeliveryGain() {
                   <Plus className="h-4 w-4 text-muted-foreground" aria-label="plus" />
                   <Chip label="Frais de livraison client" value={eur(totals.feesPerOrder)} />
                   <Minus className="h-4 w-4 text-muted-foreground" aria-label="moins" />
-                  <Chip
-                    label="Uber Direct facturé"
-                    value={eur(totals.capCostPerOrder)}
-                    sub={hasReal ? `vrai tarif : ${eur(totals.realCostPerOrder)}` : undefined}
-                  />
+                  <Chip label="Facturé par Uber Direct" value={eur(totals.uberPerOrder)} />
                   <Equal className="h-4 w-4 text-muted-foreground" aria-label="égale" />
                   <Chip
-                    label="Gagné par le restaurant"
-                    value={eur(totals.gainCapPerOrder, true)}
-                    highlight={(totals.gainCapPerOrder ?? 0) >= 0 ? "good" : "bad"}
+                    label={(totals.gainPerOrder ?? 0) >= 0 ? "Gagné par le restaurant" : "Perdu par le restaurant"}
+                    value={eur(totals.gainPerOrder, true)}
+                    highlight={totals.gainPerOrder == null ? undefined : totals.gainPerOrder >= 0 ? "good" : "bad"}
                   />
                 </div>
               </section>
 
-              {/* ---------------- Avec l'offre / au vrai tarif ---------------- */}
-              <section className="grid gap-4 md:grid-cols-2">
-                <Card className="border-border">
+              {/* ---------------- Résultat sur la période ---------------- */}
+              {hasUber ? (
+                <Card className={cn((totals.gain ?? 0) < 0 ? "border-destructive/30 bg-destructive/10" : "border-success/30 bg-success/10")}>
                   <CardContent className="space-y-2 p-5">
-                    <div className="text-sm text-muted-foreground">Avec le prix Uber Direct facturé au restaurant ({eur(totals.capCostPerOrder)} par course)</div>
-                    <div className={cn("text-3xl font-bold tabular-nums", tone(totals.gainCap))}>{eur(totals.gainCap, true)}</div>
+                    <div className="text-sm text-muted-foreground">Sur la période</div>
+                    <div className={cn("text-3xl font-bold tabular-nums", tone(totals.gain))}>{eur(totals.gain, true)}</div>
                     <p className="text-sm text-muted-foreground">
-                      {(totals.gainCap ?? 0) >= 0 ? "gagnés" : "perdus"} sur les {int(totals.capOrders)} commandes, soit {eur(totals.gainCapPerOrder, true)} par commande.{" "}
-                      {totals.lossOrdersCap === 0
+                      {(totals.gain ?? 0) >= 0 ? "gagnés" : "perdus"} sur {int(totals.pricedOrders)} commandes, soit {eur(totals.gainPerOrder, true)} par commande.{" "}
+                      {(totals.gainPerOrder ?? 0) < 0
+                        ? "Le markup et les frais de livraison ne couvrent pas la course."
+                        : "Le markup et les frais de livraison couvrent la course."}{" "}
+                      {totals.lossOrders === 0
                         ? "Aucune commande n'est à perte."
-                        : `${int(totals.lossOrdersCap)} commande${totals.lossOrdersCap > 1 ? "s sont" : " est"} à perte.`}
+                        : `${int(totals.lossOrders)} commande${totals.lossOrders > 1 ? "s sont" : " est"} à perte.`}
+                    </p>
+                    {totals.ordersWithoutUber > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {int(totals.ordersWithoutUber)} commande{totals.ordersWithoutUber > 1 ? "s" : ""} sans course Uber Direct retrouvée : non comptée{totals.ordersWithoutUber > 1 ? "s" : ""} dans le gain.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card>
+                  <CardContent className="space-y-2 p-5">
+                    <div className="text-sm font-medium">Gain non calculable pour cette enseigne</div>
+                    <p className="text-sm text-muted-foreground">
+                      Les courses Uber Direct de cette enseigne ne sont pas encore reliées à Mijotek : on connaît le markup et les frais payés par le client,
+                      pas ce qu'Uber Direct facture. Aucun prix n'est supposé.
                     </p>
                   </CardContent>
                 </Card>
-
-                {hasReal ? (
-                  <Card className={cn((totals.gainRealPerOrder ?? 0) < 0 ? "border-destructive/30 bg-destructive/10" : "border-success/30 bg-success/10")}>
-                    <CardContent className="space-y-2 p-5">
-                      <div className="text-sm text-muted-foreground">Si on payait le vrai tarif Uber Direct ({eur(totals.realCostPerOrder)} en moyenne)</div>
-                      <div className={cn("text-3xl font-bold tabular-nums", tone(totals.gainRealPerOrder))}>{eur(totals.gainRealPerOrder, true)}</div>
-                      <p className="text-sm text-muted-foreground">
-                        par commande, soit environ {eur(totals.gainReal, true)} sur la période.{" "}
-                        {(totals.gainRealPerOrder ?? 0) < 0
-                          ? "Le markup et les frais de livraison ne couvrent pas tout à fait la course."
-                          : "Le markup et les frais de livraison couvrent la course."}
-                        {totals.realOrders < totals.orders && <> Prix réel connu pour {int(totals.realOrders)} commandes sur {int(totals.orders)}.</>}
-                      </p>
-                      {beforeRealPrices && (
-                        <p className="text-xs text-muted-foreground">
-                          Attention : avant le 29 septembre 2026, Uber n'indiquait que le prix plafonné. Le vrai tarif n'est fiable qu'à partir de cette date.
-                        </p>
-                      )}
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <Card>
-                    <CardContent className="space-y-2 p-5">
-                      <div className="text-sm text-muted-foreground">Si on payait le vrai tarif Uber Direct</div>
-                      <div className="text-3xl font-bold text-muted-foreground">—</div>
-                      <p className="text-sm text-muted-foreground">
-                        Le prix réel des courses Uber Direct n'est pas encore relié à Mijotek pour cette enseigne. Le calcul de gauche utilise le prix plafonné.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </section>
+              )}
 
               {/* ---------------- Par restaurant ---------------- */}
               <section className="space-y-3">
@@ -547,16 +512,13 @@ export default function ChataigneDeliveryGain() {
                           <Th k="orders">Commandes</Th>
                           <Th k="markup">Markup</Th>
                           <Th k="fees">Frais livraison client</Th>
-                          {hasReal && <Th k="realCost">Uber Direct vrai tarif</Th>}
-                          <Th k="gainCap">Gain</Th>
-                          <Th k="gainCapOrder">Par commande</Th>
-                          {hasReal && <Th k="gainReal">Gain au vrai tarif</Th>}
-                          {hasReal && <Th k="gainRealOrder">Par commande</Th>}
+                          <Th k="uber">Facturé par Uber Direct</Th>
+                          <Th k="gain">Gain</Th>
+                          <Th k="gainOrder">Par commande</Th>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {rows.map((r) => {
-                          const gc = perOrder(r.gain_cap, r.cap_orders);
                           const gr = perOrder(r.gain_real, r.real_orders);
                           const open = openId === r.restaurant_id || rows.length === 1;
                           return (
@@ -575,19 +537,17 @@ export default function ChataigneDeliveryGain() {
                                 <TableCell className="text-right tabular-nums">{int(r.orders)}</TableCell>
                                 <TableCell className="text-right tabular-nums">{eur(r.markup)}</TableCell>
                                 <TableCell className="text-right tabular-nums">{eur(r.delivery_fees)}</TableCell>
-                                {hasReal && <TableCell className="text-right tabular-nums">{eur(r.real_cost)}</TableCell>}
-                                <TableCell className={cn("text-right font-semibold tabular-nums", tone(r.gain_cap))}>{eur(r.gain_cap)}</TableCell>
-                                <TableCell className={cn("text-right tabular-nums", tone(gc))}>{eur(gc)}</TableCell>
-                                {hasReal && <TableCell className={cn("text-right tabular-nums", tone(r.gain_real))}>{eur(r.gain_real)}</TableCell>}
-                                {hasReal && <TableCell className={cn("text-right tabular-nums", tone(gr))}>{eur(gr)}</TableCell>}
+                                <TableCell className="text-right tabular-nums">{eur(r.real_cost)}</TableCell>
+                                <TableCell className={cn("text-right font-semibold tabular-nums", tone(r.gain_real))}>{eur(r.gain_real, true)}</TableCell>
+                                <TableCell className={cn("text-right tabular-nums", tone(gr))}>{eur(gr, true)}</TableCell>
                               </TableRow>
                               {open && (
                                 <TableRow className="hover:bg-transparent">
-                                  <TableCell colSpan={hasReal ? 9 : 6} className="bg-muted/40 p-3">
+                                  <TableCell colSpan={7} className="bg-muted/40 p-3">
                                     <div className="mb-2 text-xs font-medium text-muted-foreground">
                                       Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name}
                                     </div>
-                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} hasReal={r.real_orders > 0} />
+                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} />
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -596,7 +556,7 @@ export default function ChataigneDeliveryGain() {
                         })}
                         {rows.length === 0 && (
                           <TableRow>
-                            <TableCell colSpan={hasReal ? 9 : 6} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
+                            <TableCell colSpan={7} className="py-6 text-center text-sm text-muted-foreground">Aucun restaurant ne correspond.</TableCell>
                           </TableRow>
                         )}
                       </TableBody>
@@ -604,8 +564,7 @@ export default function ChataigneDeliveryGain() {
                   </div>
                 </Card>
                 <p className="text-xs text-muted-foreground">
-                  Cliquez sur un restaurant pour voir ses commandes, puis sur une commande pour voir ce que le client a commandé. « Gain » = markup + frais de livraison client − prix Uber Direct facturé au restaurant.
-                  {hasReal && " « Gain au vrai tarif » = même calcul avec le prix réel de chaque course."} Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
+                  Cliquez sur un restaurant pour voir ses commandes, puis sur une commande pour voir ce que le client a commandé. « Gain » = markup + frais de livraison client − course facturée par Uber Direct. Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
                 </p>
               </section>
 
@@ -632,9 +591,9 @@ export default function ChataigneDeliveryGain() {
                       <span className="font-medium text-foreground">Frais de livraison client</span> : montant payé par le client, lu dans le détail de chaque commande WhatsApp.
                     </li>
                     <li>
-                      <span className="font-medium text-foreground">Uber Direct</span> : {hasReal
-                        ? <>prix réel de chaque course, lu chez Uber Direct chaque nuit et rattaché à la commande par son numéro. Le prix facturé au restaurant est plafonné par l'offre en cours (réglage Mijotek, pas lu chez Uber).</>
-                        : <>prix plafonné par l'offre en cours (réglage Mijotek). Le prix réel des courses n'est pas relié pour cette enseigne.</>}
+                      <span className="font-medium text-foreground">Facturé par Uber Direct</span> : {hasUber
+                        ? <>prix de chaque course, lu chez Uber Direct chaque nuit et rattaché à la commande par son numéro. Aucun prix n'est saisi à la main.</>
+                        : <>non relié pour cette enseigne.</>}
                     </li>
                     <li>
                       {int(totals.ordersWithOffer)} commandes livrées avec une offre client ne sont pas comptées : avec une offre, une partie du prix n'est pas payée par le client.

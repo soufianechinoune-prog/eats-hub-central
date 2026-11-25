@@ -9,37 +9,45 @@ const row = (o: Record<string, unknown>) => ({
 });
 
 describe("deliveryGainTotals", () => {
-  // Chicken Street, 24/10 → 17/11/2026 (contrôle du 25/11) : 426 commandes, 2,81 + 4,57 − 3,60 = 3,79 €
-  it("retrouve le gain par commande du réseau", () => {
-    const rows = parseDeliveryGainRows([
-      row({ restaurant_id: "a", orders: "300", markup: "843.00", delivery_fees: "1371.00", cap_orders: "300", cap_cost: "1080.00", gain_cap: "1134.00",
-        real_orders: "295", real_cost: "2433.75", gain_real: "-250.00", item_qty: "1200", qty_no_ref: "40", orders_with_offer: "800" }),
-      row({ restaurant_id: "b", orders: "126", markup: "354.96", delivery_fees: "577.40", cap_orders: "126", cap_cost: "453.60", gain_cap: "478.76",
-        real_orders: "122", real_cost: "1006.50", gain_real: "-116.66", item_qty: "554", qty_no_ref: "27", loss_orders_cap: "4", orders_with_offer: "334" }),
-    ]);
-    const t = deliveryGainTotals(rows);
-    expect(t.orders).toBe(426);
-    expect(t.ordersWithOffer).toBe(1134);
-    expect(t.markupPerOrder).toBeCloseTo(2.81, 2);
-    expect(t.feesPerOrder).toBeCloseTo(4.57, 2);
-    expect(t.capCostPerOrder).toBeCloseTo(3.6, 2);
-    expect(t.gainCapPerOrder).toBeCloseTo(3.79, 2);
-    expect(t.gainCap).toBeCloseTo(1612.76, 2);
-    expect(t.realOrders).toBe(417);
-    expect(t.realCostPerOrder).toBeCloseTo(8.25, 2);
-    expect(t.gainRealPerOrder).toBeCloseTo(-0.88, 2);
-    expect(t.lossOrdersCap).toBe(4);
-    expect(t.refCoveragePct).toBeCloseTo(96.2, 1);
+  // Chicken Street Reims, 1 → 24/11/2026 (contrôle du 25/11) : 21 commandes, toutes avec leur course Uber
+  it("gain = markup + frais client − Uber Direct facturé", () => {
+    const t = deliveryGainTotals(parseDeliveryGainRows([
+      row({ orders: "21", markup: "75.35", delivery_fees: "103.90", real_orders: "21", real_cost: "183.36", gain_real: "-4.11",
+        real_markup: "75.35", real_delivery_fees: "103.90", loss_orders_cap: "13", item_qty: "80", qty_no_ref: "4", orders_with_offer: "60" }),
+    ]));
+    expect(t.orders).toBe(21);
+    expect(t.pricedOrders).toBe(21);
+    expect(t.ordersWithoutUber).toBe(0);
+    expect(t.markupPerOrder).toBeCloseTo(3.59, 2);
+    expect(t.feesPerOrder).toBeCloseTo(4.95, 2);
+    expect(t.uberPerOrder).toBeCloseTo(8.73, 2);
+    expect(t.gain).toBeCloseTo(-4.11, 2);
+    expect(t.gainPerOrder).toBeCloseTo(-0.2, 2);
+    // les moyennes s'additionnent : 3,59 + 4,95 − 8,73 = −0,20 (à l'arrondi près)
+    expect((t.markupPerOrder ?? 0) + (t.feesPerOrder ?? 0) - (t.uberPerOrder ?? 0)).toBeCloseTo(t.gainPerOrder ?? 99, 2);
+    expect(t.lossOrders).toBe(13);
+    expect(t.refCoveragePct).toBeCloseTo(95, 1);
   });
 
-  it("enseigne sans Uber Direct connecté : pas de vrai tarif, pas de zéro inventé", () => {
+  it("commandes sans course Uber retrouvée : hors du gain, moyennes sur les seules commandes chiffrées", () => {
     const t = deliveryGainTotals(parseDeliveryGainRows([
-      row({ orders: 10, markup: 30, delivery_fees: 49, cap_orders: 10, cap_cost: 36, gain_cap: 43 }),
+      row({ orders: 10, markup: 30, delivery_fees: 50, real_orders: 8, real_cost: 64, gain_real: 0, real_markup: 24, real_delivery_fees: 40 }),
     ]));
-    expect(t.gainReal).toBeNull();
-    expect(t.gainRealPerOrder).toBeNull();
-    expect(t.realCostPerOrder).toBeNull();
-    expect(t.gainCapPerOrder).toBeCloseTo(4.3, 2);
+    expect(t.ordersWithoutUber).toBe(2);
+    expect(t.markupPerOrder).toBeCloseTo(3, 2);
+    expect(t.feesPerOrder).toBeCloseTo(5, 2);
+    expect(t.uberPerOrder).toBeCloseTo(8, 2);
+    expect(t.gainPerOrder).toBeCloseTo(0, 2);
+  });
+
+  it("enseigne sans Uber Direct relié : markup et frais connus, gain inconnu (jamais de prix inventé)", () => {
+    const t = deliveryGainTotals(parseDeliveryGainRows([row({ orders: 10, markup: 30, delivery_fees: 49 })]));
+    expect(t.pricedOrders).toBe(0);
+    expect(t.markupPerOrder).toBeCloseTo(3, 2);
+    expect(t.feesPerOrder).toBeCloseTo(4.9, 2);
+    expect(t.uberPerOrder).toBeNull();
+    expect(t.gain).toBeNull();
+    expect(t.gainPerOrder).toBeNull();
   });
 
   it("restaurant avec seulement des commandes avec offre : compté à part", () => {
@@ -47,7 +55,7 @@ describe("deliveryGainTotals", () => {
     expect(t.restaurants).toBe(0);
     expect(t.ordersWithOffer).toBe(12);
     expect(t.markupPerOrder).toBeNull();
-    expect(t.gainCap).toBeNull();
+    expect(t.gain).toBeNull();
   });
 
   it("perOrder", () => {
