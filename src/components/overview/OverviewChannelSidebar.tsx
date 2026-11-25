@@ -125,7 +125,7 @@ const CHATAIGNE_SUB_ITEMS: SubNavItem[] = [
   { id: "crossstore", label: "Mobilité inter-restos", icon: Network, route: "/chataigne/mobilite" },
   { id: "referral", label: "Parrainage", icon: Gift, route: "/chataigne/parrainage" },
   { id: "pricing", label: "Écarts & Markup", icon: Tag, route: "/chataigne/tarification" },
-  { id: "profitability", label: "Rentabilité", icon: Euro, route: "/chataigne/rentabilite" },
+  { id: "profitability", label: "Gain livraison", icon: Euro, route: "/chataigne/rentabilite" },
 ];
 
 /** Déduit le canal et la sous-entrée actifs à partir de l'adresse de la page. */
