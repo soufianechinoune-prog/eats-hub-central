@@ -22,7 +22,7 @@ import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
 import {
-  deliveryGainTotals, OFFER_KIND_LABEL, parseDeliveryGainRows, parseOfferGainRows, parseOfferKind, restaurantFigures,
+  deliveryGainTotals, OFFER_KIND_LABEL, parseDeliveryGainRows, perOrder, parseOfferGainRows, parseOfferKind, restaurantFigures,
   type DeliveryGainRow, type GainFigures, type GainScope, type OfferGainRow, type OfferKind,
 } from "@/lib/deliveryGain";
 import { Badge } from "@/components/ui/badge";
@@ -791,6 +791,7 @@ export default function ChataigneDeliveryGain() {
               {/* ---------------- Par commande, en moyenne ---------------- */}
               <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Par commande, en moyenne</h2>
+                <div className="text-sm font-medium text-muted-foreground">1. Le client paie-t-il la course ?</div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Chip label="Markup" value={eur(totals.markupPerOrder)} tip={"Ce que le restaurant encaisse en plus sur les articles parce que la commande est livrée : le prix livraison est plus élevé que le prix emporté." + vs("items")} />
                   <Plus className="h-4 w-4 text-muted-foreground" aria-label="plus" />
@@ -801,20 +802,43 @@ export default function ChataigneDeliveryGain() {
                   <Chip
                     label="Gain livraison"
                     value={eur(totals.gainPerOrder, true)}
-                    sub="le client paie-t-il la course ?"
+                    sub={totals.gainPerOrder == null ? undefined : totals.gainPerOrder >= 0 ? "oui, la course est couverte" : "non, il manque ce montant"}
                     tip={"Markup + frais de livraison payés par le client − course Uber Direct. Négatif : le restaurant paie une partie de la course de sa poche." + vs("mix")}
                     highlight={totals.gainPerOrder == null ? undefined : totals.gainPerOrder >= 0 ? "good" : "bad"}
                   />
-                  {hasFees && (
-                    <Chip
-                      label="Écart vs emporté"
-                      value={eur(totals.takeawayGapPerOrder, true)}
-                      sub="livrée, comparée à la même commande à emporter"
-                      tip={"Ce qu'une commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter. On ajoute au gain livraison le frais de service payé en plus par le client livré, et on retire le petit supplément de frais Stripe (estimé)." + vs("mix")}
-                      highlight={(totals.takeawayGapPerOrder ?? 0) >= 0 ? "good" : "bad"}
-                    />
-                  )}
                 </div>
+                {hasFees && (
+                  <>
+                    <div className="pt-2 text-sm font-medium text-muted-foreground">2. La livraison rapporte-t-elle plus que la même commande à emporter ?</div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Chip
+                        label="Gain livraison"
+                        value={eur(totals.gainPerOrder, true)}
+                        tip="Le résultat de la première ligne : ce qu'il reste (ou ce qu'il manque) une fois la course payée."
+                      />
+                      <Plus className="h-4 w-4 text-muted-foreground" aria-label="plus" />
+                      <Chip
+                        label="Frais de service en plus"
+                        value={eur(perOrder(totals.serviceExtra, totals.pricedOrders))}
+                        tip={"Un client livré paie un frais de service plus élevé qu'un client qui vient chercher sa commande. La différence reste au restaurant. Les deux montants sont lus dans les commandes." + vs("fees")}
+                      />
+                      <Minus className="h-4 w-4 text-muted-foreground" aria-label="moins" />
+                      <Chip
+                        label="Paiement en plus (estimé)"
+                        value={eur(perOrder(totals.stripeExtra, totals.pricedOrders))}
+                        tip={"Le client livré paie un total plus élevé, donc le paiement par carte coûte un peu plus cher au restaurant. Estimation : pourcentage réglé dans Mijotek." + vs("pay")}
+                      />
+                      <Equal className="h-4 w-4 text-muted-foreground" aria-label="égale" />
+                      <Chip
+                        label="Écart vs emporté"
+                        value={eur(totals.takeawayGapPerOrder, true)}
+                        sub={(totals.takeawayGapPerOrder ?? 0) >= 0 ? "oui, la livraison laisse plus" : "non, la livraison laisse moins"}
+                        tip={"Ce qu'une commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter : gain livraison + frais de service en plus − paiement en plus. Le frais Châtaigne est le même dans les deux cas, il n'entre pas dans la comparaison." + vs("mix")}
+                        highlight={(totals.takeawayGapPerOrder ?? 0) >= 0 ? "good" : "bad"}
+                      />
+                    </div>
+                  </>
+                )}
               </section>
 
               {/* ---------------- Résultat sur la période ---------------- */}
