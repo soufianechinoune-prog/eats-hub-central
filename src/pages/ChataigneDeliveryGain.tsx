@@ -1,6 +1,6 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { addDays, format, subDays } from "date-fns";
 import { fr } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Equal, FileSpreadsheet, Minus, Plus, Search } from "lucide-react";
@@ -138,15 +138,65 @@ const Line = ({ label, value, strong, className }: { label: string; value: strin
   </div>
 );
 
+const toOrderRow = (r: Record<string, unknown>): OrderRow => ({
+  order_id: String(r.order_id),
+  short_id: r.short_id == null ? null : String(r.short_id),
+  order_datetime: String(r.order_datetime),
+  total_amount: num(r.total_amount),
+  markup: num(r.markup),
+  delivery_fee: num(r.delivery_fee),
+  real_cost: num(r.real_cost),
+  cap_cost: num(r.cap_cost),
+  distance_km: num(r.distance_km),
+  gain_cap: num(r.gain_cap),
+  gain_real: num(r.gain_real),
+  items_without_ref: Number(r.items_without_ref) || 0,
+  service_fee: num(r.service_fee),
+  items_delivery: num(r.items_delivery),
+  items_takeaway: num(r.items_takeaway),
+  chataigne_fee: num(r.chataigne_fee),
+  stripe_fee: num(r.stripe_fee),
+  service_balance: num(r.service_balance),
+  full_result: num(r.full_result),
+  service_extra: num(r.service_extra),
+  stripe_extra: num(r.stripe_extra),
+  takeaway_gap: num(r.takeaway_gap),
+  offer_kind: parseOfferKind(r.offer_kind ?? "none"),
+  offer_label: r.offer_label == null ? null : String(r.offer_label),
+  discount: Number(r.discount) || 0,
+  paid_amount: num(r.paid_amount),
+});
+
+/** Commandes livrées d'un restaurant, dans le périmètre et la vue (hors taxe ou TTC) demandés. */
+async function fetchOrderRows(restaurantId: string, start: string, end: string, scope: GainScope, tax: TaxMode): Promise<OrderRow[]> {
+  const { data, error } = await rpc("get_chataigne_delivery_gain_orders", { p_start: start, p_end: end, p_restaurant_id: restaurantId, p_scope: scope, p_tax: tax });
+  if (error) throw error;
+  return (data ?? []).map(toOrderRow);
+}
+
 /** Panneau latéral : la commande telle que le client l'a passée, puis le calcul du gain. */
-function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow | null; restaurantName: string; onClose: () => void; tax: TaxMode }) {
+function OrderSheet({ order: pageOrder, restaurantId, restaurantName, onClose, tax: pageTax, scope }: { order: OrderRow | null; restaurantId: string; restaurantName: string; onClose: () => void; tax: TaxMode; scope: GainScope }) {
+  // Onglet propre au panneau : on compare hors taxe et TTC sans changer la vue de la page.
+  const [tax, setTax] = useState<TaxMode>(pageTax);
+  useEffect(() => setTax(pageTax), [pageTax, pageOrder?.order_id]);
+  const day = pageOrder ? new Date(pageOrder.order_datetime) : null;
+  const { data: other, isLoading: otherLoading, error: otherError } = useQuery<OrderRow | null, Error>({
+    queryKey: ["chataigne-gain-order-other-tax", pageOrder?.order_id, tax, scope],
+    queryFn: async () => {
+      // un jour de marge de chaque côté : la date de la commande est lue en heure de Paris côté base
+      const rows = await fetchOrderRows(restaurantId, format(subDays(day!, 1), "yyyy-MM-dd"), format(addDays(day!, 1), "yyyy-MM-dd"), scope, tax);
+      return rows.find((r) => r.order_id === pageOrder!.order_id) ?? null;
+    },
+    enabled: !!pageOrder && tax !== pageTax,
+  });
+  const order = tax === pageTax ? pageOrder : other ?? null;
   const { data: head, isLoading: headLoading } = useQuery({
-    queryKey: ["chataigne-gain-order-head", order?.order_id],
+    queryKey: ["chataigne-gain-order-head", pageOrder?.order_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chataigne_orders")
         .select("chataigne_order_id, raw_payload, total_amount, discount_total_amount")
-        .eq("id", order!.order_id)
+        .eq("id", pageOrder!.order_id)
         .maybeSingle();
       if (error) throw error;
       const payload = (data?.raw_payload ?? null) as { charges?: unknown } | null;
@@ -161,7 +211,7 @@ function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow |
         discount: Number(data?.discount_total_amount) || 0,
       };
     },
-    enabled: !!order,
+    enabled: !!pageOrder,
   });
   const { data: items, isLoading: itemsLoading } = useChataigneOrderItems(head?.chataigneOrderId ?? null);
 
@@ -197,14 +247,14 @@ function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow |
   );
 
   return (
-    <Sheet open={!!order} onOpenChange={(o) => !o && onClose()}>
+    <Sheet open={!!pageOrder} onOpenChange={(o) => !o && onClose()}>
       <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-lg">
-        {order && (
+        {pageOrder && (
           <>
             <SheetHeader className="text-left">
-              <SheetTitle>Commande {order.short_id ?? ""}</SheetTitle>
+              <SheetTitle>Commande {pageOrder.short_id ?? ""}</SheetTitle>
               <SheetDescription>
-                {restaurantName} · {format(new Date(order.order_datetime), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })} · livraison
+                {restaurantName} · {format(new Date(pageOrder.order_datetime), "EEEE d MMMM yyyy 'à' HH:mm", { locale: fr })} · livraison
               </SheetDescription>
             </SheetHeader>
 
@@ -230,7 +280,7 @@ function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow |
                     {(head?.discount ?? 0) > 0 && (
                       <>
                         <Line label="Total hors offre" value={eur((head?.paid ?? 0) + (head?.discount ?? 0))} />
-                        <Line label={`Offre${order.offer_label ? ` « ${order.offer_label} »` : ""}`} value={eur(-(head?.discount ?? 0))} />
+                        <Line label={`Offre${pageOrder.offer_label ? ` « ${pageOrder.offer_label} »` : ""}`} value={eur(-(head?.discount ?? 0))} />
                       </>
                     )}
                     <Line label="Total payé par le client (TTC)" value={eur(head?.paid ?? null)} strong />
@@ -240,7 +290,25 @@ function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow |
               </section>
 
               <section>
-                <h3 className="mb-2 text-sm font-semibold">Ce que la livraison rapporte au restaurant ({tax === "ht" ? "hors taxe" : "TTC"})</h3>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">Ce que la livraison rapporte au restaurant</h3>
+                  <Tabs value={tax} onValueChange={(v) => setTax(v as TaxMode)}>
+                    <TabsList className="h-8">
+                      <TabsTrigger value="ht" className="px-3 py-1 text-xs" title="Ce qui reste réellement au restaurant, TVA retirée">Hors taxe</TabsTrigger>
+                      <TabsTrigger value="ttc" className="px-3 py-1 text-xs" title="Montants TVA comprise">TTC</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+                {!order ? (
+                  otherError ? (
+                    <p className="text-sm text-destructive">Cette vue n'a pas pu être chargée : {otherError.message}</p>
+                  ) : otherLoading ? (
+                    <Skeleton className="h-40 w-full" />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">Cette commande n'a pas été retrouvée dans cette vue.</p>
+                  )
+                ) : (
+                <>
                 <div className="rounded-md border px-3 py-2">
                   <Line label="Markup (prix livraison − prix emporté)" value={eur(order.markup, true)} />
                   <Line label="Frais de livraison payés par le client" value={eur(order.delivery_fee, true)} />
@@ -283,6 +351,8 @@ function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow |
                   <p className="mt-2 text-xs text-muted-foreground">
                     Markup partiel : le prix emporté est inconnu pour {int(order.items_without_ref)} article{order.items_without_ref > 1 ? "s" : ""}, compté{order.items_without_ref > 1 ? "s" : ""} pour 0 €.
                   </p>
+                )}
+                </>
                 )}
               </section>
             </div>
@@ -356,44 +426,7 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope, t
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
     queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end, scope, tax],
-    queryFn: async () => {
-      const { data, error } = await rpc("get_chataigne_delivery_gain_orders", {
-        p_start: start,
-        p_end: end,
-        p_restaurant_id: restaurantId,
-        p_scope: scope,
-        p_tax: tax,
-      });
-      if (error) throw error;
-      return (data ?? []).map((r) => ({
-        order_id: String(r.order_id),
-        short_id: r.short_id == null ? null : String(r.short_id),
-        order_datetime: String(r.order_datetime),
-        total_amount: num(r.total_amount),
-        markup: num(r.markup),
-        delivery_fee: num(r.delivery_fee),
-        real_cost: num(r.real_cost),
-        cap_cost: num(r.cap_cost),
-        distance_km: num(r.distance_km),
-        gain_cap: num(r.gain_cap),
-        gain_real: num(r.gain_real),
-        items_without_ref: Number(r.items_without_ref) || 0,
-        service_fee: num(r.service_fee),
-        items_delivery: num(r.items_delivery),
-        items_takeaway: num(r.items_takeaway),
-        chataigne_fee: num(r.chataigne_fee),
-        stripe_fee: num(r.stripe_fee),
-        service_balance: num(r.service_balance),
-        full_result: num(r.full_result),
-        service_extra: num(r.service_extra),
-        stripe_extra: num(r.stripe_extra),
-        takeaway_gap: num(r.takeaway_gap),
-        offer_kind: parseOfferKind(r.offer_kind ?? "none"),
-        offer_label: r.offer_label == null ? null : String(r.offer_label),
-        discount: Number(r.discount) || 0,
-        paid_amount: num(r.paid_amount),
-      }));
-    },
+    queryFn: () => fetchOrderRows(restaurantId, start, end, scope, tax),
   });
 
   if (isLoading) return <Skeleton className="h-24 w-full" />;
@@ -408,7 +441,7 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope, t
 
   return (
     <div className="overflow-x-auto rounded-md border bg-background">
-      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} tax={tax} />
+      <OrderSheet order={selected} restaurantId={restaurantId} restaurantName={restaurantName} onClose={() => setSelected(null)} tax={tax} scope={scope} />
       <Table>
         <TableHeader>
           <TableRow>
