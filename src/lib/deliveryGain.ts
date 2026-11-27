@@ -36,6 +36,13 @@ export interface DeliveryGainRow {
   chataigne_fees: number | null;
   stripe_fees: number | null;
   avg_distance_km: number | null;
+  /** Comparaison avec la même commande en emporté (commandes dont la course est connue). */
+  /** Frais de service payés en plus par le client livré (frais livraison − frais emporté, lus dans la donnée). */
+  real_service_extra: number | null;
+  /** Frais Stripe en plus, parce que le client livré paie un total plus élevé (pourcentage estimé). */
+  real_stripe_extra: number | null;
+  /** Gain livraison + frais de service en plus − Stripe en plus. */
+  takeaway_gap: number | null;
 }
 
 const n = (v: unknown) => Number(v) || 0;
@@ -68,6 +75,9 @@ export function parseDeliveryGainRows(data: unknown[] | null | undefined): Deliv
     chataigne_fees: nn(r.chataigne_fees),
     stripe_fees: nn(r.stripe_fees),
     avg_distance_km: nn(r.avg_distance_km),
+    real_service_extra: nn(r.real_service_extra),
+    real_stripe_extra: nn(r.real_stripe_extra),
+    takeaway_gap: nn(r.takeaway_gap),
   }));
 }
 
@@ -86,11 +96,13 @@ export interface DeliveryGainTotals {
   gain: number | null;
   gainPerOrder: number | null;
   lossOrders: number;
-  /** Frais de service client − frais Châtaigne − frais Stripe (estimés) ; null sans réglage de frais. */
-  serviceBalance: number | null;
-  /** Gain livraison + solde des frais de service. */
-  fullResult: number | null;
-  fullResultPerOrder: number | null;
+  /** Frais de service payés en plus par rapport à l'emporté. */
+  serviceExtra: number | null;
+  /** Frais Stripe en plus par rapport à l'emporté (estimé). */
+  stripeExtra: number | null;
+  /** Écart vs emporté = gain livraison + frais de service en plus − Stripe en plus ; null si inconnu. */
+  takeawayGap: number | null;
+  takeawayGapPerOrder: number | null;
   /** Part des articles dont on connaît le prix emporté (0 à 100). */
   refCoveragePct: number | null;
   itemsWithoutRef: number;
@@ -110,9 +122,8 @@ export function deliveryGainTotals(rows: DeliveryGainRow[]): DeliveryGainTotals 
   const priced = sum((r) => r.real_orders);
   const itemQty = sum((r) => r.item_qty);
   const noRef = sum((r) => r.qty_no_ref);
-  const hasFees = priced > 0 && active.some((r) => r.real_orders > 0 && r.chataigne_fees != null);
-  const serviceBalance = hasFees ? sum((r) => r.real_service_fees) - sum((r) => r.chataigne_fees) - sum((r) => r.stripe_fees) : null;
-  const fullResult = serviceBalance == null ? null : sum((r) => r.gain_real) + serviceBalance;
+  const hasGap = priced > 0 && active.some((r) => r.real_orders > 0 && r.takeaway_gap != null);
+  const takeawayGap = hasGap ? sum((r) => r.takeaway_gap) : null;
   return {
     restaurants: active.length,
     orders,
@@ -125,9 +136,10 @@ export function deliveryGainTotals(rows: DeliveryGainRow[]): DeliveryGainTotals 
     gain: priced > 0 ? sum((r) => r.gain_real) : null,
     gainPerOrder: div(sum((r) => r.gain_real), priced),
     lossOrders: sum((r) => r.loss_orders_cap),
-    serviceBalance,
-    fullResult,
-    fullResultPerOrder: fullResult == null ? null : div(fullResult, priced),
+    serviceExtra: hasGap ? sum((r) => r.real_service_extra) : null,
+    stripeExtra: hasGap ? sum((r) => r.real_stripe_extra) : null,
+    takeawayGap,
+    takeawayGapPerOrder: takeawayGap == null ? null : div(takeawayGap, priced),
     refCoveragePct: itemQty > 0 ? (100 * (itemQty - noRef)) / itemQty : null,
     itemsWithoutRef: noRef,
   };
@@ -147,10 +159,9 @@ export interface GainFigures {
   ud: number | null; // course facturée par Uber Direct
   km: number | null; // distance (moyenne pour un restaurant)
   gain: number | null; // gain livraison
-  chat: number | null; // frais Châtaigne (estimé)
-  stripe: number | null; // frais Stripe (estimé)
-  solde: number | null; // solde des frais de service
-  res: number | null; // résultat complet
+  svcx: number | null; // frais de service en plus par rapport à l'emporté
+  stripex: number | null; // frais Stripe en plus par rapport à l'emporté (estimé)
+  ecart: number | null; // écart vs emporté
 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -164,17 +175,15 @@ export function restaurantFigures(r: DeliveryGainRow, perOrderMode = false): Gai
   const nPriced = r.real_orders;
   if (nPriced <= 0) {
     const d = perOrderMode ? Math.max(r.orders, 1) : 1;
-    return { art: null, emp: null, mk: r2(r.markup / d), liv: r2(r.delivery_fees / d), svc: null, tot: null, ud: null, km: null, gain: null, chat: null, stripe: null, solde: null, res: null };
+    return { art: null, emp: null, mk: r2(r.markup / d), liv: r2(r.delivery_fees / d), svc: null, tot: null, ud: null, km: null, gain: null, svcx: null, stripex: null, ecart: null };
   }
   const d = perOrderMode ? nPriced : 1;
   const v = (x: number | null) => (x == null ? null : r2(x / d));
   const art = r.real_total == null || r.real_delivery_fees == null || r.real_service_fees == null ? null : r.real_total - r.real_delivery_fees - r.real_service_fees;
   const emp = art == null || r.real_markup == null ? null : art - r.real_markup;
-  const solde = r.real_service_fees == null || r.chataigne_fees == null || r.stripe_fees == null ? null : r.real_service_fees - r.chataigne_fees - r.stripe_fees;
-  const res = solde == null || r.gain_real == null ? null : r.gain_real + solde;
   return {
     art: v(art), emp: v(emp), mk: v(r.real_markup), liv: v(r.real_delivery_fees), svc: v(r.real_service_fees), tot: v(r.real_total),
-    ud: v(r.real_cost), km: r.avg_distance_km, gain: v(r.gain_real), chat: v(r.chataigne_fees), stripe: v(r.stripe_fees), solde: v(solde), res: v(res),
+    ud: v(r.real_cost), km: r.avg_distance_km, gain: v(r.gain_real), svcx: v(r.real_service_extra), stripex: v(r.real_stripe_extra), ecart: v(r.takeaway_gap),
   };
 }
 
@@ -214,6 +223,8 @@ export interface OfferGainRow {
   uberPerOrder: number | null;
   gain: number | null;
   gainPerOrder: number | null;
+  /** Écart vs emporté, par commande ; null si inconnu. */
+  gapPerOrder: number | null;
   lossOrders: number;
   /** Remises accordées sur toutes les commandes de la famille : le coût de l'offre, hors gain livraison. */
   discounts: number;
@@ -238,6 +249,7 @@ export function parseOfferGainRows(data: unknown[] | null | undefined, scope: Ga
       uberPerOrder: avg(r.real_cost),
       gain: priced > 0 ? nn(r.gain_real) : null,
       gainPerOrder: avg(r.gain_real),
+      gapPerOrder: avg(r.takeaway_gap),
       lossOrders: n(r.loss_orders),
       discounts: n(r.discounts_all),
       discountPerOrder: div(n(r.discounts_all), orders),

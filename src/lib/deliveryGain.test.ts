@@ -6,7 +6,8 @@ const row = (o: Record<string, unknown>) => ({
   cap_orders: 0, cap_cost: null, gain_cap: null, loss_orders_cap: 0,
   real_orders: 0, real_cost: null, gain_real: null, real_markup: null, real_delivery_fees: null,
   item_qty: 0, qty_ref_resto: 0, qty_ref_version: 0, qty_ref_grid: 0, qty_no_ref: 0,
-  real_total: null, real_service_fees: null, chataigne_fees: null, stripe_fees: null, avg_distance_km: null, ...o,
+  real_total: null, real_service_fees: null, chataigne_fees: null, stripe_fees: null, avg_distance_km: null,
+  real_service_extra: null, real_stripe_extra: null, takeaway_gap: null, ...o,
 });
 
 describe("deliveryGainTotals", () => {
@@ -65,38 +66,52 @@ describe("deliveryGainTotals", () => {
     expect(perOrder(10, 0)).toBeNull();
   });
 
-  // Reims, 1 → 24/11/2026 : mêmes totaux que l'export Excel remis le 25/11
+  // Reims, 1 → 26/11/2026, toutes commandes offre neutralisée : 58 commandes. Gain, frais de service en plus,
+  // Stripe en plus et écart viennent du contrôle du 27/11 ; les autres montants sont illustratifs.
   const reims = () => parseDeliveryGainRows([
-    row({ orders: 21, markup: 75.35, delivery_fees: 103.9, real_orders: 21, real_cost: 183.36, gain_real: -4.11, real_markup: 75.35,
-      real_delivery_fees: 103.9, real_total: 730.89, real_service_fees: 41.79, chataigne_fees: 21, stripe_fees: 16.19, avg_distance_km: 2 }),
+    row({ orders: 60, markup: 200, delivery_fees: 290, real_orders: 58, real_cost: 498.1, gain_real: 1.66, real_markup: 195.2,
+      real_delivery_fees: 304.56, real_total: 2075.3, real_service_fees: 115.42, chataigne_fees: 58, stripe_fees: 45.63, avg_distance_km: 2,
+      real_service_extra: 57.42, real_stripe_extra: 8.69, takeaway_gap: 50.39 }),
   ]);
 
-  it("ligne restaurant : mêmes colonnes que le détail des commandes", () => {
+  it("ligne restaurant : mêmes colonnes que le détail des commandes, jusqu'à l'écart vs emporté", () => {
     const f = restaurantFigures(reims()[0]);
-    expect(f).toMatchObject({ art: 585.2, emp: 509.85, mk: 75.35, liv: 103.9, svc: 41.79, tot: 730.89, ud: 183.36, km: 2, gain: -4.11, chat: 21, stripe: 16.19, solde: 4.6, res: 0.49 });
+    expect(f).toMatchObject({ mk: 195.2, liv: 304.56, svc: 115.42, tot: 2075.3, ud: 498.1, km: 2, gain: 1.66, svcx: 57.42, stripex: 8.69, ecart: 50.39 });
+    // écart vs emporté = gain livraison + frais de service en plus − Stripe en plus
+    expect((f.gain ?? 0) + (f.svcx ?? 0) - (f.stripex ?? 0)).toBeCloseTo(f.ecart ?? 99, 2);
     const o = restaurantFigures(reims()[0], true);
-    expect(o.gain).toBeCloseTo(-0.2, 2);
-    expect(o.tot).toBeCloseTo(34.8, 2);
+    expect(o.gain).toBeCloseTo(0.03, 2);
+    expect(o.ecart).toBeCloseTo(0.87, 2);
     expect(o.km).toBe(2);
   });
 
-  it("résultat complet du réseau = gain livraison + solde des frais de service", () => {
+  it("écart vs emporté du réseau : somme des restaurants, moyenne sur les commandes chiffrées", () => {
     const t = deliveryGainTotals(reims());
-    expect(t.serviceBalance).toBeCloseTo(4.6, 2);
-    expect(t.fullResult).toBeCloseTo(0.49, 2);
-    expect(t.fullResultPerOrder).toBeCloseTo(0.02, 2);
+    expect(t.serviceExtra).toBeCloseTo(57.42, 2);
+    expect(t.stripeExtra).toBeCloseTo(8.69, 2);
+    expect(t.takeawayGap).toBeCloseTo(50.39, 2);
+    expect(t.takeawayGapPerOrder).toBeCloseTo(0.87, 2);
   });
 
-  it("enseigne sans réglage de frais ou sans Uber : pas de résultat complet inventé", () => {
-    expect(deliveryGainTotals(parseDeliveryGainRows([row({ orders: 5, real_orders: 5, real_cost: 40, gain_real: -3, real_markup: 12, real_delivery_fees: 25, real_total: 150, real_service_fees: 9.95 })])).fullResult).toBeNull();
+  // Nice, commande K7V2 du 08/11/2026 : livrée 21,94 € pour le restaurant, la même en emporté 23,72 €
+  it("une commande : l'écart vs emporté ne dépend pas du frais Châtaigne", () => {
+    const f = restaurantFigures(parseDeliveryGainRows([row({ orders: 1, real_orders: 1, markup: 2.05, delivery_fees: 4.9, real_markup: 2.05, real_delivery_fees: 4.9,
+      real_cost: 9.6, gain_real: -2.65, real_total: 33.29, real_service_fees: 1.99, real_service_extra: 0.99, real_stripe_extra: 0.12, takeaway_gap: -1.78 })])[0]);
+    expect(f.gain).toBeCloseTo(-2.65, 2);
+    expect(f.ecart).toBeCloseTo(-1.78, 2);
+    expect(f.ecart).toBeCloseTo(21.94 - 23.72, 2);
+  });
+
+  it("enseigne sans réglage Stripe ou sans Uber : pas d'écart vs emporté inventé", () => {
+    expect(deliveryGainTotals(parseDeliveryGainRows([row({ orders: 5, real_orders: 5, real_cost: 40, gain_real: -3, real_markup: 12, real_delivery_fees: 25, real_total: 150, real_service_fees: 9.95 })])).takeawayGap).toBeNull();
     const f = restaurantFigures(parseDeliveryGainRows([row({ orders: 4, markup: 12, delivery_fees: 20 })])[0], true);
-    expect(f).toMatchObject({ mk: 3, liv: 5, gain: null, res: null, ud: null });
+    expect(f).toMatchObject({ mk: 3, liv: 5, gain: null, ecart: null, ud: null });
   });
 
   // Chicken Street, 1 → 26/11/2026 (contrôle du 27/11) : vue par offre
   const offers = [
-    { offer_kind: "none", offer_labels: null, orders: 425, real_orders: 406, items_delivery: 9059.45, markup: 1121.1, delivery_fees: 1891.4, real_cost: 3383.4, gain_real: -370.9, loss_orders: 317, discounts: 0, discounts_all: 0 },
-    { offer_kind: "bienvenue", offer_labels: "Promo de bienvenue", orders: 957, real_orders: 938, items_delivery: 24335.7, markup: 3086.62, delivery_fees: 4694.2, real_cost: 8146.92, gain_real: -366.1, loss_orders: 621, discounts: 6086.31, discounts_all: 6195.95 },
+    { offer_kind: "none", offer_labels: null, orders: 425, real_orders: 406, items_delivery: 9059.45, markup: 1121.1, delivery_fees: 1891.4, real_cost: 3383.4, gain_real: -370.9, loss_orders: 317, discounts: 0, discounts_all: 0, takeaway_gap: -20.3 },
+    { offer_kind: "bienvenue", offer_labels: "Promo de bienvenue", orders: 957, real_orders: 938, items_delivery: 24335.7, markup: 3086.62, delivery_fees: 4694.2, real_cost: 8146.92, gain_real: -366.1, loss_orders: 621, discounts: 6086.31, discounts_all: 6195.95, takeaway_gap: 431.67 },
     { offer_kind: "parrainage", offer_labels: "Code Parrainage", orders: 121, real_orders: 118, items_delivery: 3675.5, markup: 475.4, delivery_fees: 539.2, real_cost: 970.56, gain_real: 44.04, loss_orders: 58, discounts: 858.53, discounts_all: 875.07 },
     { offer_kind: "article_offert", offer_labels: "1 naan tenders acheté = 1 offert - GTA VI", orders: 136, real_orders: 128, items_delivery: 3283.85, markup: 432.15, delivery_fees: 598.2, real_cost: 1073.28, gain_real: -42.93, loss_orders: 89, discounts: 1013.2, discounts_all: 1074.9 },
   ];
@@ -110,6 +125,9 @@ describe("deliveryGainTotals", () => {
     expect(by.bienvenue.discounts).toBeCloseTo(6195.95, 2);
     expect(by.bienvenue.discountPerOrder).toBeCloseTo(6.47, 2);
     expect(by.parrainage.gainPerOrder).toBeCloseTo(0.37, 2);
+    expect(by.none.gapPerOrder).toBeCloseTo(-0.05, 2);
+    expect(by.bienvenue.gapPerOrder).toBeCloseTo(0.46, 2);
+    expect(by.parrainage.gapPerOrder).toBeNull();
     // l'article offert est montré mais reste hors du gain
     expect(rows.filter((r) => r.inGain).map((r) => r.kind)).toEqual(["none", "bienvenue", "parrainage"]);
     // le gain « toutes les commandes » est la somme des familles comptées : −692,96 €
