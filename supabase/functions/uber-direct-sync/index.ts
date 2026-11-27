@@ -216,10 +216,12 @@ Deno.serve(async (req) => {
         await fetchWindow(ws, mid); await fetchWindow(mid, we); return
       }
       if (got >= CAP) throw new Error(`plafond atteint sur ${ws.toISOString()}`)
-      const rows = batch.map((d) => toRow(d, mapping)).filter((r) => {
-        const t = r.created_at_uber ? Date.parse(r.created_at_uber) : NaN
-        return t >= ws.getTime() && t < we.getTime()
-      })
+      // On garde TOUTES les courses renvoyées par Uber pour la tranche, sans les trier sur leur heure de création.
+      // Constat du 27/11/2026 : Uber range une course selon une heure postérieure à sa création ; une course créée
+      // dans les ~20 minutes avant la fin d'une tranche revenait dans la tranche suivante, où l'ancien filtre
+      // (création dans la tranche) l'écartait. Résultat : aucune course créée entre 11 h 10 et 11 h 30, 17 h 10 et
+      // 17 h 30, 23 h 10 et 23 h 30 (heure de Paris) depuis le 12/11. L'enregistrement par identifiant évite tout doublon.
+      const rows = batch.map((d) => toRow(d, mapping)).filter((r) => !!r.id)
       const uniq = [...new Map(rows.map((r) => [r.id, r])).values()]
       for (const r of uniq) if (r.external_store_id) seenStores.set(r.external_store_id, r.pickup_name)
       fetched += got
