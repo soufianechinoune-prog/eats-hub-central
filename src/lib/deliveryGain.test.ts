@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deliveryGainTotals, parseDeliveryGainRows, perOrder, restaurantFigures } from "./deliveryGain";
+import { deliveryGainTotals, offerInGain, parseDeliveryGainRows, parseOfferGainRows, parseOfferKind, perOrder, restaurantFigures } from "./deliveryGain";
 
 const row = (o: Record<string, unknown>) => ({
   restaurant_id: "a", restaurant_name: "A", orders: 0, orders_with_offer: 0, markup: 0, delivery_fees: 0,
@@ -91,5 +91,42 @@ describe("deliveryGainTotals", () => {
     expect(deliveryGainTotals(parseDeliveryGainRows([row({ orders: 5, real_orders: 5, real_cost: 40, gain_real: -3, real_markup: 12, real_delivery_fees: 25, real_total: 150, real_service_fees: 9.95 })])).fullResult).toBeNull();
     const f = restaurantFigures(parseDeliveryGainRows([row({ orders: 4, markup: 12, delivery_fees: 20 })])[0], true);
     expect(f).toMatchObject({ mk: 3, liv: 5, gain: null, res: null, ud: null });
+  });
+
+  // Chicken Street, 1 → 26/11/2026 (contrôle du 27/11) : vue par offre
+  const offers = [
+    { offer_kind: "none", offer_labels: null, orders: 425, real_orders: 406, items_delivery: 9059.45, markup: 1121.1, delivery_fees: 1891.4, real_cost: 3383.4, gain_real: -370.9, loss_orders: 317, discounts: 0, discounts_all: 0 },
+    { offer_kind: "bienvenue", offer_labels: "Promo de bienvenue", orders: 957, real_orders: 938, items_delivery: 24335.7, markup: 3086.62, delivery_fees: 4694.2, real_cost: 8146.92, gain_real: -366.1, loss_orders: 621, discounts: 6086.31, discounts_all: 6195.95 },
+    { offer_kind: "parrainage", offer_labels: "Code Parrainage", orders: 121, real_orders: 118, items_delivery: 3675.5, markup: 475.4, delivery_fees: 539.2, real_cost: 970.56, gain_real: 44.04, loss_orders: 58, discounts: 858.53, discounts_all: 875.07 },
+    { offer_kind: "article_offert", offer_labels: "1 naan tenders acheté = 1 offert - GTA VI", orders: 136, real_orders: 128, items_delivery: 3283.85, markup: 432.15, delivery_fees: 598.2, real_cost: 1073.28, gain_real: -42.93, loss_orders: 89, discounts: 1013.2, discounts_all: 1074.9 },
+  ];
+
+  it("vue par offre : moyennes sur les commandes dont la course est connue, remises à part", () => {
+    const rows = parseOfferGainRows(offers, "all");
+    const by = Object.fromEntries(rows.map((r) => [r.kind, r]));
+    expect(by.none.gainPerOrder).toBeCloseTo(-0.91, 2);
+    expect(by.bienvenue.gainPerOrder).toBeCloseTo(-0.39, 2);
+    expect(by.bienvenue.itemsPerOrder).toBeCloseTo(25.94, 2);
+    expect(by.bienvenue.discounts).toBeCloseTo(6195.95, 2);
+    expect(by.bienvenue.discountPerOrder).toBeCloseTo(6.47, 2);
+    expect(by.parrainage.gainPerOrder).toBeCloseTo(0.37, 2);
+    // l'article offert est montré mais reste hors du gain
+    expect(rows.filter((r) => r.inGain).map((r) => r.kind)).toEqual(["none", "bienvenue", "parrainage"]);
+    // le gain « toutes les commandes » est la somme des familles comptées : −692,96 €
+    expect(rows.filter((r) => r.inGain).reduce((s, r) => s + (r.gain ?? 0), 0)).toBeCloseTo(-692.96, 2);
+  });
+
+  it("périmètre « sans offre » : seule la famille sans offre entre dans le gain", () => {
+    expect(parseOfferGainRows(offers, "no_offer").filter((r) => r.inGain).map((r) => r.kind)).toEqual(["none"]);
+    expect(offerInGain("article_offert", "all")).toBe(false);
+    expect(offerInGain("promo", "all")).toBe(true);
+  });
+
+  it("famille d'offre inconnue : traitée comme une promo, sans course connue pas de moyenne inventée", () => {
+    expect(parseOfferKind("nouveau_type")).toBe("promo");
+    const r = parseOfferGainRows([{ offer_kind: "promo", orders: 3, real_orders: 0, discounts_all: 12 }], "all")[0];
+    expect(r.gain).toBeNull();
+    expect(r.gainPerOrder).toBeNull();
+    expect(r.discountPerOrder).toBeCloseTo(4, 2);
   });
 });

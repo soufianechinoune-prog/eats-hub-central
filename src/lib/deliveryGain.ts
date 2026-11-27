@@ -177,3 +177,71 @@ export function restaurantFigures(r: DeliveryGainRow, perOrderMode = false): Gai
     ud: v(r.real_cost), km: r.avg_distance_km, gain: v(r.gain_real), chat: v(r.chataigne_fees), stripe: v(r.stripe_fees), solde: v(solde), res: v(res),
   };
 }
+
+/* ---------------- Offres client ---------------- */
+
+/** Périmètre du calcul : toutes les commandes (offre neutralisée) ou seulement celles sans offre. */
+export type GainScope = "all" | "no_offer";
+
+/** Famille d'offre, déduite du nom de l'offre lu dans la commande (voir migration 20261127090000). */
+export type OfferKind = "none" | "bienvenue" | "parrainage" | "promo" | "article_offert";
+
+export const OFFER_KIND_LABEL: Record<OfferKind, string> = {
+  none: "Sans offre",
+  bienvenue: "Bienvenue",
+  parrainage: "Parrainage",
+  promo: "Promo",
+  article_offert: "Article offert",
+};
+
+const OFFER_KINDS = Object.keys(OFFER_KIND_LABEL) as OfferKind[];
+export const parseOfferKind = (v: unknown): OfferKind => (OFFER_KINDS.includes(v as OfferKind) ? (v as OfferKind) : "promo");
+
+/** L'article offert reste hors du gain : neutraliser l'offre reviendrait à compter l'article gratuit comme payé. */
+export const offerInGain = (kind: OfferKind, scope: GainScope) => (scope === "all" ? kind !== "article_offert" : kind === "none");
+
+export interface OfferGainRow {
+  kind: OfferKind;
+  /** Noms des offres tels qu'ils apparaissent dans les commandes. */
+  labels: string | null;
+  /** Toutes les commandes livrées de la famille. */
+  orders: number;
+  /** Celles dont la course Uber Direct est connue : base des moyennes. */
+  pricedOrders: number;
+  itemsPerOrder: number | null;
+  markupPerOrder: number | null;
+  feesPerOrder: number | null;
+  uberPerOrder: number | null;
+  gain: number | null;
+  gainPerOrder: number | null;
+  lossOrders: number;
+  /** Remises accordées sur toutes les commandes de la famille : le coût de l'offre, hors gain livraison. */
+  discounts: number;
+  discountPerOrder: number | null;
+  inGain: boolean;
+}
+
+export function parseOfferGainRows(data: unknown[] | null | undefined, scope: GainScope): OfferGainRow[] {
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => {
+    const kind = parseOfferKind(r.offer_kind);
+    const orders = n(r.orders);
+    const priced = n(r.real_orders);
+    const avg = (v: unknown) => (priced > 0 && v != null ? Number(v) / priced : null);
+    return {
+      kind,
+      labels: r.offer_labels == null ? null : String(r.offer_labels),
+      orders,
+      pricedOrders: priced,
+      itemsPerOrder: avg(r.items_delivery),
+      markupPerOrder: avg(r.markup),
+      feesPerOrder: avg(r.delivery_fees),
+      uberPerOrder: avg(r.real_cost),
+      gain: priced > 0 ? nn(r.gain_real) : null,
+      gainPerOrder: avg(r.gain_real),
+      lossOrders: n(r.loss_orders),
+      discounts: n(r.discounts_all),
+      discountPerOrder: div(n(r.discounts_all), orders),
+      inGain: offerInGain(kind, scope),
+    };
+  });
+}

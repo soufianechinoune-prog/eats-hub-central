@@ -21,7 +21,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAnalyticsContext } from "@/contexts/AnalyticsContext";
 import { resolveBrandScopedRestaurantIds } from "@/lib/brandScope";
 import { useDataGranularity } from "@/hooks/useDataGranularity";
-import { deliveryGainTotals, parseDeliveryGainRows, restaurantFigures, type DeliveryGainRow, type GainFigures } from "@/lib/deliveryGain";
+import {
+  deliveryGainTotals, OFFER_KIND_LABEL, parseDeliveryGainRows, parseOfferGainRows, parseOfferKind, restaurantFigures,
+  type DeliveryGainRow, type GainFigures, type GainScope, type OfferGainRow, type OfferKind,
+} from "@/lib/deliveryGain";
+import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -75,6 +79,24 @@ interface OrderRow {
   stripe_fee: number | null;
   service_balance: number | null;
   full_result: number | null;
+  /** Offre client de la commande. total_amount est le total hors offre ; paid_amount ce que le client a réellement payé. */
+  offer_kind: OfferKind;
+  offer_label: string | null;
+  discount: number;
+  paid_amount: number | null;
+}
+
+type Rpc = (fn: string, params: Record<string, unknown>) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
+// Appel écrit ainsi pour garder le client Supabase comme contexte de la méthode.
+const rpc: Rpc = (fn, params) => (supabase.rpc as unknown as Rpc)(fn, params);
+
+function OfferBadge({ kind, label }: { kind: OfferKind; label?: string | null }) {
+  if (kind === "none") return null;
+  return (
+    <Badge variant="secondary" className="ml-2 font-sans text-[11px] font-medium" title={label ?? undefined}>
+      {OFFER_KIND_LABEL[kind]}
+    </Badge>
+  );
 }
 
 const num = (v: unknown) => (v == null ? null : Number(v));
@@ -171,9 +193,17 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
                   <Line label="Articles" value={eur(itemsTotal)} />
                   <Line label="Frais de livraison" value={eur(head?.delivery ?? order.delivery_fee)} />
                   <Line label="Frais de service" value={eur(head?.service ?? null)} />
-                  <div className="mt-1 border-t pt-1">
-                    <Line label="Total payé par le client" value={eur(order.total_amount)} strong />
-                  </div>
+                  {order.discount > 0 ? (
+                    <div className="mt-1 border-t pt-1">
+                      <Line label="Total hors offre" value={eur(order.total_amount)} />
+                      <Line label={`Offre${order.offer_label ? ` « ${order.offer_label} »` : ""}`} value={eur(-order.discount)} />
+                      <Line label="Total payé par le client" value={eur(order.paid_amount)} strong />
+                    </div>
+                  ) : (
+                    <div className="mt-1 border-t pt-1">
+                      <Line label="Total payé par le client" value={eur(order.total_amount)} strong />
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -200,6 +230,12 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
                       <Line label="Résultat complet" value={eur(order.full_result, true)} strong className={tone(order.full_result)} />
                     </div>
                   </div>
+                )}
+                {order.discount > 0 && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Calcul fait comme si l'offre n'existait pas : les articles sont pris à leur prix catalogue. La remise de {eur(order.discount)} est un coût
+                    d'acquisition, suivi à part dans la vue par offre.
+                  </p>
                 )}
                 {order.real_cost == null && (
                   <p className="mt-2 text-xs text-muted-foreground">La course Uber Direct de cette commande n'a pas été retrouvée : le gain n'est pas calculé.</p>
@@ -229,7 +265,7 @@ const FIG_COLS: FigCol[] = [
   { key: "mk", label: "Markup", tip: "Articles livrés − mêmes articles au prix emporté : ce que le restaurant encaisse en plus parce que la commande est livrée.", sign: true },
   { key: "liv", label: "Frais livr.", tip: "Frais de livraison payés par le client, lus dans la commande." },
   { key: "svc", label: "Frais service", tip: "Frais de service payés par le client, lus dans la commande." },
-  { key: "tot", label: "Total payé", tip: "Total payé par le client = articles livrés + frais de livraison + frais de service." },
+  { key: "tot", label: "Total payé", tip: "Articles livrés + frais de livraison + frais de service. Pour une commande avec offre : total hors remise." },
   { key: "ud", label: "Uber Direct", tip: "Course facturée par Uber Direct, lue chez Uber Direct et rattachée à la commande. Aucun prix saisi à la main." },
   { key: "km", label: "Distance", tip: "Distance de la course (moyenne pour un restaurant).", km: true },
   { key: "gain", label: "Gain livraison", tip: "Markup + frais de livraison payés par le client − course facturée par Uber Direct.", sign: true, strong: true },
@@ -277,19 +313,17 @@ const orderFigures = (o: OrderRow): GainFigures => ({
   ud: o.real_cost, km: o.distance_km, gain: o.gain_real, chat: o.chataigne_fee, stripe: o.stripe_fee, solde: o.service_balance, res: o.full_result,
 });
 
-/** Détail commande par commande d'un restaurant (commandes livrées sans offre client, période sélectionnée). */
-function OrdersDetail({ restaurantId, restaurantName, start, end, cols }: { restaurantId: string; restaurantName: string; start: string; end: string; cols: FigCol[] }) {
+/** Détail commande par commande d'un restaurant (période et périmètre sélectionnés). */
+function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope }: { restaurantId: string; restaurantName: string; start: string; end: string; cols: FigCol[]; scope: GainScope }) {
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
-    queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end],
+    queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end, scope],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as unknown as (
-        fn: string,
-        params: Record<string, unknown>,
-      ) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>)("get_chataigne_delivery_gain_orders", {
+      const { data, error } = await rpc("get_chataigne_delivery_gain_orders", {
         p_start: start,
         p_end: end,
         p_restaurant_id: restaurantId,
+        p_scope: scope,
       });
       if (error) throw error;
       return (data ?? []).map((r) => ({
@@ -312,6 +346,10 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols }: { rest
         stripe_fee: num(r.stripe_fee),
         service_balance: num(r.service_balance),
         full_result: num(r.full_result),
+        offer_kind: parseOfferKind(r.offer_kind ?? "none"),
+        offer_label: r.offer_label == null ? null : String(r.offer_label),
+        discount: Number(r.discount) || 0,
+        paid_amount: num(r.paid_amount),
       }));
     },
   });
@@ -348,6 +386,7 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols }: { rest
               <TableCell className="whitespace-nowrap text-sm">{format(new Date(o.order_datetime), "EEE d MMM, HH:mm", { locale: fr })}</TableCell>
               <TableCell className="whitespace-nowrap font-mono text-xs">
                 {o.short_id ?? "—"}
+                <OfferBadge kind={o.offer_kind} label={o.offer_label} />
                 {o.items_without_ref > 0 && (
                   <span className="ml-2 font-sans text-[11px] text-muted-foreground" title="Prix emporté inconnu pour une partie des articles : leur markup compte pour 0 €.">
                     markup partiel
@@ -381,6 +420,101 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols }: { rest
   );
 }
 
+/** Vue par offre : une ligne par famille d'offre. Chargée seulement quand on l'ouvre. */
+function OffersView({ start, end, restaurantIds, scope }: { start: string; end: string; restaurantIds: string[]; scope: GainScope }) {
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, error } = useQuery<OfferGainRow[], Error>({
+    queryKey: ["chataigne-delivery-gain-by-offer", start, end, restaurantIds, scope],
+    queryFn: async () => {
+      const { data, error } = await rpc("get_chataigne_delivery_gain_by_offer", { p_start: start, p_end: end, p_restaurant_ids: restaurantIds });
+      if (error) throw error;
+      return parseOfferGainRows(data, scope);
+    },
+    enabled: open,
+  });
+  const totalDiscounts = (data ?? []).reduce((sum, r) => sum + r.discounts, 0);
+  const th = "whitespace-nowrap text-right text-xs";
+  const td = "whitespace-nowrap text-right tabular-nums";
+
+  return (
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CollapsibleTrigger className="group flex items-center gap-2 text-lg font-semibold hover:text-foreground">
+        <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        Par offre
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div className="mt-3 space-y-2">
+          {isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : error ? (
+            <p className="text-sm text-destructive">La vue par offre n'a pas pu être chargée : {error.message}</p>
+          ) : (
+            <>
+              <Card>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="whitespace-nowrap text-xs">Offre</TableHead>
+                        <TableHead className={th}>Commandes</TableHead>
+                        <TableHead className={th}>Articles / cmd</TableHead>
+                        <TableHead className={th}>Markup / cmd</TableHead>
+                        <TableHead className={th}>Frais livr. / cmd</TableHead>
+                        <TableHead className={th}>Uber Direct / cmd</TableHead>
+                        <TableHead className={cn(th, "font-bold text-foreground")}>Gain / cmd</TableHead>
+                        <TableHead className={th}>Gain total</TableHead>
+                        <TableHead className={th}>Remise / cmd</TableHead>
+                        <TableHead className={th}>Remises accordées</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(data ?? []).map((r) => (
+                        <TableRow key={r.kind} className={cn(!r.inGain && "text-muted-foreground")}>
+                          <TableCell className="text-sm">
+                            <div className="font-medium">
+                              {OFFER_KIND_LABEL[r.kind]}
+                              {!r.inGain && <span className="ml-2 text-[11px] font-normal">hors du gain affiché</span>}
+                            </div>
+                            {r.labels && <div className="max-w-xs truncate text-[11px] text-muted-foreground" title={r.labels}>{r.labels}</div>}
+                          </TableCell>
+                          <TableCell className={td}>
+                            {int(r.pricedOrders)}
+                            {r.orders > r.pricedOrders && (
+                              <span className="ml-1 text-[11px] text-muted-foreground" title={`${r.orders - r.pricedOrders} commande(s) sans course Uber Direct retrouvée, hors moyennes`}>
+                                +{int(r.orders - r.pricedOrders)}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className={td}>{eur(r.itemsPerOrder)}</TableCell>
+                          <TableCell className={td}>{eur(r.markupPerOrder)}</TableCell>
+                          <TableCell className={td}>{eur(r.feesPerOrder)}</TableCell>
+                          <TableCell className={td}>{eur(r.uberPerOrder)}</TableCell>
+                          <TableCell className={cn(td, "font-semibold", tone(r.gainPerOrder))}>{eur(r.gainPerOrder, true)}</TableCell>
+                          <TableCell className={cn(td, tone(r.gain))}>{eur(r.gain, true)}</TableCell>
+                          <TableCell className={td}>{r.discounts > 0 ? eur(r.discountPerOrder) : "—"}</TableCell>
+                          <TableCell className={td}>{r.discounts > 0 ? eur(r.discounts) : "—"}</TableCell>
+                        </TableRow>
+                      ))}
+                      {(data ?? []).length === 0 && (
+                        <TableRow><TableCell colSpan={10} className="py-6 text-center text-sm text-muted-foreground">Aucune commande livrée.</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </Card>
+              <p className="max-w-3xl text-xs text-muted-foreground">
+                Le gain est calculé comme si l'offre n'existait pas (articles au prix catalogue). Les remises accordées
+                {totalDiscounts > 0 && <> — <span className="font-medium text-foreground">{eur(totalDiscounts)}</span> sur la période —</>} sont le coût des offres :
+                elles ne sont pas déduites du gain livraison. « Article offert » reste hors du gain, car l'article gratuit y serait compté comme payé.
+              </p>
+            </>
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
 type SortKey = "name" | "orders" | FigKey;
 
 export default function ChataigneDeliveryGain() {
@@ -394,6 +528,8 @@ export default function ChataigneDeliveryGain() {
   const [sortAsc, setSortAsc] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [mode, setMode] = useState<"total" | "order">("total");
+  // Par défaut : toutes les commandes, offre neutralisée (le test du modèle sur tout le volume).
+  const [scope, setScope] = useState<GainScope>("all");
 
   const { data: restaurants } = useQuery({
     queryKey: ["chataigne-gain-restaurants", selectedChainId],
@@ -413,15 +549,13 @@ export default function ChataigneDeliveryGain() {
   }, [restaurants, selectedRestaurants, selectedChainId]);
 
   const { data, isLoading, error } = useQuery<DeliveryGainRow[], Error>({
-    queryKey: ["chataigne-delivery-gain", start, end, restaurantIds],
+    queryKey: ["chataigne-delivery-gain", start, end, restaurantIds, scope],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as unknown as (
-        fn: string,
-        params: Record<string, unknown>,
-      ) => Promise<{ data: unknown[] | null; error: Error | null }>)("get_chataigne_delivery_gain", {
+      const { data, error } = await rpc("get_chataigne_delivery_gain", {
         p_start: start,
         p_end: end,
         p_restaurant_ids: restaurantIds,
+        p_scope: scope,
       });
       if (error) throw error;
       return parseDeliveryGainRows(data);
@@ -474,9 +608,9 @@ export default function ChataigneDeliveryGain() {
         const f = restaurantFigures(r);
         return {
           Restaurant: r.restaurant_name,
-          "Commandes livrées sans offre": r.orders,
+          [scope === "all" ? "Commandes livrées (offre neutralisée)" : "Commandes livrées sans offre"]: r.orders,
           "dont avec course Uber Direct (base des montants)": r.real_orders,
-          "Commandes avec offre (non comptées)": r.orders_with_offer,
+          [scope === "all" ? "Commandes « article offert » (non comptées)" : "Commandes avec offre (non comptées)"]: r.orders_with_offer,
           "Articles payés en livraison (€ TTC)": f.art,
           "Mêmes articles au prix emporté (€ TTC)": f.emp,
           "Markup (€)": f.mk,
@@ -496,7 +630,7 @@ export default function ChataigneDeliveryGain() {
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, "Gain livraison");
-    XLSX.writeFile(wb, `gain-livraison-whatsapp_${start}_${end}.xlsx`);
+    XLSX.writeFile(wb, `gain-livraison-whatsapp_${scope === "all" ? "toutes-commandes" : "sans-offre"}_${start}_${end}.xlsx`);
   };
 
   const colCount = cols.length + 2;
@@ -512,10 +646,18 @@ export default function ChataigneDeliveryGain() {
             <div className="max-w-3xl">
               <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Ce que la livraison rapporte au restaurant</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                Commande WhatsApp livrée par Uber Direct, {periodLabel}. Seulement les commandes livrées sans aucune offre client
-                (ni bienvenue, ni parrainage, ni promo)
+                Commande WhatsApp livrée par Uber Direct, {periodLabel}.{" "}
+                {scope === "all"
+                  ? "Toutes les commandes livrées, comptées comme si l'offre client n'existait pas (bienvenue, parrainage, promo)"
+                  : "Seulement les commandes livrées sans aucune offre client (ni bienvenue, ni parrainage, ni promo)"}
                 {data ? <> : <span className="font-medium text-foreground">{int(totals.orders)} commandes</span>. Montants TTC.</> : "."}
               </p>
+              <Tabs value={scope} onValueChange={(v) => { setScope(v as GainScope); setOpenId(null); }} className="mt-3">
+                <TabsList>
+                  <TabsTrigger value="all">Toutes les commandes</TabsTrigger>
+                  <TabsTrigger value="no_offer">Sans offre uniquement</TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
             <Button variant="outline" size="sm" onClick={exportExcel} disabled={rows.length === 0}>
               <FileSpreadsheet className="mr-2 h-4 w-4" />
@@ -536,8 +678,8 @@ export default function ChataigneDeliveryGain() {
           ) : totals.orders === 0 ? (
             <Card>
               <CardContent className="p-6 text-sm text-muted-foreground">
-                Aucune commande livrée sans offre client sur cette période
-                {totals.ordersWithOffer > 0 && <> ({int(totals.ordersWithOffer)} commandes livrées avec une offre, non comptées ici)</>}.
+                {scope === "all" ? "Aucune commande livrée sur cette période" : "Aucune commande livrée sans offre client sur cette période"}
+                {totals.ordersWithOffer > 0 && <> ({int(totals.ordersWithOffer)} commandes livrées {scope === "all" ? "avec un article offert" : "avec une offre"}, non comptées ici)</>}.
               </CardContent>
             </Card>
           ) : (
@@ -635,7 +777,7 @@ export default function ChataigneDeliveryGain() {
                               Restaurant {arrow("name")}
                             </button>
                           </TableHead>
-                          <HeadTip col={{ label: "Cmd", tip: "Commandes livrées sans offre client dont la course Uber Direct est connue : tous les montants de la ligne portent sur ces commandes." }}>
+                          <HeadTip col={{ label: "Cmd", tip: scope === "all" ? "Commandes livrées dont la course Uber Direct est connue, offre neutralisée : tous les montants de la ligne portent sur ces commandes." : "Commandes livrées sans offre client dont la course Uber Direct est connue : tous les montants de la ligne portent sur ces commandes." }}>
                             <button type="button" onClick={() => onSort("orders")} className="inline-flex items-center gap-1">Cmd {arrow("orders")}</button>
                           </HeadTip>
                           {cols.map((c) => (
@@ -680,7 +822,7 @@ export default function ChataigneDeliveryGain() {
                                     <div className="mb-2 text-xs font-medium text-muted-foreground">
                                       Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name} — cliquez sur une commande pour voir ce que le client a commandé
                                     </div>
-                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} cols={cols} />
+                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} cols={cols} scope={scope} />
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -701,6 +843,9 @@ export default function ChataigneDeliveryGain() {
                   Avec 1 à 3 commandes, un restaurant peut varier beaucoup d'une semaine à l'autre.
                 </p>
               </section>
+
+              {/* ---------------- Par offre ---------------- */}
+              {restaurantIds && <OffersView start={start} end={end} restaurantIds={restaurantIds} scope={scope} />}
 
               {/* ---------------- D'où viennent les chiffres ---------------- */}
               <Collapsible>
@@ -736,7 +881,15 @@ export default function ChataigneDeliveryGain() {
                       </li>
                     )}
                     <li>
-                      {int(totals.ordersWithOffer)} commandes livrées avec une offre client ne sont pas comptées : avec une offre, une partie du prix n'est pas payée par le client.
+                      {scope === "all" ? (
+                        <>
+                          <span className="font-medium text-foreground">Offres client</span> : une commande avec offre est comptée comme si l'offre n'existait pas
+                          (articles au prix catalogue, total hors remise). La remise est un coût d'acquisition, visible dans « Par offre ».
+                          {totals.ordersWithOffer > 0 && <> {int(totals.ordersWithOffer)} commandes avec un article offert ne sont pas comptées : l'article gratuit y serait compté comme payé.</>}
+                        </>
+                      ) : (
+                        <>{int(totals.ordersWithOffer)} commandes livrées avec une offre client ne sont pas comptées dans cette vue.</>
+                      )}
                     </li>
                   </ul>
                 </CollapsibleContent>
