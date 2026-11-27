@@ -96,6 +96,26 @@ interface OrderRow {
   paid_amount: number | null;
 }
 
+/** Vue hors taxe (par défaut) ou TTC. */
+type TaxMode = "ht" | "ttc";
+/** Réglages de l'enseigne : taux de TVA par nature de montant et frais de paiement (lus en base, jamais en dur ici). */
+interface GainSettings { vatItems: number | null; vatFees: number | null; vatUber: number | null; vatNote: string | null; stripePct: number | null; stripeFixed: number | null }
+type VatKind = "items" | "fees" | "uber" | "pay" | "mix" | "none";
+const pct = (v: number | null | undefined) => (v == null ? "taux non réglé" : `${(v * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`);
+/** Fin d'info-bulle : quelle TVA s'applique à ce montant, et si elle est comprise ou retirée. */
+function vatSuffix(kind: VatKind, tax: TaxMode, st: GainSettings | undefined): string {
+  if (kind === "none") return "";
+  if (kind === "pay") return " Pas de TVA sur les frais de paiement.";
+  if (kind === "mix") {
+    return tax === "ht"
+      ? " Calculé sur des montants hors taxe."
+      : " Calculé sur des montants TTC, alors que les taux de TVA diffèrent d'une ligne à l'autre : la vue hors taxe est la plus juste.";
+  }
+  const rate = kind === "items" ? st?.vatItems : kind === "fees" ? st?.vatFees : st?.vatUber;
+  const who = kind === "uber" ? "le restaurant la récupère" : "le restaurant la reverse à l'État";
+  return tax === "ht" ? ` Hors taxe : TVA de ${pct(rate)} retirée (${who}).` : ` TTC : TVA de ${pct(rate)} comprise (${who}).`;
+}
+
 type Rpc = (fn: string, params: Record<string, unknown>) => Promise<{ data: Record<string, unknown>[] | null; error: Error | null }>;
 // Appel écrit ainsi pour garder le client Supabase comme contexte de la méthode.
 const rpc: Rpc = (fn, params) => (supabase.rpc as unknown as Rpc)(fn, params);
@@ -119,13 +139,13 @@ const Line = ({ label, value, strong, className }: { label: string; value: strin
 );
 
 /** Panneau latéral : la commande telle que le client l'a passée, puis le calcul du gain. */
-function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null; restaurantName: string; onClose: () => void }) {
+function OrderSheet({ order, restaurantName, onClose, tax }: { order: OrderRow | null; restaurantName: string; onClose: () => void; tax: TaxMode }) {
   const { data: head, isLoading: headLoading } = useQuery({
     queryKey: ["chataigne-gain-order-head", order?.order_id],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("chataigne_orders")
-        .select("chataigne_order_id, raw_payload")
+        .select("chataigne_order_id, raw_payload, total_amount, discount_total_amount")
         .eq("id", order!.order_id)
         .maybeSingle();
       if (error) throw error;
@@ -136,6 +156,9 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
         chataigneOrderId: data?.chataigne_order_id ?? null,
         service: charge("service"),
         delivery: charge("delivery"),
+        // Le ticket du client est toujours en TTC, quelle que soit la vue choisie.
+        paid: data?.total_amount == null ? null : Number(data.total_amount),
+        discount: Number(data?.discount_total_amount) || 0,
       };
     },
     enabled: !!order,
@@ -201,24 +224,23 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
                 )}
                 <div className="mt-3">
                   <Line label="Articles" value={eur(itemsTotal)} />
-                  <Line label="Frais de livraison" value={eur(head?.delivery ?? order.delivery_fee)} />
+                  <Line label="Frais de livraison" value={eur(head?.delivery ?? null)} />
                   <Line label="Frais de service" value={eur(head?.service ?? null)} />
-                  {order.discount > 0 ? (
-                    <div className="mt-1 border-t pt-1">
-                      <Line label="Total hors offre" value={eur(order.total_amount)} />
-                      <Line label={`Offre${order.offer_label ? ` « ${order.offer_label} »` : ""}`} value={eur(-order.discount)} />
-                      <Line label="Total payé par le client" value={eur(order.paid_amount)} strong />
-                    </div>
-                  ) : (
-                    <div className="mt-1 border-t pt-1">
-                      <Line label="Total payé par le client" value={eur(order.total_amount)} strong />
-                    </div>
-                  )}
+                  <div className="mt-1 border-t pt-1">
+                    {(head?.discount ?? 0) > 0 && (
+                      <>
+                        <Line label="Total hors offre" value={eur((head?.paid ?? 0) + (head?.discount ?? 0))} />
+                        <Line label={`Offre${order.offer_label ? ` « ${order.offer_label} »` : ""}`} value={eur(-(head?.discount ?? 0))} />
+                      </>
+                    )}
+                    <Line label="Total payé par le client (TTC)" value={eur(head?.paid ?? null)} strong />
+                  </div>
+                  <p className="pt-1 text-xs text-muted-foreground">Ticket du client : prix TTC.</p>
                 </div>
               </section>
 
               <section>
-                <h3 className="mb-2 text-sm font-semibold">Ce que la livraison rapporte au restaurant</h3>
+                <h3 className="mb-2 text-sm font-semibold">Ce que la livraison rapporte au restaurant ({tax === "ht" ? "hors taxe" : "TTC"})</h3>
                 <div className="rounded-md border px-3 py-2">
                   <Line label="Markup (prix livraison − prix emporté)" value={eur(order.markup, true)} />
                   <Line label="Frais de livraison payés par le client" value={eur(order.delivery_fee, true)} />
@@ -250,7 +272,7 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
                 )}
                 {order.discount > 0 && (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Calcul fait comme si l'offre n'existait pas : les articles sont pris à leur prix catalogue. La remise de {eur(order.discount)} est un coût
+                    Calcul fait comme si l'offre n'existait pas : les articles sont pris à leur prix catalogue. La remise de {eur(order.discount)}{tax === "ht" ? " hors taxe" : ""} est un coût
                     d'acquisition, suivi à part dans la vue par offre.
                   </p>
                 )}
@@ -274,21 +296,21 @@ function OrderSheet({ order, restaurantName, onClose }: { order: OrderRow | null
 /* ---------------- Colonnes « de bout en bout », communes aux restaurants et aux commandes ---------------- */
 
 type FigKey = keyof GainFigures;
-interface FigCol { key: FigKey; label: string; tip: string; sign?: boolean; strong?: boolean; est?: boolean; km?: boolean }
+interface FigCol { key: FigKey; label: string; tip: string; vat: VatKind; sign?: boolean; strong?: boolean; est?: boolean; km?: boolean }
 
 const FIG_COLS: FigCol[] = [
-  { key: "art", label: "Articles livrés", tip: "Ce que le client a payé pour ses articles et suppléments, au prix de la livraison (hors frais de livraison et de service)." },
-  { key: "emp", label: "Au prix emporté", tip: "Les mêmes articles au prix que le client aurait payé s'il était venu chercher sa commande." },
-  { key: "mk", label: "Markup", tip: "Ce que le restaurant encaisse en plus sur les articles parce que la commande est livrée : articles livrés − mêmes articles au prix emporté.", sign: true },
-  { key: "liv", label: "Frais livr.", tip: "Frais de livraison payés par le client." },
-  { key: "svc", label: "Frais service", tip: "Frais de service payés par le client sur la commande livrée." },
-  { key: "tot", label: "Total payé", tip: "Articles livrés + frais de livraison + frais de service. Pour une commande avec offre : total avant remise." },
-  { key: "ud", label: "Uber Direct", tip: "Ce qu'Uber Direct facture au restaurant pour la course. Montant lu chez Uber Direct, jamais saisi à la main." },
-  { key: "km", label: "Distance", tip: "Distance de la course (moyenne pour un restaurant).", km: true },
-  { key: "gain", label: "Gain livraison", tip: "Est-ce que le client paie la course ? Markup + frais de livraison payés par le client − course Uber Direct. Négatif : le restaurant paie une partie de la course.", sign: true, strong: true },
-  { key: "svcx", label: "Service en plus", tip: "Frais de service payés en plus par un client livré, par rapport à une commande à emporter (les deux montants sont lus dans les commandes).", sign: true },
-  { key: "stripex", label: "Stripe en plus (estimé)", tip: "Le client livré paie un total plus élevé, donc le paiement par carte coûte un peu plus cher. ESTIMATION : pourcentage Stripe réglé dans Mijotek.", est: true },
-  { key: "ecart", label: "Écart vs emporté", tip: "Ce que la commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter : gain livraison + frais de service en plus − Stripe en plus. C'est la rentabilité de la livraison face à l'emporté.", sign: true, strong: true },
+  { key: "art", vat: "items", label: "Articles livrés", tip: "Ce que le client a payé pour ses articles et suppléments, au prix de la livraison (hors frais de livraison et de service)." },
+  { key: "emp", vat: "items", label: "Au prix emporté", tip: "Les mêmes articles au prix que le client aurait payé s'il était venu chercher sa commande." },
+  { key: "mk", vat: "items", label: "Markup", tip: "Ce que le restaurant encaisse en plus sur les articles parce que la commande est livrée : articles livrés − mêmes articles au prix emporté.", sign: true },
+  { key: "liv", vat: "fees", label: "Frais livr.", tip: "Frais de livraison payés par le client." },
+  { key: "svc", vat: "fees", label: "Frais service", tip: "Frais de service payés par le client sur la commande livrée." },
+  { key: "tot", vat: "mix", label: "Total payé", tip: "Articles livrés + frais de livraison + frais de service. Pour une commande avec offre : total avant remise." },
+  { key: "ud", vat: "uber", label: "Uber Direct", tip: "Ce qu'Uber Direct facture au restaurant pour la course. Montant lu chez Uber Direct, jamais saisi à la main." },
+  { key: "km", vat: "none", label: "Distance", tip: "Distance de la course (moyenne pour un restaurant).", km: true },
+  { key: "gain", vat: "mix", label: "Gain livraison", tip: "Est-ce que le client paie la course ? Markup + frais de livraison payés par le client − course Uber Direct. Négatif : le restaurant paie une partie de la course.", sign: true, strong: true },
+  { key: "svcx", vat: "fees", label: "Service en plus", tip: "Frais de service payés en plus par un client livré, par rapport à une commande à emporter (les deux montants sont lus dans les commandes).", sign: true },
+  { key: "stripex", vat: "pay", label: "Stripe en plus (estimé)", tip: "Le client livré paie un total plus élevé, donc le paiement par carte coûte un peu plus cher. ESTIMATION : pourcentage Stripe réglé dans Mijotek.", est: true },
+  { key: "ecart", vat: "mix", label: "Écart vs emporté", tip: "Ce que la commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter : gain livraison + frais de service en plus − Stripe en plus. C'est la rentabilité de la livraison face à l'emporté.", sign: true, strong: true },
 ];
 const FEE_KEYS: FigKey[] = ["stripex", "ecart"];
 
@@ -330,16 +352,17 @@ const orderFigures = (o: OrderRow): GainFigures => ({
 });
 
 /** Détail commande par commande d'un restaurant (période et périmètre sélectionnés). */
-function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope }: { restaurantId: string; restaurantName: string; start: string; end: string; cols: FigCol[]; scope: GainScope }) {
+function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope, tax }: { restaurantId: string; restaurantName: string; start: string; end: string; cols: FigCol[]; scope: GainScope; tax: TaxMode }) {
   const [selected, setSelected] = useState<OrderRow | null>(null);
   const { data, isLoading, error } = useQuery<OrderRow[], Error>({
-    queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end, scope],
+    queryKey: ["chataigne-delivery-gain-orders", restaurantId, start, end, scope, tax],
     queryFn: async () => {
       const { data, error } = await rpc("get_chataigne_delivery_gain_orders", {
         p_start: start,
         p_end: end,
         p_restaurant_id: restaurantId,
         p_scope: scope,
+        p_tax: tax,
       });
       if (error) throw error;
       return (data ?? []).map((r) => ({
@@ -385,7 +408,7 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope }:
 
   return (
     <div className="overflow-x-auto rounded-md border bg-background">
-      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} />
+      <OrderSheet order={selected} restaurantName={restaurantName} onClose={() => setSelected(null)} tax={tax} />
       <Table>
         <TableHeader>
           <TableRow>
@@ -440,12 +463,12 @@ function OrdersDetail({ restaurantId, restaurantName, start, end, cols, scope }:
 }
 
 /** Vue par offre : une ligne par famille d'offre. Chargée seulement quand on l'ouvre. */
-function OffersView({ start, end, restaurantIds, scope }: { start: string; end: string; restaurantIds: string[]; scope: GainScope }) {
+function OffersView({ start, end, restaurantIds, scope, tax }: { start: string; end: string; restaurantIds: string[]; scope: GainScope; tax: TaxMode }) {
   const [open, setOpen] = useState(false);
   const { data, isLoading, error } = useQuery<OfferGainRow[], Error>({
-    queryKey: ["chataigne-delivery-gain-by-offer", start, end, restaurantIds, scope],
+    queryKey: ["chataigne-delivery-gain-by-offer", start, end, restaurantIds, scope, tax],
     queryFn: async () => {
-      const { data, error } = await rpc("get_chataigne_delivery_gain_by_offer", { p_start: start, p_end: end, p_restaurant_ids: restaurantIds });
+      const { data, error } = await rpc("get_chataigne_delivery_gain_by_offer", { p_start: start, p_end: end, p_restaurant_ids: restaurantIds, p_tax: tax });
       if (error) throw error;
       return parseOfferGainRows(data, scope);
     },
@@ -522,7 +545,7 @@ function OffersView({ start, end, restaurantIds, scope }: { start: string; end: 
                 </div>
               </Card>
               <p className="max-w-3xl text-xs text-muted-foreground">
-                Le gain est calculé comme si l'offre n'existait pas (articles au prix catalogue). Les remises accordées
+                Montants {tax === "ht" ? "hors taxe" : "TTC"}. Le gain est calculé comme si l'offre n'existait pas (articles au prix catalogue). Les remises accordées
                 {totalDiscounts > 0 && <> — <span className="font-medium text-foreground">{eur(totalDiscounts)}</span> sur la période —</>} sont le coût des offres :
                 elles ne sont pas déduites du gain livraison. « Article offert » reste hors du gain, car l'article gratuit y serait compté comme payé.
               </p>
@@ -549,6 +572,23 @@ export default function ChataigneDeliveryGain() {
   const [mode, setMode] = useState<"total" | "order">("total");
   // Par défaut : toutes les commandes, offre neutralisée (le test du modèle sur tout le volume).
   const [scope, setScope] = useState<GainScope>("all");
+  // Par défaut hors taxe : c'est ce qui reste réellement au restaurant.
+  const [tax, setTax] = useState<TaxMode>("ht");
+
+  const { data: settings } = useQuery<GainSettings>({
+    queryKey: ["chataigne-delivery-gain-settings", selectedChainId],
+    queryFn: async () => {
+      const { data, error } = await rpc("get_chataigne_delivery_gain_settings", { p_chain_id: selectedChainId });
+      if (error) throw error;
+      const r = (data ?? [])[0] ?? {};
+      return {
+        vatItems: num(r.vat_items), vatFees: num(r.vat_customer_fees), vatUber: num(r.vat_uber_direct),
+        vatNote: r.vat_note == null ? null : String(r.vat_note), stripePct: num(r.stripe_pct), stripeFixed: num(r.stripe_fixed_eur),
+      };
+    },
+    enabled: !!selectedChainId,
+  });
+  const vs = (kind: VatKind) => vatSuffix(kind, tax, settings);
 
   const { data: restaurants } = useQuery({
     queryKey: ["chataigne-gain-restaurants", selectedChainId],
@@ -568,13 +608,14 @@ export default function ChataigneDeliveryGain() {
   }, [restaurants, selectedRestaurants, selectedChainId]);
 
   const { data, isLoading, error } = useQuery<DeliveryGainRow[], Error>({
-    queryKey: ["chataigne-delivery-gain", start, end, restaurantIds, scope],
+    queryKey: ["chataigne-delivery-gain", start, end, restaurantIds, scope, tax],
     queryFn: async () => {
       const { data, error } = await rpc("get_chataigne_delivery_gain", {
         p_start: start,
         p_end: end,
         p_restaurant_ids: restaurantIds,
         p_scope: scope,
+        p_tax: tax,
       });
       if (error) throw error;
       return parseDeliveryGainRows(data);
@@ -587,8 +628,12 @@ export default function ChataigneDeliveryGain() {
   const hasFees = totals.takeawayGap != null;
   // Sans réglage de frais (ou sans Uber Direct relié), les colonnes correspondantes ne sont pas affichées.
   const cols = useMemo(
-    () => FIG_COLS.filter((c) => (hasFees || !FEE_KEYS.includes(c.key)) && (hasUber || ["mk", "liv"].includes(c.key))),
-    [hasFees, hasUber],
+    () =>
+      FIG_COLS.filter((c) => (hasFees || !FEE_KEYS.includes(c.key)) && (hasUber || ["mk", "liv"].includes(c.key))).map((c) => ({
+        ...c,
+        tip: c.tip + vatSuffix(c.vat, tax, settings),
+      })),
+    [hasFees, hasUber, tax, settings],
   );
   const effectiveSort: SortKey = sortKey === "name" || sortKey === "orders" || cols.some((c) => c.key === sortKey) ? sortKey : hasUber ? "gain" : "mk";
 
@@ -630,8 +675,8 @@ export default function ChataigneDeliveryGain() {
           [scope === "all" ? "Commandes livrées (offre neutralisée)" : "Commandes livrées sans offre"]: r.orders,
           "dont avec course Uber Direct (base des montants)": r.real_orders,
           [scope === "all" ? "Commandes « article offert » (non comptées)" : "Commandes avec offre (non comptées)"]: r.orders_with_offer,
-          "Articles payés en livraison (€ TTC)": f.art,
-          "Mêmes articles au prix emporté (€ TTC)": f.emp,
+          [`Articles payés en livraison (€ ${tax === "ht" ? "HT" : "TTC"})`]: f.art,
+          [`Mêmes articles au prix emporté (€ ${tax === "ht" ? "HT" : "TTC"})`]: f.emp,
           "Markup (€)": f.mk,
           "Frais de livraison payés par le client (€)": f.liv,
           "Frais de service payés par le client (€)": f.svc,
@@ -648,7 +693,7 @@ export default function ChataigneDeliveryGain() {
     );
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, sheet, "Gain livraison");
-    XLSX.writeFile(wb, `gain-livraison-whatsapp_${scope === "all" ? "toutes-commandes" : "sans-offre"}_${start}_${end}.xlsx`);
+    XLSX.writeFile(wb, `gain-livraison-whatsapp_${tax}_${scope === "all" ? "toutes-commandes" : "sans-offre"}_${start}_${end}.xlsx`);
   };
 
   const colCount = cols.length + 2;
@@ -668,14 +713,22 @@ export default function ChataigneDeliveryGain() {
                 {scope === "all"
                   ? "Toutes les commandes livrées, comptées comme si l'offre client n'existait pas (bienvenue, parrainage, promo)"
                   : "Seulement les commandes livrées sans aucune offre client (ni bienvenue, ni parrainage, ni promo)"}
-                {data ? <> : <span className="font-medium text-foreground">{int(totals.orders)} commandes</span>. Montants TTC.</> : "."}
+                {data ? <> : <span className="font-medium text-foreground">{int(totals.orders)} commandes</span>. Montants {tax === "ht" ? "hors taxe" : "TTC"}.</> : "."}
               </p>
-              <Tabs value={scope} onValueChange={(v) => { setScope(v as GainScope); setOpenId(null); }} className="mt-3">
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+              <Tabs value={tax} onValueChange={(v) => setTax(v as TaxMode)}>
+                <TabsList>
+                  <TabsTrigger value="ht" title="Ce qui reste réellement au restaurant : la TVA encaissée sur les ventes est retirée, la TVA payée à Uber Direct aussi (le restaurant la récupère).">Hors taxe</TabsTrigger>
+                  <TabsTrigger value="ttc" title="Les montants tels que le client les paie et tels qu'Uber Direct les facture, TVA comprise.">TTC</TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <Tabs value={scope} onValueChange={(v) => { setScope(v as GainScope); setOpenId(null); }}>
                 <TabsList>
                   <TabsTrigger value="all" title="Toutes les commandes livrées, comptées comme si l'offre client n'existait pas. La remise est un coût d'acquisition, visible dans « Par offre ».">Toutes les commandes</TabsTrigger>
                   <TabsTrigger value="no_offer" title="Seulement les commandes livrées sans aucune offre client. Moins de commandes, et un panier plus petit.">Sans offre uniquement</TabsTrigger>
                 </TabsList>
               </Tabs>
+              </div>
             </div>
             <Button variant="outline" size="sm" onClick={exportExcel} disabled={rows.length === 0}>
               <FileSpreadsheet className="mr-2 h-4 w-4" />
@@ -706,17 +759,17 @@ export default function ChataigneDeliveryGain() {
               <section className="space-y-3">
                 <h2 className="text-lg font-semibold">Par commande, en moyenne</h2>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Chip label="Markup" value={eur(totals.markupPerOrder)} tip="Ce que le restaurant encaisse en plus sur les articles parce que la commande est livrée : le prix livraison est plus élevé que le prix emporté." />
+                  <Chip label="Markup" value={eur(totals.markupPerOrder)} tip={"Ce que le restaurant encaisse en plus sur les articles parce que la commande est livrée : le prix livraison est plus élevé que le prix emporté." + vs("items")} />
                   <Plus className="h-4 w-4 text-muted-foreground" aria-label="plus" />
-                  <Chip label="Frais de livraison client" value={eur(totals.feesPerOrder)} tip="Frais de livraison payés par le client, en moyenne par commande." />
+                  <Chip label="Frais de livraison client" value={eur(totals.feesPerOrder)} tip={"Frais de livraison payés par le client, en moyenne par commande." + vs("fees")} />
                   <Minus className="h-4 w-4 text-muted-foreground" aria-label="moins" />
-                  <Chip label="Facturé par Uber Direct" value={eur(totals.uberPerOrder)} tip="Ce qu'Uber Direct facture au restaurant pour la course, en moyenne. Montant lu chez Uber Direct, jamais saisi à la main." />
+                  <Chip label="Facturé par Uber Direct" value={eur(totals.uberPerOrder)} tip={"Ce qu'Uber Direct facture au restaurant pour la course, en moyenne. Montant lu chez Uber Direct, jamais saisi à la main." + vs("uber")} />
                   <Equal className="h-4 w-4 text-muted-foreground" aria-label="égale" />
                   <Chip
                     label="Gain livraison"
                     value={eur(totals.gainPerOrder, true)}
                     sub="le client paie-t-il la course ?"
-                    tip="Markup + frais de livraison payés par le client − course Uber Direct. Négatif : le restaurant paie une partie de la course de sa poche."
+                    tip={"Markup + frais de livraison payés par le client − course Uber Direct. Négatif : le restaurant paie une partie de la course de sa poche." + vs("mix")}
                     highlight={totals.gainPerOrder == null ? undefined : totals.gainPerOrder >= 0 ? "good" : "bad"}
                   />
                   {hasFees && (
@@ -724,7 +777,7 @@ export default function ChataigneDeliveryGain() {
                       label="Écart vs emporté"
                       value={eur(totals.takeawayGapPerOrder, true)}
                       sub="livrée, comparée à la même commande à emporter"
-                      tip="Ce qu'une commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter. On ajoute au gain livraison le frais de service payé en plus par le client livré, et on retire le petit supplément de frais Stripe (estimé)."
+                      tip={"Ce qu'une commande livrée laisse au restaurant en plus (ou en moins) que la même commande à emporter. On ajoute au gain livraison le frais de service payé en plus par le client livré, et on retire le petit supplément de frais Stripe (estimé)." + vs("mix")}
                       highlight={(totals.takeawayGapPerOrder ?? 0) >= 0 ? "good" : "bad"}
                     />
                   )}
@@ -848,7 +901,7 @@ export default function ChataigneDeliveryGain() {
                                     <div className="mb-2 text-xs font-medium text-muted-foreground">
                                       Détail des {int(r.orders)} commande{r.orders > 1 ? "s" : ""} de {r.restaurant_name} — cliquez sur une commande pour voir ce que le client a commandé
                                     </div>
-                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} cols={cols} scope={scope} />
+                                    <OrdersDetail restaurantId={r.restaurant_id} restaurantName={r.restaurant_name} start={start} end={end} cols={cols} scope={scope} tax={tax} />
                                   </TableCell>
                                 </TableRow>
                               )}
@@ -871,7 +924,7 @@ export default function ChataigneDeliveryGain() {
               </section>
 
               {/* ---------------- Par offre ---------------- */}
-              {restaurantIds && <OffersView start={start} end={end} restaurantIds={restaurantIds} scope={scope} />}
+              {restaurantIds && <OffersView start={start} end={end} restaurantIds={restaurantIds} scope={scope} tax={tax} />}
 
               {/* ---------------- D'où viennent les chiffres ---------------- */}
               <Collapsible>
@@ -907,6 +960,12 @@ export default function ChataigneDeliveryGain() {
                         Le frais Châtaigne est le même en livraison et en emporté : il n'entre pas dans la comparaison.
                       </li>
                     )}
+                    <li>
+                      <span className="font-medium text-foreground">TVA</span> : en vue hors taxe, chaque montant est ramené hors TVA avec le taux réglé pour l'enseigne.
+                      Articles et markup : {pct(settings?.vatItems)}. Frais de livraison et de service payés par le client : {pct(settings?.vatFees)}.
+                      Course Uber Direct : {pct(settings?.vatUber)} (le montant lu chez Uber Direct est TTC). Frais de paiement et frais Châtaigne : pas de TVA.
+                      {settings?.vatNote && <> {settings.vatNote}</>}
+                    </li>
                     <li>
                       {scope === "all" ? (
                         <>
