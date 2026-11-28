@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      _tmp_splash_relecture_20261128: {
+        Row: {
+          ids: Json | null
+          lance: string | null
+          lot: number | null
+          mois: number | null
+          request_id: number | null
+        }
+        Insert: {
+          ids?: Json | null
+          lance?: string | null
+          lot?: number | null
+          mois?: number | null
+          request_id?: number | null
+        }
+        Update: {
+          ids?: Json | null
+          lance?: string | null
+          lot?: number | null
+          mois?: number | null
+          request_id?: number | null
+        }
+        Relationships: []
+      }
       action_categories: {
         Row: {
           icon: string
@@ -7444,6 +7468,41 @@ export type Database = {
           },
         ]
       }
+      chataigne_channel_fees: {
+        Row: {
+          chain_id: string
+          chataigne_fee_eur: number
+          note: string | null
+          stripe_fixed_eur: number
+          stripe_pct: number
+          updated_at: string
+        }
+        Insert: {
+          chain_id: string
+          chataigne_fee_eur: number
+          note?: string | null
+          stripe_fixed_eur: number
+          stripe_pct: number
+          updated_at?: string
+        }
+        Update: {
+          chain_id?: string
+          chataigne_fee_eur?: number
+          note?: string | null
+          stripe_fixed_eur?: number
+          stripe_pct?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_channel_fees_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: true
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chataigne_customers: {
         Row: {
           chain_id: string
@@ -7956,6 +8015,41 @@ export type Database = {
             foreignKeyName: "chataigne_sync_runs_chain_id_fkey"
             columns: ["chain_id"]
             isOneToOne: false
+            referencedRelation: "chains"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      chataigne_vat_rates: {
+        Row: {
+          chain_id: string
+          note: string | null
+          updated_at: string
+          vat_customer_fees: number
+          vat_items: number
+          vat_uber_direct: number
+        }
+        Insert: {
+          chain_id: string
+          note?: string | null
+          updated_at?: string
+          vat_customer_fees: number
+          vat_items: number
+          vat_uber_direct: number
+        }
+        Update: {
+          chain_id?: string
+          note?: string | null
+          updated_at?: string
+          vat_customer_fees?: number
+          vat_items?: number
+          vat_uber_direct?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chataigne_vat_rates_chain_id_fkey"
+            columns: ["chain_id"]
+            isOneToOne: true
             referencedRelation: "chains"
             referencedColumns: ["id"]
           },
@@ -11019,6 +11113,33 @@ export type Database = {
         }
         Relationships: []
       }
+      orders_source_daily_summary: {
+        Row: {
+          data_source: string
+          day: string
+          order_count: number
+          refreshed_at: string
+          restaurant_id: string
+          revenue: number
+        }
+        Insert: {
+          data_source: string
+          day: string
+          order_count?: number
+          refreshed_at?: string
+          restaurant_id: string
+          revenue?: number
+        }
+        Update: {
+          data_source?: string
+          day?: string
+          order_count?: number
+          refreshed_at?: string
+          restaurant_id?: string
+          revenue?: number
+        }
+        Relationships: []
+      }
       payout_adjustment_backfill_requests: {
         Row: {
           already_present_lines: number
@@ -12497,7 +12618,11 @@ export type Database = {
           account_manager_phone: string | null
           account_manager_title: string | null
           address: string | null
+          cash_first_date: string | null
+          cash_history_start: string | null
+          cash_is_opening: boolean | null
           chain_id: string
+          channel_dates_refreshed_at: string | null
           city: string | null
           coverage_radius_km: number | null
           created_at: string
@@ -12507,22 +12632,15 @@ export type Database = {
           deliveroo_account_manager_phone: string | null
           deliveroo_account_manager_title: string | null
           deliveroo_closing_date: string | null
+          deliveroo_first_date: string | null
+          deliveroo_history_start: string | null
+          deliveroo_is_opening: boolean | null
           deliveroo_opening_date: string | null
           deliveroo_store_id: string | null
           denomination_sociale: string | null
           dirigeant_legal: string | null
           first_activity_date: string | null
           first_activity_source: string | null
-          uber_first_date: string | null
-          uber_history_start: string | null
-          cash_first_date: string | null
-          cash_history_start: string | null
-          deliveroo_first_date: string | null
-          deliveroo_history_start: string | null
-          channel_dates_refreshed_at: string | null
-          uber_is_opening: boolean | null
-          cash_is_opening: boolean | null
-          deliveroo_is_opening: boolean | null
           id: string
           is_active: boolean | null
           is_pinned: boolean | null
@@ -12548,6 +12666,9 @@ export type Database = {
           uber_auth_error: string | null
           uber_closing_date: string | null
           uber_commission_rate: number | null
+          uber_first_date: string | null
+          uber_history_start: string | null
+          uber_is_opening: boolean | null
           uber_opening_date: string | null
           uber_pos_activated_at: string | null
           uber_store_id: string | null
@@ -12558,7 +12679,11 @@ export type Database = {
           account_manager_phone?: string | null
           account_manager_title?: string | null
           address?: string | null
+          cash_first_date?: string | null
+          cash_history_start?: string | null
+          cash_is_opening?: boolean | null
           chain_id: string
+          channel_dates_refreshed_at?: string | null
           city?: string | null
           coverage_radius_km?: number | null
           created_at?: string
@@ -12568,22 +12693,15 @@ export type Database = {
           deliveroo_account_manager_phone?: string | null
           deliveroo_account_manager_title?: string | null
           deliveroo_closing_date?: string | null
+          deliveroo_first_date?: string | null
+          deliveroo_history_start?: string | null
+          deliveroo_is_opening?: boolean | null
           deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
           denomination_sociale?: string | null
           dirigeant_legal?: string | null
           first_activity_date?: string | null
           first_activity_source?: string | null
-          uber_first_date?: string | null
-          uber_history_start?: string | null
-          cash_first_date?: string | null
-          cash_history_start?: string | null
-          deliveroo_first_date?: string | null
-          deliveroo_history_start?: string | null
-          channel_dates_refreshed_at?: string | null
-          uber_is_opening?: boolean | null
-          cash_is_opening?: boolean | null
-          deliveroo_is_opening?: boolean | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -12609,6 +12727,9 @@ export type Database = {
           uber_auth_error?: string | null
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
+          uber_first_date?: string | null
+          uber_history_start?: string | null
+          uber_is_opening?: boolean | null
           uber_opening_date?: string | null
           uber_pos_activated_at?: string | null
           uber_store_id?: string | null
@@ -12619,7 +12740,11 @@ export type Database = {
           account_manager_phone?: string | null
           account_manager_title?: string | null
           address?: string | null
+          cash_first_date?: string | null
+          cash_history_start?: string | null
+          cash_is_opening?: boolean | null
           chain_id?: string
+          channel_dates_refreshed_at?: string | null
           city?: string | null
           coverage_radius_km?: number | null
           created_at?: string
@@ -12629,22 +12754,15 @@ export type Database = {
           deliveroo_account_manager_phone?: string | null
           deliveroo_account_manager_title?: string | null
           deliveroo_closing_date?: string | null
+          deliveroo_first_date?: string | null
+          deliveroo_history_start?: string | null
+          deliveroo_is_opening?: boolean | null
           deliveroo_opening_date?: string | null
           deliveroo_store_id?: string | null
           denomination_sociale?: string | null
           dirigeant_legal?: string | null
           first_activity_date?: string | null
           first_activity_source?: string | null
-          uber_first_date?: string | null
-          uber_history_start?: string | null
-          cash_first_date?: string | null
-          cash_history_start?: string | null
-          deliveroo_first_date?: string | null
-          deliveroo_history_start?: string | null
-          channel_dates_refreshed_at?: string | null
-          uber_is_opening?: boolean | null
-          cash_is_opening?: boolean | null
-          deliveroo_is_opening?: boolean | null
           id?: string
           is_active?: boolean | null
           is_pinned?: boolean | null
@@ -12670,6 +12788,9 @@ export type Database = {
           uber_auth_error?: string | null
           uber_closing_date?: string | null
           uber_commission_rate?: number | null
+          uber_first_date?: string | null
+          uber_history_start?: string | null
+          uber_is_opening?: boolean | null
           uber_opening_date?: string | null
           uber_pos_activated_at?: string | null
           uber_store_id?: string | null
@@ -12683,6 +12804,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      restaurants_first_activity_backup_20261120: {
+        Row: {
+          first_activity_date: string | null
+          first_activity_source: string | null
+          id: string | null
+          saved_at: string | null
+        }
+        Insert: {
+          first_activity_date?: string | null
+          first_activity_source?: string | null
+          id?: string | null
+          saved_at?: string | null
+        }
+        Update: {
+          first_activity_date?: string | null
+          first_activity_source?: string | null
+          id?: string | null
+          saved_at?: string | null
+        }
+        Relationships: []
       }
       scheduled_messages: {
         Row: {
@@ -14958,6 +15100,71 @@ export type Database = {
         Args: { p_restaurant_id: string }
         Returns: number
       }
+      chataigne_delivery_gain_base: {
+        Args: {
+          p_end: string
+          p_restaurant_ids: string[]
+          p_start: string
+          p_tax: string
+        }
+        Returns: {
+          chain_id: string
+          chataigne_fee: number
+          delivery_fee: number
+          discount: number
+          distance_km: number
+          gain: number
+          item_qty: number
+          items_delivery: number
+          items_takeaway: number
+          markup: number
+          no_offer: boolean
+          offer_kind: string
+          offer_label: string
+          order_datetime: string
+          order_id: string
+          paid_amount: number
+          qty_no_ref: number
+          qty_ref_grid: number
+          qty_ref_resto: number
+          qty_ref_version: number
+          real_cost: number
+          restaurant_id: string
+          service_extra: number
+          service_fee: number
+          short_id: string
+          stripe_extra: number
+          stripe_fee: number
+          takeaway_gap: number
+          total_amount: number
+        }[]
+      }
+      chataigne_delivery_gain_core: {
+        Args: { p_end: string; p_restaurant_ids: string[]; p_start: string }
+        Returns: {
+          cap_cost: number
+          chain_id: string
+          delivery_fee: number
+          discount: number
+          distance_km: number
+          item_qty: number
+          markup: number
+          no_offer: boolean
+          offer_kind: string
+          offer_label: string
+          order_datetime: string
+          order_id: string
+          qty_no_ref: number
+          qty_ref_grid: number
+          qty_ref_resto: number
+          qty_ref_version: number
+          real_cost: number
+          restaurant_id: string
+          short_id: string
+          takeaway_service_fee: number
+          total_amount: number
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -15453,6 +15660,116 @@ export type Database = {
           date: string
           order_count: number
           revenue_ttc: number
+        }[]
+      }
+      get_chataigne_delivery_gain: {
+        Args: {
+          p_end: string
+          p_restaurant_ids: string[]
+          p_scope?: string
+          p_start: string
+          p_tax?: string
+        }
+        Returns: {
+          avg_distance_km: number
+          cap_cost: number
+          cap_orders: number
+          chataigne_fees: number
+          delivery_fees: number
+          gain_cap: number
+          gain_real: number
+          item_qty: number
+          loss_orders_cap: number
+          markup: number
+          orders: number
+          orders_with_offer: number
+          qty_no_ref: number
+          qty_ref_grid: number
+          qty_ref_resto: number
+          qty_ref_version: number
+          real_cost: number
+          real_delivery_fees: number
+          real_markup: number
+          real_orders: number
+          real_service_extra: number
+          real_service_fees: number
+          real_stripe_extra: number
+          real_total: number
+          restaurant_id: string
+          restaurant_name: string
+          stripe_fees: number
+          takeaway_gap: number
+        }[]
+      }
+      get_chataigne_delivery_gain_by_offer: {
+        Args: {
+          p_end: string
+          p_restaurant_ids: string[]
+          p_start: string
+          p_tax?: string
+        }
+        Returns: {
+          delivery_fees: number
+          discounts: number
+          discounts_all: number
+          gain_real: number
+          items_delivery: number
+          loss_orders: number
+          markup: number
+          offer_kind: string
+          offer_labels: string
+          orders: number
+          real_cost: number
+          real_orders: number
+          takeaway_gap: number
+        }[]
+      }
+      get_chataigne_delivery_gain_orders: {
+        Args: {
+          p_end: string
+          p_restaurant_id: string
+          p_scope?: string
+          p_start: string
+          p_tax?: string
+        }
+        Returns: {
+          cap_cost: number
+          chataigne_fee: number
+          delivery_fee: number
+          discount: number
+          distance_km: number
+          full_result: number
+          gain_cap: number
+          gain_real: number
+          items_delivery: number
+          items_takeaway: number
+          items_without_ref: number
+          markup: number
+          offer_kind: string
+          offer_label: string
+          order_datetime: string
+          order_id: string
+          paid_amount: number
+          real_cost: number
+          service_balance: number
+          service_extra: number
+          service_fee: number
+          short_id: string
+          stripe_extra: number
+          stripe_fee: number
+          takeaway_gap: number
+          total_amount: number
+        }[]
+      }
+      get_chataigne_delivery_gain_settings: {
+        Args: { p_chain_id: string }
+        Returns: {
+          stripe_fixed_eur: number
+          stripe_pct: number
+          vat_customer_fees: number
+          vat_items: number
+          vat_note: string
+          vat_uber_direct: number
         }[]
       }
       get_chataigne_heatmap: {
@@ -16360,6 +16677,22 @@ export type Database = {
           weekday_orders: number
         }[]
       }
+      get_order_errors_summary: {
+        Args: {
+          p_end_date: string
+          p_restaurant_ids: string[]
+          p_start_date: string
+        }
+        Returns: {
+          category: string
+          error_lines: number
+          error_orders: number
+          financial_impact: number
+          level: string
+          restaurant_id: string
+          weekday: number
+        }[]
+      }
       get_orders_commission_by_fulfillment: {
         Args: {
           p_end_date: string
@@ -17173,6 +17506,10 @@ export type Database = {
         Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
         Returns: undefined
       }
+      ods_source_recompute_range: {
+        Args: { p_end: string; p_restaurant_ids?: string[]; p_start: string }
+        Returns: undefined
+      }
       ohds_backfill_step: { Args: never; Returns: string }
       ohds_nightly: { Args: never; Returns: undefined }
       ohds_recompute_pairs: { Args: { p_pairs: Json }; Returns: undefined }
@@ -17259,6 +17596,10 @@ export type Database = {
           p_restaurant_ids?: string[]
           p_start_date: string
         }
+        Returns: number
+      }
+      refresh_restaurant_channel_dates: {
+        Args: { p_restaurant_ids?: string[] }
         Returns: number
       }
       refresh_restaurant_first_activity: {
