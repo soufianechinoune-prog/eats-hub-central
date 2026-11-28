@@ -170,6 +170,7 @@ serve(async (req) => {
       network_only = false,
       skip_network = false,
       chain_connection_id,
+      days, // mode=sync, granularity=day : liste de jours du mois à relire (par défaut tout le mois)
       sync_all_active = false,
       scope = "today", // 'today' | 'month' — utilisé seulement avec sync_all_active
       only_chain_id, // si fourni, ne sync que cette chain (fan-out)
@@ -199,6 +200,14 @@ serve(async (req) => {
       const today = now.getDate();
       const yesterday = today - 1;
       const todayDayList = yesterday >= 1 ? [yesterday, today] : [today];
+      // Le 1er du mois, « la veille » est le dernier jour du mois précédent : il faut le relire aussi.
+      // Constat du 28/11/2026 : sans cela, le dernier jour de chaque mois n'était lu que le soir même
+      // (00 h 50 heure de Paris), avant la fermeture des restaurants. Octobre 2026 : 357 tickets et 16 272 €
+      // manquants sur le réseau Chicken Street (Reims : 32 tickets, 379,56 €).
+      const prevMonthLastDay = yesterday >= 1 ? null : (() => {
+        const d = new Date(Date.UTC(targetYearC, targetMonthC - 1, 0));
+        return { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() };
+      })();
 
       // En scope=month sans only_chain_id : fan-out 1 invocation par chain
       if (scope === "month" && !only_chain_id && (connections?.length ?? 0) > 1) {
@@ -267,6 +276,19 @@ serve(async (req) => {
             chainId: conn.chain_id,
             dayList: scope === "today" ? todayDayList : undefined,
           });
+          if (scope === "today" && prevMonthLastDay) {
+            inserted += await runSync({
+              supabase: supabaseAdmin,
+              token,
+              year: prevMonthLastDay.year,
+              month: prevMonthLastDay.month,
+              granularity: "day",
+              splashIds,
+              networkOnly: false,
+              chainId: conn.chain_id,
+              dayList: [prevMonthLastDay.day],
+            });
+          }
 
           // Fenêtre glissante 15 jours : Splash peut remonter des ventes en retard
           // (coupure de connexion). On repasse aussi la fin du mois précédent.
@@ -434,9 +456,11 @@ serve(async (req) => {
       const CONCURRENCY = 5;
 
       // Pour granularity=day, on doit boucler sur chaque jour du mois (l'API renvoie 1 point par appel)
+      const monthDays = Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1);
+      const wantedDays = Array.isArray(days) ? days.map(Number).filter((d) => monthDays.includes(d)) : [];
       const dayList: number[] =
         granularity === "day"
-          ? Array.from({ length: daysInMonth(targetYear, targetMonth) }, (_, i) => i + 1)
+          ? (wantedDays.length > 0 ? wantedDays : monthDays)
           : [1];
 
       for (let i = 0; i < allTargets.length; i += CONCURRENCY) {
